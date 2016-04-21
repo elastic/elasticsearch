@@ -150,9 +150,9 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         try {
             bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
-            fail("should have thrown an exception about the unknown paramater _foo");
+            fail("should have thrown an exception about the unknown parameter _foo");
         } catch (IllegalArgumentException e) {
-            assertThat("message contains error about the unknown paramater _foo: " + e.getMessage(),
+            assertThat("message contains error about the unknown parameter _foo: " + e.getMessage(),
                     e.getMessage().contains("Action/metadata line [3] contains an unknown parameter [_foo]"), equalTo(true));
         }
     }

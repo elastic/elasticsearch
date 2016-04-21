@@ -39,15 +39,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.singletonMap;
-
 /**
  *
  */
 public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
     private static final List<String> STANDARD_HIGHLIGHTERS_BY_PRECEDENCE = Arrays.asList("fvh", "postings", "plain");
-    private static final Map<String, ? extends SearchParseElement> PARSE_ELEMENTS = singletonMap("highlight",
-            new HighlighterParseElement());
 
     private final Highlighters highlighters;
 
@@ -57,9 +53,13 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
         this.highlighters = highlighters;
     }
 
+    /**
+     * highlighters do not have a parse element, they use
+     * {@link HighlightBuilder#fromXContent(org.elasticsearch.index.query.QueryParseContext)} for parsing instead.
+     */
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        return PARSE_ELEMENTS;
+        return Collections.emptyMap();
     }
 
     @Override

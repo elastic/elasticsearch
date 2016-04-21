@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -483,25 +484,27 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * Constructs a new NON scoring child query, with the child type and the query to run on the child documents. The
+     * Constructs a new has_child query, with the child type and the query to run on the child documents. The
      * results of this query are the parent docs that those child docs matched.
      *
-     * @param type  The child type.
-     * @param query The query.
+     * @param type      The child type.
+     * @param query     The query.
+     * @param scoreMode How the scores from the children hits should be aggregated into the parent hit.
      */
-    public static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder query) {
-        return new HasChildQueryBuilder(type, query);
+    public static HasChildQueryBuilder hasChildQuery(String type, QueryBuilder query, ScoreMode scoreMode) {
+        return new HasChildQueryBuilder(type, query, scoreMode);
     }
 
     /**
-     * Constructs a new NON scoring parent query, with the parent type and the query to run on the parent documents. The
+     * Constructs a new parent query, with the parent type and the query to run on the parent documents. The
      * results of this query are the children docs that those parent docs matched.
      *
-     * @param type  The parent type.
-     * @param query The query.
+     * @param type      The parent type.
+     * @param query     The query.
+     * @param score     Whether the score from the parent hit should propogate to the child hit
      */
-    public static HasParentQueryBuilder hasParentQuery(String type, QueryBuilder query) {
-        return new HasParentQueryBuilder(type, query);
+    public static HasParentQueryBuilder hasParentQuery(String type, QueryBuilder query, boolean score) {
+        return new HasParentQueryBuilder(type, query, score);
     }
 
     /**
@@ -512,8 +515,8 @@ public abstract class QueryBuilders {
         return new ParentIdQueryBuilder(type, id);
     }
 
-    public static NestedQueryBuilder nestedQuery(String path, QueryBuilder query) {
-        return new NestedQueryBuilder(path, query);
+    public static NestedQueryBuilder nestedQuery(String path, QueryBuilder query, ScoreMode scoreMode) {
+        return new NestedQueryBuilder(path, query, scoreMode);
     }
 
     /**
@@ -587,10 +590,14 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A query that will execute the wrapped query only for the specified indices, and "match_all" when
-     * it does not match those indices.
+     * A query that will execute the wrapped query only for the specified
+     * indices, and "match_all" when it does not match those indices.
+     *
+     * @deprecated instead search on the `_index` field
      */
+    @Deprecated
     public static IndicesQueryBuilder indicesQuery(QueryBuilder queryBuilder, String... indices) {
+        // TODO remove this method in 6.0
         return new IndicesQueryBuilder(queryBuilder, indices);
     }
 
@@ -830,6 +837,24 @@ public abstract class QueryBuilders {
      */
     public static ExistsQueryBuilder existsQuery(String name) {
         return new ExistsQueryBuilder(name);
+    }
+
+    public static PercolateQueryBuilder percolateQuery(String queryField, String documentType, BytesReference document) {
+        return new PercolateQueryBuilder(queryField, documentType, document);
+    }
+
+    public static PercolateQueryBuilder percolateQuery(String queryField, String documentType, String indexedDocumentIndex,
+                                                       String indexedDocumentType, String indexedDocumentId) {
+        return new PercolateQueryBuilder(queryField, documentType, indexedDocumentIndex, indexedDocumentType, indexedDocumentId,
+                null, null, null);
+    }
+
+    public static PercolateQueryBuilder percolateQuery(String queryField, String documentType, String indexedDocumentIndex,
+                                                       String indexedDocumentType, String indexedDocumentId,
+                                                       String indexedDocumentRouting, String indexedDocumentPreference,
+                                                       Long indexedDocumentVersion) {
+        return new PercolateQueryBuilder(queryField, documentType, indexedDocumentIndex, indexedDocumentType, indexedDocumentId,
+                indexedDocumentRouting, indexedDocumentPreference, indexedDocumentVersion);
     }
 
     private QueryBuilders() {

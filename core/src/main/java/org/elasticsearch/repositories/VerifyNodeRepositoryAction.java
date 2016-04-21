@@ -22,9 +22,9 @@ package org.elasticsearch.repositories;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -69,9 +69,9 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
 
     public void verify(String repository, String verificationToken, final ActionListener<VerifyResponse> listener) {
         final DiscoveryNodes discoNodes = clusterService.state().nodes();
-        final DiscoveryNode localNode = discoNodes.localNode();
+        final DiscoveryNode localNode = discoNodes.getLocalNode();
 
-        final ObjectContainer<DiscoveryNode> masterAndDataNodes = discoNodes.masterAndDataNodes().values();
+        final ObjectContainer<DiscoveryNode> masterAndDataNodes = discoNodes.getMasterAndDataNodes().values();
         final List<DiscoveryNode> nodes = new ArrayList<>();
         for (ObjectCursor<DiscoveryNode> cursor : masterAndDataNodes) {
             DiscoveryNode node = cursor.value;
@@ -85,7 +85,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
                     doVerify(repository, verificationToken);
                 } catch (Throwable t) {
                     logger.warn("[{}] failed to verify repository", t, repository);
-                    errors.add(new VerificationFailure(node.id(), t));
+                    errors.add(new VerificationFailure(node.getId(), t));
                 }
                 if (counter.decrementAndGet() == 0) {
                     finishVerification(listener, nodes, errors);
@@ -101,7 +101,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
 
                     @Override
                     public void handleException(TransportException exp) {
-                        errors.add(new VerificationFailure(node.id(), exp));
+                        errors.add(new VerificationFailure(node.getId(), exp));
                         if (counter.decrementAndGet() == 0) {
                             finishVerification(listener, nodes, errors);
                         }

@@ -208,7 +208,7 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         types = in.readStringArray();
-        query = in.readQuery();
+        query = in.readNamedWriteable(QueryBuilder.class);
         routing = in.readOptionalString();
         size = in.readVInt();
         if (in.readBoolean()) {
@@ -225,7 +225,7 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeStringArray(types);
-        out.writeQuery(query);
+        out.writeNamedWriteable(query);
         out.writeOptionalString(routing);
         out.writeVInt(size);
         out.writeOptionalStreamable(scroll);

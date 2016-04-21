@@ -17,9 +17,7 @@
           "test1": {
             "type": "text",
             "store": true,
-            "fielddata": {
-              "loading": "eager"
-            }
+            "eager_global_ordinals": true
           },
           "test2": {
             "type": "token_count",

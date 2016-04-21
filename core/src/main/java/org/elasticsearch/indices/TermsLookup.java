@@ -34,9 +34,7 @@ import java.util.Objects;
 /**
  * Encapsulates the parameters needed to fetch terms.
  */
-public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
-    static final TermsLookup PROTOTYPE = new TermsLookup("index", "type", "id", "path");
-
+public class TermsLookup implements Writeable, ToXContent {
     private String index;
     private final String type;
     private final String id;
@@ -62,6 +60,26 @@ public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
         this.type = type;
         this.id = id;
         this.path = path;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public TermsLookup(StreamInput in) throws IOException {
+        type = in.readString();
+        id = in.readString();
+        path = in.readString();
+        index = in.readOptionalString();
+        routing = in.readOptionalString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(type);
+        out.writeString(id);
+        out.writeString(path);
+        out.writeOptionalString(index);
+        out.writeOptionalString(routing);
     }
 
     public String index() {
@@ -137,30 +155,6 @@ public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
     @Override
     public String toString() {
         return index + "/" + type + "/" + id + "/" + path;
-    }
-
-    @Override
-    public TermsLookup readFrom(StreamInput in) throws IOException {
-        String type = in.readString();
-        String id = in.readString();
-        String path = in.readString();
-        String index = in.readOptionalString();
-        TermsLookup termsLookup = new TermsLookup(index, type, id, path);
-        termsLookup.routing = in.readOptionalString();
-        return termsLookup;
-    }
-
-    public static TermsLookup readTermsLookupFrom(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(type);
-        out.writeString(id);
-        out.writeString(path);
-        out.writeOptionalString(index);
-        out.writeOptionalString(routing);
     }
 
     @Override

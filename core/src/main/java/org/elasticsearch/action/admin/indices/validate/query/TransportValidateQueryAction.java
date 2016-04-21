@@ -29,13 +29,13 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
@@ -168,8 +168,6 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().id());
-        final QueryShardContext queryShardContext = indexService.newQueryShardContext();
-        queryShardContext.setTypes(request.types());
 
         boolean valid;
         String explanation = null;
@@ -182,7 +180,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
                 parseFieldMatcher, SearchService.NO_TIMEOUT, fetchPhase);
         SearchContext.setCurrent(searchContext);
         try {
-            searchContext.parsedQuery(queryShardContext.toQuery(request.query()));
+            searchContext.parsedQuery(searchContext.getQueryShardContext().toQuery(request.query()));
             searchContext.preProcess();
 
             valid = true;

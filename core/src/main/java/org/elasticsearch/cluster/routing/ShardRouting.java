@@ -266,7 +266,7 @@ public final class ShardRouting implements Streamable, ToXContent {
             return false;
         }
 
-        if (indexMetaData.activeAllocationIds(id()).isEmpty() && indexMetaData.getCreationVersion().onOrAfter(Version.V_3_0_0)) {
+        if (indexMetaData.activeAllocationIds(id()).isEmpty() && indexMetaData.getCreationVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
             // when no shards with this id have ever been active for this index
             return false;
         }
@@ -328,7 +328,7 @@ public final class ShardRouting implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        readFrom(in, Index.readIndex(in), in.readVInt());
+        readFrom(in, new Index(in), in.readVInt());
     }
 
     /**

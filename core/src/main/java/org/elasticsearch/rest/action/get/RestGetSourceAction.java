@@ -60,7 +60,7 @@ public class RestGetSourceAction extends BaseRestHandler {
         getRequest.routing(request.param("routing"));  // order is important, set it after routing, so it will set the routing
         getRequest.parent(request.param("parent"));
         getRequest.preference(request.param("preference"));
-        getRequest.realtime(request.paramAsBoolean("realtime", null));
+        getRequest.realtime(request.paramAsBoolean("realtime", getRequest.realtime()));
 
         getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 

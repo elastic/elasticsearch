@@ -347,4 +347,27 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
     }
+
+    public void testSimpleQueryStringUsesFieldAnalyzer() throws Exception {
+        client().prepareIndex("test", "type1", "1").setSource("foo", 123, "bar", "abc").get();
+        client().prepareIndex("test", "type1", "2").setSource("foo", 234, "bar", "bcd").get();
+
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(
+                simpleQueryStringQuery("123").field("foo").field("bar")).get();
+        assertHitCount(searchResponse, 1L);
+        assertSearchHits(searchResponse, "1");
+    }
+
+    public void testSimpleQueryStringOnIndexMetaField() throws Exception {
+        client().prepareIndex("test", "type1", "1").setSource("foo", 123, "bar", "abc").get();
+        client().prepareIndex("test", "type1", "2").setSource("foo", 234, "bar", "bcd").get();
+
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("test").field("_index")).get();
+        assertHitCount(searchResponse, 2L);
+        assertSearchHits(searchResponse, "1", "2");
+    }
 }

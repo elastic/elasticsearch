@@ -22,16 +22,17 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -130,7 +131,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         private boolean enabled = Defaults.ENABLED;
 
         public FieldNamesFieldType() {
-            setFieldDataType(new FieldDataType("string"));
         }
 
         protected FieldNamesFieldType(FieldNamesFieldType ref) {
@@ -181,16 +181,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
+        public Query termQuery(Object value, QueryShardContext context) {
+            if (isEnabled() == false) {
+                throw new IllegalStateException("Cannot run [exists] queries if the [_field_names] field is disabled");
             }
-            return value.toString();
-        }
-
-        @Override
-        public boolean useTermQueryWithQueryString() {
-            return true;
+            return super.termQuery(value, context);
         }
     }
 

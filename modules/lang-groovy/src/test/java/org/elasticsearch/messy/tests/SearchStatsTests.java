@@ -105,7 +105,7 @@ public class SearchStatsTests extends ESIntegTestCase {
         refresh();
         int iters = scaledRandomIntBetween(100, 150);
         for (int i = 0; i < iters; i++) {
-            SearchResponse searchResponse = internalCluster().clientNodeClient().prepareSearch()
+            SearchResponse searchResponse = internalCluster().coordOnlyNodeClient().prepareSearch()
                     .setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2")
                     .highlighter(new HighlightBuilder().field("field"))
                     .addScriptField("scrip1", new Script("_source.field"))
@@ -116,7 +116,7 @@ public class SearchStatsTests extends ESIntegTestCase {
         }
 
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().execute().actionGet();
-        logger.debug("###### indices search stats: " + indicesStats.getTotal().getSearch());
+        logger.debug("###### indices search stats: {}", indicesStats.getTotal().getSearch());
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryCount(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getFetchCount(), greaterThan(0L));

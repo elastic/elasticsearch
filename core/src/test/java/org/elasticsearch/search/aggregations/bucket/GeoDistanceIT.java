@@ -67,7 +67,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         return pluginList(InternalSettingsPlugin.class); // uses index.version.created
     }
 
-    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
 
     private IndexRequestBuilder indexCity(String idx, String name, String... latLons) throws Exception {
         XContentBuilder source = jsonBuilder().startObject().field("city", name);
@@ -82,7 +82,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         prepareCreate("idx").setSettings(settings)
                 .addMapping("type", "location", "type=geo_point", "city", "type=keyword")
                 .execute().actionGet();

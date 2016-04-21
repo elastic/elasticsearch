@@ -36,7 +36,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testCity() throws Exception {
         InputStream database = GeoIpProcessor.class.getResourceAsStream("/GeoLite2-City.mmdb");
-        GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field", new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Field.class));
+        GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field", new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class));
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "82.170.213.79");
@@ -62,7 +62,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testCountry() throws Exception {
         InputStream database = GeoIpProcessor.class.getResourceAsStream("/GeoLite2-Country.mmdb");
-        GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field", new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Field.class));
+        GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field", new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class));
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "82.170.213.79");
@@ -81,7 +81,7 @@ public class GeoIpProcessorTests extends ESTestCase {
 
     public void testAddressIsNotInTheDatabase() throws Exception {
         InputStream database = GeoIpProcessor.class.getResourceAsStream("/GeoLite2-City.mmdb");
-        GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field", new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Field.class));
+        GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field", new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class));
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "202.45.11.11");
@@ -95,7 +95,7 @@ public class GeoIpProcessorTests extends ESTestCase {
     /** Don't silently do DNS lookups or anything trappy on bogus data */
     public void testInvalid() throws Exception {
         InputStream database = GeoIpProcessor.class.getResourceAsStream("/GeoLite2-City.mmdb");
-        GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field", new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Field.class));
+        GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field", new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class));
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "www.google.com");

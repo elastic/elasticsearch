@@ -33,14 +33,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -69,24 +62,22 @@ import java.util.function.Supplier;
 import static org.elasticsearch.ElasticsearchException.readException;
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
+/**
+ * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
+ */
 public abstract class StreamInput extends InputStream {
-
-    private final NamedWriteableRegistry namedWriteableRegistry;
-
     private Version version = Version.CURRENT;
 
-    protected StreamInput() {
-        this.namedWriteableRegistry = new NamedWriteableRegistry();
-    }
-
-    protected StreamInput(NamedWriteableRegistry namedWriteableRegistry) {
-        this.namedWriteableRegistry = namedWriteableRegistry;
-    }
-
+    /**
+     * The version of the node on the other side of this stream.
+     */
     public Version getVersion() {
         return this.version;
     }
 
+    /**
+     * Set the version of the node on the other side of this stream.
+     */
     public void setVersion(Version version) {
         this.version = version;
     }
@@ -111,6 +102,19 @@ public abstract class StreamInput extends InputStream {
      */
     public BytesReference readBytesReference() throws IOException {
         int length = readVInt();
+        return readBytesReference(length);
+    }
+
+    /**
+     * Reads an optional bytes reference from this stream. It might hold an actual reference to the underlying bytes of the stream. Use this
+     * only if you must differentiate null from empty. Use {@link StreamInput#readBytesReference()} and
+     * {@link StreamOutput#writeBytesReference(BytesReference)} if you do not.
+     */
+    public BytesReference readOptionalBytesReference() throws IOException {
+        int length = readVInt() - 1;
+        if (length < 0) {
+            return null;
+        }
         return readBytesReference(length);
     }
 
@@ -285,6 +289,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     @Nullable
+    public Float readOptionalFloat() throws IOException {
+        if (readBoolean()) {
+            return readFloat();
+        }
+        return null;
+    }
+
+    @Nullable
     public Integer readOptionalVInt() throws IOException {
         if (readBoolean()) {
             return readVInt();
@@ -333,6 +345,13 @@ public abstract class StreamInput extends InputStream {
         return Double.longBitsToDouble(readLong());
     }
 
+    public final Double readOptionalDouble() throws IOException {
+        if (readBoolean()) {
+            return readDouble();
+        }
+        return null;
+    }
+
     /**
      * Reads a boolean.
      */
@@ -363,6 +382,9 @@ public abstract class StreamInput extends InputStream {
      */
     @Override
     public abstract void close() throws IOException;
+
+    @Override
+    public abstract int available() throws IOException;
 
     public String[] readStringArray() throws IOException {
         int size = readVInt();
@@ -478,6 +500,23 @@ public abstract class StreamInput extends InputStream {
         return new GeoPoint(readDouble(), readDouble());
     }
 
+    /**
+     * Read a {@linkplain DateTimeZone}.
+     */
+    public DateTimeZone readTimeZone() throws IOException {
+        return DateTimeZone.forID(readString());
+    }
+
+    /**
+     * Read an optional {@linkplain DateTimeZone}.
+     */
+    public DateTimeZone readOptionalTimeZone() throws IOException {
+        if (readBoolean()) {
+            return DateTimeZone.forID(readString());
+        }
+        return null;
+    }
+
     public int[] readIntArray() throws IOException {
         int length = readVInt();
         int[] values = new int[length];
@@ -549,6 +588,19 @@ public abstract class StreamInput extends InputStream {
             T streamable = supplier.get();
             streamable.readFrom(this);
             return streamable;
+        } else {
+            return null;
+        }
+    }
+
+    public <T extends Writeable> T readOptionalWriteable(Writeable.Reader<T> reader) throws IOException {
+        if (readBoolean()) {
+            T t = reader.read(this);
+            if (t == null) {
+                throw new IOException("Writeable.Reader [" + reader
+                        + "] returned null which is not allowed and probably means it screwed up the stream.");
+            }
+            return t;
         } else {
             return null;
         }
@@ -661,57 +713,19 @@ public abstract class StreamInput extends InputStream {
      * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
      * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
      */
-    <C> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
+    @Nullable
+    public <C extends NamedWriteable> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }
 
     /**
-     * Reads a {@link AggregatorBuilder} from the current stream
+     * Reads an optional {@link NamedWriteable}.
      */
-    public AggregatorBuilder readAggregatorFactory() throws IOException {
-        return readNamedWriteable(AggregatorBuilder.class);
-    }
-
-    /**
-     * Reads a {@link PipelineAggregatorBuilder} from the current stream
-     */
-    public PipelineAggregatorBuilder readPipelineAggregatorFactory() throws IOException {
-        return readNamedWriteable(PipelineAggregatorBuilder.class);
-    }
-
-    /**
-     * Reads a {@link QueryBuilder} from the current stream
-     */
-    public QueryBuilder readQuery() throws IOException {
-        return readNamedWriteable(QueryBuilder.class);
-    }
-
-    /**
-     * Reads a {@link ShapeBuilder} from the current stream
-     */
-    public ShapeBuilder readShape() throws IOException {
-        return readNamedWriteable(ShapeBuilder.class);
-    }
-
-    /**
-     * Reads a {@link RescoreBuilder} from the current stream
-     */
-    public RescoreBuilder<?> readRescorer() throws IOException {
-        return readNamedWriteable(RescoreBuilder.class);
-    }
-
-    /**
-     * Reads a {@link org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder} from the current stream
-     */
-    public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
-        return readNamedWriteable(ScoreFunctionBuilder.class);
-    }
-
-    /**
-     * Reads a {@link Task.Status} from the current stream.
-     */
-    public Task.Status readTaskStatus() throws IOException {
-        return readNamedWriteable(Task.Status.class);
+    public <C extends NamedWriteable> C readOptionalNamedWriteable(Class<C> categoryClass) throws IOException {
+        if (readBoolean()) {
+            return readNamedWriteable(categoryClass);
+        }
+        return null;
     }
 
     /**

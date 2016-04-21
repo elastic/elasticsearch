@@ -23,10 +23,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -43,12 +43,6 @@ import org.elasticsearch.transport.TransportService;
 public class TransportTermVectorsAction extends TransportSingleShardAction<TermVectorsRequest, TermVectorsResponse> {
 
     private final IndicesService indicesService;
-
-    @Override
-    protected void doExecute(TermVectorsRequest request, ActionListener<TermVectorsResponse> listener) {
-        request.startTime = System.currentTimeMillis();
-        super.doExecute(request, listener);
-    }
 
     @Inject
     public TransportTermVectorsAction(Settings settings, ClusterService clusterService, TransportService transportService,
@@ -85,9 +79,7 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     protected TermVectorsResponse shardOperation(TermVectorsRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        TermVectorsResponse response = TermVectorsService.getTermVectors(indexShard, request);
-        response.updateTookInMillis(request.startTime());
-        return response;
+        return TermVectorsService.getTermVectors(indexShard, request);
     }
 
     @Override

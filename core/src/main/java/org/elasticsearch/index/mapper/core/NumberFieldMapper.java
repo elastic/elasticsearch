@@ -19,69 +19,70 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.NumericTokenStream;
-import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.PointValues;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.core.LegacyNumberFieldMapper.Defaults;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.io.Reader;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
-/**
- *
- */
-public abstract class NumberFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
-    private static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", true, false, Setting.Scope.INDEX); // this is private since it has a different default
+/** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
+public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
 
-    public static class Defaults {
+    // this is private since it has a different default
+    private static final Setting<Boolean> COERCE_SETTING =
+            Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
 
-        public static final int PRECISION_STEP_8_BIT  = Integer.MAX_VALUE; // 1tpv: 256 terms at most, not useful
-        public static final int PRECISION_STEP_16_BIT = 8;                 // 2tpv
-        public static final int PRECISION_STEP_32_BIT = 8;                 // 4tpv
-        public static final int PRECISION_STEP_64_BIT = 16;                // 4tpv
-
-        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
-        public static final Explicit<Boolean> COERCE = new Explicit<>(true, false);
-    }
-
-    public abstract static class Builder<T extends Builder, Y extends NumberFieldMapper> extends FieldMapper.Builder<T, Y> {
+    public static class Builder extends FieldMapper.Builder<Builder, NumberFieldMapper> {
 
         private Boolean ignoreMalformed;
-
         private Boolean coerce;
 
-        public Builder(String name, MappedFieldType fieldType, int defaultPrecisionStep) {
-            super(name, fieldType, fieldType);
-            this.fieldType.setNumericPrecisionStep(defaultPrecisionStep);
+        public Builder(String name, NumberType type) {
+            super(name, new NumberFieldType(type), new NumberFieldType(type));
+            builder = this;
         }
 
-        public T precisionStep(int precisionStep) {
-            fieldType.setNumericPrecisionStep(precisionStep);
-            return builder;
-        }
-
-        public T ignoreMalformed(boolean ignoreMalformed) {
+        public Builder ignoreMalformed(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
             return builder;
         }
@@ -96,7 +97,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
             return Defaults.IGNORE_MALFORMED;
         }
 
-        public T coerce(boolean coerce) {
+        public Builder coerce(boolean coerce) {
             this.coerce = coerce;
             return builder;
         }
@@ -111,81 +112,695 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
             return Defaults.COERCE;
         }
 
+        @Override
         protected void setupFieldType(BuilderContext context) {
             super.setupFieldType(context);
-            fieldType.setOmitNorms(fieldType.omitNorms() && fieldType.boost() == 1.0f);
-            int precisionStep = fieldType.numericPrecisionStep();
-            if (precisionStep <= 0 || precisionStep >= maxPrecisionStep()) {
-                fieldType.setNumericPrecisionStep(Integer.MAX_VALUE);
-            }
-            fieldType.setIndexAnalyzer(makeNumberAnalyzer(fieldType.numericPrecisionStep()));
-            fieldType.setSearchAnalyzer(makeNumberAnalyzer(Integer.MAX_VALUE));
         }
 
-        protected abstract NamedAnalyzer makeNumberAnalyzer(int precisionStep);
-
-        protected abstract int maxPrecisionStep();
+        @Override
+        public NumberFieldMapper build(BuilderContext context) {
+            setupFieldType(context);
+            NumberFieldMapper fieldMapper = new NumberFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
+                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return (NumberFieldMapper) fieldMapper.includeInAll(includeInAll);
+        }
     }
 
-    public static abstract class NumberFieldType extends MappedFieldType {
+    public static class TypeParser implements Mapper.TypeParser {
 
-        public NumberFieldType(NumericType numericType) {
-            setTokenized(false);
-            setOmitNorms(true);
-            setIndexOptions(IndexOptions.DOCS);
-            setStoreTermVectors(false);
-            setNumericType(numericType);
-        }
+        final NumberType type;
 
-        protected NumberFieldType(NumberFieldType ref) {
-            super(ref);
+        public TypeParser(NumberType type) {
+            this.type = type;
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType other,
-                List<String> conflicts, boolean strict) {
-            super.checkCompatibility(other, conflicts, strict);
-            if (numericPrecisionStep() != other.numericPrecisionStep()) {
-                conflicts.add("mapper [" + name() + "] has different [precision_step] values");
+        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            if (parserContext.indexVersionCreated().before(Version.V_5_0_0)) {
+                switch (type) {
+                case BYTE:
+                    return new LegacyByteFieldMapper.TypeParser().parse(name, node, parserContext);
+                case SHORT:
+                    return new LegacyShortFieldMapper.TypeParser().parse(name, node, parserContext);
+                case INTEGER:
+                    return new LegacyIntegerFieldMapper.TypeParser().parse(name, node, parserContext);
+                case LONG:
+                    return new LegacyLongFieldMapper.TypeParser().parse(name, node, parserContext);
+                case FLOAT:
+                    return new LegacyFloatFieldMapper.TypeParser().parse(name, node, parserContext);
+                case DOUBLE:
+                    return new LegacyDoubleFieldMapper.TypeParser().parse(name, node, parserContext);
+                default:
+                    throw new AssertionError();
+                }
             }
+            Builder builder = new Builder(name, type);
+            TypeParsers.parseField(builder, name, node, parserContext);
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
+                String propName = entry.getKey();
+                Object propNode = entry.getValue();
+                if (propName.equals("null_value")) {
+                    if (propNode == null) {
+                        throw new MapperParsingException("Property [null_value] cannot be null.");
+                    }
+                    builder.nullValue(type.parse(propNode));
+                    iterator.remove();
+                } else if (propName.equals("ignore_malformed")) {
+                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue("ignore_malformed", propNode, parserContext));
+                    iterator.remove();
+                } else if (propName.equals("coerce")) {
+                    builder.coerce(TypeParsers.nodeBooleanValue("coerce", propNode, parserContext));
+                    iterator.remove();
+                }
+            }
+            return builder;
+        }
+    }
+
+    public enum NumberType {
+        FLOAT("float", NumericType.FLOAT) {
+            @Override
+            Float parse(Object value) {
+                if (value instanceof Number) {
+                    return ((Number) value).floatValue();
+                }
+                if (value instanceof BytesRef) {
+                    value = ((BytesRef) value).utf8ToString();
+                }
+                return Float.parseFloat(value.toString());
+            }
+
+            @Override
+            Float parse(XContentParser parser, boolean coerce) throws IOException {
+                return parser.floatValue(coerce);
+            }
+
+            @Override
+            Query termQuery(String field, Object value) {
+                float v = parse(value);
+                return FloatPoint.newExactQuery(field, v);
+            }
+
+            @Override
+            Query termsQuery(String field, List<Object> values) {
+                float[] v = new float[values.size()];
+                for (int i = 0; i < values.size(); ++i) {
+                    v[i] = parse(values.get(i));
+                }
+                return FloatPoint.newSetQuery(field, v);
+            }
+
+            @Override
+            Query rangeQuery(String field, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+                float l = Float.NEGATIVE_INFINITY;
+                float u = Float.POSITIVE_INFINITY;
+                if (lowerTerm != null) {
+                    l = parse(lowerTerm);
+                    if (includeLower == false) {
+                        l = Math.nextUp(l);
+                    }
+                }
+                if (upperTerm != null) {
+                    u = parse(upperTerm);
+                    if (includeUpper == false) {
+                        u = Math.nextDown(u);
+                    }
+                }
+                return FloatPoint.newRangeQuery(field, l, u);
+            }
+
+            @Override
+            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
+                float base = parse(value);
+                float delta = fuzziness.asFloat();
+                return rangeQuery(field, base - delta, base + delta, true, true);
+            }
+
+            @Override
+            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                List<Field> fields = new ArrayList<>();
+                if (indexed) {
+                    fields.add(new FloatPoint(name, value.floatValue()));
+                }
+                if (docValued) {
+                    fields.add(new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(value.floatValue())));
+                }
+                if (stored) {
+                    fields.add(new StoredField(name, value.floatValue()));
+                }
+                return fields;
+            }
+
+            @Override
+            FieldStats.Double stats(IndexReader reader, String field) throws IOException {
+                long size = PointValues.size(reader, field);
+                if (size == 0) {
+                    return null;
+                }
+                int docCount = PointValues.getDocCount(reader, field);
+                byte[] min = PointValues.getMinPackedValue(reader, field);
+                byte[] max = PointValues.getMaxPackedValue(reader, field);
+                return new FieldStats.Double(reader.maxDoc(),docCount, -1L, size,
+                        FloatPoint.decodeDimension(min, 0),
+                        FloatPoint.decodeDimension(max, 0));
+            }
+        },
+        DOUBLE("double", NumericType.DOUBLE) {
+            @Override
+            Double parse(Object value) {
+                if (value instanceof Number) {
+                    return ((Number) value).doubleValue();
+                }
+                if (value instanceof BytesRef) {
+                    value = ((BytesRef) value).utf8ToString();
+                }
+                return Double.parseDouble(value.toString());
+            }
+
+            @Override
+            Double parse(XContentParser parser, boolean coerce) throws IOException {
+                return parser.doubleValue(coerce);
+            }
+
+            @Override
+            Query termQuery(String field, Object value) {
+                double v = parse(value);
+                return DoublePoint.newExactQuery(field, v);
+            }
+
+            @Override
+            Query termsQuery(String field, List<Object> values) {
+                double[] v = new double[values.size()];
+                for (int i = 0; i < values.size(); ++i) {
+                    v[i] = parse(values.get(i));
+                }
+                return DoublePoint.newSetQuery(field, v);
+            }
+
+            @Override
+            Query rangeQuery(String field, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+                double l = Double.NEGATIVE_INFINITY;
+                double u = Double.POSITIVE_INFINITY;
+                if (lowerTerm != null) {
+                    l = parse(lowerTerm);
+                    if (includeLower == false) {
+                        l = Math.nextUp(l);
+                    }
+                }
+                if (upperTerm != null) {
+                    u = parse(upperTerm);
+                    if (includeUpper == false) {
+                        u = Math.nextDown(u);
+                    }
+                }
+                return DoublePoint.newRangeQuery(field, l, u);
+            }
+
+            @Override
+            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
+                double base = parse(value);
+                double delta = fuzziness.asFloat();
+                return rangeQuery(field, base - delta, base + delta, true, true);
+            }
+
+            @Override
+            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                List<Field> fields = new ArrayList<>();
+                if (indexed) {
+                    fields.add(new DoublePoint(name, value.doubleValue()));
+                }
+                if (docValued) {
+                    fields.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(value.doubleValue())));
+                }
+                if (stored) {
+                    fields.add(new StoredField(name, value.doubleValue()));
+                }
+                return fields;
+            }
+
+            @Override
+            FieldStats.Double stats(IndexReader reader, String field) throws IOException {
+                long size = PointValues.size(reader, field);
+                if (size == 0) {
+                    return null;
+                }
+                int docCount = PointValues.getDocCount(reader, field);
+                byte[] min = PointValues.getMinPackedValue(reader, field);
+                byte[] max = PointValues.getMaxPackedValue(reader, field);
+                return new FieldStats.Double(reader.maxDoc(),docCount, -1L, size,
+                        DoublePoint.decodeDimension(min, 0),
+                        DoublePoint.decodeDimension(max, 0));
+            }
+        },
+        BYTE("byte", NumericType.BYTE) {
+            @Override
+            Byte parse(Object value) {
+                if (value instanceof Byte) {
+                    return (Byte) value;
+                }
+                if (value instanceof BytesRef) {
+                    value = ((BytesRef) value).utf8ToString();
+                }
+                return Byte.parseByte(value.toString());
+            }
+
+            @Override
+            Short parse(XContentParser parser, boolean coerce) throws IOException {
+                int value = parser.intValue(coerce);
+                if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
+                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
+                }
+                return (short) value;
+            }
+
+            @Override
+            Query termQuery(String field, Object value) {
+                return INTEGER.termQuery(field, value);
+            }
+
+            @Override
+            Query termsQuery(String field, List<Object> values) {
+                return INTEGER.termsQuery(field, values);
+            }
+
+            @Override
+            Query rangeQuery(String field, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+                return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper);
+            }
+
+            @Override
+            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
+                return INTEGER.fuzzyQuery(field, value, fuzziness);
+            }
+
+            @Override
+            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                return INTEGER.createFields(name, value, indexed, docValued, stored);
+            }
+
+            @Override
+            FieldStats.Long stats(IndexReader reader, String field) throws IOException {
+                return (FieldStats.Long) INTEGER.stats(reader, field);
+            }
+
+            @Override
+            Number valueForSearch(Number value) {
+                return value.byteValue();
+            }
+        },
+        SHORT("short", NumericType.SHORT) {
+            @Override
+            Short parse(Object value) {
+                if (value instanceof Number) {
+                    return ((Number) value).shortValue();
+                }
+                if (value instanceof BytesRef) {
+                    value = ((BytesRef) value).utf8ToString();
+                }
+                return Short.parseShort(value.toString());
+            }
+
+            @Override
+            Short parse(XContentParser parser, boolean coerce) throws IOException {
+                int value = parser.intValue(coerce);
+                if (value < Short.MIN_VALUE || value > Short.MAX_VALUE) {
+                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
+                }
+                return (short) value;
+            }
+
+            @Override
+            Query termQuery(String field, Object value) {
+                return INTEGER.termQuery(field, value);
+            }
+
+            @Override
+            Query termsQuery(String field, List<Object> values) {
+                return INTEGER.termsQuery(field, values);
+            }
+
+            @Override
+            Query rangeQuery(String field, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+                return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper);
+            }
+
+            @Override
+            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
+                return INTEGER.fuzzyQuery(field, value, fuzziness);
+            }
+
+            @Override
+            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                return INTEGER.createFields(name, value, indexed, docValued, stored);
+            }
+
+            @Override
+            FieldStats.Long stats(IndexReader reader, String field) throws IOException {
+                return (FieldStats.Long) INTEGER.stats(reader, field);
+            }
+
+            @Override
+            Number valueForSearch(Number value) {
+                return value.shortValue();
+            }
+        },
+        INTEGER("integer", NumericType.INT) {
+            @Override
+            Integer parse(Object value) {
+                if (value instanceof Number) {
+                    return ((Number) value).intValue();
+                }
+                if (value instanceof BytesRef) {
+                    value = ((BytesRef) value).utf8ToString();
+                }
+                return Integer.parseInt(value.toString());
+            }
+
+            @Override
+            Integer parse(XContentParser parser, boolean coerce) throws IOException {
+                return parser.intValue(coerce);
+            }
+
+            @Override
+            Query termQuery(String field, Object value) {
+                int v = parse(value);
+                return IntPoint.newExactQuery(field, v);
+            }
+
+            @Override
+            Query termsQuery(String field, List<Object> values) {
+                int[] v = new int[values.size()];
+                for (int i = 0; i < values.size(); ++i) {
+                    v[i] = parse(values.get(i));
+                }
+                return IntPoint.newSetQuery(field, v);
+            }
+
+            @Override
+            Query rangeQuery(String field, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+                int l = Integer.MIN_VALUE;
+                int u = Integer.MAX_VALUE;
+                if (lowerTerm != null) {
+                    l = parse(lowerTerm);
+                    if (includeLower == false) {
+                        if (l == Integer.MAX_VALUE) {
+                            return new MatchNoDocsQuery();
+                        }
+                        ++l;
+                    }
+                }
+                if (upperTerm != null) {
+                    u = parse(upperTerm);
+                    if (includeUpper == false) {
+                        if (u == Integer.MIN_VALUE) {
+                            return new MatchNoDocsQuery();
+                        }
+                        --u;
+                    }
+                }
+                return IntPoint.newRangeQuery(field, l, u);
+            }
+
+            @Override
+            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
+                int base = parse(value);
+                int delta = fuzziness.asInt();
+                return rangeQuery(field, base - delta, base + delta, true, true);
+            }
+
+            @Override
+            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                List<Field> fields = new ArrayList<>();
+                if (indexed) {
+                    fields.add(new IntPoint(name, value.intValue()));
+                }
+                if (docValued) {
+                    fields.add(new SortedNumericDocValuesField(name, value.intValue()));
+                }
+                if (stored) {
+                    fields.add(new StoredField(name, value.intValue()));
+                }
+                return fields;
+            }
+
+            @Override
+            FieldStats.Long stats(IndexReader reader, String field) throws IOException {
+                long size = PointValues.size(reader, field);
+                if (size == 0) {
+                    return null;
+                }
+                int docCount = PointValues.getDocCount(reader, field);
+                byte[] min = PointValues.getMinPackedValue(reader, field);
+                byte[] max = PointValues.getMaxPackedValue(reader, field);
+                return new FieldStats.Long(reader.maxDoc(),docCount, -1L, size,
+                        IntPoint.decodeDimension(min, 0),
+                        IntPoint.decodeDimension(max, 0));
+            }
+        },
+        LONG("long", NumericType.LONG) {
+            @Override
+            Long parse(Object value) {
+                if (value instanceof Number) {
+                    return ((Number) value).longValue();
+                }
+                if (value instanceof BytesRef) {
+                    value = ((BytesRef) value).utf8ToString();
+                }
+                return Long.parseLong(value.toString());
+            }
+
+            @Override
+            Long parse(XContentParser parser, boolean coerce) throws IOException {
+                return parser.longValue(coerce);
+            }
+
+            @Override
+            Query termQuery(String field, Object value) {
+                long v = parse(value);
+                return LongPoint.newExactQuery(field, v);
+            }
+
+            @Override
+            Query termsQuery(String field, List<Object> values) {
+                long[] v = new long[values.size()];
+                for (int i = 0; i < values.size(); ++i) {
+                    v[i] = parse(values.get(i));
+                }
+                return LongPoint.newSetQuery(field, v);
+            }
+
+            @Override
+            Query rangeQuery(String field, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+                long l = Long.MIN_VALUE;
+                long u = Long.MAX_VALUE;
+                if (lowerTerm != null) {
+                    l = parse(lowerTerm);
+                    if (includeLower == false) {
+                        if (l == Long.MAX_VALUE) {
+                            return new MatchNoDocsQuery();
+                        }
+                        ++l;
+                    }
+                }
+                if (upperTerm != null) {
+                    u = parse(upperTerm);
+                    if (includeUpper == false) {
+                        if (u == Long.MIN_VALUE) {
+                            return new MatchNoDocsQuery();
+                        }
+                        --u;
+                    }
+                }
+                return LongPoint.newRangeQuery(field, l, u);
+            }
+
+            @Override
+            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
+                long base = parse(value);
+                long delta = fuzziness.asLong();
+                return rangeQuery(field, base - delta, base + delta, true, true);
+            }
+
+            @Override
+            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                List<Field> fields = new ArrayList<>();
+                if (indexed) {
+                    fields.add(new LongPoint(name, value.longValue()));
+                }
+                if (docValued) {
+                    fields.add(new SortedNumericDocValuesField(name, value.longValue()));
+                }
+                if (stored) {
+                    fields.add(new StoredField(name, value.longValue()));
+                }
+                return fields;
+            }
+
+            @Override
+            FieldStats.Long stats(IndexReader reader, String field) throws IOException {
+                long size = PointValues.size(reader, field);
+                if (size == 0) {
+                    return null;
+                }
+                int docCount = PointValues.getDocCount(reader, field);
+                byte[] min = PointValues.getMinPackedValue(reader, field);
+                byte[] max = PointValues.getMaxPackedValue(reader, field);
+                return new FieldStats.Long(reader.maxDoc(),docCount, -1L, size,
+                        LongPoint.decodeDimension(min, 0),
+                        LongPoint.decodeDimension(max, 0));
+            }
+        };
+
+        private final String name;
+        private final NumericType numericType;
+
+        NumberType(String name, NumericType numericType) {
+            this.name = name;
+            this.numericType = numericType;
         }
 
-        public abstract NumberFieldType clone();
+        /** Get the associated type name. */
+        public final String typeName() {
+            return name;
+        }
+        /** Get the associated numerit type */
+        final NumericType numericType() {
+            return numericType;
+        }
+        abstract Query termQuery(String field, Object value);
+        abstract Query termsQuery(String field, List<Object> values);
+        abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper);
+        abstract Query fuzzyQuery(String field, Object value, Fuzziness fuzziness);
+        abstract Number parse(XContentParser parser, boolean coerce) throws IOException;
+        abstract Number parse(Object value);
+        public abstract List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored);
+        abstract FieldStats<? extends Number> stats(IndexReader reader, String field) throws IOException;
+        Number valueForSearch(Number value) {
+            return value;
+        }
+    }
+
+    public static final class NumberFieldType extends MappedFieldType {
+
+        NumberType type;
+
+        public NumberFieldType(NumberType type) {
+            super();
+            this.type = Objects.requireNonNull(type);
+            setTokenized(false);
+            setHasDocValues(true);
+            setOmitNorms(true);
+        }
+
+        NumberFieldType(NumberFieldType other) {
+            super(other);
+            this.type = other.type;
+        }
 
         @Override
-        public abstract Object value(Object value);
+        public MappedFieldType clone() {
+            return new NumberFieldType(this);
+        }
+
+        @Override
+        public String typeName() {
+            return type.name;
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            Query query = type.termQuery(name(), value);
+            if (boost() != 1f) {
+                query = new BoostQuery(query, boost());
+            }
+            return query;
+        }
+
+        @Override
+        public Query termsQuery(List values, QueryShardContext context) {
+            Query query = type.termsQuery(name(), values);
+            if (boost() != 1f) {
+                query = new BoostQuery(query, boost());
+            }
+            return query;
+        }
+
+        @Override
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            Query query = type.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper);
+            if (boost() != 1f) {
+                query = new BoostQuery(query, boost());
+            }
+            return query;
+        }
+
+        @Override
+        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+            return type.fuzzyQuery(name(), value, fuzziness);
+        }
+
+        @Override
+        public FieldStats stats(IndexReader reader) throws IOException {
+            return type.stats(reader, name());
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            failIfNoDocValues();
+            return new DocValuesIndexFieldData.Builder().numericType(type.numericType());
+        }
 
         @Override
         public Object valueForSearch(Object value) {
-            return value(value);
+            if (value == null) {
+                return null;
+            }
+            return type.valueForSearch((Number) value);
         }
 
         @Override
-        public abstract Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions);
-
-        @Override
-        public boolean useTermQueryWithQueryString() {
-            return true;
-        }
-
-        @Override
-        public boolean isNumeric() {
-            return true;
+        public DocValueFormat docValueFormat(String format, DateTimeZone timeZone) {
+            if (timeZone != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
+                    + "] does not support custom time zones");
+            }
+            if (format == null) {
+                return DocValueFormat.RAW;
+            } else {
+                return new DocValueFormat.Decimal(format);
+            }
         }
     }
 
-    protected Boolean includeInAll;
+    private Boolean includeInAll;
 
-    protected Explicit<Boolean> ignoreMalformed;
+    private Explicit<Boolean> ignoreMalformed;
 
-    protected Explicit<Boolean> coerce;
+    private Explicit<Boolean> coerce;
 
-    protected NumberFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Settings indexSettings,
-                                MultiFields multiFields, CopyTo copyTo) {
+    private NumberFieldMapper(
+            String simpleName,
+            MappedFieldType fieldType,
+            MappedFieldType defaultFieldType,
+            Explicit<Boolean> ignoreMalformed,
+            Explicit<Boolean> coerce,
+            Settings indexSettings,
+            MultiFields multiFields,
+            CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
+    }
+
+    @Override
+    public NumberFieldType fieldType() {
+        return (NumberFieldType) super.fieldType();
+    }
+
+    @Override
+    protected String contentType() {
+        return fieldType.typeName();
     }
 
     @Override
@@ -228,190 +843,65 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        RuntimeException e = null;
-        try {
-            innerParseCreateField(context, fields);
-        } catch (IllegalArgumentException e1) {
-            e = e1;
-        } catch (MapperParsingException e2) {
-            e = e2;
+        XContentParser parser = context.parser();
+        Object value;
+        Number numericValue = null;
+        if (context.externalValueSet()) {
+            value = context.externalValue();
+        } else if (parser.currentToken() == Token.VALUE_NULL) {
+            value = null;
+        } else if (coerce.value()
+                && parser.currentToken() == Token.VALUE_STRING
+                && parser.textLength() == 0) {
+            value = null;
+        } else {
+            value = parser.textOrNull();
+            if (value != null) {
+                try {
+                    numericValue = fieldType().type.parse(parser, coerce.value());
+                } catch (IllegalArgumentException e) {
+                    if (ignoreMalformed.value()) {
+                        return;
+                    } else {
+                        throw e;
+                    }
+                }
+            }
         }
 
-        if (e != null && !ignoreMalformed.value()) {
-            throw e;
-        }
-    }
-
-    protected abstract void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException;
-
-    protected final void addDocValue(ParseContext context, List<Field> fields, long value) {
-        fields.add(new SortedNumericDocValuesField(fieldType().name(), value));
-    }
-
-    /**
-     * Converts an object value into a double
-     */
-    public static double parseDoubleValue(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).doubleValue();
+        if (value == null) {
+            value = fieldType().nullValue();
         }
 
-        if (value instanceof BytesRef) {
-            return Double.parseDouble(((BytesRef) value).utf8ToString());
+        if (value == null) {
+            return;
         }
 
-        return Double.parseDouble(value.toString());
-    }
-
-    /**
-     * Converts an object value into a long
-     */
-    public static long parseLongValue(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
+        if (numericValue == null) {
+            numericValue = fieldType().type.parse(value);
         }
 
-        if (value instanceof BytesRef) {
-            return Long.parseLong(((BytesRef) value).utf8ToString());
+        if (context.includeInAll(includeInAll, this)) {
+            context.allEntries().addText(fieldType().name(), value.toString(), fieldType().boost());
         }
 
-        return Long.parseLong(value.toString());
+        boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
+        boolean docValued = fieldType().hasDocValues();
+        boolean stored = fieldType().stored();
+        fields.addAll(fieldType().type.createFields(fieldType().name(), numericValue, indexed, docValued, stored));
     }
 
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         super.doMerge(mergeWith, updateAllTypes);
-        NumberFieldMapper nfmMergeWith = (NumberFieldMapper) mergeWith;
-
-        this.includeInAll = nfmMergeWith.includeInAll;
-        if (nfmMergeWith.ignoreMalformed.explicit()) {
-            this.ignoreMalformed = nfmMergeWith.ignoreMalformed;
+        NumberFieldMapper other = (NumberFieldMapper) mergeWith;
+        this.includeInAll = other.includeInAll;
+        if (other.ignoreMalformed.explicit()) {
+            this.ignoreMalformed = other.ignoreMalformed;
         }
-        if (nfmMergeWith.coerce.explicit()) {
-            this.coerce = nfmMergeWith.coerce;
+        if (other.coerce.explicit()) {
+            this.coerce = other.coerce;
         }
-    }
-
-    // used to we can use a numeric field in a document that is then parsed twice!
-    public abstract static class CustomNumericField extends Field {
-
-        private ThreadLocal<NumericTokenStream> tokenStream = new ThreadLocal<NumericTokenStream>() {
-            @Override
-            protected NumericTokenStream initialValue() {
-                return new NumericTokenStream(fieldType().numericPrecisionStep());
-            }
-        };
-
-        private static ThreadLocal<NumericTokenStream> tokenStream4 = new ThreadLocal<NumericTokenStream>() {
-            @Override
-            protected NumericTokenStream initialValue() {
-                return new NumericTokenStream(4);
-            }
-        };
-
-        private static ThreadLocal<NumericTokenStream> tokenStream8 = new ThreadLocal<NumericTokenStream>() {
-            @Override
-            protected NumericTokenStream initialValue() {
-                return new NumericTokenStream(8);
-            }
-        };
-
-        private static ThreadLocal<NumericTokenStream> tokenStream16 = new ThreadLocal<NumericTokenStream>() {
-            @Override
-            protected NumericTokenStream initialValue() {
-                return new NumericTokenStream(16);
-            }
-        };
-
-        private static ThreadLocal<NumericTokenStream> tokenStreamMax = new ThreadLocal<NumericTokenStream>() {
-            @Override
-            protected NumericTokenStream initialValue() {
-                return new NumericTokenStream(Integer.MAX_VALUE);
-            }
-        };
-
-        public CustomNumericField(Number value, MappedFieldType fieldType) {
-            super(fieldType.name(), fieldType);
-            if (value != null) {
-                this.fieldsData = value;
-            }
-        }
-
-        protected NumericTokenStream getCachedStream() {
-            if (fieldType().numericPrecisionStep() == 4) {
-                return tokenStream4.get();
-            } else if (fieldType().numericPrecisionStep() == 8) {
-                return tokenStream8.get();
-            } else if (fieldType().numericPrecisionStep() == 16) {
-                return tokenStream16.get();
-            } else if (fieldType().numericPrecisionStep() == Integer.MAX_VALUE) {
-                return tokenStreamMax.get();
-            }
-            return tokenStream.get();
-        }
-
-        @Override
-        public String stringValue() {
-            return null;
-        }
-
-        @Override
-        public Reader readerValue() {
-            return null;
-        }
-
-        public abstract String numericAsString();
-    }
-
-    public static abstract class CustomNumericDocValuesField implements IndexableField {
-
-        public static final FieldType TYPE = new FieldType();
-        static {
-          TYPE.setDocValuesType(DocValuesType.BINARY);
-          TYPE.freeze();
-        }
-
-        private final String name;
-
-        public CustomNumericDocValuesField(String  name) {
-            this.name = name;
-        }
-
-        @Override
-        public String name() {
-            return name;
-        }
-
-        @Override
-        public IndexableFieldType fieldType() {
-            return TYPE;
-        }
-
-        @Override
-        public float boost() {
-            return 1f;
-        }
-
-        @Override
-        public String stringValue() {
-            return null;
-        }
-
-        @Override
-        public Reader readerValue() {
-            return null;
-        }
-
-        @Override
-        public Number numericValue() {
-            return null;
-        }
-
-        @Override
-        public TokenStream tokenStream(Analyzer analyzer, TokenStream reuse) {
-            return null;
-        }
-
     }
 
     @Override
@@ -423,6 +913,11 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
         }
         if (includeDefaults || coerce.explicit()) {
             builder.field("coerce", coerce.value());
+        }
+        if (includeInAll != null) {
+            builder.field("include_in_all", includeInAll);
+        } else if (includeDefaults) {
+            builder.field("include_in_all", false);
         }
     }
 }

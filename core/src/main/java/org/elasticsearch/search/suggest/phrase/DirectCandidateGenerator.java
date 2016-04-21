@@ -40,8 +40,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-//TODO public for tests
-public final class DirectCandidateGenerator extends CandidateGenerator {
+import static java.lang.Math.log10;
+import static java.lang.Math.max;
+import static java.lang.Math.round;
+
+final class DirectCandidateGenerator extends CandidateGenerator {
 
     private final DirectSpellChecker spellchecker;
     private final String field;
@@ -59,12 +62,13 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     private final BytesRefBuilder byteSpare = new BytesRefBuilder();
     private final int numCandidates;
 
-    public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood, int numCandidates) throws IOException {
-        this(spellchecker, field, suggestMode, reader,  nonErrorLikelihood, numCandidates, null, null, MultiFields.getTerms(reader, field));
+    public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader,
+            double nonErrorLikelihood, int numCandidates) throws IOException {
+        this(spellchecker, field, suggestMode, reader, nonErrorLikelihood, numCandidates, null, null, MultiFields.getTerms(reader, field));
     }
 
-
-    public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood,  int numCandidates, Analyzer preFilter, Analyzer postFilter, Terms terms) throws IOException {
+    public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader,
+            double nonErrorLikelihood, int numCandidates, Analyzer preFilter, Analyzer postFilter, Terms terms) throws IOException {
         if (terms == null) {
             throw new IllegalArgumentException("generator field [" + field + "] doesn't exist");
         }
@@ -113,9 +117,6 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         return field;
     }
 
-    /* (non-Javadoc)
-     * @see org.elasticsearch.search.suggest.phrase.CandidateGenerator#drawCandidates(org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet, int)
-     */
     @Override
     public CandidateSet drawCandidates(CandidateSet set) throws IOException {
         Candidate original = set.originalTerm;
@@ -127,7 +128,8 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         for (int i = 0; i < suggestSimilar.length; i++) {
             SuggestWord suggestWord = suggestSimilar[i];
             BytesRef candidate = new BytesRef(suggestWord.string);
-            postFilter(new Candidate(candidate, internalFrequency(candidate), suggestWord.score, score(suggestWord.freq, suggestWord.score, dictSize), false), spare, byteSpare, candidates);
+            postFilter(new Candidate(candidate, internalFrequency(candidate), suggestWord.score,
+                    score(suggestWord.freq, suggestWord.score, dictSize), false), spare, byteSpare, candidates);
         }
         set.addCandidates(candidates);
         return set;
@@ -148,7 +150,8 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         return result.get();
     }
 
-    protected void postFilter(final Candidate candidate, final CharsRefBuilder spare, BytesRefBuilder byteSpare, final List<Candidate> candidates) throws IOException {
+    protected void postFilter(final Candidate candidate, final CharsRefBuilder spare, BytesRefBuilder byteSpare,
+            final List<Candidate> candidates) throws IOException {
         if (postFilter == null) {
             candidates.add(candidate);
         } else {
@@ -163,9 +166,11 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
                         // We should not use frequency(term) here because it will analyze the term again
                         // If preFilter and postFilter are the same analyzer it would fail.
                         long freq = internalFrequency(term);
-                        candidates.add(new Candidate(result.toBytesRef(), freq, candidate.stringDistance, score(candidate.frequency, candidate.stringDistance, dictSize), false));
+                        candidates.add(new Candidate(result.toBytesRef(), freq, candidate.stringDistance,
+                                score(candidate.frequency, candidate.stringDistance, dictSize), false));
                     } else {
-                        candidates.add(new Candidate(result.toBytesRef(), candidate.frequency, nonErrorLikelihood, score(candidate.frequency, candidate.stringDistance, dictSize), false));
+                        candidates.add(new Candidate(result.toBytesRef(), candidate.frequency, nonErrorLikelihood,
+                                score(candidate.frequency, candidate.stringDistance, dictSize), false));
                     }
                 }
             }, spare);
@@ -178,7 +183,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
 
     protected long thresholdFrequency(long termFrequency, long dictionarySize) {
         if (termFrequency > 0) {
-            return (long) Math.max(0, Math.round(termFrequency * (Math.log10(termFrequency - frequencyPlateau) * (1.0 / Math.log10(logBase))) + 1));
+            return max(0, round(termFrequency * (log10(termFrequency - frequencyPlateau) * (1.0 / log10(logBase))) + 1));
         }
         return 0;
 
@@ -232,8 +237,11 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
 
         @Override
         public String toString() {
-            return "Candidate [term=" + term.utf8ToString() + ", stringDistance=" + stringDistance + ", score=" + score + ", frequency=" + frequency +
-                    (userInput ? ", userInput" : "" ) + "]";
+            return "Candidate [term=" + term.utf8ToString()
+                    + ", stringDistance=" + stringDistance
+                    + ", score=" + score
+                    + ", frequency=" + frequency
+                    + (userInput ? ", userInput" : "") + "]";
         }
 
         @Override
@@ -246,18 +254,15 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj)
-                return true;
-            if (obj == null)
-                return false;
-            if (getClass() != obj.getClass())
-                return false;
+            if (this == obj) return true;
+            if (obj == null) return false;
+            if (getClass() != obj.getClass()) return false;
             Candidate other = (Candidate) obj;
             if (term == null) {
-                if (other.term != null)
-                    return false;
-            } else if (!term.equals(other.term))
-                return false;
+                if (other.term != null) return false;
+            } else {
+                if (!term.equals(other.term)) return false;
+            }
             return true;
         }
 

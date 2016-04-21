@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  */
 public abstract class AbstractGeoFieldDataTestCase extends AbstractFieldDataImplTestCase {
     @Override
-    protected abstract FieldDataType getFieldDataType();
+    protected abstract String getFieldDataType();
 
     protected Field randomGeoPointField(String fieldName, Field.Store store) {
         GeoPoint point = randomPoint(random());
@@ -48,7 +48,7 @@ public abstract class AbstractGeoFieldDataTestCase extends AbstractFieldDataImpl
         final GeoPointField.TermEncoding termEncoding;
         termEncoding = indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_2_3_0) ?
             GeoPointField.TermEncoding.PREFIX : GeoPointField.TermEncoding.NUMERIC;
-        return new GeoPointField(fieldName, point.lon(), point.lat(), termEncoding, store);
+        return new GeoPointField(fieldName, point.lat(), point.lon(), termEncoding, store);
     }
 
     @Override

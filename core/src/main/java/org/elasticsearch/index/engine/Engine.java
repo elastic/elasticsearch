@@ -22,11 +22,13 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
@@ -36,12 +38,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -60,12 +65,16 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -406,7 +415,7 @@ public abstract class Engine implements Closeable {
     /**
      * Global stats on segments.
      */
-    public final SegmentsStats segmentsStats() {
+    public final SegmentsStats segmentsStats(boolean includeSegmentFileSizes) {
         ensureOpen();
         try (final Searcher searcher = acquireSearcher("segments_stats")) {
             SegmentsStats stats = new SegmentsStats();
@@ -417,11 +426,81 @@ public abstract class Engine implements Closeable {
                 stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
                 stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
                 stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
+                stats.addPointsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPointsReader()));
                 stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
+
+                if (includeSegmentFileSizes) {
+                    // TODO: consider moving this to StoreStats
+                    stats.addFileSizes(getSegmentFileSizes(segmentReader));
+                }
             }
             writerSegmentStats(stats);
             return stats;
         }
+    }
+
+    private ImmutableOpenMap<String, Long> getSegmentFileSizes(SegmentReader segmentReader) {
+        Directory directory = null;
+        SegmentCommitInfo segmentCommitInfo = segmentReader.getSegmentInfo();
+        boolean useCompoundFile = segmentCommitInfo.info.getUseCompoundFile();
+        if (useCompoundFile) {
+            try {
+                directory = engineConfig.getCodec().compoundFormat().getCompoundReader(segmentReader.directory(), segmentCommitInfo.info, IOContext.READ);
+            } catch (IOException e) {
+                logger.warn("Error when opening compound reader for Directory [{}] and SegmentCommitInfo [{}]", e,
+                            segmentReader.directory(), segmentCommitInfo);
+
+                return ImmutableOpenMap.of();
+            }
+        } else {
+            directory = segmentReader.directory();
+        }
+
+        assert directory != null;
+
+        String[] files;
+        if (useCompoundFile) {
+            try {
+                files = directory.listAll();
+            } catch (IOException e) {
+                logger.warn("Couldn't list Compound Reader Directory [{}]", e, directory);
+                return ImmutableOpenMap.of();
+            }
+        } else {
+            try {
+                files = segmentReader.getSegmentInfo().files().toArray(new String[]{});
+            } catch (IOException e) {
+                logger.warn("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]", e, segmentReader, segmentReader.getSegmentInfo());
+                return ImmutableOpenMap.of();
+            }
+        }
+
+        ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder();
+        for (String file : files) {
+            String extension = IndexFileNames.getExtension(file);
+            long length = 0L;
+            try {
+                length = directory.fileLength(file);
+            } catch (NoSuchFileException | FileNotFoundException e) {
+                logger.warn("Tried to query fileLength but file is gone [{}] [{}]", e, directory, file);
+            } catch (IOException e) {
+                logger.warn("Error when trying to query fileLength [{}] [{}]", e, directory, file);
+            }
+            if (length == 0L) {
+                continue;
+            }
+            map.put(extension, length);
+        }
+
+        if (useCompoundFile && directory != null) {
+            try {
+                directory.close();
+            } catch (IOException e) {
+                logger.warn("Error when closing compound reader on Directory [{}]", e, directory);
+            }
+        }
+
+        return map.build();
     }
 
     protected void writerSegmentStats(SegmentsStats stats) {
@@ -594,7 +673,7 @@ public abstract class Engine implements Closeable {
                     closeNoLock("engine failed on: [" + reason + "]");
                 } finally {
                     if (failedEngine != null) {
-                        logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", reason, failure);
+                        logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", failure, reason);
                         return;
                     }
                     logger.warn("failed engine [{}]", failure, reason);
@@ -620,7 +699,7 @@ public abstract class Engine implements Closeable {
                 store.decRef();
             }
         } else {
-            logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason, failure);
+            logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", failure, reason);
         }
     }
 
@@ -850,82 +929,6 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static class DeleteByQuery {
-        private final Query query;
-        private final BytesReference source;
-        private final String[] filteringAliases;
-        private final Query aliasFilter;
-        private final String[] types;
-        private final BitSetProducer parentFilter;
-        private final Operation.Origin origin;
-
-        private final long startTime;
-        private long endTime;
-
-        public DeleteByQuery(Query query, BytesReference source, @Nullable String[] filteringAliases, @Nullable Query aliasFilter, BitSetProducer parentFilter, Operation.Origin origin, long startTime, String... types) {
-            this.query = query;
-            this.source = source;
-            this.types = types;
-            this.filteringAliases = filteringAliases;
-            this.aliasFilter = aliasFilter;
-            this.parentFilter = parentFilter;
-            this.startTime = startTime;
-            this.origin = origin;
-        }
-
-        public Query query() {
-            return this.query;
-        }
-
-        public BytesReference source() {
-            return this.source;
-        }
-
-        public String[] types() {
-            return this.types;
-        }
-
-        public String[] filteringAliases() {
-            return filteringAliases;
-        }
-
-        public Query aliasFilter() {
-            return aliasFilter;
-        }
-
-        public boolean nested() {
-            return parentFilter != null;
-        }
-
-        public BitSetProducer parentFilter() {
-            return parentFilter;
-        }
-
-        public Operation.Origin origin() {
-            return this.origin;
-        }
-
-        /**
-         * Returns operation start time in nanoseconds.
-         */
-        public long startTime() {
-            return this.startTime;
-        }
-
-        public DeleteByQuery endTime(long endTime) {
-            this.endTime = endTime;
-            return this;
-        }
-
-        /**
-         * Returns operation end time in nanoseconds.
-         */
-        public long endTime() {
-            return this.endTime;
-        }
-    }
-
-
     public static class Get {
         private final boolean realtime;
         private final Term uid;
@@ -1074,24 +1077,22 @@ public abstract class Engine implements Closeable {
             this.id = Arrays.copyOf(id, id.length);
         }
 
+        /**
+         * Read from a stream.
+         */
         public CommitId(StreamInput in) throws IOException {
             assert in != null;
             this.id = in.readByteArray();
         }
 
         @Override
-        public String toString() {
-            return Base64.encodeBytes(id);
-        }
-
-        @Override
-        public CommitId readFrom(StreamInput in) throws IOException {
-            return new CommitId(in);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByteArray(id);
+        }
+
+        @Override
+        public String toString() {
+            return Base64.encodeBytes(id);
         }
 
         public boolean idsEqual(byte[] id) {
@@ -1142,16 +1143,13 @@ public abstract class Engine implements Closeable {
      */
     public interface Warmer {
         /**
-         * Called once a new Searcher is opened.
-         * @param searcher the searcer to warm
-         * @param isTopLevelReader <code>true</code> iff the searcher is build from a top-level reader.
-         *                         Otherwise the searcher might be build from a leaf reader to warm in isolation
+         * Called once a new Searcher is opened on the top-level searcher.
          */
-        void warm(Engine.Searcher searcher, boolean isTopLevelReader);
+        void warm(Engine.Searcher searcher);
     }
 
     /**
-     * Request that this engine throttle incoming indexing requests to one thread.  Must be matched by a later call to {@link deactivateThrottling}.
+     * Request that this engine throttle incoming indexing requests to one thread.  Must be matched by a later call to {@link #deactivateThrottling()}.
      */
     public abstract void activateThrottling();
 
@@ -1159,4 +1157,10 @@ public abstract class Engine implements Closeable {
      * Reverses a previous {@link #activateThrottling} call.
      */
     public abstract void deactivateThrottling();
+
+    /**
+     * Performs recovery from the transaction log.
+     * This operation will close the engine if the recovery fails.
+     */
+    public abstract Engine recoverFromTranslog() throws IOException;
 }

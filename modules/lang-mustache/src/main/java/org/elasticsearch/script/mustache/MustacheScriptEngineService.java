@@ -191,7 +191,7 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
                     }
                 });
             } catch (Exception e) {
-                logger.error("Error running " + template, e);
+                logger.error("Error running {}", e, template);
                 throw new ScriptException("Error running " + template, e);
             }
             return result.bytes();

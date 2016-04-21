@@ -25,52 +25,35 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.core.IngestDocument;
 
 import java.io.IOException;
-import java.util.Collections;
 
 /**
  * Holds the end result of what a pipeline did to sample document provided via the simulate api.
  */
-public final class SimulateDocumentBaseResult implements SimulateDocumentResult<SimulateDocumentBaseResult> {
-
-    private static final SimulateDocumentBaseResult PROTOTYPE = new SimulateDocumentBaseResult(new WriteableIngestDocument(new IngestDocument(Collections.emptyMap(), Collections.emptyMap())));
-
-    private WriteableIngestDocument ingestDocument;
-    private Exception failure;
+public final class SimulateDocumentBaseResult implements SimulateDocumentResult {
+    private final WriteableIngestDocument ingestDocument;
+    private final Exception failure;
 
     public SimulateDocumentBaseResult(IngestDocument ingestDocument) {
         this.ingestDocument = new WriteableIngestDocument(ingestDocument);
-    }
-
-    private SimulateDocumentBaseResult(WriteableIngestDocument ingestDocument) {
-        this.ingestDocument = ingestDocument;
+        failure = null;
     }
 
     public SimulateDocumentBaseResult(Exception failure) {
+        ingestDocument = null;
         this.failure = failure;
     }
 
-    public IngestDocument getIngestDocument() {
-        if (ingestDocument == null) {
-            return null;
-        }
-        return ingestDocument.getIngestDocument();
-    }
-
-    public Exception getFailure() {
-        return failure;
-    }
-
-    public static SimulateDocumentBaseResult readSimulateDocumentSimpleResult(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
-    }
-
-    @Override
-    public SimulateDocumentBaseResult readFrom(StreamInput in) throws IOException {
+    /**
+     * Read from a stream.
+     */
+    public SimulateDocumentBaseResult(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            Exception exception = in.readThrowable();
-            return new SimulateDocumentBaseResult(exception);
+            ingestDocument = null;
+            failure = in.readThrowable();
+        } else {
+            ingestDocument = new WriteableIngestDocument(in);
+            failure = null;
         }
-        return new SimulateDocumentBaseResult(new WriteableIngestDocument(in));
     }
 
     @Override
@@ -82,6 +65,17 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult<
             out.writeBoolean(true);
             out.writeThrowable(failure);
         }
+    }
+
+    public IngestDocument getIngestDocument() {
+        if (ingestDocument == null) {
+            return null;
+        }
+        return ingestDocument.getIngestDocument();
+    }
+
+    public Exception getFailure() {
+        return failure;
     }
 
     @Override

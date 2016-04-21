@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.spatial4j.core.shape.Shape;
+import org.locationtech.spatial4j.shape.Shape;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.XShapeCollection;
@@ -36,9 +36,34 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;
 
-    public static final GeometryCollectionBuilder PROTOTYPE = new GeometryCollectionBuilder();
+    /**
+     * List of shapes. Package scope for testing.
+     */
+    final List<ShapeBuilder> shapes = new ArrayList<>();
 
-    protected final ArrayList<ShapeBuilder> shapes = new ArrayList<>();
+    /**
+     * Build and empty GeometryCollectionBuilder.
+     */
+    public GeometryCollectionBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public GeometryCollectionBuilder(StreamInput in) throws IOException {
+        int shapes = in.readVInt();
+        for (int i = 0; i < shapes; i++) {
+            shape(in.readNamedWriteable(ShapeBuilder.class));
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(shapes.size());
+        for (ShapeBuilder shape : shapes) {
+            out.writeNamedWriteable(shape);
+        }
+    }
 
     public GeometryCollectionBuilder shape(ShapeBuilder shape) {
         this.shapes.add(shape);
@@ -146,23 +171,4 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
         GeometryCollectionBuilder other = (GeometryCollectionBuilder) obj;
         return Objects.equals(shapes, other.shapes);
     }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(shapes.size());
-        for (ShapeBuilder shape : shapes) {
-            out.writeShape(shape);
-        }
-    }
-
-    @Override
-    public GeometryCollectionBuilder readFrom(StreamInput in) throws IOException {
-        GeometryCollectionBuilder geometryCollectionBuilder = new GeometryCollectionBuilder();
-        int shapes = in.readVInt();
-        for (int i = 0; i < shapes; i++) {
-            geometryCollectionBuilder.shape(in.readShape());
-        }
-        return geometryCollectionBuilder;
-    }
-
 }

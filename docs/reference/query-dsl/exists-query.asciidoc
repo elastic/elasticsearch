@@ -47,7 +47,7 @@ instance, if the `user` field were mapped as follows:
 [source,js]
 --------------------------------------------------
   "user": {
-    "type": "string",
+    "type": "text",
     "null_value": "_null_"
   }
 --------------------------------------------------

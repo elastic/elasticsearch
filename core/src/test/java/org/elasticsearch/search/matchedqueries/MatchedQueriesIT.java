@@ -53,15 +53,17 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(boolQuery().must(matchAllQuery()).filter(boolQuery().should(rangeQuery("number").lte(2).queryName("test1")).should(rangeQuery("number").gt(2).queryName("test2")))).get();
+.setQuery(boolQuery().must(matchAllQuery()).filter(boolQuery()
+                        .should(rangeQuery("number").lt(2).queryName("test1")).should(rangeQuery("number").gte(2).queryName("test2"))))
+                .get();
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
-            if (hit.id().equals("1") || hit.id().equals("2")) {
-                assertThat(hit.matchedQueries().length, equalTo(1));
-                assertThat(hit.matchedQueries(), hasItemInArray("test1"));
-            } else if (hit.id().equals("3")) {
+            if (hit.id().equals("3") || hit.id().equals("2")) {
                 assertThat(hit.matchedQueries().length, equalTo(1));
                 assertThat(hit.matchedQueries(), hasItemInArray("test2"));
+            } else if (hit.id().equals("1")) {
+                assertThat(hit.matchedQueries().length, equalTo(1));
+                assertThat(hit.matchedQueries(), hasItemInArray("test1"));
             } else {
                 fail("Unexpected document returned with id " + hit.id());
             }
@@ -315,7 +317,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
     }
 
     /**
-     * Test case for issue #4361: https://github.com/elasticsearch/elasticsearch/issues/4361
+     * Test case for issue #4361: https://github.com/elastic/elasticsearch/issues/4361
      */
     public void testMatchedWithShould() throws Exception {
         createIndex("test");

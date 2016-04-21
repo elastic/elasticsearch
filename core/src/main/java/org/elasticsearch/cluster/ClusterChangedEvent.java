@@ -23,14 +23,15 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.index.Index;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
- *
+ * An event received by the local node, signaling that the cluster state has changed.
  */
 public class ClusterChangedEvent {
 
@@ -43,6 +44,9 @@ public class ClusterChangedEvent {
     private final DiscoveryNodes.Delta nodesDelta;
 
     public ClusterChangedEvent(String source, ClusterState state, ClusterState previousState) {
+        Objects.requireNonNull(source, "source must not be null");
+        Objects.requireNonNull(state, "state must not be null");
+        Objects.requireNonNull(previousState, "previousState must not be null");
         this.source = source;
         this.state = state;
         this.previousState = previousState;
@@ -56,19 +60,35 @@ public class ClusterChangedEvent {
         return this.source;
     }
 
+    /**
+     * The new cluster state that caused this change event.
+     */
     public ClusterState state() {
         return this.state;
     }
 
+    /**
+     * The previous cluster state for this change event.
+     */
     public ClusterState previousState() {
         return this.previousState;
     }
 
+    /**
+     * Returns <code>true</code> iff the routing tables (for all indices) have
+     * changed between the previous cluster state and the current cluster state.
+     * Note that this is an object reference equality test, not an equals test.
+     */
     public boolean routingTableChanged() {
         return state.routingTable() != previousState.routingTable();
     }
 
+    /**
+     * Returns <code>true</code> iff the routing table has changed for the given index.
+     * Note that this is an object reference equality test, not an equals test.
+     */
     public boolean indexRoutingTableChanged(String index) {
+        Objects.requireNonNull(index, "index must not be null");
         if (!state.routingTable().hasIndex(index) && !previousState.routingTable().hasIndex(index)) {
             return false;
         }
@@ -82,9 +102,6 @@ public class ClusterChangedEvent {
      * Returns the indices created in this event
      */
     public List<String> indicesCreated() {
-        if (previousState == null) {
-            return Arrays.asList(state.metaData().indices().keys().toArray(String.class));
-        }
         if (!metaDataChanged()) {
             return Collections.emptyList();
         }
@@ -104,40 +121,45 @@ public class ClusterChangedEvent {
     /**
      * Returns the indices deleted in this event
      */
-    public List<String> indicesDeleted() {
-
-        // if the new cluster state has a new master then we cannot know if an index which is not in the cluster state
-        // is actually supposed to be deleted or imported as dangling instead. for example a new master might not have
-        // the index in its cluster state because it was started with an empty data folder and in this case we want to
-        // import as dangling. we check here for new master too to be on the safe side in this case.
-        // This means that under certain conditions deleted indices might be reimported if a master fails while the deletion
-        // request is issued and a node receives the cluster state that would trigger the deletion from the new master.
-        // See test MetaDataWriteDataNodesTests.testIndicesDeleted()
+    public List<Index> indicesDeleted() {
+        // If the new cluster state has a new cluster UUID, the likely scenario is that a node was elected
+        // master that has had its data directory wiped out, in which case we don't want to delete the indices and lose data;
+        // rather we want to import them as dangling indices instead.  So we check here if the cluster UUID differs from the previous
+        // cluster UUID, in which case, we don't want to delete indices that the master erroneously believes shouldn't exist.
+        // See test DiscoveryWithServiceDisruptionsIT.testIndicesDeleted()
         // See discussion on https://github.com/elastic/elasticsearch/pull/9952 and
         // https://github.com/elastic/elasticsearch/issues/11665
-        if (hasNewMaster() || previousState == null) {
+        if (metaDataChanged() == false || isNewCluster()) {
             return Collections.emptyList();
         }
-        if (!metaDataChanged()) {
-            return Collections.emptyList();
-        }
-        List<String> deleted = null;
-        for (ObjectCursor<String> cursor : previousState.metaData().indices().keys()) {
-            String index = cursor.value;
-            if (!state.metaData().hasIndex(index)) {
+        List<Index> deleted = null;
+        for (ObjectCursor<IndexMetaData> cursor : previousState.metaData().indices().values()) {
+            IndexMetaData index = cursor.value;
+            IndexMetaData current = state.metaData().index(index.getIndex());
+            if (current == null) {
                 if (deleted == null) {
                     deleted = new ArrayList<>();
                 }
-                deleted.add(index);
+                deleted.add(index.getIndex());
             }
         }
-        return deleted == null ? Collections.<String>emptyList() : deleted;
+        return deleted == null ? Collections.<Index>emptyList() : deleted;
     }
 
+    /**
+     * Returns <code>true</code> iff the metadata for the cluster has changed between
+     * the previous cluster state and the new cluster state. Note that this is an object
+     * reference equality test, not an equals test.
+     */
     public boolean metaDataChanged() {
         return state.metaData() != previousState.metaData();
     }
 
+    /**
+     * Returns <code>true</code> iff the {@link IndexMetaData} for a given index
+     * has changed between the previous cluster state and the new cluster state.
+     * Note that this is an object reference equality test, not an equals test.
+     */
     public boolean indexMetaDataChanged(IndexMetaData current) {
         MetaData previousMetaData = previousState.metaData();
         if (previousMetaData == null) {
@@ -152,46 +174,56 @@ public class ClusterChangedEvent {
         return true;
     }
 
+    /**
+     * Returns <code>true</code> iff the cluster level blocks have changed between cluster states.
+     * Note that this is an object reference equality test, not an equals test.
+     */
     public boolean blocksChanged() {
         return state.blocks() != previousState.blocks();
     }
 
+    /**
+     * Returns <code>true</code> iff the local node is the mater node of the cluster.
+     */
     public boolean localNodeMaster() {
-        return state.nodes().localNodeMaster();
+        return state.nodes().isLocalNodeElectedMaster();
     }
 
+    /**
+     * Returns the {@link org.elasticsearch.cluster.node.DiscoveryNodes.Delta} between
+     * the previous cluster state and the new cluster state.
+     */
     public DiscoveryNodes.Delta nodesDelta() {
         return this.nodesDelta;
     }
 
+    /**
+     * Returns <code>true</code> iff nodes have been removed from the cluster since the last cluster state.
+     */
     public boolean nodesRemoved() {
         return nodesDelta.removed();
     }
 
+    /**
+     * Returns <code>true</code> iff nodes have been added from the cluster since the last cluster state.
+     */
     public boolean nodesAdded() {
         return nodesDelta.added();
     }
 
+    /**
+     * Returns <code>true</code> iff nodes have been changed (added or removed) from the cluster since the last cluster state.
+     */
     public boolean nodesChanged() {
         return nodesRemoved() || nodesAdded();
     }
 
-    /**
-     * Checks if this cluster state comes from a different master than the previous one.
-     * This is a workaround for the scenario where a node misses a cluster state  that has either
-     * no master block or state not recovered flag set. In this case we must make sure that
-     * if an index is missing from the cluster state is not deleted immediately but instead imported
-     * as dangling. See discussion on https://github.com/elastic/elasticsearch/pull/9952
-     */
-    private boolean hasNewMaster() {
-        String oldMaster = previousState().getNodes().masterNodeId();
-        String newMaster = state().getNodes().masterNodeId();
-        if (oldMaster == null && newMaster == null) {
-            return false;
-        }
-        if (oldMaster == null && newMaster != null) {
-            return true;
-        }
-        return oldMaster.equals(newMaster) == false;
+    // Determines whether or not the current cluster state represents an entirely
+    // different cluster from the previous cluster state, which will happen when a
+    // master node is elected that has never been part of the cluster before.
+    private boolean isNewCluster() {
+        final String prevClusterUUID = previousState.metaData().clusterUUID();
+        final String currClusterUUID = state.metaData().clusterUUID();
+        return prevClusterUUID.equals(currClusterUUID) == false;
     }
 }

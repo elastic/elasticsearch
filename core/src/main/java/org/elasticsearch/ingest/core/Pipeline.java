@@ -69,6 +69,13 @@ public final class Pipeline {
     }
 
     /**
+     * Get the underlying {@link CompoundProcessor} containing the Pipeline's processors
+     */
+    public CompoundProcessor getCompoundProcessor() {
+        return compoundProcessor;
+    }
+
+    /**
      * Unmodifiable list containing each processor that operates on the data.
      */
     public List<Processor> getProcessors() {
@@ -81,6 +88,14 @@ public final class Pipeline {
      */
     public List<Processor> getOnFailureProcessors() {
         return compoundProcessor.getOnFailureProcessors();
+    }
+
+    /**
+     * Flattens the normal and on failure processors into a single list. The original order is lost.
+     * This can be useful for pipeline validation purposes.
+     */
+    public List<Processor> flattenAllProcessors() {
+        return compoundProcessor.flattenProcessors();
     }
 
     public final static class Factory {

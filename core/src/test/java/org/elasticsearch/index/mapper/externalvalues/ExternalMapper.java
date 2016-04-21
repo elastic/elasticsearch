@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper.externalvalues;
 
-import com.spatial4j.core.shape.Point;
+import org.locationtech.spatial4j.shape.Point;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -125,16 +125,6 @@ public class ExternalMapper extends FieldMapper {
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ExternalMapper.Builder builder = new ExternalMapper.Builder(name, generatedValue, mapperName);
             parseField(builder, name, node, parserContext);
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = Strings.toUnderscoreCase(entry.getKey());
-                Object propNode = entry.getValue();
-
-                if (parseMultiField(builder, name, parserContext, propName, propNode)) {
-                    iterator.remove();
-                }
-            }
-
             return builder;
         }
     }

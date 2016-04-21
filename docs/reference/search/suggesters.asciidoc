@@ -142,7 +142,7 @@ In the below example we request suggestions for the following suggest
 text: `devloping distibutd saerch engies` on the `title` field with a
 maximum of 3 suggestions per term inside the suggest text. Note that in
 this example we set `size` to `0`. This isn't required, but a
-nice optimization. The suggestions are gather in the `query` phase and
+nice optimization. The suggestions are gathered in the `query` phase and
 in the case that we only care about suggestions (so no hits) we don't
 need to execute the `fetch` phase.
 

@@ -43,12 +43,12 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.core.ByteFieldMapper;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
-import org.elasticsearch.index.mapper.core.FloatFieldMapper;
-import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.ShortFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyByteFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyFloatFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyIntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyShortFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
@@ -81,7 +81,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
     protected LeafReaderContext readerContext;
     protected DirectoryReader topLevelReader;
     protected IndicesFieldDataCache indicesFieldDataCache;
-    protected abstract FieldDataType getFieldDataType();
+    protected abstract String getFieldDataType();
 
     protected boolean hasDocValues() {
         return false;
@@ -91,7 +91,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         return getForField(getFieldDataType(), fieldName, hasDocValues());
     }
 
-    public <IFD extends IndexFieldData<?>> IFD getForField(FieldDataType type, String fieldName) {
+    public <IFD extends IndexFieldData<?>> IFD getForField(String type, String fieldName) {
         return getForField(type, fieldName, hasDocValues());
     }
 
@@ -100,44 +100,43 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         return pluginList(InternalSettingsPlugin.class);
     }
 
-    public <IFD extends IndexFieldData<?>> IFD getForField(FieldDataType type, String fieldName, boolean docValues) {
+    public <IFD extends IndexFieldData<?>> IFD getForField(String type, String fieldName, boolean docValues) {
         final MappedFieldType fieldType;
         final BuilderContext context = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-        if (type.getType().equals("string")) {
-            fieldType = new StringFieldMapper.Builder(fieldName).tokenized(false).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
-        } else if (type.getType().equals("float")) {
-            fieldType = new FloatFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
-        } else if (type.getType().equals("double")) {
-            fieldType = new DoubleFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
-        } else if (type.getType().equals("long")) {
-            fieldType = new LongFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
-        } else if (type.getType().equals("int")) {
-            fieldType = new IntegerFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
-        } else if (type.getType().equals("short")) {
-            fieldType = new ShortFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
-        } else if (type.getType().equals("byte")) {
-            fieldType = new ByteFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
-        } else if (type.getType().equals("geo_point")) {
+        if (type.equals("string")) {
+            fieldType = new StringFieldMapper.Builder(fieldName).tokenized(false).fielddata(docValues == false).docValues(docValues).build(context).fieldType();
+        } else if (type.equals("float")) {
+            fieldType = new LegacyFloatFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+        } else if (type.equals("double")) {
+            fieldType = new LegacyDoubleFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+        } else if (type.equals("long")) {
+            fieldType = new LegacyLongFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+        } else if (type.equals("int")) {
+            fieldType = new LegacyIntegerFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+        } else if (type.equals("short")) {
+            fieldType = new LegacyShortFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+        } else if (type.equals("byte")) {
+            fieldType = new LegacyByteFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+        } else if (type.equals("geo_point")) {
             if (indexService.getIndexSettings().getIndexVersionCreated().before(Version.V_2_2_0)) {
-                fieldType =  new GeoPointFieldMapperLegacy.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
+                fieldType =  new GeoPointFieldMapperLegacy.Builder(fieldName).docValues(docValues).build(context).fieldType();
             } else {
-                fieldType = new GeoPointFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
+                fieldType = new GeoPointFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
             }
-        } else if (type.getType().equals("_parent")) {
+        } else if (type.equals("_parent")) {
             fieldType = new ParentFieldMapper.Builder("_type").type(fieldName).build(context).fieldType();
-        } else if (type.getType().equals("binary")) {
-            fieldType = new BinaryFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
+        } else if (type.equals("binary")) {
+            fieldType = new BinaryFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
         } else {
-            throw new UnsupportedOperationException(type.getType());
+            throw new UnsupportedOperationException(type);
         }
         return ifdService.getForField(fieldType);
     }
 
     @Before
     public void setup() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
-        Settings settings = Settings.builder().put("index.fielddata.cache", "none")
-                .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_3_0); // we need 2.x so that fielddata is allowed on string fields
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         indexService = createIndex("test", settings);
         mapperService = indexService.mapperService();
         indicesFieldDataCache = getInstanceFromNode(IndicesService.class).getIndicesFieldDataCache();
@@ -150,7 +149,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         if (readerContext != null) {
             readerContext.reader().close();
         }
-        topLevelReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", "_na_", 1));
+        topLevelReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
         LeafReader reader = SlowCompositeReaderWrapper.wrap(topLevelReader);
         readerContext = reader.getContext();
         return readerContext;
@@ -168,7 +167,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     protected Nested createNested(IndexSearcher searcher, Query parentFilter, Query childFilter) throws IOException {
         BitsetFilterCache s = indexService.cache().bitsetFilterCache();
-        return new Nested(s.getBitSetProducer(parentFilter), searcher.createNormalizedWeight(childFilter, false));
+        return new Nested(s.getBitSetProducer(parentFilter), childFilter);
     }
 
     public void testEmpty() throws Exception {

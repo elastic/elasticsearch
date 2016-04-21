@@ -134,7 +134,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
             aggregations = InternalAggregations.readAggregations(in);
         }
         if (in.readBoolean()) {
-            suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
+            suggest = Suggest.readSuggest(in);
         }
         timedOut = in.readBoolean();
 

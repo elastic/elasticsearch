@@ -26,10 +26,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+/**
+ * Parses {@link SignificanceHeuristic}s from an {@link XContentParser}.
+ */
+@FunctionalInterface
 public interface SignificanceHeuristicParser {
-
     SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException,
             ParsingException;
-
-    String[] getNames();
 }

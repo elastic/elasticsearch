@@ -38,6 +38,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -64,6 +65,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class SearchContext implements Releasable {
@@ -144,8 +146,21 @@ public abstract class SearchContext implements Releasable {
         return nowInMillisImpl();
     }
 
+    public final Callable<Long> nowCallable() {
+        return new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                return nowInMillis();
+            }
+        };
+    };
+
     public final boolean nowInMillisUsed() {
         return nowInMillisUsed;
+    }
+
+    public final void resetNowInMillisUsed() {
+        this.nowInMillisUsed = false;
     }
 
     protected abstract long nowInMillisImpl();
@@ -216,6 +231,8 @@ public abstract class SearchContext implements Releasable {
     public abstract BitsetFilterCache bitsetFilterCache();
 
     public abstract IndexFieldDataService fieldData();
+
+    public abstract PercolatorQueryCache percolatorQueryCache();
 
     public abstract long timeoutInMillis();
 
@@ -347,6 +364,14 @@ public abstract class SearchContext implements Releasable {
     }
 
     /**
+     * @return true if the request contains only suggest
+     */
+    public final boolean hasOnlySuggest() {
+        return request().source() != null
+            && request().source().isSuggestOnly();
+    }
+
+    /**
      * Looks up the given field, but does not restrict to fields in the types set on this context.
      */
     public abstract MappedFieldType smartNameFieldType(String name);
@@ -378,4 +403,16 @@ public abstract class SearchContext implements Releasable {
 
     public abstract QueryShardContext getQueryShardContext();
 
+    @Override
+    public String toString() {
+        StringBuilder result = new StringBuilder().append(shardTarget());
+        if (searchType() != SearchType.DEFAULT) {
+            result.append("searchType=[").append(searchType()).append("]");
+        }
+        if (scrollContext() != null) {
+            result.append("scroll=[").append(scrollContext().scroll.keepAlive()).append("]");
+        }
+        result.append(" query=[").append(query()).append("]");
+        return result.toString();
+    }
 }

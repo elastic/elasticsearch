@@ -19,14 +19,34 @@
 
 package org.elasticsearch.test.rest;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.client.RestException;
+import org.elasticsearch.test.rest.client.RestResponse;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
 import org.elasticsearch.test.rest.section.DoSection;
@@ -42,24 +62,11 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.InetSocketAddress;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.sort;
 
 /**
  * Runs the clients test suite against an elasticsearch cluster.
@@ -261,7 +268,6 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     @After
     public void wipeCluster() throws Exception {
-
         // wipe indices
         Map<String, String> deleteIndicesArgs = new HashMap<>();
         deleteIndicesArgs.put("index", "*");
@@ -283,6 +289,30 @@ public abstract class ESRestTestCase extends ESTestCase {
         Map<String, String> deleteSnapshotsArgs = new HashMap<>();
         deleteSnapshotsArgs.put("repository", "*");
         adminExecutionContext.callApi("snapshot.delete_repository", deleteSnapshotsArgs, Collections.emptyList(), Collections.emptyMap());
+    }
+
+    /**
+     * Logs a message if there are still running tasks. The reasoning is that any tasks still running are state the is trying to bleed into
+     * other tests.
+     */
+    @After
+    public void logIfThereAreRunningTasks() throws InterruptedException, IOException, RestException {
+        RestResponse tasks = adminExecutionContext.callApi("tasks.list", emptyMap(), emptyList(), emptyMap());
+        Set<String> runningTasks = runningTasks(tasks);
+        // Ignore the task list API - it doens't count against us
+        runningTasks.remove(ListTasksAction.NAME);
+        runningTasks.remove(ListTasksAction.NAME + "[n]");
+        if (runningTasks.isEmpty()) {
+            return;
+        }
+        List<String> stillRunning = new ArrayList<>(runningTasks);
+        sort(stillRunning);
+        logger.info("There are still tasks running after this test that might break subsequent tests {}.", stillRunning);
+        /*
+         * This isn't a higher level log or outright failure because some of these tasks are run by the cluster in the background. If we
+         * could determine that some tasks are run by the user we'd fail the tests if those tasks were running and ignore any background
+         * tasks.
+         */
     }
 
     @AfterClass
@@ -364,5 +394,20 @@ public abstract class ESRestTestCase extends ESTestCase {
         for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
             executableSection.execute(restTestExecutionContext);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public Set<String> runningTasks(RestResponse response) throws IOException {
+        Set<String> runningTasks = new HashSet<>();
+        Map<String, Object> nodes = (Map<String, Object>) response.evaluate("nodes");
+        for (Map.Entry<String, Object> node : nodes.entrySet()) {
+            Map<String, Object> nodeInfo = (Map<String, Object>) node.getValue();
+            Map<String, Object> nodeTasks = (Map<String, Object>) nodeInfo.get("tasks");
+            for (Map.Entry<String, Object> taskAndName : nodeTasks.entrySet()) {
+                Map<String, Object> task = (Map<String, Object>) taskAndName.getValue();
+                runningTasks.add(task.get("action").toString());
+            }
+        }
+        return runningTasks;
     }
 }

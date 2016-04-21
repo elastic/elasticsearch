@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -33,6 +34,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.suggest.completion.context.CategoryContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
@@ -190,11 +193,11 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         XContentBuilder builder = jsonBuilder().value("context1");
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
-        List<ContextMapping.QueryContext> queryContexts = mapping.parseQueryContext(parser);
-        assertThat(queryContexts.size(), equalTo(1));
-        assertThat(queryContexts.get(0).context, equalTo("context1"));
-        assertThat(queryContexts.get(0).boost, equalTo(1));
-        assertThat(queryContexts.get(0).isPrefix, equalTo(false));
+        List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(createParseContext(parser));
+        assertThat(internalQueryContexts.size(), equalTo(1));
+        assertThat(internalQueryContexts.get(0).context, equalTo("context1"));
+        assertThat(internalQueryContexts.get(0).boost, equalTo(1));
+        assertThat(internalQueryContexts.get(0).isPrefix, equalTo(false));
     }
 
     public void testQueryContextParsingArray() throws Exception {
@@ -204,14 +207,14 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
-        List<ContextMapping.QueryContext> queryContexts = mapping.parseQueryContext(parser);
-        assertThat(queryContexts.size(), equalTo(2));
-        assertThat(queryContexts.get(0).context, equalTo("context1"));
-        assertThat(queryContexts.get(0).boost, equalTo(1));
-        assertThat(queryContexts.get(0).isPrefix, equalTo(false));
-        assertThat(queryContexts.get(1).context, equalTo("context2"));
-        assertThat(queryContexts.get(1).boost, equalTo(1));
-        assertThat(queryContexts.get(1).isPrefix, equalTo(false));
+        List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(createParseContext(parser));
+        assertThat(internalQueryContexts.size(), equalTo(2));
+        assertThat(internalQueryContexts.get(0).context, equalTo("context1"));
+        assertThat(internalQueryContexts.get(0).boost, equalTo(1));
+        assertThat(internalQueryContexts.get(0).isPrefix, equalTo(false));
+        assertThat(internalQueryContexts.get(1).context, equalTo("context2"));
+        assertThat(internalQueryContexts.get(1).boost, equalTo(1));
+        assertThat(internalQueryContexts.get(1).isPrefix, equalTo(false));
     }
 
     public void testQueryContextParsingObject() throws Exception {
@@ -222,11 +225,11 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
-        List<ContextMapping.QueryContext> queryContexts = mapping.parseQueryContext(parser);
-        assertThat(queryContexts.size(), equalTo(1));
-        assertThat(queryContexts.get(0).context, equalTo("context1"));
-        assertThat(queryContexts.get(0).boost, equalTo(10));
-        assertThat(queryContexts.get(0).isPrefix, equalTo(true));
+        List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(createParseContext(parser));
+        assertThat(internalQueryContexts.size(), equalTo(1));
+        assertThat(internalQueryContexts.get(0).context, equalTo("context1"));
+        assertThat(internalQueryContexts.get(0).boost, equalTo(10));
+        assertThat(internalQueryContexts.get(0).isPrefix, equalTo(true));
     }
 
 
@@ -245,14 +248,18 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
-        List<ContextMapping.QueryContext> queryContexts = mapping.parseQueryContext(parser);
-        assertThat(queryContexts.size(), equalTo(2));
-        assertThat(queryContexts.get(0).context, equalTo("context1"));
-        assertThat(queryContexts.get(0).boost, equalTo(2));
-        assertThat(queryContexts.get(0).isPrefix, equalTo(true));
-        assertThat(queryContexts.get(1).context, equalTo("context2"));
-        assertThat(queryContexts.get(1).boost, equalTo(3));
-        assertThat(queryContexts.get(1).isPrefix, equalTo(false));
+        List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(createParseContext(parser));
+        assertThat(internalQueryContexts.size(), equalTo(2));
+        assertThat(internalQueryContexts.get(0).context, equalTo("context1"));
+        assertThat(internalQueryContexts.get(0).boost, equalTo(2));
+        assertThat(internalQueryContexts.get(0).isPrefix, equalTo(true));
+        assertThat(internalQueryContexts.get(1).context, equalTo("context2"));
+        assertThat(internalQueryContexts.get(1).boost, equalTo(3));
+        assertThat(internalQueryContexts.get(1).isPrefix, equalTo(false));
+    }
+
+    private static QueryParseContext createParseContext(XContentParser parser) {
+        return new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
     }
 
     public void testQueryContextParsingMixed() throws Exception {
@@ -266,14 +273,14 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endArray();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
-        List<ContextMapping.QueryContext> queryContexts = mapping.parseQueryContext(parser);
-        assertThat(queryContexts.size(), equalTo(2));
-        assertThat(queryContexts.get(0).context, equalTo("context1"));
-        assertThat(queryContexts.get(0).boost, equalTo(2));
-        assertThat(queryContexts.get(0).isPrefix, equalTo(true));
-        assertThat(queryContexts.get(1).context, equalTo("context2"));
-        assertThat(queryContexts.get(1).boost, equalTo(1));
-        assertThat(queryContexts.get(1).isPrefix, equalTo(false));
+        List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(createParseContext(parser));
+        assertThat(internalQueryContexts.size(), equalTo(2));
+        assertThat(internalQueryContexts.get(0).context, equalTo("context1"));
+        assertThat(internalQueryContexts.get(0).boost, equalTo(2));
+        assertThat(internalQueryContexts.get(0).isPrefix, equalTo(true));
+        assertThat(internalQueryContexts.get(1).context, equalTo("context2"));
+        assertThat(internalQueryContexts.get(1).boost, equalTo(1));
+        assertThat(internalQueryContexts.get(1).isPrefix, equalTo(false));
     }
 
     public void testParsingContextFromDocument() throws Exception {

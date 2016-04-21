@@ -56,6 +56,20 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         super(XContentType.JSON);
     }
 
+    protected AbstractQueryBuilder(StreamInput in) throws IOException {
+        boost = in.readFloat();
+        queryName = in.readOptionalString();
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeFloat(boost);
+        out.writeOptionalString(queryName);
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -143,25 +157,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return (QB) this;
     }
 
-    @Override
-    public final QB readFrom(StreamInput in) throws IOException {
-        QB queryBuilder = doReadFrom(in);
-        queryBuilder.boost = in.readFloat();
-        queryBuilder.queryName = in.readOptionalString();
-        return queryBuilder;
-    }
-
-    protected abstract QB doReadFrom(StreamInput in) throws IOException;
-
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        doWriteTo(out);
-        out.writeFloat(boost);
-        out.writeOptionalString(queryName);
-    }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
-
     protected final QueryValidationException addValidationError(String validationError, QueryValidationException validationException) {
         return QueryValidationException.addValidationError(getName(), validationError, validationException);
     }
@@ -246,7 +241,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     protected final void writeQueries(StreamOutput out, List<? extends QueryBuilder<?>> queries) throws IOException {
         out.writeVInt(queries.size());
         for (QueryBuilder<?> query : queries) {
-            out.writeQuery(query);
+            out.writeNamedWriteable(query);
         }
     }
 
@@ -254,14 +249,14 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         List<QueryBuilder<?>> queries = new ArrayList<>();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            queries.add(in.readQuery());
+            queries.add(in.readNamedWriteable(QueryBuilder.class));
         }
         return queries;
     }
 
     @Override
     public final QueryBuilder<?> rewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder rewritten = doRewrite(queryShardContext);
+        QueryBuilder<?> rewritten = doRewrite(queryShardContext);
         if (rewritten == this) {
             return rewritten;
         }
@@ -276,5 +271,13 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         return this;
+    }
+
+    // Like Objects.requireNotNull(...) but instead throws a IllegalArgumentException
+    protected static <T> T requireValue(T value, String message) {
+        if (value == null) {
+            throw new IllegalArgumentException(message);
+        }
+        return value;
     }
 }

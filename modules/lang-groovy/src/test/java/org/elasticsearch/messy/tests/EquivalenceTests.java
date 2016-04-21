@@ -332,7 +332,7 @@ public class EquivalenceTests extends ESIntegTestCase {
         createIndex("idx");
 
         final int numDocs = scaledRandomIntBetween(2500, 5000);
-        logger.info("Indexing [" + numDocs +"] docs");
+        logger.info("Indexing [{}] docs", numDocs);
         List<IndexRequestBuilder> indexingRequests = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
             indexingRequests.add(client().prepareIndex("idx", "type", Integer.toString(i)).setSource("double_value", randomDouble()));
@@ -344,7 +344,7 @@ public class EquivalenceTests extends ESIntegTestCase {
         assertEquals(numDocs, response.getHits().getTotalHits());
     }
 
-    // https://github.com/elasticsearch/elasticsearch/issues/6435
+    // https://github.com/elastic/elasticsearch/issues/6435
     public void testReduce() throws Exception {
         createIndex("idx");
         final int value = randomIntBetween(0, 10);

@@ -1,14 +1,14 @@
 {
   "tasks.list": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/tasks-list.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
     "methods": ["GET"],
     "url": {
       "path": "/_tasks",
       "paths": ["/_tasks", "/_tasks/{task_id}"],
       "parts": {
         "task_id": {
-          "type": "number",
-          "description": "Return the task with specified id"
+          "type": "string",
+          "description": "Return the task with specified id (node_id:task_number)"
         }
       },
       "params": {
@@ -29,9 +29,20 @@
           "description": "Return tasks with specified parent node."
         },
         "parent_task": {
-          "type" : "number",
-          "description" : "Return tasks with specified parent task id. Set to -1 to return all."
+          "type" : "string",
+          "description" : "Return tasks with specified parent task id (node_id:task_number). Set to -1 to return all."
+        },
+        "wait_for_completion": {
+          "type": "boolean",
+          "description": "Wait for the matching tasks to complete (default: false)"
+        },
+        "group_by": {
+          "type" : "enum",
+          "description": "Group tasks by nodes or parent/child relationships",
+          "options" : ["nodes", "parents"],
+          "default" : "nodes"
         }
+
       }
     },
     "body": null

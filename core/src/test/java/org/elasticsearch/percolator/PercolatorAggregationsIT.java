@@ -21,6 +21,7 @@ package org.elasticsearch.percolator;
 import org.elasticsearch.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -51,9 +52,14 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class PercolatorAggregationsIT extends ESIntegTestCase {
 
+    private final static String INDEX_NAME = "queries";
+    private final static String TYPE_NAME = "query";
+
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!
     public void testAggregations() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=text", "field2", "type=text"));
+        assertAcked(prepareCreate(INDEX_NAME)
+                .addMapping(TYPE_NAME, "query", "type=percolator")
+                .addMapping("type", "field1", "type=text", "field2", "type=keyword"));
         ensureGreen();
 
         int numQueries = scaledRandomIntBetween(250, 500);
@@ -69,7 +75,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
             String value = values[i % numUniqueQueries];
             expectedCount[i % numUniqueQueries]++;
             QueryBuilder queryBuilder = matchQuery("field1", value);
-            client().prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
+            client().prepareIndex(INDEX_NAME, TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", queryBuilder).field("field2", "b").endObject()).execute()
                     .actionGet();
         }
@@ -78,7 +84,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
         for (int i = 0; i < numQueries; i++) {
             String value = values[i % numUniqueQueries];
             PercolateRequestBuilder percolateRequestBuilder = client().preparePercolate()
-                    .setIndices("test")
+                    .setIndices(INDEX_NAME)
                     .setDocumentType("type")
                     .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()))
                     .setSize(expectedCount[i % numUniqueQueries]);
@@ -118,7 +124,9 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
 
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!
     public void testAggregationsAndPipelineAggregations() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=text", "field2", "type=text"));
+        assertAcked(prepareCreate(INDEX_NAME)
+                .addMapping(TYPE_NAME, "query", "type=percolator")
+                .addMapping("type", "field1", "type=text", "field2", "type=keyword"));
         ensureGreen();
 
         int numQueries = scaledRandomIntBetween(250, 500);
@@ -134,7 +142,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
             String value = values[i % numUniqueQueries];
             expectedCount[i % numUniqueQueries]++;
             QueryBuilder queryBuilder = matchQuery("field1", value);
-            client().prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
+            client().prepareIndex(INDEX_NAME, TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", queryBuilder).field("field2", "b").endObject()).execute()
                     .actionGet();
         }
@@ -143,7 +151,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
         for (int i = 0; i < numQueries; i++) {
             String value = values[i % numUniqueQueries];
             PercolateRequestBuilder percolateRequestBuilder = client().preparePercolate()
-                    .setIndices("test")
+                    .setIndices(INDEX_NAME)
                     .setDocumentType("type")
                     .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()))
                     .setSize(expectedCount[i % numUniqueQueries]);
@@ -192,9 +200,11 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
     }
 
     public void testSignificantAggs() throws Exception {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().indices().prepareCreate(INDEX_NAME)
+                .addMapping(TYPE_NAME, "query", "type=percolator")
+                .execute().actionGet();
         ensureGreen();
-        PercolateRequestBuilder percolateRequestBuilder = client().preparePercolate().setIndices("test").setDocumentType("type")
+        PercolateRequestBuilder percolateRequestBuilder = client().preparePercolate().setIndices(INDEX_NAME).setDocumentType("type")
                 .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "value").endObject()))
                 .addAggregation(AggregationBuilders.significantTerms("a").field("field2"));
         PercolateResponse response = percolateRequestBuilder.get();
@@ -202,8 +212,9 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
     }
 
     public void testSingleShardAggregations() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
-                .addMapping("type", "field1", "type=text", "field2", "type=text"));
+        assertAcked(prepareCreate(INDEX_NAME).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
+                .addMapping(TYPE_NAME, "query", "type=percolator")
+                .addMapping("type", "field1", "type=text", "field2", "type=keyword"));
         ensureGreen();
 
         int numQueries = scaledRandomIntBetween(250, 500);
@@ -212,7 +223,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
         for (int i = 0; i < numQueries; i++) {
             String value = "value0";
             QueryBuilder queryBuilder = matchQuery("field1", value);
-            client().prepareIndex("test", PercolatorService.TYPE_NAME, Integer.toString(i))
+            client().prepareIndex(INDEX_NAME, TYPE_NAME, Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("query", queryBuilder).field("field2", i % 3 == 0 ? "b" : "a").endObject())
                     .execute()
                     .actionGet();
@@ -222,7 +233,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
         for (int i = 0; i < numQueries; i++) {
             String value = "value0";
             PercolateRequestBuilder percolateRequestBuilder = client().preparePercolate()
-                    .setIndices("test")
+                    .setIndices(INDEX_NAME)
                     .setDocumentType("type")
                     .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()))
                     .setSize(numQueries);

@@ -21,29 +21,28 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.EnumSet;
-
 /**
  * Matcher to use in combination with {@link ParseField} while parsing requests. Matches a {@link ParseField}
  * against a field name and throw deprecation exception depending on the current value of the {@link #PARSE_STRICT} setting.
  */
 public class ParseFieldMatcher {
     public static final String PARSE_STRICT = "index.query.parse.strict";
-    public static final ParseFieldMatcher EMPTY = new ParseFieldMatcher(ParseField.EMPTY_FLAGS);
-    public static final ParseFieldMatcher STRICT = new ParseFieldMatcher(ParseField.STRICT_FLAGS);
+    public static final ParseFieldMatcher EMPTY = new ParseFieldMatcher(false);
+    public static final ParseFieldMatcher STRICT = new ParseFieldMatcher(true);
 
-    private final EnumSet<ParseField.Flag> parseFlags;
+    private final boolean strict;
 
     public ParseFieldMatcher(Settings settings) {
-        if (settings.getAsBoolean(PARSE_STRICT, false)) {
-            this.parseFlags = EnumSet.of(ParseField.Flag.STRICT);
-        } else {
-            this.parseFlags = ParseField.EMPTY_FLAGS;
-        }
+        this(settings.getAsBoolean(PARSE_STRICT, false));
     }
 
-    public ParseFieldMatcher(EnumSet<ParseField.Flag> parseFlags) {
-        this.parseFlags = parseFlags;
+    public ParseFieldMatcher(boolean strict) {
+        this.strict = strict;
+    }
+
+    /** Should deprecated settings be rejected? */
+    public boolean isStrict() {
+        return strict;
     }
 
     /**
@@ -55,6 +54,6 @@ public class ParseFieldMatcher {
      * @return true whenever the parse field that we are looking for was found, false otherwise
      */
     public boolean match(String fieldName, ParseField parseField) {
-        return parseField.match(fieldName, parseFlags);
+        return parseField.match(fieldName, strict);
     }
 }

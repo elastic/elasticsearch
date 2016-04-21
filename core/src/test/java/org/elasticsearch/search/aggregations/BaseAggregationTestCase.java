@@ -20,10 +20,10 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
@@ -36,8 +36,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
@@ -60,7 +63,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.AfterClass;
@@ -73,6 +75,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> extends ESTestCase {
@@ -83,8 +87,8 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
     protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
     protected static final String DATE_FIELD_NAME = "mapped_date";
     protected static final String OBJECT_FIELD_NAME = "mapped_object";
-    protected static final String[] mappedFieldNames = new String[] { STRING_FIELD_NAME, INT_FIELD_NAME,
-            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, OBJECT_FIELD_NAME };
+    protected static final String[] mappedFieldNames = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME,
+            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, OBJECT_FIELD_NAME};
 
     private static Injector injector;
     private static Index index;
@@ -111,17 +115,18 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
         Version version = randomBoolean() ? Version.CURRENT
                 : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("node.name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
 
-        namedWriteableRegistry =  new NamedWriteableRegistry();
+        namedWriteableRegistry = new NamedWriteableRegistry();
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
-        Settings indexSettings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        final TestClusterService clusterService = new TestClusterService();
-        clusterService.setState(new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        final ThreadPool threadPool = new ThreadPool(settings);
+        final ClusterService clusterService = createClusterService(threadPool);
+        setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
                 .put(new IndexMetaData.Builder(index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
         SettingsModule settingsModule = new SettingsModule(settings);
         settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
@@ -158,7 +163,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 settingsModule,
-                new ThreadPoolModule(new ThreadPool(settings)),
+                new ThreadPoolModule(threadPool),
                 scriptModule,
                 new IndicesModule() {
 
@@ -169,10 +174,6 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
                 }, new SearchModule(settings, namedWriteableRegistry) {
                     @Override
                     protected void configureSearch() {
-                        // Skip me
-                    }
-                    @Override
-                    protected void configureSuggesters() {
                         // Skip me
                     }
                 },
@@ -200,6 +201,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
 
     @AfterClass
     public static void afterClass() throws Exception {
+        injector.getInstance(ClusterService.class).close();
         terminate(injector.getInstance(ThreadPool.class));
         injector = null;
         index = null;
@@ -216,11 +218,14 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
     public void testFromXContent() throws IOException {
         AB testAgg = createTestAggregatorBuilder();
         AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder().addAggregator(testAgg);
-        String contentString = factoriesBuilder.toString();
-        XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
-        parseContext.reset(parser);
-        parseContext.parseFieldMatcher(parseFieldMatcher);
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        if (randomBoolean()) {
+            builder.prettyPrint();
+        }
+        factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+        XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(shuffled.bytes());
+        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.name, parser.currentName());
@@ -228,7 +233,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.type.name(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        AggregatorBuilder newAgg = aggParsers.parser(testAgg.getType()).parse(testAgg.name, parser, parseContext);
+        AggregatorBuilder<?> newAgg = aggParsers.parser(testAgg.getType(), ParseFieldMatcher.STRICT).parse(testAgg.name, parseContext);
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
@@ -246,14 +251,12 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
     public void testSerialization() throws IOException {
         AB testAgg = createTestAggregatorBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            testAgg.writeTo(output);
+            output.writeNamedWriteable(testAgg);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorBuilder prototype = (AggregatorBuilder) namedWriteableRegistry.getPrototype(AggregatorBuilder.class,
-                    testAgg.getWriteableName());
-                AggregatorBuilder deserializedQuery = prototype.readFrom(in);
-                assertEquals(deserializedQuery, testAgg);
-                assertEquals(deserializedQuery.hashCode(), testAgg.hashCode());
-                assertNotSame(deserializedQuery, testAgg);
+                AggregatorBuilder<?> deserialized = in.readNamedWriteable(AggregatorBuilder.class);
+                assertEquals(testAgg, deserialized);
+                assertEquals(testAgg.hashCode(), deserialized.hashCode());
+                assertNotSame(testAgg, deserialized);
             }
         }
     }
@@ -290,10 +293,8 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             agg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorBuilder prototype = (AggregatorBuilder) namedWriteableRegistry.getPrototype(AggregatorBuilder.class,
-                    agg.getWriteableName());
                 @SuppressWarnings("unchecked")
-                AB secondAgg = (AB) prototype.readFrom(in);
+                AB secondAgg = (AB) namedWriteableRegistry.getReader(AggregatorBuilder.class, agg.getWriteableName()).read(in);
                 return secondAgg;
             }
         }
@@ -309,7 +310,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
             }
         } else {
             if (randomBoolean()) {
-                types = new String[] { MetaData.ALL };
+                types = new String[]{MetaData.ALL};
             } else {
                 types = new String[0];
             }
@@ -320,13 +321,13 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
     public String randomNumericField() {
         int randomInt = randomInt(3);
         switch (randomInt) {
-        case 0:
-            return DATE_FIELD_NAME;
-        case 1:
-            return DOUBLE_FIELD_NAME;
-        case 2:
-        default:
-            return INT_FIELD_NAME;
+            case 0:
+                return DATE_FIELD_NAME;
+            case 1:
+                return DOUBLE_FIELD_NAME;
+            case 2:
+            default:
+                return INT_FIELD_NAME;
         }
     }
 }

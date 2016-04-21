@@ -20,13 +20,13 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamInputReader;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +42,26 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     protected AbstractRangeBuilder(String name, InternalRange.Factory<?, ?> rangeFactory) {
         super(name, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
         this.rangeFactory = rangeFactory;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected AbstractRangeBuilder(StreamInput in, InternalRange.Factory<?, ?> rangeFactory, StreamInputReader<R> rangeReader)
+            throws IOException {
+        super(in, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
+        this.rangeFactory = rangeFactory;
+        ranges = in.readList(rangeReader);
+        keyed = in.readBoolean();
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeVInt(ranges.size());
+        for (Range range : ranges) {
+            range.writeTo(out);
+        }
+        out.writeBoolean(keyed);
     }
 
     public AB addRange(R range) {
@@ -70,25 +90,6 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
         builder.field(RangeAggregator.RANGES_FIELD.getPreferredName(), ranges);
         builder.field(RangeAggregator.KEYED_FIELD.getPreferredName(), keyed);
         return builder;
-    }
-
-    @Override
-    protected AB innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        AbstractRangeBuilder<AB, R> factory = createFactoryFromStream(name, in);
-        factory.keyed = in.readBoolean();
-        return (AB) factory;
-    }
-
-    protected abstract AbstractRangeBuilder<AB, R> createFactoryFromStream(String name, StreamInput in) throws IOException;
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(ranges.size());
-        for (Range range : ranges) {
-            range.writeTo(out);
-        }
-        out.writeBoolean(keyed);
     }
 
     @Override

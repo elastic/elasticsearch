@@ -27,7 +27,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-public class AttachmentUnitTestCase extends ESTestCase {
+public abstract class AttachmentUnitTestCase extends ESTestCase {
 
     protected Settings testSettings;
 

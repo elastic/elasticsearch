@@ -44,10 +44,7 @@ public abstract class AbstractAwsTestCase extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put("cloud.aws.test.random", randomInt())
-                .put("cloud.aws.test.write_failures", 0.1)
-                .put("cloud.aws.test.read_failures", 0.1);
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());
 
         // if explicit, just load it and don't load from env
         try {

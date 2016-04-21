@@ -248,33 +248,11 @@ public final class Settings implements ToXContent {
     }
 
     /**
-     * Returns the setting value associated with the first setting key.
-     */
-    public String get(String[] settings) {
-        for (String setting : settings) {
-            String retVal = get(setting);
-            if (retVal != null) {
-                return retVal;
-            }
-        }
-        return null;
-    }
-
-    /**
      * Returns the setting value associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
     public String get(String setting, String defaultValue) {
         String retVal = get(setting);
-        return retVal == null ? defaultValue : retVal;
-    }
-
-    /**
-     * Returns the setting value associated with the first setting key, if none exists,
-     * returns the default value provided.
-     */
-    public String get(String[] settings, String defaultValue) {
-        String retVal = get(settings);
         return retVal == null ? defaultValue : retVal;
     }
 
@@ -295,22 +273,6 @@ public final class Settings implements ToXContent {
     }
 
     /**
-     * Returns the setting value (as float) associated with teh first setting key, if none
-     * exists, returns the default value provided.
-     */
-    public Float getAsFloat(String[] settings, Float defaultValue) throws SettingsException {
-        String sValue = get(settings);
-        if (sValue == null) {
-            return defaultValue;
-        }
-        try {
-            return Float.parseFloat(sValue);
-        } catch (NumberFormatException e) {
-            throw new SettingsException("Failed to parse float setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
-        }
-    }
-
-    /**
      * Returns the setting value (as double) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
@@ -327,23 +289,6 @@ public final class Settings implements ToXContent {
     }
 
     /**
-     * Returns the setting value (as double) associated with teh first setting key, if none
-     * exists, returns the default value provided.
-     */
-    public Double getAsDouble(String[] settings, Double defaultValue) {
-        String sValue = get(settings);
-        if (sValue == null) {
-            return defaultValue;
-        }
-        try {
-            return Double.parseDouble(sValue);
-        } catch (NumberFormatException e) {
-            throw new SettingsException("Failed to parse double setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
-        }
-    }
-
-
-    /**
      * Returns the setting value (as int) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
@@ -356,22 +301,6 @@ public final class Settings implements ToXContent {
             return Integer.parseInt(sValue);
         } catch (NumberFormatException e) {
             throw new SettingsException("Failed to parse int setting [" + setting + "] with value [" + sValue + "]", e);
-        }
-    }
-
-    /**
-     * Returns the setting value (as int) associated with the first setting key. If it does not exists,
-     * returns the default value provided.
-     */
-    public Integer getAsInt(String[] settings, Integer defaultValue) {
-        String sValue = get(settings);
-        if (sValue == null) {
-            return defaultValue;
-        }
-        try {
-            return Integer.parseInt(sValue);
-        } catch (NumberFormatException e) {
-            throw new SettingsException("Failed to parse int setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
         }
     }
 
@@ -392,35 +321,11 @@ public final class Settings implements ToXContent {
     }
 
     /**
-     * Returns the setting value (as long) associated with the setting key. If it does not exists,
-     * returns the default value provided.
-     */
-    public Long getAsLong(String[] settings, Long defaultValue) {
-        String sValue = get(settings);
-        if (sValue == null) {
-            return defaultValue;
-        }
-        try {
-            return Long.parseLong(sValue);
-        } catch (NumberFormatException e) {
-            throw new SettingsException("Failed to parse long setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
-        }
-    }
-
-    /**
      * Returns the setting value (as boolean) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
     public Boolean getAsBoolean(String setting, Boolean defaultValue) {
         return Booleans.parseBoolean(get(setting), defaultValue);
-    }
-
-    /**
-     * Returns the setting value (as boolean) associated with the setting key. If it does not exists,
-     * returns the default value provided.
-     */
-    public Boolean getAsBoolean(String[] settings, Boolean defaultValue) {
-        return Booleans.parseBoolean(get(settings), defaultValue);
     }
 
     /**
@@ -432,41 +337,11 @@ public final class Settings implements ToXContent {
     }
 
     /**
-     * Returns the setting value (as time) associated with the setting key. If it does not exists,
-     * returns the default value provided.
-     */
-    public TimeValue getAsTime(String[] settings, TimeValue defaultValue) {
-         // NOTE: duplicated from get(String[]) so we can pass which setting name was actually used to parseTimeValue:
-         for (String setting : settings) {
-             String retVal = get(setting);
-             if (retVal != null) {
-                 parseTimeValue(get(settings), defaultValue, setting);
-             }
-         }
-         return defaultValue;
-    }
-
-    /**
      * Returns the setting value (as size) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
     public ByteSizeValue getAsBytesSize(String setting, ByteSizeValue defaultValue) throws SettingsException {
         return parseBytesSizeValue(get(setting), defaultValue, setting);
-    }
-
-    /**
-     * Returns the setting value (as size) associated with the setting key. If it does not exists,
-     * returns the default value provided.
-     */
-    public ByteSizeValue getAsBytesSize(String[] settings, ByteSizeValue defaultValue) throws SettingsException {
-        // NOTE: duplicated from get(String[]) so we can pass which setting name was actually used to parseBytesSizeValue
-        for (String setting : settings) {
-            String retVal = get(setting);
-            if (retVal != null) {
-                parseBytesSizeValue(get(settings), defaultValue, setting);
-            }
-        }
-        return defaultValue;
     }
 
     /**
@@ -479,22 +354,6 @@ public final class Settings implements ToXContent {
     }
 
     /**
-     * Returns the setting value (as size) associated with the setting key. Provided values can either be
-     * absolute values (interpreted as a number of bytes), byte sizes (eg. 1mb) or percentage of the heap size
-     * (eg. 12%). If it does not exists, parses the default value provided.
-     */
-    public ByteSizeValue getAsMemory(String[] settings, String defaultValue) throws SettingsException {
-        // NOTE: duplicated from get(String[]) so we can pass which setting name was actually used to parseBytesSizeValueOrHeapRatio
-        for (String setting : settings) {
-            String retVal = get(setting);
-            if (retVal != null) {
-                return MemorySizeValue.parseBytesSizeValueOrHeapRatio(retVal, setting);
-            }
-        }
-        return MemorySizeValue.parseBytesSizeValueOrHeapRatio(defaultValue, settings[0]);
-    }
-
-    /**
      * Returns the setting value (as a RatioValue) associated with the setting key. Provided values can
      * either be a percentage value (eg. 23%), or expressed as a floating point number (eg. 0.23). If
      * it does not exist, parses the default value provided.
@@ -504,28 +363,11 @@ public final class Settings implements ToXContent {
     }
 
     /**
-     * Returns the setting value (as a RatioValue) associated with the setting key. Provided values can
-     * either be a percentage value (eg. 23%), or expressed as a floating point number (eg. 0.23). If
-     * it does not exist, parses the default value provided.
-     */
-    public RatioValue getAsRatio(String[] settings, String defaultValue) throws SettingsException {
-        return RatioValue.parseRatioValue(get(settings, defaultValue));
-    }
-
-    /**
      * Returns the setting value (as size) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */
     public SizeValue getAsSize(String setting, SizeValue defaultValue) throws SettingsException {
         return parseSizeValue(get(setting), defaultValue);
-    }
-
-    /**
-     * Returns the setting value (as size) associated with the setting key. If it does not exists,
-     * returns the default value provided.
-     */
-    public SizeValue getAsSize(String[] settings, SizeValue defaultValue) throws SettingsException {
-        return parseSizeValue(get(settings), defaultValue);
     }
 
     /**
@@ -735,14 +577,10 @@ public final class Settings implements ToXContent {
         }
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
     /**
      * Returns a builder to be used in order to build settings.
      */
-    public static Builder settingsBuilder() {
+    public static Builder builder() {
         return new Builder();
     }
 
@@ -755,15 +593,23 @@ public final class Settings implements ToXContent {
             }
         } else {
             for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.field(entry.getKey(), entry.getValue());
             }
         }
         return builder;
     }
 
     /**
+     * Returns <tt>true</tt> if this settings object contains no settings
+     * @return <tt>true</tt> if this settings object contains no settings
+     */
+    public boolean isEmpty() {
+        return this.settings.isEmpty();
+    }
+
+    /**
      * A builder allowing to put different settings and then {@link #build()} an immutable
-     * settings implementation. Use {@link Settings#settingsBuilder()} in order to
+     * settings implementation. Use {@link Settings#builder()} in order to
      * construct it.
      */
     public static class Builder {
@@ -1136,10 +982,10 @@ public final class Settings implements ToXContent {
          * @param properties The properties to put
          * @return The builder
          */
-        public Builder putProperties(String prefix, Dictionary<Object,Object> properties) {
-            for (Object key1 : Collections.list(properties.keys())) {
-                String key = Objects.toString(key1);
-                String value = Objects.toString(properties.get(key));
+        public Builder putProperties(String prefix, Dictionary<Object, Object> properties) {
+            for (Object property : Collections.list(properties.keys())) {
+                String key = Objects.toString(property);
+                String value = Objects.toString(properties.get(property));
                 if (key.startsWith(prefix)) {
                     map.put(key.substring(prefix.length()), value);
                 }
@@ -1154,19 +1000,12 @@ public final class Settings implements ToXContent {
          * @param properties The properties to put
          * @return The builder
          */
-        public Builder putProperties(String prefix, Dictionary<Object,Object> properties, String[] ignorePrefixes) {
-            for (Object key1 : Collections.list(properties.keys())) {
-                String key = Objects.toString(key1);
-                String value = Objects.toString(properties.get(key));
+        public Builder putProperties(String prefix, Dictionary<Object, Object> properties, String ignorePrefix) {
+            for (Object property : Collections.list(properties.keys())) {
+                String key = Objects.toString(property);
+                String value = Objects.toString(properties.get(property));
                 if (key.startsWith(prefix)) {
-                    boolean ignore = false;
-                    for (String ignorePrefix : ignorePrefixes) {
-                        if (key.startsWith(ignorePrefix)) {
-                            ignore = true;
-                            break;
-                        }
-                    }
-                    if (!ignore) {
+                    if (!key.startsWith(ignorePrefix)) {
                         map.put(key.substring(prefix.length()), value);
                     }
                 }
@@ -1220,7 +1059,7 @@ public final class Settings implements ToXContent {
                     }
                 };
             for (Map.Entry<String, String> entry : new HashMap<>(map).entrySet()) {
-                String value = propertyPlaceholder.replacePlaceholders(entry.getValue(), placeholderResolver);
+                String value = propertyPlaceholder.replacePlaceholders(entry.getKey(), entry.getValue(), placeholderResolver);
                 // if the values exists and has length, we should maintain it  in the map
                 // otherwise, the replace process resolved into removing it
                 if (Strings.hasLength(value)) {

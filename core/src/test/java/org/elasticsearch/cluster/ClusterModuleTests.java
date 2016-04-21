@@ -22,11 +22,9 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexTemplateFilter;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -35,9 +33,12 @@ import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 
+import java.util.HashMap;
+import java.util.Map;
 public class ClusterModuleTests extends ModuleTestCase {
 
     public static class FakeAllocationDecider extends AllocationDecider {
@@ -48,20 +49,13 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     static class FakeShardsAllocator implements ShardsAllocator {
         @Override
-        public void applyStartedShards(StartedRerouteAllocation allocation) {}
-        @Override
-        public void applyFailedShards(FailedRerouteAllocation allocation) {}
-        @Override
-        public boolean allocateUnassigned(RoutingAllocation allocation) {
+        public boolean allocate(RoutingAllocation allocation) {
             return false;
         }
+
         @Override
-        public boolean rebalance(RoutingAllocation allocation) {
-            return false;
-        }
-        @Override
-        public boolean move(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return false;
+        public Map<DiscoveryNode, Float> weighShard(RoutingAllocation allocation, ShardRouting shard) {
+            return new HashMap<>();
         }
     }
 
@@ -83,7 +77,7 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     public void testRegisterClusterDynamicSetting() {
         SettingsModule module = new SettingsModule(Settings.EMPTY);
-        module.registerSetting(Setting.boolSetting("foo.bar", false, true, Setting.Scope.CLUSTER));
+        module.registerSetting(Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope));
         assertInstanceBinding(module, ClusterSettings.class, service -> service.hasDynamicSetting("foo.bar"));
     }
 
@@ -98,8 +92,8 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     public void testRegisterIndexDynamicSetting() {
         SettingsModule module = new SettingsModule(Settings.EMPTY);
-        module.registerSetting(Setting.boolSetting("foo.bar", false, true, Setting.Scope.INDEX));
-        assertInstanceBinding(module, IndexScopedSettings.class, service -> service.hasDynamicSetting("foo.bar"));
+        module.registerSetting(Setting.boolSetting("index.foo.bar", false, Property.Dynamic, Property.IndexScope));
+        assertInstanceBinding(module, IndexScopedSettings.class, service -> service.hasDynamicSetting("index.foo.bar"));
     }
 
     public void testRegisterAllocationDeciderDuplicate() {

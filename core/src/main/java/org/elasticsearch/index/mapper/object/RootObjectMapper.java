@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.object;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -53,7 +54,7 @@ public class RootObjectMapper extends ObjectMapper {
     public static class Defaults {
         public static final FormatDateTimeFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =
                 new FormatDateTimeFormatter[]{
-                        DateFieldMapper.Defaults.DATE_TIME_FORMATTER,
+                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                         Joda.getStrictStandardDateFormatter()
                 };
         public static final boolean DATE_DETECTION = true;
@@ -140,14 +141,15 @@ public class RootObjectMapper extends ObjectMapper {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
-                        || processField(builder, fieldName, fieldNode)) {
+                        || processField(builder, fieldName, fieldNode, parserContext.indexVersionCreated())) {
                     iterator.remove();
                 }
             }
             return builder;
         }
 
-        protected boolean processField(ObjectMapper.Builder builder, String fieldName, Object fieldNode) {
+        protected boolean processField(ObjectMapper.Builder builder, String fieldName, Object fieldNode,
+                Version indexVersionCreated) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 List<FormatDateTimeFormatter> dateTimeFormatters = new ArrayList<>();
                 if (fieldNode instanceof List) {
@@ -185,7 +187,10 @@ public class RootObjectMapper extends ObjectMapper {
                         throw new MapperParsingException("A dynamic template must be defined with a name");
                     }
                     Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
-                    ((Builder) builder).add(DynamicTemplate.parse(entry.getKey(), (Map<String, Object>) entry.getValue()));
+                    String templateName = entry.getKey();
+                    Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
+                    DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams, indexVersionCreated);
+                    ((Builder) builder).add(template);
                 }
                 return true;
             } else if (fieldName.equals("date_detection")) {
@@ -235,10 +240,30 @@ public class RootObjectMapper extends ObjectMapper {
         return dynamicDateTimeFormatters;
     }
 
-    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, String dynamicType) {
-        return findTemplateBuilder(context, name, dynamicType, dynamicType);
+    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, String matchType) {
+        final String dynamicType;
+        switch (matchType) {
+        case "string":
+            // string is a corner case since a json string can either map to a
+            // text or keyword field in elasticsearch. For now we use text when
+            // unspecified. For other types, the mapping type matches the json
+            // type so we are fine
+            dynamicType = "text";
+            break;
+        default:
+            dynamicType = matchType;
+            break;
+        }
+        return findTemplateBuilder(context, name, dynamicType, matchType);
     }
 
+    /**
+     * Find a template. Returns {@code null} if no template could be found.
+     * @param name        the field name
+     * @param dynamicType the field type to give the field if the template does not define one
+     * @param matchType   the type of the field in the json document or null if unknown
+     * @return a mapper builder, or null if there is no template for such a field
+     */
     public Mapper.Builder findTemplateBuilder(ParseContext context, String name, String dynamicType, String matchType) {
         DynamicTemplate dynamicTemplate = findTemplate(context.path(), name, matchType);
         if (dynamicTemplate == null) {
@@ -309,8 +334,7 @@ public class RootObjectMapper extends ObjectMapper {
             builder.startArray("dynamic_templates");
             for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
                 builder.startObject();
-                builder.field(dynamicTemplate.name());
-                builder.map(dynamicTemplate.conf());
+                builder.field(dynamicTemplate.name(), dynamicTemplate);
                 builder.endObject();
             }
             builder.endArray();

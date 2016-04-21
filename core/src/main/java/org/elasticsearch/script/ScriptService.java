@@ -46,6 +46,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -54,8 +55,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.query.TemplateQueryParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -84,10 +84,13 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
-    public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING = Setting.intSetting("script.cache.max_size", 100, 0, false, Setting.Scope.CLUSTER);
-    public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING = Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), false, Setting.Scope.CLUSTER);
+    public static final Setting<Integer> SCRIPT_CACHE_SIZE_SETTING =
+        Setting.intSetting("script.cache.max_size", 100, 0, Property.NodeScope);
+    public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
+        Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope);
     public static final String SCRIPT_INDEX = ".scripts";
-    public static final Setting<Boolean> SCRIPT_AUTO_RELOAD_ENABLED_SETTING = Setting.boolSetting("script.auto_reload_enabled", true, false, Setting.Scope.CLUSTER);
+    public static final Setting<Boolean> SCRIPT_AUTO_RELOAD_ENABLED_SETTING =
+        Setting.boolSetting("script.auto_reload_enabled", true, Property.NodeScope);
 
     private final String defaultLang;
 
@@ -225,6 +228,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
         return scriptEngineService;
     }
 
+
+
     /**
      * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
      */
@@ -356,10 +361,9 @@ public class ScriptService extends AbstractComponent implements Closeable {
     }
 
     private void validate(BytesReference scriptBytes, String scriptLang) {
-        try {
-            XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
+        try (XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes)) {
             parser.nextToken();
-            Template template = TemplateQueryParser.parse(scriptLang, parser, parseFieldMatcher, "params", "script", "template");
+            Template template = TemplateQueryBuilder.parse(scriptLang, parser, parseFieldMatcher, "params", "script", "template");
             if (Strings.hasLength(template.getScript())) {
                 //Just try and compile it
                 try {
@@ -516,46 +520,53 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     private class ScriptChangesListener extends FileChangesListener {
 
-        private Tuple<String, String> scriptNameExt(Path file) {
+        private Tuple<String, String> getScriptNameExt(Path file) {
             Path scriptPath = scriptsDirectory.relativize(file);
             int extIndex = scriptPath.toString().lastIndexOf('.');
-            if (extIndex != -1) {
-                String ext = scriptPath.toString().substring(extIndex + 1);
-                String scriptName = scriptPath.toString().substring(0, extIndex).replace(scriptPath.getFileSystem().getSeparator(), "_");
-                return new Tuple<>(scriptName, ext);
-            } else {
+            if (extIndex <= 0) {
                 return null;
             }
+
+            String ext = scriptPath.toString().substring(extIndex + 1);
+            if (ext.isEmpty()) {
+                return null;
+            }
+
+            String scriptName = scriptPath.toString().substring(0, extIndex).replace(scriptPath.getFileSystem().getSeparator(), "_");
+            return new Tuple<>(scriptName, ext);
         }
 
         @Override
         public void onFileInit(Path file) {
+            Tuple<String, String> scriptNameExt = getScriptNameExt(file);
+            if (scriptNameExt == null) {
+                logger.debug("Skipped script with invalid extension : [{}]", file);
+                return;
+            }
             if (logger.isTraceEnabled()) {
                 logger.trace("Loading script file : [{}]", file);
             }
-            Tuple<String, String> scriptNameExt = scriptNameExt(file);
-            if (scriptNameExt != null) {
-                ScriptEngineService engineService = getScriptEngineServiceForFileExt(scriptNameExt.v2());
-                if (engineService == null) {
-                    logger.warn("no script engine found for [{}]", scriptNameExt.v2());
-                } else {
-                    try {
-                        //we don't know yet what the script will be used for, but if all of the operations for this lang
-                        // with file scripts are disabled, it makes no sense to even compile it and cache it.
-                        if (isAnyScriptContextEnabled(engineService.getTypes().get(0), engineService, ScriptType.FILE)) {
-                            logger.info("compiling script file [{}]", file.toAbsolutePath());
-                            try(InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
-                                String script = Streams.copyToString(reader);
-                                CacheKey cacheKey = new CacheKey(engineService, scriptNameExt.v1(), null, Collections.emptyMap());
-                                staticCache.put(cacheKey, new CompiledScript(ScriptType.FILE, scriptNameExt.v1(), engineService.getTypes().get(0), engineService.compile(script, Collections.emptyMap())));
-                                scriptMetrics.onCompilation();
-                            }
-                        } else {
-                            logger.warn("skipping compile of script file [{}] as all scripted operations are disabled for file scripts", file.toAbsolutePath());
+
+            ScriptEngineService engineService = getScriptEngineServiceForFileExt(scriptNameExt.v2());
+            if (engineService == null) {
+                logger.warn("No script engine found for [{}]", scriptNameExt.v2());
+            } else {
+                try {
+                    //we don't know yet what the script will be used for, but if all of the operations for this lang
+                    // with file scripts are disabled, it makes no sense to even compile it and cache it.
+                    if (isAnyScriptContextEnabled(engineService.getTypes().get(0), engineService, ScriptType.FILE)) {
+                        logger.info("compiling script file [{}]", file.toAbsolutePath());
+                        try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
+                            String script = Streams.copyToString(reader);
+                            CacheKey cacheKey = new CacheKey(engineService, scriptNameExt.v1(), null, Collections.emptyMap());
+                            staticCache.put(cacheKey, new CompiledScript(ScriptType.FILE, scriptNameExt.v1(), engineService.getTypes().get(0), engineService.compile(script, Collections.emptyMap())));
+                            scriptMetrics.onCompilation();
                         }
-                    } catch (Throwable e) {
-                        logger.warn("failed to load/compile script [{}]", e, scriptNameExt.v1());
+                    } else {
+                        logger.warn("skipping compile of script file [{}] as all scripted operations are disabled for file scripts", file.toAbsolutePath());
                     }
+                } catch (Throwable e) {
+                    logger.warn("failed to load/compile script [{}]", e, scriptNameExt.v1());
                 }
             }
         }
@@ -567,7 +578,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
         @Override
         public void onFileDeleted(Path file) {
-            Tuple<String, String> scriptNameExt = scriptNameExt(file);
+            Tuple<String, String> scriptNameExt = getScriptNameExt(file);
             if (scriptNameExt != null) {
                 ScriptEngineService engineService = getScriptEngineServiceForFileExt(scriptNameExt.v2());
                 assert engineService != null;

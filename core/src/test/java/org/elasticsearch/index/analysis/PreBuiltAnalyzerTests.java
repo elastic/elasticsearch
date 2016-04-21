@@ -59,20 +59,18 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
 
     public void testThatInstancesAreTheSameAlwaysForKeywordAnalyzer() {
         assertThat(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.CURRENT),
-                is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.V_0_18_0)));
+                is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.V_2_0_0)));
     }
 
     public void testThatInstancesAreCachedAndReused() {
-        assertThat(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.CURRENT),
-                is(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.CURRENT)));
-        assertThat(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_0_18_0),
-                is(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_0_18_0)));
-    }
+        assertSame(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.CURRENT),
+                PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.CURRENT));
+        // same lucene version should be cached
+        assertSame(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_2_0_0),
+                PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_2_0_1));
 
-    public void testThatInstancesWithSameLuceneVersionAreReused() {
-        // both are lucene 4.4 and should return the same instance
-        assertThat(PreBuiltAnalyzers.CATALAN.getAnalyzer(Version.V_0_90_4),
-                is(PreBuiltAnalyzers.CATALAN.getAnalyzer(Version.V_0_90_5)));
+        assertNotSame(PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_2_0_0),
+            PreBuiltAnalyzers.ARABIC.getAnalyzer(Version.V_2_2_0));
     }
 
     public void testThatAnalyzersAreUsedInMapping() throws IOException {
@@ -81,7 +79,7 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
         String analyzerName = randomPreBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
 
         Version randomVersion = randomVersion(random());
-        Settings indexSettings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, randomVersion).build();
 
         NamedAnalyzer namedAnalyzer = new PreBuiltAnalyzerProvider(analyzerName, AnalyzerScope.INDEX, randomPreBuiltAnalyzer.getAnalyzer(randomVersion)).get();
 

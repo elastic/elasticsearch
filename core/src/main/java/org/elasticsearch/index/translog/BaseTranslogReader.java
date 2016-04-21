@@ -38,7 +38,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     protected final long firstOperationOffset;
 
     public BaseTranslogReader(long generation, FileChannel channel, Path path, long firstOperationOffset) {
-        assert Translog.parseIdFromFileName(path) == generation : "generation missmatch. Path: " + Translog.parseIdFromFileName(path) + " but generation: " + generation;
+        assert Translog.parseIdFromFileName(path) == generation : "generation mismatch. Path: " + Translog.parseIdFromFileName(path) + " but generation: " + generation;
 
         this.generation = generation;
         this.path = path;

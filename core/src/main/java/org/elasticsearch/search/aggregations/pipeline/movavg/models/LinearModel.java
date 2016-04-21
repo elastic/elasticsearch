@@ -26,7 +26,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
+import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -39,10 +39,27 @@ import java.util.Map;
  * linearly less important.  "Time" is determined by position in collection
  */
 public class LinearModel extends MovAvgModel {
+    public static final String NAME = "linear";
+    public static final ParseField NAME_FIELD = new ParseField("linear");
 
-    private static final LinearModel PROTOTYPE = new LinearModel();
-    protected static final ParseField NAME_FIELD = new ParseField("linear");
+    public LinearModel() {
+    }
 
+    /**
+     * Read from a stream.
+     */
+    public LinearModel(StreamInput in) {
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // No state to write
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 
     @Override
     public boolean canBeMinimized() {
@@ -83,53 +100,25 @@ public class LinearModel extends MovAvgModel {
         return avg / totalWeight;
     }
 
-    public static final MovAvgModelStreams.Stream STREAM = new MovAvgModelStreams.Stream() {
-        @Override
-        public MovAvgModel readResult(StreamInput in) throws IOException {
-            return PROTOTYPE.readFrom(in);
-        }
-
-        @Override
-        public String getName() {
-            return NAME_FIELD.getPreferredName();
-        }
-    };
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+        builder.field(MovAvgPipelineAggregatorBuilder.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
         return builder;
     }
 
-    @Override
-    public MovAvgModel readFrom(StreamInput in) throws IOException {
-        return new LinearModel();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(STREAM.getName());
-    }
-
-    public static class LinearModelParser extends AbstractModelParser {
-
-        @Override
-        public String getName() {
-            return NAME_FIELD.getPreferredName();
-        }
-
+    public static final AbstractModelParser PARSER = new AbstractModelParser() {
         @Override
         public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize,
                                  ParseFieldMatcher parseFieldMatcher) throws ParseException {
             checkUnrecognizedParams(settings);
             return new LinearModel();
         }
-    }
+    };
 
     public static class LinearModelBuilder implements MovAvgModelBuilder {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+            builder.field(MovAvgPipelineAggregatorBuilder.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
             return builder;
         }
 

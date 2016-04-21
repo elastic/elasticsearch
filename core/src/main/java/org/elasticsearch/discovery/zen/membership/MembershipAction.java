@@ -19,9 +19,9 @@
 
 package org.elasticsearch.discovery.zen.membership;
 
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -121,7 +121,7 @@ public class MembershipAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            node = DiscoveryNode.readNode(in);
+            node = new DiscoveryNode(in);
         }
 
         @Override
@@ -171,7 +171,7 @@ public class MembershipAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            this.state = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
+            this.state = ClusterState.Builder.readFrom(in, nodesProvider.nodes().getLocalNode());
         }
 
         @Override
@@ -204,7 +204,7 @@ public class MembershipAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            node = DiscoveryNode.readNode(in);
+            node = new DiscoveryNode(in);
         }
 
         @Override

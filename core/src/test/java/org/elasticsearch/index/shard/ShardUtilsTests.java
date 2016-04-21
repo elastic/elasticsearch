@@ -39,7 +39,7 @@ public class ShardUtilsTests extends ESTestCase {
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
         writer.commit();
         ShardId id = new ShardId("foo", "_na_", random().nextInt());
-        try (DirectoryReader reader = DirectoryReader.open(writer, random().nextBoolean())) {
+        try (DirectoryReader reader = DirectoryReader.open(writer)) {
             ElasticsearchDirectoryReader wrap = ElasticsearchDirectoryReader.wrap(reader, id);
             assertEquals(id, ShardUtils.extractShardId(wrap));
         }
@@ -53,7 +53,7 @@ public class ShardUtilsTests extends ESTestCase {
             }
         }
 
-        try (DirectoryReader reader = DirectoryReader.open(writer, random().nextBoolean())) {
+        try (DirectoryReader reader = DirectoryReader.open(writer)) {
             ElasticsearchDirectoryReader wrap = ElasticsearchDirectoryReader.wrap(reader, id);
             assertEquals(id, ShardUtils.extractShardId(wrap));
             CompositeReaderContext context = wrap.getContext();

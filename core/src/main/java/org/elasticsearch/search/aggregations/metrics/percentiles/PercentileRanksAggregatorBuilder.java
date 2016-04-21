@@ -19,39 +19,61 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.HDRPercentileRanksAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestPercentileRanksAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder.LeafOnly;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder.LeafOnly;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
 public class PercentileRanksAggregatorBuilder extends LeafOnly<ValuesSource.Numeric, PercentileRanksAggregatorBuilder> {
-
-    static final PercentileRanksAggregatorBuilder PROTOTYPE = new PercentileRanksAggregatorBuilder("");
+    public static final String NAME = InternalTDigestPercentileRanks.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private double[] values;
     private PercentilesMethod method = PercentilesMethod.TDIGEST;
     private int numberOfSignificantValueDigits = 3;
     private double compression = 100.0;
-    private boolean keyed = false;
+    private boolean keyed = true;
 
     public PercentileRanksAggregatorBuilder(String name) {
         super(name, InternalTDigestPercentileRanks.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public PercentileRanksAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalTDigestPercentileRanks.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        values = in.readDoubleArray();
+        keyed = in.readBoolean();
+        numberOfSignificantValueDigits = in.readVInt();
+        compression = in.readDouble();
+        method = PercentilesMethod.readFromStream(in);
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeDoubleArray(values);
+        out.writeBoolean(keyed);
+        out.writeVInt(numberOfSignificantValueDigits);
+        out.writeDouble(compression);
+        method.writeTo(out);
     }
 
     /**
@@ -158,27 +180,6 @@ public class PercentileRanksAggregatorBuilder extends LeafOnly<ValuesSource.Nume
     }
 
     @Override
-    protected PercentileRanksAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        PercentileRanksAggregatorBuilder factory = new PercentileRanksAggregatorBuilder(name);
-        factory.values = in.readDoubleArray();
-        factory.keyed = in.readBoolean();
-        factory.numberOfSignificantValueDigits = in.readVInt();
-        factory.compression = in.readDouble();
-        factory.method = PercentilesMethod.TDIGEST.readFrom(in);
-        return factory;
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeDoubleArray(values);
-        out.writeBoolean(keyed);
-        out.writeVInt(numberOfSignificantValueDigits);
-        out.writeDouble(compression);
-        method.writeTo(out);
-    }
-
-    @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(PercentileRanksParser.VALUES_FIELD.getPreferredName(), values);
         builder.field(AbstractPercentilesParser.KEYED_FIELD.getPreferredName(), keyed);
@@ -225,5 +226,10 @@ public class PercentileRanksAggregatorBuilder extends LeafOnly<ValuesSource.Nume
         default:
             throw new IllegalStateException("Illegal method [" + method.getName() + "]");
         }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

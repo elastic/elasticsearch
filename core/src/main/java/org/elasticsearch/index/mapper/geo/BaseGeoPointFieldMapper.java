@@ -20,30 +20,36 @@
 package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.spatial.geopoint.document.GeoPointField;
-import org.apache.lucene.spatial.util.GeoHashUtils;
-import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.geo.GeoHashUtils;
+import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractGeoPointDVIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyNumberFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
+import org.elasticsearch.search.DocValueFormat;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,20 +58,19 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 
 /**
  * GeoPointFieldMapper base class to maintain backward compatibility
  */
 public abstract class BaseGeoPointFieldMapper extends FieldMapper implements ArrayValueMapperParser {
     public static final String CONTENT_TYPE = "geo_point";
+    protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(BaseGeoPointFieldMapper.class));
     public static class Names {
         public static final String LAT = "lat";
         public static final String LAT_SUFFIX = "." + LAT;
         public static final String LON = "lon";
         public static final String LON_SUFFIX = "." + LON;
         public static final String GEOHASH = "geohash";
-        public static final String GEOHASH_SUFFIX = "." + GEOHASH;
         public static final String IGNORE_MALFORMED = "ignore_malformed";
     }
 
@@ -74,7 +79,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         public static final boolean ENABLE_GEOHASH = false;
         public static final boolean ENABLE_GEOHASH_PREFIX = false;
         public static final int GEO_HASH_PRECISION = GeoHashUtils.PRECISION;
-        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit(false, false);
+        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
     }
 
     public abstract static class Builder<T extends Builder, Y extends BaseGeoPointFieldMapper> extends FieldMapper.Builder<T, Y> {
@@ -98,12 +103,6 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         @Override
         public GeoPointFieldType fieldType() {
             return (GeoPointFieldType)fieldType;
-        }
-
-        @Override
-        public T fieldDataSettings(Settings settings) {
-            this.fieldDataSettings = settings;
-            return builder;
         }
 
         public T enableLatLon(boolean enableLatLon) {
@@ -147,32 +146,38 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         }
 
         public abstract Y build(BuilderContext context, String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                Settings indexSettings, DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper,
-                                StringFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo);
+                                Settings indexSettings, FieldMapper latMapper, FieldMapper lonMapper,
+                                KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo);
 
         public Y build(Mapper.BuilderContext context) {
             GeoPointFieldType geoPointFieldType = (GeoPointFieldType)fieldType;
 
-            DoubleFieldMapper latMapper = null;
-            DoubleFieldMapper lonMapper = null;
+            FieldMapper latMapper = null;
+            FieldMapper lonMapper = null;
 
             context.path().add(name);
             if (enableLatLon) {
-                NumberFieldMapper.Builder<?, ?> latMapperBuilder = new DoubleFieldMapper.Builder(Names.LAT).includeInAll(false);
-                NumberFieldMapper.Builder<?, ?> lonMapperBuilder = new DoubleFieldMapper.Builder(Names.LON).includeInAll(false);
-                if (precisionStep != null) {
-                    latMapperBuilder.precisionStep(precisionStep);
-                    lonMapperBuilder.precisionStep(precisionStep);
+                if (context.indexCreatedVersion().before(Version.V_5_0_0)) {
+                    LegacyNumberFieldMapper.Builder<?, ?> latMapperBuilder = new LegacyDoubleFieldMapper.Builder(Names.LAT).includeInAll(false);
+                    LegacyNumberFieldMapper.Builder<?, ?> lonMapperBuilder = new LegacyDoubleFieldMapper.Builder(Names.LON).includeInAll(false);
+                    if (precisionStep != null) {
+                        latMapperBuilder.precisionStep(precisionStep);
+                        lonMapperBuilder.precisionStep(precisionStep);
+                    }
+                    latMapper = (LegacyDoubleFieldMapper) latMapperBuilder.includeInAll(false).store(fieldType.stored()).docValues(false).build(context);
+                    lonMapper = (LegacyDoubleFieldMapper) lonMapperBuilder.includeInAll(false).store(fieldType.stored()).docValues(false).build(context);
+                } else {
+                    latMapper = new NumberFieldMapper.Builder(Names.LAT, NumberFieldMapper.NumberType.DOUBLE)
+                            .includeInAll(false).store(fieldType.stored()).docValues(false).build(context);
+                    lonMapper = new NumberFieldMapper.Builder(Names.LON, NumberFieldMapper.NumberType.DOUBLE)
+                            .includeInAll(false).store(fieldType.stored()).docValues(false).build(context);
                 }
-                latMapper = (DoubleFieldMapper) latMapperBuilder.includeInAll(false).store(fieldType.stored()).docValues(false).build(context);
-                lonMapper = (DoubleFieldMapper) lonMapperBuilder.includeInAll(false).store(fieldType.stored()).docValues(false).build(context);
                 geoPointFieldType.setLatLonEnabled(latMapper.fieldType(), lonMapper.fieldType());
             }
-            StringFieldMapper geoHashMapper = null;
+            KeywordFieldMapper geoHashMapper = null;
             if (enableGeoHash || enableGeoHashPrefix) {
                 // TODO: possible also implicitly enable geohash if geohash precision is set
-                geoHashMapper = new StringFieldMapper.Builder(Names.GEOHASH).index(true).tokenized(false).includeInAll(false).store(fieldType.stored())
-                        .omitNorms(true).indexOptions(IndexOptions.DOCS).build(context);
+                geoHashMapper = new KeywordFieldMapper.Builder(Names.GEOHASH).index(true).includeInAll(false).store(fieldType.stored()).build(context);
                 geoPointFieldType.setGeoHashEnabled(geoHashMapper.fieldType(), geoHashPrecision, enableGeoHashPrefix);
             }
             context.path().remove();
@@ -198,9 +203,13 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("lat_lon")) {
+                    deprecationLogger.deprecated(CONTENT_TYPE + " lat_lon parameter is deprecated and will be removed "
+                        + "in the next major release");
                     builder.enableLatLon(XContentMapValues.lenientNodeBooleanValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("precision_step")) {
+                    deprecationLogger.deprecated(CONTENT_TYPE + " precision_step parameter is deprecated and will be removed "
+                        + "in the next major release");
                     builder.precisionStep(XContentMapValues.nodeIntegerValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("geohash")) {
@@ -221,8 +230,6 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                     iterator.remove();
                 } else if (propName.equals(Names.IGNORE_MALFORMED)) {
                     builder.ignoreMalformed(XContentMapValues.lenientNodeBooleanValue(propNode));
-                    iterator.remove();
-                } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -343,18 +350,35 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
             this.latFieldType = latFieldType;
             this.lonFieldType = lonFieldType;
         }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            return new AbstractGeoPointDVIndexFieldData.Builder();
+        }
+
+        @Override
+        public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
+            }
+            if (timeZone != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
+                    + "] does not support custom time zones");
+            }
+            return DocValueFormat.GEOHASH;
+        }
     }
 
-    protected DoubleFieldMapper latMapper;
+    protected FieldMapper latMapper;
 
-    protected DoubleFieldMapper lonMapper;
+    protected FieldMapper lonMapper;
 
-    protected StringFieldMapper geoHashMapper;
+    protected KeywordFieldMapper geoHashMapper;
 
     protected Explicit<Boolean> ignoreMalformed;
 
     protected BaseGeoPointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings,
-                                      DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper, StringFieldMapper geoHashMapper,
+                                      FieldMapper latMapper, FieldMapper lonMapper, KeywordFieldMapper geoHashMapper,
                                       MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.latMapper = latMapper;
@@ -430,8 +454,14 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 if (token == XContentParser.Token.START_ARRAY) {
                     // its an array of array of lon/lat [ [1.2, 1.3], [1.4, 1.5] ]
                     while (token != XContentParser.Token.END_ARRAY) {
-                        parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
-                        token = context.parser().nextToken();
+                      try {
+                          parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
+                      } catch (ElasticsearchParseException e) {
+                          if (ignoreMalformed.value() == false) {
+                              throw e;
+                          }
+                      }
+                      token = context.parser().nextToken();
                     }
                 } else {
                     // its an array of other possible values
@@ -446,16 +476,28 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                             if (token == XContentParser.Token.VALUE_STRING) {
                                 parsePointFromString(context, sparse, context.parser().text());
                             } else {
-                                parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
+                                try {
+                                    parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
+                                } catch (ElasticsearchParseException e) {
+                                    if (ignoreMalformed.value() == false) {
+                                        throw e;
+                                    }
+                                }
                             }
-                            token = context.parser().nextToken();
+                          token = context.parser().nextToken();
                         }
                     }
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 parsePointFromString(context, sparse, context.parser().text());
             } else if (token != XContentParser.Token.VALUE_NULL) {
-                parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
+                try {
+                    parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
+                } catch (ElasticsearchParseException e) {
+                    if (ignoreMalformed.value() == false) {
+                        throw e;
+                    }
+                }
             }
         }
 
@@ -487,7 +529,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         if (includeDefaults || fieldType().isLatLonEnabled() != GeoPointFieldMapper.Defaults.ENABLE_LATLON) {
             builder.field("lat_lon", fieldType().isLatLonEnabled());
         }
-        if (fieldType().isLatLonEnabled() && (includeDefaults || fieldType().latFieldType().numericPrecisionStep() != NumericUtils.PRECISION_STEP_DEFAULT)) {
+        if (fieldType().isLatLonEnabled() && (includeDefaults || fieldType().latFieldType().numericPrecisionStep() != LegacyNumericUtils.PRECISION_STEP_DEFAULT)) {
             builder.field("precision_step", fieldType().latFieldType().numericPrecisionStep());
         }
         if (includeDefaults || fieldType().isGeoHashEnabled() != Defaults.ENABLE_GEOHASH) {
@@ -507,9 +549,9 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
     @Override
     public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
         BaseGeoPointFieldMapper updated = (BaseGeoPointFieldMapper) super.updateFieldType(fullNameToFieldType);
-        StringFieldMapper geoUpdated = geoHashMapper == null ? null : (StringFieldMapper) geoHashMapper.updateFieldType(fullNameToFieldType);
-        DoubleFieldMapper latUpdated = latMapper == null ? null : (DoubleFieldMapper) latMapper.updateFieldType(fullNameToFieldType);
-        DoubleFieldMapper lonUpdated = lonMapper == null ? null : (DoubleFieldMapper) lonMapper.updateFieldType(fullNameToFieldType);
+        KeywordFieldMapper geoUpdated = geoHashMapper == null ? null : (KeywordFieldMapper) geoHashMapper.updateFieldType(fullNameToFieldType);
+        FieldMapper latUpdated = latMapper == null ? null : latMapper.updateFieldType(fullNameToFieldType);
+        FieldMapper lonUpdated = lonMapper == null ? null : lonMapper.updateFieldType(fullNameToFieldType);
         if (updated == this
                 && geoUpdated == geoHashMapper
                 && latUpdated == latMapper

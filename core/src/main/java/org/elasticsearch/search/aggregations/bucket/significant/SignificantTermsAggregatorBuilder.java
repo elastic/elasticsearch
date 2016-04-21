@@ -21,15 +21,12 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder;
@@ -41,6 +38,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuild
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
 import java.io.IOException;
 import java.util.Objects;
 
@@ -48,31 +46,54 @@ import java.util.Objects;
  *
  */
 public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, SignificantTermsAggregatorBuilder> {
+    public static final String NAME = SignificantStringTerms.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
     static final ParseField HEURISTIC = new ParseField("significance_heuristic");
 
     static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
             3, 0, 10, -1);
-
-    static final SignificantTermsAggregatorBuilder PROTOTYPE = new SignificantTermsAggregatorBuilder("", null);
+    static final SignificanceHeuristic DEFAULT_SIGNIFICANCE_HEURISTIC = new JLHScore();
 
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
-    private String indexedFieldName;
-    private MappedFieldType fieldType;
-    private FilterableTermsEnum termsEnum;
-    private int numberOfAggregatorsCreated = 0;
     private QueryBuilder<?> filterBuilder = null;
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
-    private SignificanceHeuristic significanceHeuristic = JLHScore.PROTOTYPE;
-
-    protected TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
-        return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
-    }
+    private SignificanceHeuristic significanceHeuristic = DEFAULT_SIGNIFICANCE_HEURISTIC;
 
     public SignificantTermsAggregatorBuilder(String name, ValueType valueType) {
         super(name, SignificantStringTerms.TYPE, ValuesSourceType.ANY, valueType);
+    }
+
+    /**
+     * Read from a Stream.
+     */
+    public SignificantTermsAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, SignificantStringTerms.TYPE, ValuesSourceType.ANY);
+        bucketCountThresholds = new BucketCountThresholds(in);
+        executionHint = in.readOptionalString();
+        filterBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        includeExclude = in.readOptionalWriteable(IncludeExclude::new);
+        significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        bucketCountThresholds.writeTo(out);
+        out.writeOptionalString(executionHint);
+        out.writeOptionalNamedWriteable(filterBuilder);
+        out.writeOptionalWriteable(includeExclude);
+        out.writeNamedWriteable(significanceHeuristic);
+    }
+
+    @Override
+    protected boolean serializeTargetValueType() {
+        return true;
+    }
+
+    protected TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
+        return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
     }
 
     public TermsAggregator.BucketCountThresholds bucketCountThresholds() {
@@ -218,39 +239,6 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
     }
 
     @Override
-    protected SignificantTermsAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        SignificantTermsAggregatorBuilder factory = new SignificantTermsAggregatorBuilder(name, targetValueType);
-        factory.bucketCountThresholds = BucketCountThresholds.readFromStream(in);
-        factory.executionHint = in.readOptionalString();
-        if (in.readBoolean()) {
-            factory.filterBuilder = in.readQuery();
-        }
-        if (in.readBoolean()) {
-            factory.includeExclude = IncludeExclude.readFromStream(in);
-        }
-        factory.significanceHeuristic = SignificanceHeuristicStreams.read(in);
-        return factory;
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        bucketCountThresholds.writeTo(out);
-        out.writeOptionalString(executionHint);
-        boolean hasfilterBuilder = filterBuilder != null;
-        out.writeBoolean(hasfilterBuilder);
-        if (hasfilterBuilder) {
-            out.writeQuery(filterBuilder);
-        }
-        boolean hasIncExc = includeExclude != null;
-        out.writeBoolean(hasIncExc);
-        if (hasIncExc) {
-            includeExclude.writeTo(out);
-        }
-        SignificanceHeuristicStreams.writeTo(significanceHeuristic, out);
-    }
-
-    @Override
     protected int innerHashCode() {
         return Objects.hash(bucketCountThresholds, executionHint, filterBuilder, includeExclude, significanceHeuristic);
     }
@@ -263,5 +251,10 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
                 && Objects.equals(filterBuilder, other.filterBuilder)
                 && Objects.equals(includeExclude, other.includeExclude)
                 && Objects.equals(significanceHeuristic, other.significanceHeuristic);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

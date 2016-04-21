@@ -19,33 +19,57 @@
 
 package org.elasticsearch.search.aggregations.pipeline.serialdiff;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class SerialDiffPipelineAggregatorBuilder extends PipelineAggregatorBuilder<SerialDiffPipelineAggregatorBuilder> {
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 
-    static final SerialDiffPipelineAggregatorBuilder PROTOTYPE = new SerialDiffPipelineAggregatorBuilder("", "");
+public class SerialDiffPipelineAggregatorBuilder extends PipelineAggregatorBuilder<SerialDiffPipelineAggregatorBuilder> {
+    public static final String NAME = SerialDiffPipelineAggregator.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
+
+    private static final ParseField GAP_POLICY = new ParseField("gap_policy");
+    private static final ParseField LAG = new ParseField("lag");
 
     private String format;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
     private int lag = 1;
 
     public SerialDiffPipelineAggregatorBuilder(String name, String bucketsPath) {
-        this(name, new String[] { bucketsPath });
+        super(name, SerialDiffPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
-    private SerialDiffPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
-        super(name, SerialDiffPipelineAggregator.TYPE.name(), bucketsPaths);
+    /**
+     * Read from a stream.
+     */
+    public SerialDiffPipelineAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, SerialDiffPipelineAggregator.TYPE.name());
+        format = in.readOptionalString();
+        gapPolicy = GapPolicy.readFrom(in);
+        lag = in.readVInt();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(format);
+        gapPolicy.writeTo(out);
+        out.writeVInt(lag);
     }
 
     /**
@@ -102,11 +126,11 @@ public class SerialDiffPipelineAggregatorBuilder extends PipelineAggregatorBuild
         return gapPolicy;
     }
 
-    protected ValueFormatter formatter() {
+    protected DocValueFormat formatter() {
         if (format != null) {
-            return ValueFormat.Patternable.Number.format(format).formatter();
+            return new DocValueFormat.Decimal(format);
         } else {
-            return ValueFormatter.RAW;
+            return DocValueFormat.RAW;
         }
     }
 
@@ -118,27 +142,84 @@ public class SerialDiffPipelineAggregatorBuilder extends PipelineAggregatorBuild
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         if (format != null) {
-            builder.field(SerialDiffParser.FORMAT.getPreferredName(), format);
+            builder.field(FORMAT.getPreferredName(), format);
         }
-        builder.field(SerialDiffParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
-        builder.field(SerialDiffParser.LAG.getPreferredName(), lag);
+        builder.field(GAP_POLICY.getPreferredName(), gapPolicy.getName());
+        builder.field(LAG.getPreferredName(), lag);
         return builder;
     }
 
-    @Override
-    protected SerialDiffPipelineAggregatorBuilder doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-        SerialDiffPipelineAggregatorBuilder factory = new SerialDiffPipelineAggregatorBuilder(name, bucketsPaths);
-        factory.format = in.readOptionalString();
-        factory.gapPolicy = GapPolicy.readFrom(in);
-        factory.lag = in.readVInt();
-        return factory;
-    }
+    public static SerialDiffPipelineAggregatorBuilder parse(String reducerName, QueryParseContext context) throws IOException {
+        XContentParser parser = context.parser();
+        XContentParser.Token token;
+        String currentFieldName = null;
+        String[] bucketsPaths = null;
+        String format = null;
+        GapPolicy gapPolicy = null;
+        Integer lag = null;
 
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(format);
-        gapPolicy.writeTo(out);
-        out.writeVInt(lag);
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if (context.getParseFieldMatcher().match(currentFieldName, FORMAT)) {
+                    format = parser.text();
+                } else if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
+                    bucketsPaths = new String[] { parser.text() };
+                } else if (context.getParseFieldMatcher().match(currentFieldName, GAP_POLICY)) {
+                    gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                if (context.getParseFieldMatcher().match(currentFieldName, LAG)) {
+                    lag = parser.intValue(true);
+                    if (lag <= 0) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                                "Lag must be a positive, non-zero integer.  Value supplied was" +
+                                lag + " in [" + reducerName + "]: ["
+                                        + currentFieldName + "].");
+                    }
+                }  else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (context.getParseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
+                    List<String> paths = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        String path = parser.text();
+                        paths.add(path);
+                    }
+                    bucketsPaths = paths.toArray(new String[paths.size()]);
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + reducerName + "].",
+                        parser.getTokenLocation());
+            }
+        }
+
+        if (bucketsPaths == null) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for derivative aggregation [" + reducerName + "]");
+        }
+
+        SerialDiffPipelineAggregatorBuilder factory =
+                new SerialDiffPipelineAggregatorBuilder(reducerName, bucketsPaths[0]);
+        if (lag != null) {
+            factory.lag(lag);
+        }
+        if (format != null) {
+            factory.format(format);
+        }
+        if (gapPolicy != null) {
+            factory.gapPolicy(gapPolicy);
+        }
+        return factory;
     }
 
     @Override
@@ -153,4 +234,8 @@ public class SerialDiffPipelineAggregatorBuilder extends PipelineAggregatorBuild
                 && Objects.equals(lag, other.lag);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

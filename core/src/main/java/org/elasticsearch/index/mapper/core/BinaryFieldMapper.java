@@ -32,6 +32,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
+import org.elasticsearch.index.mapper.CustomDocValuesField;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -105,7 +108,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
 
         @Override
-        public BytesReference value(Object value) {
+        public BytesReference valueForSearch(Object value) {
             if (value == null) {
                 return null;
             }
@@ -128,8 +131,9 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Object valueForSearch(Object value) {
-            return value(value);
+        public IndexFieldData.Builder fielddataBuilder() {
+            failIfNoDocValues();
+            return new BytesBinaryDVIndexFieldData.Builder();
         }
     }
 
@@ -175,7 +179,7 @@ public class BinaryFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    public static class CustomBinaryDocValuesField extends NumberFieldMapper.CustomNumericDocValuesField {
+    public static class CustomBinaryDocValuesField extends CustomDocValuesField {
 
         private final ObjectArrayList<byte[]> bytesList;
 

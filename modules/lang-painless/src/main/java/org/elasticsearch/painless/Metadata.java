@@ -20,11 +20,8 @@
 package org.elasticsearch.painless;
 
 import org.antlr.v4.runtime.ParserRuleContext;
-import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.PainlessParser.ExpressionContext;
-import org.elasticsearch.painless.PainlessParser.PrecedenceContext;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -37,7 +34,6 @@ import java.util.Map;
  * the root of the ANTLR parse tree, and the {@link CompilerSettings}.
  */
 class Metadata {
-
     /**
      * StatementMetadata is used to store metadata mostly about
      * control flow for ANTLR nodes related to if/else, do, while, for, etc.
@@ -387,15 +383,6 @@ class Metadata {
     }
 
     /**
-     * A utility method to output consistent error messages.
-     * @param ctx The ANTLR node the error occurred in.
-     * @return The error message with tacked on line number and character position.
-     */
-    static String error(final ParserRuleContext ctx) {
-        return "Error [" + ctx.getStart().getLine() + ":" + ctx.getStart().getCharPositionInLine() + "]: ";
-    }
-
-    /**
      * Acts as both the Painless API and white-list for what types and methods are allowed.
      */
     final Definition definition;
@@ -424,16 +411,22 @@ class Metadata {
     int inputValueSlot = -1;
 
     /**
-     * Used to determine what slot the score variable is stored in.  This is used in the {@link Writer} whenever
+     * Used to determine what slot the loopCounter variable is stored in.  This is used n the {@link Writer} whenever
+     * the loop variable is accessed.
+     */
+    int loopCounterSlot = -1;
+
+    /**
+     * Used to determine what slot the _score variable is stored in.  This is used in the {@link Writer} whenever
      * the score variable is accessed.
      */
     int scoreValueSlot = -1;
 
     /**
-     * Used to determine what slot the loopCounter variable is stored in.  This is used n the {@link Writer} whenever
-     * the loop variable is accessed.
+     * Used to determine if the _score variable is actually used.  This is used in the {@link Analyzer} to update
+     * variable slots at the completion of analysis if _score is not used.
      */
-    int loopCounterSlot = -1;
+    boolean scoreValueUsed = false;
 
     /**
      * Maps the relevant ANTLR node to its metadata.
@@ -490,47 +483,11 @@ class Metadata {
         final StatementMetadata sourcesmd = statementMetadata.get(source);
 
         if (sourcesmd == null) {
-            throw new IllegalStateException(error(source) + "Statement metadata does not exist at" +
+            throw new IllegalStateException("Statement metadata does not exist at" +
                 " the parse node with text [" + source.getText() + "].");
         }
 
         return sourcesmd;
-    }
-
-    /**
-     * The ANTLR parse tree is modified in one single case; a parent node needs to check a child node to see if it's
-     * a precedence node, and if so, it must be removed from the tree permanently. Once the ANTLR tree is built,
-     * precedence nodes are no longer necessary to maintain the correct ordering of the tree, so they only
-     * add a level of indirection where complicated decisions about metadata passing would have to be made.  This
-     * method removes the need for those decisions.
-     * @param source The child ANTLR node to check for precedence.
-     * @return The updated child ANTLR node.
-     */
-    ExpressionContext updateExpressionTree(ExpressionContext source) {
-        // Check to see if the ANTLR node is a precedence node.
-        if (source instanceof PrecedenceContext) {
-            final ParserRuleContext parent = source.getParent();
-            int index = 0;
-
-            // Mark the index of the source node within the list of child nodes from the parent.
-            for (final ParseTree child : parent.children) {
-                if (child == source) {
-                    break;
-                }
-
-                ++index;
-            }
-
-            // If there are multiple precedence nodes in a row, remove them all.
-            while (source instanceof PrecedenceContext) {
-                source = ((PrecedenceContext)source).expression();
-            }
-
-            // Update the parent node with the child of the precedence node.
-            parent.children.set(index, source);
-        }
-
-        return source;
     }
 
     /**
@@ -554,7 +511,7 @@ class Metadata {
         final ExpressionMetadata sourceemd = expressionMetadata.get(source);
 
         if (sourceemd == null) {
-            throw new IllegalStateException(error(source) + "Expression metadata does not exist at" +
+            throw new IllegalStateException("Expression metadata does not exist at" +
                 " the parse node with text [" + source.getText() + "].");
         }
 
@@ -582,7 +539,7 @@ class Metadata {
         final ExternalMetadata sourceemd = externalMetadata.get(source);
 
         if (sourceemd == null) {
-            throw new IllegalStateException(error(source) + "External metadata does not exist at" +
+            throw new IllegalStateException("External metadata does not exist at" +
                 " the parse node with text [" + source.getText() + "].");
         }
 
@@ -610,7 +567,7 @@ class Metadata {
         final ExtNodeMetadata sourceemd = extNodeMetadata.get(source);
 
         if (sourceemd == null) {
-            throw new IllegalStateException(error(source) + "External metadata does not exist at" +
+            throw new IllegalStateException("External metadata does not exist at" +
                 " the parse node with text [" + source.getText() + "].");
         }
 

@@ -121,13 +121,15 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         // only one mode per storage account can be active at a time
         client.getDefaultRequestOptions().setLocationMode(mode);
 
-        // Set timeout option. Defaults to 5mn. See cloud.azure.storage.timeout or cloud.azure.storage.xxx.timeout
-        try {
-            int timeout = (int) azureStorageSettings.getTimeout().getMillis();
-            client.getDefaultRequestOptions().setMaximumExecutionTimeInMs(timeout);
-        } catch (ClassCastException e) {
-            throw new IllegalArgumentException("Can not convert [" + azureStorageSettings.getTimeout() +
-                "]. It can not be longer than 2,147,483,647ms.");
+        // Set timeout option if the user sets cloud.azure.storage.timeout or cloud.azure.storage.xxx.timeout (it's negative by default)
+        if (azureStorageSettings.getTimeout().getSeconds() > 0) {
+            try {
+                int timeout = (int) azureStorageSettings.getTimeout().getMillis();
+                client.getDefaultRequestOptions().setTimeoutIntervalInMs(timeout);
+            } catch (ClassCastException e) {
+                throw new IllegalArgumentException("Can not convert [" + azureStorageSettings.getTimeout() +
+                    "]. It can not be longer than 2,147,483,647ms.");
+            }
         }
         return client;
     }
@@ -167,7 +169,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
             logger.trace("creating container [{}]", container);
             blob_container.createIfNotExists();
         } catch (IllegalArgumentException e) {
-            logger.trace("fails creating container [{}]", container, e.getMessage());
+            logger.trace("fails creating container [{}]", e, container);
             throw new RepositoryException(container, e.getMessage());
         }
     }
@@ -273,7 +275,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         CloudBlockBlob blobSource = blob_container.getBlockBlobReference(sourceBlob);
         if (blobSource.exists()) {
             CloudBlockBlob blobTarget = blob_container.getBlockBlobReference(targetBlob);
-            blobTarget.startCopyFromBlob(blobSource);
+            blobTarget.startCopy(blobSource);
             blobSource.delete();
             logger.debug("moveBlob container [{}], sourceBlob [{}], targetBlob [{}] -> done", container, sourceBlob, targetBlob);
         }

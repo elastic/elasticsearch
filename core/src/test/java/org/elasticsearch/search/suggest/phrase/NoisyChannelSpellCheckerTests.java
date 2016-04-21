@@ -96,7 +96,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
             writer.addDocument(doc);
         }
 
-        DirectoryReader ir = DirectoryReader.open(writer, false);
+        DirectoryReader ir = DirectoryReader.open(writer);
         WordScorer wordScorer = new LaplaceScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.95d, new BytesRef(" "), 0.5f);
 
         NoisyChannelSpellChecker suggester = new NoisyChannelSpellChecker();
@@ -238,7 +238,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
             writer.addDocument(doc);
         }
 
-        DirectoryReader ir = DirectoryReader.open(writer, false);
+        DirectoryReader ir = DirectoryReader.open(writer);
         LaplaceScorer wordScorer = new LaplaceScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.95d, new BytesRef(" "), 0.5f);
         NoisyChannelSpellChecker suggester = new NoisyChannelSpellChecker();
         DirectSpellChecker spellchecker = new DirectSpellChecker();
@@ -321,8 +321,8 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
             writer.addDocument(doc);
         }
 
-        DirectoryReader ir = DirectoryReader.open(writer, false);
-        WordScorer wordScorer = new LinearInterpoatingScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.85d, new BytesRef(" "), 0.5, 0.4, 0.1);
+        DirectoryReader ir = DirectoryReader.open(writer);
+        WordScorer wordScorer = new LinearInterpolatingScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.85d, new BytesRef(" "), 0.5, 0.4, 0.1);
 
         NoisyChannelSpellChecker suggester = new NoisyChannelSpellChecker();
         DirectSpellChecker spellchecker = new DirectSpellChecker();
@@ -336,7 +336,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
         assertThat(corrections.length, equalTo(0));
 //        assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("american ape"));
 
-        wordScorer = new LinearInterpoatingScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.85d, new BytesRef(" "), 0.5, 0.4, 0.1);
+        wordScorer = new LinearInterpolatingScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.85d, new BytesRef(" "), 0.5, 0.4, 0.1);
         corrections = suggester.getCorrections(wrapper, new BytesRef("Xor the Got-Jewel"), generator, 0.5f, 4, ir, "body", wordScorer, 0, 3).corrections;
         assertThat(corrections.length, equalTo(4));
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the god jewel"));
@@ -383,7 +383,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
         spellchecker.setMinPrefix(1);
         spellchecker.setMinQueryLength(1);
         suggester = new NoisyChannelSpellChecker(0.95);
-        wordScorer = new LinearInterpoatingScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.95d, new BytesRef(" "),  0.5, 0.4, 0.1);
+        wordScorer = new LinearInterpolatingScorer(ir, MultiFields.getTerms(ir, "body_ngram"), "body_ngram", 0.95d, new BytesRef(" "),  0.5, 0.4, 0.1);
         corrections = suggester.getCorrections(analyzer, new BytesRef("captian usa"), generator, 2, 4, ir, "body", wordScorer, 1, 3).corrections;
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("captain america"));
 

@@ -19,198 +19,190 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
 
 /**
  * Defines how to perform suggesting. This builders allows a number of global options to be specified and
- * an arbitrary number of {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder} instances.
+ * an arbitrary number of {@link SuggestionBuilder} instances.
  * <p>
- * Suggesting works by suggesting terms that appear in the suggest text that are similar compared to the terms in
- * provided text. These spelling suggestions are based on several options described in this class.
+ * Suggesting works by suggesting terms/phrases that appear in the suggest text that are similar compared
+ * to the terms in provided text. These suggestions are based on several options described in this class.
  */
-public class SuggestBuilder extends ToXContentToBytes {
+public class SuggestBuilder extends ToXContentToBytes implements Writeable {
+    protected static final ParseField GLOBAL_TEXT_FIELD = new ParseField("text");
 
-    private final String name;
     private String globalText;
+    private final Map<String, SuggestionBuilder<?>> suggestions = new HashMap<>();
 
-    private final List<SuggestionBuilder<?>> suggestions = new ArrayList<>();
-
+    /**
+     * Build an empty SuggestBuilder.
+     */
     public SuggestBuilder() {
-        this.name = null;
     }
-    
-    public SuggestBuilder(String name) {
-        this.name = name;
+
+    /**
+     * Read from a stream.
+     */
+    public SuggestBuilder(StreamInput in) throws IOException {
+        globalText = in.readOptionalString();
+        final int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            suggestions.put(in.readString(), in.readNamedWriteable(SuggestionBuilder.class));
+        }
     }
-    
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(globalText);
+        final int size = suggestions.size();
+        out.writeVInt(size);
+        for (Entry<String, SuggestionBuilder<?>> suggestion : suggestions.entrySet()) {
+            out.writeString(suggestion.getKey());
+            out.writeNamedWriteable(suggestion.getValue());
+        }
+    }
+
     /**
      * Sets the text to provide suggestions for. The suggest text is a required option that needs
-     * to be set either via this setter or via the {@link org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder#setText(String)} method.
+     * to be set either via this setter or via the {@link org.elasticsearch.search.suggest.SuggestionBuilder#text(String)} method.
      * <p>
      * The suggest text gets analyzed by the suggest analyzer or the suggest field search analyzer.
      * For each analyzed token, suggested terms are suggested if possible.
      */
-    public SuggestBuilder setText(String globalText) {
+    public SuggestBuilder setGlobalText(@Nullable String globalText) {
         this.globalText = globalText;
         return this;
     }
 
     /**
-     * Adds an {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder} instance under a user defined name.
-     * The order in which the <code>Suggestions</code> are added, is the same as in the response.
+     * Gets the global suggest text
      */
-    public SuggestBuilder addSuggestion(SuggestionBuilder<?> suggestion) {
-        suggestions.add(suggestion);
+    @Nullable
+    public String getGlobalText() {
+        return globalText;
+    }
+
+    /**
+     * Adds an {@link org.elasticsearch.search.suggest.SuggestionBuilder} instance under a user defined name.
+     * The order in which the <code>Suggestions</code> are added, is the same as in the response.
+     * @throws IllegalArgumentException if two suggestions added have the same name
+     */
+    public SuggestBuilder addSuggestion(String name, SuggestionBuilder<?> suggestion) {
+        Objects.requireNonNull(name, "every suggestion needs a name");
+        if (suggestions.get(name) == null) {
+            suggestions.put(name, suggestion);
+        } else {
+            throw new IllegalArgumentException("already added another suggestion with name [" + name + "]");
+        }
         return this;
     }
-    
+
     /**
-     * Returns all suggestions with the defined names.
+     * Get all the <code>Suggestions</code> that were added to the global {@link SuggestBuilder},
+     * together with their names
      */
-    public List<SuggestionBuilder<?>> getSuggestion() {
+    public Map<String, SuggestionBuilder<?>> getSuggestions() {
         return suggestions;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if(name == null) {
-            builder.startObject();
-        } else {
-            builder.startObject(name);
-        }
-        
+        builder.startObject();
         if (globalText != null) {
             builder.field("text", globalText);
         }
-        for (SuggestionBuilder<?> suggestion : suggestions) {
-            builder = suggestion.toXContent(builder, params);
+        for (Entry<String, SuggestionBuilder<?>> suggestion : suggestions.entrySet()) {
+            builder.startObject(suggestion.getKey());
+            suggestion.getValue().toXContent(builder, params);
+            builder.endObject();
         }
         builder.endObject();
         return builder;
     }
 
-    public static abstract class SuggestionBuilder<T> extends ToXContentToBytes {
+    public static SuggestBuilder fromXContent(QueryParseContext parseContext, Suggesters suggesters) throws IOException {
+        XContentParser parser = parseContext.parser();
+        ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
+        SuggestBuilder suggestBuilder = new SuggestBuilder();
+        String fieldName = null;
 
-        private String name;
-        private String suggester;
-        private String text;
-        private String prefix;
-        private String regex;
-        private String field;
-        private String analyzer;
-        private Integer size;
-        private Integer shardSize;
-
-        public SuggestionBuilder(String name, String suggester) {
-            this.name = name;
-            this.suggester = suggester;
+        if (parser.currentToken() == null) {
+            // when we parse from RestSuggestAction the current token is null, advance the token
+            parser.nextToken();
         }
+        assert parser.currentToken() == XContentParser.Token.START_OBJECT : "current token must be a start object";
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                fieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (parseFieldMatcher.match(fieldName, GLOBAL_TEXT_FIELD)) {
+                    suggestBuilder.setGlobalText(parser.text());
+                } else {
+                    throw new IllegalArgumentException("[suggest] does not support [" + fieldName + "]");
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                String suggestionName = fieldName;
+                if (suggestionName == null) {
+                    throw new IllegalArgumentException("suggestion must have name");
+                }
+                suggestBuilder.addSuggestion(suggestionName, SuggestionBuilder.fromXContent(parseContext, suggesters));
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "] after [" + fieldName + "]");
+            }
+        }
+        return suggestBuilder;
+    }
 
-        /**
-         * Same as in {@link SuggestBuilder#setText(String)}, but in the suggestion scope.
-         */
+    public SuggestionSearchContext build(QueryShardContext context) throws IOException {
+        SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
+        for (Entry<String, SuggestionBuilder<?>> suggestion : suggestions.entrySet()) {
+            SuggestionContext suggestionContext = suggestion.getValue().build(context);
+            if (suggestionContext.getText() == null) {
+                if (globalText == null) {
+                    throw new IllegalArgumentException("The required text option is missing");
+                }
+                suggestionContext.setText(BytesRefs.toBytesRef(globalText));
+            }
+            suggestionSearchContext.addSuggestion(suggestion.getKey(), suggestionContext);
+        }
+        return suggestionSearchContext;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
         @SuppressWarnings("unchecked")
-        public T text(String text) {
-            this.text = text;
-            return (T) this;
-        }
+        SuggestBuilder o = (SuggestBuilder)other;
+        return Objects.equals(globalText, o.globalText) &&
+               Objects.equals(suggestions, o.suggestions);
+    }
 
-        protected void setPrefix(String prefix) {
-            this.prefix = prefix;
-        }
-
-        protected void setRegex(String regex) {
-            this.regex = regex;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(name);
-            if (text != null) {
-                builder.field("text", text);
-            }
-            if (prefix != null) {
-                builder.field("prefix", prefix);
-            }
-            if (regex != null) {
-                builder.field("regex", regex);
-            }
-            builder.startObject(suggester);
-            if (analyzer != null) {
-                builder.field("analyzer", analyzer);
-            }
-            if (field != null) {
-                builder.field("field", field);
-            }
-            if (size != null) {
-                builder.field("size", size);
-            }
-            if (shardSize != null) {
-                builder.field("shard_size", shardSize);
-            }
-
-            builder = innerToXContent(builder, params);
-            builder.endObject();
-            builder.endObject();
-            return builder;
-        }
-
-        protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
-
-        /**
-         * Sets from what field to fetch the candidate suggestions from. This is an
-         * required option and needs to be set via this setter or
-         * {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder#field(String)}
-         * method
-         */
-        @SuppressWarnings("unchecked")
-        public T field(String field) {
-            this.field = field;
-            return (T)this;
-        }
-
-        /**
-         * Sets the analyzer to analyse to suggest text with. Defaults to the search
-         * analyzer of the suggest field.
-         */
-        @SuppressWarnings("unchecked")
-        public T analyzer(String analyzer) {
-            this.analyzer = analyzer;
-            return (T)this;
-        }
-
-        /**
-         * Sets the maximum suggestions to be returned per suggest text term.
-         */
-        @SuppressWarnings("unchecked")
-        public T size(int size) {
-            if (size <= 0) {
-                throw new IllegalArgumentException("Size must be positive");
-            }
-            this.size = size;
-            return (T)this;
-        }
-
-        /**
-         * Sets the maximum number of suggested term to be retrieved from each
-         * individual shard. During the reduce phase the only the top N suggestions
-         * are returned based on the <code>size</code> option. Defaults to the
-         * <code>size</code> option.
-         * <p>
-         * Setting this to a value higher than the `size` can be useful in order to
-         * get a more accurate document frequency for suggested terms. Due to the
-         * fact that terms are partitioned amongst shards, the shard level document
-         * frequencies of suggestions may not be precise. Increasing this will make
-         * these document frequencies more precise.
-         */
-        @SuppressWarnings("unchecked")
-        public T shardSize(Integer shardSize) {
-            this.shardSize = shardSize;
-            return (T)this;
-        }
+    @Override
+    public int hashCode() {
+        return Objects.hash(globalText, suggestions);
     }
 }

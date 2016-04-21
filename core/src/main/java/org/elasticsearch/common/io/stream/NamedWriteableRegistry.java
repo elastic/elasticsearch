@@ -31,54 +31,58 @@ public class NamedWriteableRegistry {
     private final Map<Class<?>, InnerRegistry<?>> registry = new HashMap<>();
 
     /**
-     * Registers a {@link NamedWriteable} prototype given its category
+     * Register a {@link NamedWriteable} given its category, its name, and a function to read it from the stream.
+     *
+     * This method suppresses the rawtypes warning because it intentionally using NamedWriteable instead of {@code NamedWriteable<T>} so it
+     * is easier to use and because we might be able to drop the type parameter from NamedWriteable entirely some day.
      */
-    public synchronized <T> void registerPrototype(Class<T> categoryClass, NamedWriteable<? extends T> namedWriteable) {
+    public synchronized <T extends NamedWriteable> void register(Class<T> categoryClass, String name,
+            Writeable.Reader<? extends T> reader) {
         @SuppressWarnings("unchecked")
-        InnerRegistry<T> innerRegistry = (InnerRegistry<T>)registry.get(categoryClass);
+        InnerRegistry<T> innerRegistry = (InnerRegistry<T>) registry.get(categoryClass);
         if (innerRegistry == null) {
             innerRegistry = new InnerRegistry<>(categoryClass);
             registry.put(categoryClass, innerRegistry);
         }
-        innerRegistry.registerPrototype(namedWriteable);
+        innerRegistry.register(name, reader);
     }
 
     /**
      * Returns a prototype of the {@link NamedWriteable} object identified by the name provided as argument and its category
      */
-    public synchronized <T> NamedWriteable<? extends T> getPrototype(Class<T> categoryClass, String name) {
+    public synchronized <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, String name) {
         @SuppressWarnings("unchecked")
         InnerRegistry<T> innerRegistry = (InnerRegistry<T>)registry.get(categoryClass);
         if (innerRegistry == null) {
             throw new IllegalArgumentException("unknown named writeable category [" + categoryClass.getName() + "]");
         }
-        return innerRegistry.getPrototype(name);
+        return innerRegistry.getReader(name);
     }
 
     private static class InnerRegistry<T> {
 
-        private final Map<String, NamedWriteable<? extends T>> registry = new HashMap<>();
+        private final Map<String, Writeable.Reader<? extends T>> registry = new HashMap<>();
         private final Class<T> categoryClass;
 
         private InnerRegistry(Class<T> categoryClass) {
             this.categoryClass = categoryClass;
         }
 
-        private void registerPrototype(NamedWriteable<? extends T> namedWriteable) {
-            NamedWriteable<? extends T> existingNamedWriteable = registry.get(namedWriteable.getWriteableName());
-            if (existingNamedWriteable != null) {
-                throw new IllegalArgumentException("named writeable of type [" + namedWriteable.getClass().getName() + "] with name [" + namedWriteable.getWriteableName() + "] " +
-                        "is already registered by type [" + existingNamedWriteable.getClass().getName() + "] within category [" + categoryClass.getName() + "]");
+        private void register(String name, Writeable.Reader<? extends T> reader) {
+            Writeable.Reader<? extends T> existingReader = registry.get(name);
+            if (existingReader != null) {
+                throw new IllegalArgumentException(
+                        "named writeable [" + categoryClass.getName() + "][" + name + "] is already registered by [" + reader + "]");
             }
-            registry.put(namedWriteable.getWriteableName(), namedWriteable);
+            registry.put(name, reader);
         }
 
-        private NamedWriteable<? extends T> getPrototype(String name) {
-            NamedWriteable<? extends T> namedWriteable = registry.get(name);
-            if (namedWriteable == null) {
-                throw new IllegalArgumentException("unknown named writeable with name [" + name + "] within category [" + categoryClass.getName() + "]");
+        private Writeable.Reader<? extends T> getReader(String name) {
+            Writeable.Reader<? extends T> reader = registry.get(name);
+            if (reader == null) {
+                throw new IllegalArgumentException("unknown named writeable [" + categoryClass.getName() + "][" + name + "]");
             }
-            return namedWriteable;
+            return reader;
         }
     }
 }

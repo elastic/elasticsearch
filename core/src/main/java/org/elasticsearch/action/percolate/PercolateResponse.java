@@ -28,8 +28,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.highlight.HighlightField;
@@ -47,6 +45,8 @@ import java.util.Map;
 public class PercolateResponse extends BroadcastResponse implements Iterable<PercolateResponse.Match>, ToXContent {
 
     public static final Match[] EMPTY = new Match[0];
+    // PercolateQuery emits this score if no 'query' is defined in the percolate request
+    public final static float NO_SCORE = 0.0f;
 
     private long tookInMillis;
     private Match[] matches;
@@ -63,15 +63,6 @@ public class PercolateResponse extends BroadcastResponse implements Iterable<Per
         this.matches = matches;
         this.count = count;
         this.aggregations = aggregations;
-    }
-
-    PercolateResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures, long tookInMillis, Match[] matches) {
-        super(totalShards, successfulShards, failedShards, shardFailures);
-        if (tookInMillis < 0) {
-            throw new IllegalArgumentException("tookInMillis must be positive but was: " + tookInMillis);
-        }
-        this.tookInMillis = tookInMillis;
-        this.matches = matches;
     }
 
     PercolateResponse() {
@@ -136,10 +127,10 @@ public class PercolateResponse extends BroadcastResponse implements Iterable<Per
                     builder.field(Fields._INDEX, match.getIndex());
                     builder.field(Fields._ID, match.getId());
                     float score = match.getScore();
-                    if (score != PercolatorService.NO_SCORE) {
+                    if (score != NO_SCORE) {
                         builder.field(Fields._SCORE, match.getScore());
                     }
-                    if (match.getHighlightFields() != null) {
+                    if (match.getHighlightFields().isEmpty() == false) {
                         builder.startObject(Fields.HIGHLIGHT);
                         for (HighlightField field : match.getHighlightFields().values()) {
                             builder.field(field.name());
@@ -293,13 +284,13 @@ public class PercolateResponse extends BroadcastResponse implements Iterable<Per
     }
 
     static final class Fields {
-        static final XContentBuilderString TOOK = new XContentBuilderString("took");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString _SCORE = new XContentBuilderString("_score");
-        static final XContentBuilderString HIGHLIGHT = new XContentBuilderString("highlight");
+        static final String TOOK = "took";
+        static final String TOTAL = "total";
+        static final String MATCHES = "matches";
+        static final String _INDEX = "_index";
+        static final String _ID = "_id";
+        static final String _SCORE = "_score";
+        static final String HIGHLIGHT = "highlight";
     }
 
 }

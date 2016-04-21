@@ -23,9 +23,9 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -66,14 +66,14 @@ public class TribeUnitTests extends ESTestCase {
                 .put(baseSettings)
                 .put("cluster.name", "tribe1")
                 .put("node.name", "tribe1_node")
-                .put(DiscoveryService.DISCOVERY_SEED_SETTING.getKey(), random().nextLong())
+                    .put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
                 .build()).start();
         tribe2 = new TribeClientNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe2")
                 .put("node.name", "tribe2_node")
-                .put(DiscoveryService.DISCOVERY_SEED_SETTING.getKey(), random().nextLong())
+                    .put(DiscoveryNodeService.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
                 .build()).start();
     }
 
@@ -88,8 +88,8 @@ public class TribeUnitTests extends ESTestCase {
         System.setProperty("es.cluster.name", "tribe_node_cluster");
         System.setProperty("es.tribe.t1.cluster.name", "tribe1");
         System.setProperty("es.tribe.t2.cluster.name", "tribe2");
-        System.setProperty("es.tribe.t1.discovery.id.seed", Long.toString(random().nextLong()));
-        System.setProperty("es.tribe.t2.discovery.id.seed", Long.toString(random().nextLong()));
+        System.setProperty("es.tribe.t1.node_id.seed", Long.toString(random().nextLong()));
+        System.setProperty("es.tribe.t2.node_id.seed", Long.toString(random().nextLong()));
 
         try {
             assertTribeNodeSuccessfullyCreated(Settings.EMPTY);
@@ -97,8 +97,8 @@ public class TribeUnitTests extends ESTestCase {
             System.clearProperty("es.cluster.name");
             System.clearProperty("es.tribe.t1.cluster.name");
             System.clearProperty("es.tribe.t2.cluster.name");
-            System.clearProperty("es.tribe.t1.discovery.id.seed");
-            System.clearProperty("es.tribe.t2.discovery.id.seed");
+            System.clearProperty("es.tribe.t1.node_id.seed");
+            System.clearProperty("es.tribe.t2.node_id.seed");
         }
     }
 

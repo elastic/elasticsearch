@@ -23,8 +23,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -80,7 +80,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
     protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest) {
         NodesStatsRequest request = nodeStatsRequest.request;
         return nodeService.stats(request.indices(), request.os(), request.process(), request.jvm(), request.threadPool(),
-                request.fs(), request.transport(), request.http(), request.breaker(), request.script(), request.discovery());
+                request.fs(), request.transport(), request.http(), request.breaker(), request.script(), request.discovery(),
+                request.ingest());
     }
 
     @Override

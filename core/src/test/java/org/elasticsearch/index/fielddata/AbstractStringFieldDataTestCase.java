@@ -246,11 +246,11 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         // missing value is set to an actual value
         final String[] values = new String[randomIntBetween(2, 30)];
         for (int i = 1; i < values.length; ++i) {
-            values[i] = TestUtil.randomUnicodeString(getRandom());
+            values[i] = TestUtil.randomUnicodeString(random());
         }
         final int numDocs = scaledRandomIntBetween(10, 3072);
         for (int i = 0; i < numDocs; ++i) {
-            final String value = RandomPicks.randomFrom(getRandom(), values);
+            final String value = RandomPicks.randomFrom(random(), values);
             if (value == null) {
                 writer.addDocument(new Document());
             } else {
@@ -265,7 +265,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
 
         final IndexFieldData indexFieldData = getForField("value");
         final String missingValue = values[1];
-        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
+        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         XFieldComparatorSource comparator = indexFieldData.comparatorSource(missingValue, MultiValueMode.MIN, null);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
         assertEquals(numDocs, topDocs.totalHits);
@@ -302,11 +302,11 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
     public void testSortMissing(boolean first, boolean reverse) throws IOException {
         final String[] values = new String[randomIntBetween(2, 10)];
         for (int i = 1; i < values.length; ++i) {
-            values[i] = TestUtil.randomUnicodeString(getRandom());
+            values[i] = TestUtil.randomUnicodeString(random());
         }
         final int numDocs = scaledRandomIntBetween(10, 3072);
         for (int i = 0; i < numDocs; ++i) {
-            final String value = RandomPicks.randomFrom(getRandom(), values);
+            final String value = RandomPicks.randomFrom(random(), values);
             if (value == null) {
                 writer.addDocument(new Document());
             } else {
@@ -319,7 +319,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             }
         }
         final IndexFieldData indexFieldData = getForField("value");
-        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
+        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         XFieldComparatorSource comparator = indexFieldData.comparatorSource(first ? "_first" : "_last", MultiValueMode.MIN, null);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
         assertEquals(numDocs, topDocs.totalHits);
@@ -355,7 +355,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
     public void testNestedSorting(MultiValueMode sortMode) throws IOException {
         final String[] values = new String[randomIntBetween(2, 20)];
         for (int i = 0; i < values.length; ++i) {
-            values[i] = TestUtil.randomSimpleString(getRandom());
+            values[i] = TestUtil.randomSimpleString(random());
         }
         final int numParents = scaledRandomIntBetween(10, 3072);
         List<Document> docs = new ArrayList<>();
@@ -367,14 +367,14 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
                 final Document child = new Document();
                 final int numValues = randomInt(3);
                 for (int k = 0; k < numValues; ++k) {
-                    final String value = RandomPicks.randomFrom(getRandom(), values);
+                    final String value = RandomPicks.randomFrom(random(), values);
                     addField(child, "text", value);
                 }
                 docs.add(child);
             }
             final Document parent = new Document();
             parent.add(new StringField("type", "parent", Store.YES));
-            final String value = RandomPicks.randomFrom(getRandom(), values);
+            final String value = RandomPicks.randomFrom(random(), values);
             if (value != null) {
                 addField(parent, "text", value);
             }
@@ -387,7 +387,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
                 writer.commit();
             }
         }
-        DirectoryReader directoryReader = DirectoryReader.open(writer, true);
+        DirectoryReader directoryReader = DirectoryReader.open(writer);
         directoryReader = ElasticsearchDirectoryReader.wrap(directoryReader, new ShardId(indexService.index(), 0));
         IndexSearcher searcher = new IndexSearcher(directoryReader);
         IndexFieldData<?> fieldData = getForField("text");
@@ -400,10 +400,10 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             missingValue = "_last";
             break;
         case 2:
-            missingValue = new BytesRef(RandomPicks.randomFrom(getRandom(), values));
+            missingValue = new BytesRef(RandomPicks.randomFrom(random(), values));
             break;
         default:
-            missingValue = new BytesRef(TestUtil.randomSimpleString(getRandom()));
+            missingValue = new BytesRef(TestUtil.randomSimpleString(random()));
             break;
         }
         Query parentFilter = new TermQuery(new Term("type", "parent"));
@@ -471,8 +471,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
     public void testGlobalOrdinals() throws Exception {
         fillExtendedMvSet();
         refreshReader();
-        FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("global_values", "fixed"));
-        IndexOrdinalsFieldData ifd = getForField(fieldDataType, "value", hasDocValues());
+        IndexOrdinalsFieldData ifd = getForField("string", "value", hasDocValues());
         IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertThat(topLevelReader.leaves().size(), equalTo(3));
 
@@ -596,8 +595,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
     public void testGlobalOrdinalsGetRemovedOnceIndexReaderCloses() throws Exception {
         fillExtendedMvSet();
         refreshReader();
-        FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("global_values", "fixed").put("cache", "node"));
-        IndexOrdinalsFieldData ifd = getForField(fieldDataType, "value", hasDocValues());
+        IndexOrdinalsFieldData ifd = getForField("string", "value", hasDocValues());
         IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertThat(ifd.loadGlobal(topLevelReader), sameInstance(globalOrdinals));
         // 3 b/c 1 segment level caches and 1 top level cache

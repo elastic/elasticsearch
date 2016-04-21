@@ -205,9 +205,9 @@ as valid network host settings:
 |`_ec2:privateDns_` |The private host of the machine.
 |`_ec2:publicIpv4_` |The public IP address (ipv4) of the machine.
 |`_ec2:publicDns_` |The public host of the machine.
-|`_ec2:privateIp_` |equivalent to _ec2:privateIpv4_.
-|`_ec2:publicIp_` |equivalent to _ec2:publicIpv4_.
-|`_ec2_` |equivalent to _ec2:privateIpv4_.
+|`_ec2:privateIp_` |equivalent to `_ec2:privateIpv4_`.
+|`_ec2:publicIp_` |equivalent to `_ec2:publicIpv4_`.
+|`_ec2_` |equivalent to `_ec2:privateIpv4_`.
 |==================================================================
 
 [[discovery-ec2-permissions]]

@@ -131,7 +131,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .addField("field1").addField("field2")
                 .execute().actionGet();
         if (searchResponse.getFailedShards() > 0) {
-            logger.warn("failed search " + Arrays.toString(searchResponse.getShardFailures()));
+            logger.warn("failed search {}", Arrays.toString(searchResponse.getShardFailures()));
         }
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));
@@ -345,7 +345,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         client().admin().indices().preparePutTemplate("template_with_aliases")
                 .setTemplate("te*")
-                .addMapping("type1", "{\"type1\" : {\"properties\" : {\"value\" : {\"type\" : \"string\"}}}}")
+                .addMapping("type1", "{\"type1\" : {\"properties\" : {\"value\" : {\"type\" : \"text\"}}}}")
                 .addAlias(new Alias("simple_alias"))
                 .addAlias(new Alias("templated_alias-{index}"))
                 .addAlias(new Alias("filtered_alias").filter("{\"type\":{\"value\":\"type2\"}}"))
@@ -496,7 +496,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
             assertThat(e.getCause(), instanceOf(ParsingException.class));
-            assertThat(e.getCause().getMessage(), equalTo("No query registered for [invalid]"));
+            assertThat(e.getCause().getMessage(), equalTo("no [query] registered for [invalid]"));
         }
     }
 
@@ -525,7 +525,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         try {
             createIndex("test");
-            fail("index creation should have failed due to alias with existing index name in mathching index template");
+            fail("index creation should have failed due to alias with existing index name in matching index template");
         } catch(InvalidAliasNameException e) {
             assertThat(e.getMessage(), equalTo("Invalid alias name [index], an index exists with the same name as the alias"));
         }

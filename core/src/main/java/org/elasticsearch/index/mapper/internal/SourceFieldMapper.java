@@ -22,14 +22,10 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -124,8 +120,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("enabled")) {
                     builder.enabled(lenientNodeBooleanValue(fieldNode));
                     iterator.remove();
-                } else if ("format".equals(fieldName) && parserContext.indexVersionCreated().before(Version.V_3_0_0)) {
-                    // ignore on old indices, reject on and after 3.0
+                } else if ("format".equals(fieldName) && parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1)) {
+                    // ignore on old indices, reject on and after 5.0
                     iterator.remove();
                 } else if (fieldName.equals("includes")) {
                     List<Object> values = (List<Object>) fieldNode;
@@ -170,24 +166,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public byte[] value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            BytesReference bValue;
-            if (value instanceof BytesRef) {
-                bValue = new BytesArray((BytesRef) value);
-            } else {
-                bValue = (BytesReference) value;
-            }
-            try {
-                return CompressorFactory.uncompressIfNeeded(bValue).toBytes();
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to decompress source", e);
-            }
         }
     }
 

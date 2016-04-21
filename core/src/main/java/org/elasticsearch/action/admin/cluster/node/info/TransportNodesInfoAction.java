@@ -23,8 +23,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -80,7 +80,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
     protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest) {
         NodesInfoRequest request = nodeRequest.request;
         return nodeService.info(request.settings(), request.os(), request.process(), request.jvm(), request.threadPool(),
-                request.transport(), request.http(), request.plugins());
+                request.transport(), request.http(), request.plugins(), request.ingest());
     }
 
     @Override
@@ -95,7 +95,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequ
         public NodeInfoRequest() {
         }
 
-        NodeInfoRequest(String nodeId, NodesInfoRequest request) {
+        public NodeInfoRequest(String nodeId, NodesInfoRequest request) {
             super(nodeId);
             this.request = request;
         }

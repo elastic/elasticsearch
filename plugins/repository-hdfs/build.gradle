@@ -45,6 +45,7 @@ dependencies {
   compile 'com.google.guava:guava:16.0.1'
   compile 'com.google.protobuf:protobuf-java:2.5.0'
   compile 'commons-logging:commons-logging:1.1.3'
+  compile 'commons-cli:commons-cli:1.2'
   compile 'commons-collections:commons-collections:3.2.2'
   compile 'commons-configuration:commons-configuration:1.6'
   compile 'commons-io:commons-io:2.4'
@@ -357,4 +358,8 @@ thirdPartyAudit.excludes = [
  
   // internal java api: sun.misc.SignalHandler
   'org.apache.hadoop.util.SignalLogger$Handler',
+
+  // optional dependencies of slf4j-api
+  'org.slf4j.impl.StaticMDCBinder',
+  'org.slf4j.impl.StaticMarkerBinder',
 ]

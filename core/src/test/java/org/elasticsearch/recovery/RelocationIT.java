@@ -27,13 +27,13 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -74,7 +74,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -102,7 +101,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> creating test index ...");
         client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 )
@@ -156,7 +155,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> creating test index ...");
         client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", numberOfReplicas)
                 ).execute().actionGet();
@@ -264,7 +263,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> creating test index ...");
         client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", numberOfReplicas)
                         .put("index.refresh_interval", -1) // we want to control refreshes c

@@ -26,6 +26,7 @@ import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -39,7 +40,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Set;
+import java.util.function.Function;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -63,47 +64,49 @@ public final class EngineConfig {
     private final Similarity similarity;
     private final CodecService codecService;
     private final Engine.EventListener eventListener;
-    private final boolean forceNewTranslog;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
      * This setting is <b>not</b> realtime updateable.
+     * This setting is also settable on the node and the index level, it's commonly used in hot/cold node archs where index is likely
+     * allocated on both `kind` of nodes.
      */
-    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", (s) -> {
-        switch(s) {
+    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", s -> {
+        switch (s) {
             case "default":
             case "best_compression":
             case "lucene_default":
                 return s;
             default:
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
-                    throw new IllegalArgumentException("unknown value for [index.codec] must be one of [default, best_compression] but was: " + s);
+                    throw new IllegalArgumentException(
+                        "unknown value for [index.codec] must be one of [default, best_compression] but was: " + s);
                 }
                 return s;
         }
-    }, false, Setting.Scope.INDEX);
-
-    /** if set to true the engine will start even if the translog id in the commit point can not be found */
-    public static final String INDEX_FORCE_NEW_TRANSLOG = "index.engine.force_new_translog";
+    }, Property.IndexScope, Property.NodeScope);
 
     private TranslogConfig translogConfig;
-    private boolean create = false;
+    private final OpenMode openMode;
 
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(ShardId shardId, ThreadPool threadPool,
+    public EngineConfig(OpenMode openMode, ShardId shardId, ThreadPool threadPool,
                         IndexSettings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy,Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
-                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig, TimeValue flushMergesAfter) {
+                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
+                        TranslogConfig translogConfig, TimeValue flushMergesAfter) {
+        if (openMode == null) {
+            throw new IllegalArgumentException("openMode must not be null");
+        }
         this.shardId = shardId;
-        final Settings settings = indexSettings.getSettings();
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
-        this.warmer = warmer == null ? (a,b) -> {} : warmer;
+        this.warmer = warmer == null ? (a) -> {} : warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.mergePolicy = mergePolicy;
@@ -117,16 +120,11 @@ public final class EngineConfig {
         // and refreshes the most heap-consuming shards when total indexing heap usage across all shards is too high:
         indexingBufferSize = new ByteSizeValue(256, ByteSizeUnit.MB);
         this.translogRecoveryPerformer = translogRecoveryPerformer;
-        this.forceNewTranslog = settings.getAsBoolean(INDEX_FORCE_NEW_TRANSLOG, false);
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;
         this.flushMergesAfter = flushMergesAfter;
-    }
-
-    /** if true the engine will start even if the translog id in the commit point can not be found */
-    public boolean forceNewTranslog() {
-        return forceNewTranslog;
+        this.openMode = openMode;
     }
 
     /**
@@ -139,7 +137,8 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns the initial index buffer size. This setting is only read on startup and otherwise controlled by {@link IndexingMemoryController}
+     * Returns the initial index buffer size. This setting is only read on startup and otherwise controlled
+     * by {@link IndexingMemoryController}
      */
     public ByteSizeValue getIndexingBufferSize() {
         return indexingBufferSize;
@@ -147,11 +146,12 @@ public final class EngineConfig {
 
     /**
      * Returns <code>true</code> iff delete garbage collection in the engine should be enabled. This setting is updateable
-     * in realtime and forces a volatile read. Consumers can safely read this value directly go fetch it's latest value. The default is <code>true</code>
+     * in realtime and forces a volatile read. Consumers can safely read this value directly go fetch it's latest value.
+     * The default is <code>true</code>
      * <p>
      *     Engine GC deletion if enabled collects deleted documents from in-memory realtime data structures after a certain amount of
-     *     time ({@link IndexSettings#getGcDeletesInMillis()} if enabled. Before deletes are GCed they will cause re-adding the document that was deleted
-     *     to fail.
+     *     time ({@link IndexSettings#getGcDeletesInMillis()} if enabled. Before deletes are GCed they will cause re-adding the document
+     *     that was deleted to fail.
      * </p>
      */
     public boolean isEnableGcDeletes() {
@@ -169,7 +169,8 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns a thread-pool mainly used to get estimated time stamps from {@link org.elasticsearch.threadpool.ThreadPool#estimatedTimeInMillis()} and to schedule
+     * Returns a thread-pool mainly used to get estimated time stamps from
+     * {@link org.elasticsearch.threadpool.ThreadPool#estimatedTimeInMillis()} and to schedule
      * async force merge calls on the {@link org.elasticsearch.threadpool.ThreadPool.Names#FORCE_MERGE} thread-pool
      */
     public ThreadPool getThreadPool() {
@@ -184,8 +185,9 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns the {@link org.elasticsearch.index.store.Store} instance that provides access to the {@link org.apache.lucene.store.Directory}
-     * used for the engines {@link org.apache.lucene.index.IndexWriter} to write it's index files to.
+     * Returns the {@link org.elasticsearch.index.store.Store} instance that provides access to the
+     * {@link org.apache.lucene.store.Directory} used for the engines {@link org.apache.lucene.index.IndexWriter} to write it's index files
+     * to.
      * <p>
      * Note: In order to use this instance the consumer needs to increment the stores reference before it's used the first time and hold
      * it's reference until it's not needed anymore.
@@ -274,26 +276,31 @@ public final class EngineConfig {
     }
 
     /**
-     * Iff set to <code>true</code> the engine will create a new lucene index when opening the engine.
-     * Otherwise the lucene index writer is opened in append mode. The default is <code>false</code>
-     */
-    public void setCreate(boolean create) {
-        this.create = create;
-    }
-
-    /**
-     * Iff <code>true</code> the engine should create a new lucene index when opening the engine.
-     * Otherwise the lucene index writer should be opened in append mode. The default is <code>false</code>
-     */
-    public boolean isCreate() {
-        return create;
-    }
-
-    /**
      * Returns a {@link TimeValue} at what time interval after the last write modification to the engine finished merges
      * should be automatically flushed. This is used to free up transient disk usage of potentially large segments that
      * are written after the engine became inactive from an indexing perspective.
      */
     public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
+
+    /**
+     * Returns the {@link OpenMode} for this engine config.
+     */
+    public OpenMode getOpenMode() {
+        return openMode;
+    }
+
+    /**
+     * Engine open mode defines how the engine should be opened or in other words what the engine should expect
+     * to recover from. We either create a brand new engine with a new index and translog or we recover from an existing index.
+     * If the index exists we also have the ability open only the index and create a new transaction log which happens
+     * during remote recovery since we have already transferred the index files but the translog is replayed from remote. The last
+     * and safest option opens the lucene index as well as it's referenced transaction log for a translog recovery.
+     * See also {@link Engine#recoverFromTranslog()}
+     */
+    public enum OpenMode {
+        CREATE_INDEX_AND_TRANSLOG,
+        OPEN_INDEX_CREATE_TRANSLOG,
+        OPEN_INDEX_AND_TRANSLOG;
+    }
 
 }

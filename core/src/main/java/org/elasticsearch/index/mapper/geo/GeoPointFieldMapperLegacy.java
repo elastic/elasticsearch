@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -39,9 +38,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper.CustomNumericDocValuesField;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.CustomDocValuesField;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 
 import java.io.IOException;
@@ -109,8 +108,8 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
 
         @Override
         public GeoPointFieldMapperLegacy build(BuilderContext context, String simpleName, MappedFieldType fieldType,
-                                               MappedFieldType defaultFieldType, Settings indexSettings, DoubleFieldMapper latMapper,
-                                               DoubleFieldMapper lonMapper, StringFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                               MappedFieldType defaultFieldType, Settings indexSettings, FieldMapper latMapper,
+                                               FieldMapper lonMapper, KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                                CopyTo copyTo) {
             fieldType.setTokenized(false);
             setupFieldType(context);
@@ -267,8 +266,8 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
     protected Explicit<Boolean> coerce;
 
     public GeoPointFieldMapperLegacy(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings,
-                                     DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper,
-                                     StringFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                     FieldMapper latMapper, FieldMapper lonMapper,
+                                     KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                      Explicit<Boolean> coerce, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper, geoHashMapper, multiFields,
                 ignoreMalformed, copyTo);
@@ -336,7 +335,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
         }
     }
 
-    public static class CustomGeoPointDocValuesField extends CustomNumericDocValuesField {
+    public static class CustomGeoPointDocValuesField extends CustomDocValuesField {
 
         private final ObjectHashSet<GeoPoint> points;
 

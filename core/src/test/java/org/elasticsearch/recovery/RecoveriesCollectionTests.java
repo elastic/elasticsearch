@@ -41,6 +41,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -165,9 +167,8 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
 
     long startRecovery(RecoveriesCollection collection, RecoveryTargetService.RecoveryListener listener, TimeValue timeValue) {
         IndicesService indexServices = getInstanceFromNode(IndicesService.class);
-        IndexShard indexShard = indexServices.indexServiceSafe("test").getShardOrNull(0);
-        final DiscoveryNode sourceNode = new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        IndexShard indexShard = indexServices.indexServiceSafe(resolveIndex("test")).getShardOrNull(0);
+        final DiscoveryNode sourceNode = new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
         return collection.startRecovery(indexShard, sourceNode, listener, timeValue);
     }
-
 }

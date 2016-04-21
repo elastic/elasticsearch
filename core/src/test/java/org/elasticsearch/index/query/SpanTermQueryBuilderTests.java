@@ -19,11 +19,14 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
+
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
 import java.io.IOException;
 
@@ -31,6 +34,28 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTermQueryBuilder> {
+
+    @Override
+    protected SpanTermQueryBuilder doCreateTestQueryBuilder() {
+        String fieldName = null;
+        Object value;
+
+        if (randomBoolean()) {
+            fieldName = STRING_FIELD_NAME;
+        }
+        if (frequently()) {
+            value = randomAsciiOfLengthBetween(1, 10);
+        } else {
+            // generate unicode string in 10% of cases
+            JsonStringEncoder encoder = JsonStringEncoder.getInstance();
+            value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
+        }
+
+        if (fieldName == null) {
+            fieldName = randomAsciiOfLengthBetween(1, 10);
+        }
+        return createQueryBuilder(fieldName, value);
+    }
 
     @Override
     protected SpanTermQueryBuilder createQueryBuilder(String fieldName, Object value) {
@@ -44,8 +69,8 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
         assertThat(spanTermQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));
         MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
         if (mapper != null) {
-            BytesRef bytesRef = mapper.indexedValueForSearch(queryBuilder.value());
-            assertThat(spanTermQuery.getTerm().bytes(), equalTo(bytesRef));
+            Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
+            assertThat(spanTermQuery.getTerm(), equalTo(term));
         } else {
             assertThat(spanTermQuery.getTerm().bytes(), equalTo(BytesRefs.toBytesRef(queryBuilder.value())));
         }

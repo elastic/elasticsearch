@@ -45,7 +45,7 @@ public abstract class ChildTaskActionRequest<Request extends ActionRequest<Reque
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        parentTaskId = new TaskId(in);
+        parentTaskId = TaskId.readFromStream(in);
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 
 public class PropertyPlaceholderTests extends ESTestCase {
@@ -33,10 +34,10 @@ public class PropertyPlaceholderTests extends ESTestCase {
         map.put("foo1", "bar1");
         map.put("foo2", "bar2");
         PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
-        assertEquals("bar1", propertyPlaceholder.replacePlaceholders("{foo1}", placeholderResolver));
-        assertEquals("a bar1b", propertyPlaceholder.replacePlaceholders("a {foo1}b", placeholderResolver));
-        assertEquals("bar1bar2", propertyPlaceholder.replacePlaceholders("{foo1}{foo2}", placeholderResolver));
-        assertEquals("a bar1 b bar2 c", propertyPlaceholder.replacePlaceholders("a {foo1} b {foo2} c", placeholderResolver));
+        assertEquals("bar1", propertyPlaceholder.replacePlaceholders("key", "{foo1}", placeholderResolver));
+        assertEquals("a bar1b", propertyPlaceholder.replacePlaceholders("key", "a {foo1}b", placeholderResolver));
+        assertEquals("bar1bar2", propertyPlaceholder.replacePlaceholders("key", "{foo1}{foo2}", placeholderResolver));
+        assertEquals("a bar1 b bar2 c", propertyPlaceholder.replacePlaceholders("key", "a {foo1} b {foo2} c", placeholderResolver));
     }
 
     public void testVariousPrefixSuffix() {
@@ -47,24 +48,24 @@ public class PropertyPlaceholderTests extends ESTestCase {
         Map<String, String> map = new LinkedHashMap<>();
         map.put("foo", "bar");
         PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
-        assertEquals("bar", ppEqualsPrefix.replacePlaceholders("{foo}", placeholderResolver));
-        assertEquals("bar", ppLongerPrefix.replacePlaceholders("${foo}", placeholderResolver));
-        assertEquals("bar", ppShorterPrefix.replacePlaceholders("{foo}}", placeholderResolver));
+        assertEquals("bar", ppEqualsPrefix.replacePlaceholders("key", "{foo}", placeholderResolver));
+        assertEquals("bar", ppLongerPrefix.replacePlaceholders("key", "${foo}", placeholderResolver));
+        assertEquals("bar", ppShorterPrefix.replacePlaceholders("key", "{foo}}", placeholderResolver));
     }
 
     public void testDefaultValue() {
         PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
         Map<String, String> map = new LinkedHashMap<>();
         PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
-        assertEquals("bar", propertyPlaceholder.replacePlaceholders("${foo:bar}", placeholderResolver));
-        assertEquals("", propertyPlaceholder.replacePlaceholders("${foo:}", placeholderResolver));
+        assertEquals("bar", propertyPlaceholder.replacePlaceholders("key", "${foo:bar}", placeholderResolver));
+        assertEquals("", propertyPlaceholder.replacePlaceholders("key", "${foo:}", placeholderResolver));
     }
 
     public void testIgnoredUnresolvedPlaceholder() {
         PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", true);
         Map<String, String> map = new LinkedHashMap<>();
         PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
-        assertEquals("${foo}", propertyPlaceholder.replacePlaceholders("${foo}", placeholderResolver));
+        assertEquals("${foo}", propertyPlaceholder.replacePlaceholders("key", "${foo}", placeholderResolver));
     }
 
     public void testNotIgnoredUnresolvedPlaceholder() {
@@ -72,7 +73,7 @@ public class PropertyPlaceholderTests extends ESTestCase {
         Map<String, String> map = new LinkedHashMap<>();
         PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
         try {
-            propertyPlaceholder.replacePlaceholders("${foo}", placeholderResolver);
+            propertyPlaceholder.replacePlaceholders("key", "${foo}", placeholderResolver);
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("Could not resolve placeholder 'foo'"));
@@ -83,7 +84,7 @@ public class PropertyPlaceholderTests extends ESTestCase {
         PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
         Map<String, String> map = new LinkedHashMap<>();
         PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, true, true);
-        assertEquals("bar", propertyPlaceholder.replacePlaceholders("bar${foo}", placeholderResolver));
+        assertEquals("bar", propertyPlaceholder.replacePlaceholders("key", "bar${foo}", placeholderResolver));
     }
 
     public void testRecursive() {
@@ -93,8 +94,8 @@ public class PropertyPlaceholderTests extends ESTestCase {
         map.put("foo1", "${foo2}");
         map.put("foo2", "bar");
         PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
-        assertEquals("bar", propertyPlaceholder.replacePlaceholders("${foo}", placeholderResolver));
-        assertEquals("abarb", propertyPlaceholder.replacePlaceholders("a${foo}b", placeholderResolver));
+        assertEquals("bar", propertyPlaceholder.replacePlaceholders("key", "${foo}", placeholderResolver));
+        assertEquals("abarb", propertyPlaceholder.replacePlaceholders("key", "a${foo}b", placeholderResolver));
     }
 
     public void testNestedLongerPrefix() {
@@ -105,7 +106,7 @@ public class PropertyPlaceholderTests extends ESTestCase {
         map.put("foo2", "bar");
         map.put("barbar", "baz");
         PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
-        assertEquals("baz", propertyPlaceholder.replacePlaceholders("${bar${foo}}", placeholderResolver));
+        assertEquals("baz", propertyPlaceholder.replacePlaceholders("key", "${bar${foo}}", placeholderResolver));
     }
 
     public void testNestedSameLengthPrefixSuffix() {
@@ -116,7 +117,7 @@ public class PropertyPlaceholderTests extends ESTestCase {
         map.put("foo2", "bar");
         map.put("barbar", "baz");
         PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
-        assertEquals("baz", propertyPlaceholder.replacePlaceholders("{bar{foo}}", placeholderResolver));
+        assertEquals("baz", propertyPlaceholder.replacePlaceholders("key", "{bar{foo}}", placeholderResolver));
     }
 
     public void testNestedShorterPrefix() {
@@ -127,7 +128,7 @@ public class PropertyPlaceholderTests extends ESTestCase {
         map.put("foo2", "bar");
         map.put("barbar", "baz");
         PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
-        assertEquals("baz", propertyPlaceholder.replacePlaceholders("{bar{foo}}}}", placeholderResolver));
+        assertEquals("baz", propertyPlaceholder.replacePlaceholders("key", "{bar{foo}}}}", placeholderResolver));
     }
 
     public void testCircularReference() {
@@ -137,7 +138,7 @@ public class PropertyPlaceholderTests extends ESTestCase {
         map.put("bar", "${foo}");
         PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, false, true);
         try {
-            propertyPlaceholder.replacePlaceholders("${foo}", placeholderResolver);
+            propertyPlaceholder.replacePlaceholders("key", "${foo}", placeholderResolver);
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("Circular placeholder reference 'foo' in property definitions"));
@@ -148,7 +149,24 @@ public class PropertyPlaceholderTests extends ESTestCase {
         PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
         Map<String, String> map = new LinkedHashMap<>();
         PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, true, false);
-        assertEquals("bar${foo}", propertyPlaceholder.replacePlaceholders("bar${foo}", placeholderResolver));
+        assertEquals("bar${foo}", propertyPlaceholder.replacePlaceholders("key", "bar${foo}", placeholderResolver));
+    }
+
+    public void testNullKey() {
+        final PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
+        final Map<String, String> map = new LinkedHashMap<>();
+        final PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, true, false);
+        expectThrows(NullPointerException.class, () -> propertyPlaceholder.replacePlaceholders(null, "value", placeholderResolver));
+    }
+
+    public void testNullValue() {
+        final PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
+        final Map<String, String> map = new LinkedHashMap<>();
+        final PropertyPlaceholder.PlaceholderResolver placeholderResolver = new SimplePlaceholderResolver(map, true, false);
+        final String key = randomAsciiOfLength(10);
+        NullPointerException e =
+                expectThrows(NullPointerException.class, () -> propertyPlaceholder.replacePlaceholders(key, null, placeholderResolver));
+        assertThat(e, hasToString("java.lang.NullPointerException: value can not be null for [" + key + "]"));
     }
 
     private class SimplePlaceholderResolver implements PropertyPlaceholder.PlaceholderResolver {

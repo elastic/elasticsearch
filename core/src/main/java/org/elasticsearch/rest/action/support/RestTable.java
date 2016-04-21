@@ -133,7 +133,7 @@ public class RestTable {
                     }
                 }
 
-                if (dispHeader != null) {
+                if (dispHeader != null && checkOutputTimestamp(dispHeader, request)) {
                     // We know we need the header asked for:
                     display.add(dispHeader);
 
@@ -153,13 +153,27 @@ public class RestTable {
         } else {
             for (Table.Cell cell : table.getHeaders()) {
                 String d = cell.attr.get("default");
-                if (Booleans.parseBoolean(d, true)) {
+                if (Booleans.parseBoolean(d, true) && checkOutputTimestamp(cell.value.toString(), request)) {
                     display.add(new DisplayHeader(cell.value.toString(), cell.value.toString()));
                 }
             }
         }
         return display;
     }
+
+
+    static boolean checkOutputTimestamp(DisplayHeader dispHeader, RestRequest request) {
+        return checkOutputTimestamp(dispHeader.name, request);
+    }
+
+    static boolean checkOutputTimestamp(String disp, RestRequest request) {
+        if (Table.TIMESTAMP.equals(disp) || Table.EPOCH.equals(disp)) {
+            return request.paramAsBoolean("ts", true);
+        } else {
+            return true;
+        }
+    }
+
 
     /**
      * Extracts all the required fields from the RestRequest 'h' parameter. In order to support wildcards like

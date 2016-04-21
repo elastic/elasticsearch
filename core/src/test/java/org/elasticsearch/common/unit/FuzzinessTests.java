@@ -179,6 +179,6 @@ public class FuzzinessTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         in.writeTo(output);
         StreamInput streamInput = StreamInput.wrap(output.bytes());
-        return Fuzziness.readFuzzinessFrom(streamInput);
+        return new Fuzziness(streamInput);
     }
 }

@@ -21,12 +21,11 @@ package org.elasticsearch.search.aggregations.metrics.min;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,11 +56,11 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalMin() {} // for serialization
 
-    public InternalMin(String name, double min, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
+    public InternalMin(String name, double min, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.min = min;
-        this.valueFormatter = formatter;
+        this.format = formatter;
     }
 
     @Override
@@ -85,18 +84,18 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
         for (InternalAggregation aggregation : aggregations) {
             min = Math.min(min, ((InternalMin) aggregation).min);
         }
-        return new InternalMin(getName(), min, this.valueFormatter, pipelineAggregators(), getMetaData());
+        return new InternalMin(getName(), min, this.format, pipelineAggregators(), getMetaData());
     }
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        valueFormatter = ValueFormatterStreams.readOptional(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
         min = in.readDouble();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(valueFormatter, out);
+        out.writeNamedWriteable(format);
         out.writeDouble(min);
     }
 
@@ -104,8 +103,8 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         boolean hasValue = !Double.isInfinite(min);
         builder.field(CommonFields.VALUE, hasValue ? min : null);
-        if (hasValue && !(valueFormatter instanceof ValueFormatter.Raw)) {
-            builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(min));
+        if (hasValue && format != DocValueFormat.RAW) {
+            builder.field(CommonFields.VALUE_AS_STRING, format.format(min));
         }
         return builder;
     }

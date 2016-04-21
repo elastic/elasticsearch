@@ -77,7 +77,7 @@ public abstract class WordScorer {
        }
        return candidate.stringDistance;
    }
-   
+
    public double score(Candidate[] path, CandidateSet[] candidateSet, int at, int gramSize) throws IOException {
        if (at == 0 || gramSize == 1) {
            return Math.log10(channelScore(path[at], candidateSet[at].originalTerm) * scoreUnigram(path[at]));
@@ -87,21 +87,21 @@ public abstract class WordScorer {
            return Math.log10(channelScore(path[at], candidateSet[at].originalTerm) * scoreTrigram(path[at], path[at - 1], path[at - 2]));
        }
    }
-   
+
    protected double scoreUnigram(Candidate word)  throws IOException {
        return (1.0 + frequency(word.term)) / (vocabluarySize + numTerms);
    }
-   
+
    protected double scoreBigram(Candidate word, Candidate w_1) throws IOException {
        return scoreUnigram(word);
    }
-   
+
    protected double scoreTrigram(Candidate word, Candidate w_1, Candidate w_2) throws IOException {
        return scoreBigram(word, w_1);
    }
 
-   public static interface WordScorerFactory {
-       public WordScorer newScorer(IndexReader reader, Terms terms,
-            String field, double realWordLikelyhood, BytesRef separator) throws IOException;
+   public interface WordScorerFactory {
+       WordScorer newScorer(IndexReader reader, Terms terms,
+                            String field, double realWordLikelyhood, BytesRef separator) throws IOException;
    }
 }

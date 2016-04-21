@@ -87,7 +87,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
     public static void buildFromContent(BytesReference content, SearchScrollRequest searchScrollRequest) {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new IllegalArgumentException("Malforrmed content, must start with an object");
+                throw new IllegalArgumentException("Malformed content, must start with an object");
             } else {
                 XContentParser.Token token;
                 String currentFieldName = null;

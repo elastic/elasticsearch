@@ -51,14 +51,13 @@ public class AttachmentProcessorTests extends ESTestCase {
     @Before
     public void createStandardProcessor() throws IOException {
         processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", EnumSet.allOf(AttachmentProcessor.Field.class), 10000);
+            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 10000);
     }
 
     public void testEnglishTextDocument() throws Exception {
         Map<String, Object> attachmentData = parseDocument("text-in-english.txt", processor);
 
-        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type",
-            "content_length"));
+        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
         assertThat(attachmentData.get("language"), is("en"));
         assertThat(attachmentData.get("content"), is("\"God Save the Queen\" (alternatively \"God Save the King\""));
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
@@ -67,25 +66,25 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     public void testHtmlDocumentWithRandomFields() throws Exception {
         //date is not present in the html doc
-        ArrayList<AttachmentProcessor.Field> fieldsList = new ArrayList<>(EnumSet.complementOf(EnumSet.of
-            (AttachmentProcessor.Field.DATE)));
-        Set<AttachmentProcessor.Field> selectedFields = new HashSet<>();
+        ArrayList<AttachmentProcessor.Property> fieldsList = new ArrayList<>(EnumSet.complementOf(EnumSet.of
+            (AttachmentProcessor.Property.DATE)));
+        Set<AttachmentProcessor.Property> selectedProperties = new HashSet<>();
 
         int numFields = randomIntBetween(1, fieldsList.size());
         String[] selectedFieldNames = new String[numFields];
         for (int i = 0; i < numFields; i++) {
-            AttachmentProcessor.Field field;
+            AttachmentProcessor.Property property;
             do {
-                field = randomFrom(fieldsList);
-            } while (selectedFields.add(field) == false);
+                property = randomFrom(fieldsList);
+            } while (selectedProperties.add(property) == false);
 
-            selectedFieldNames[i] = field.toLowerCase();
+            selectedFieldNames[i] = property.toLowerCase();
         }
         if (randomBoolean()) {
-            selectedFields.add(AttachmentProcessor.Field.DATE);
+            selectedProperties.add(AttachmentProcessor.Property.DATE);
         }
         processor = new AttachmentProcessor(randomAsciiOfLength(10), "source_field",
-            "target_field", selectedFields, 10000);
+            "target_field", selectedProperties, 10000);
 
         Map<String, Object> attachmentData = parseDocument("htmlWithEmptyDateMeta.html", processor);
         assertThat(attachmentData.keySet(), hasSize(selectedFieldNames.length));
@@ -137,8 +136,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testHtmlDocument() throws Exception {
         Map<String, Object> attachmentData = parseDocument("htmlWithEmptyDateMeta.html", processor);
 
-        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "author", "keywords", "title",
-            "content_type", "content_length"));
+        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "author", "keywords", "title", "content_type",
+            "content_length"));
         assertThat(attachmentData.get("language"), is("en"));
         assertThat(attachmentData.get("content"), is(notNullValue()));
         assertThat(attachmentData.get("content_length"), is(notNullValue()));
@@ -151,16 +150,15 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testXHtmlDocument() throws Exception {
         Map<String, Object> attachmentData = parseDocument("testXHTML.html", processor);
 
-        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "author", "title",
-            "content_type", "content_length"));
+        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "author", "title", "content_type", "content_length"));
         assertThat(attachmentData.get("content_type").toString(), containsString("application/xhtml+xml"));
     }
 
     public void testEpubDocument() throws Exception {
         Map<String, Object> attachmentData = parseDocument("testEPUB.epub", processor);
 
-        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "author", "title",
-            "content_type", "content_length", "date", "keywords"));
+        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "author", "title", "content_type", "content_length",
+            "date", "keywords"));
         assertThat(attachmentData.get("content_type").toString(), containsString("application/epub+zip"));
     }
 
@@ -168,9 +166,31 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testAsciidocDocument() throws Exception {
         Map<String, Object> attachmentData = parseDocument("asciidoc.asciidoc", processor);
 
-        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content_type", "content",
-            "content_length"));
+        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content_type", "content", "content_length"));
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
+    }
+
+    public void testParseAsBytesArray() throws Exception {
+        String path = "/org/elasticsearch/ingest/attachment/test/sample-files/text-in-english.txt";
+        byte[] bytes;
+        try (InputStream is = AttachmentProcessorTests.class.getResourceAsStream(path)) {
+            bytes = IOUtils.toByteArray(is);
+        }
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", bytes);
+
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+
+        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
+        assertThat(attachmentData.get("language"), is("en"));
+        assertThat(attachmentData.get("content"), is("\"God Save the Queen\" (alternatively \"God Save the King\""));
+        assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
+        assertThat(attachmentData.get("content_length"), is(notNullValue()));
     }
 
     private Map<String, Object> parseDocument(String file, AttachmentProcessor processor) throws Exception {
@@ -181,8 +201,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSourceAndMetadata()
-            .get("target_field");
+        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         return attachmentData;
     }
 

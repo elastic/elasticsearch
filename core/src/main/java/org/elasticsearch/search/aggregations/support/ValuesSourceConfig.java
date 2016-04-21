@@ -19,9 +19,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
+import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
 /**
@@ -35,7 +33,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     ValueType scriptValueType;
     boolean unmapped = false;
     String formatPattern;
-    ValueFormat format = ValueFormat.RAW;
+    DocValueFormat format = DocValueFormat.RAW;
     Object missing;
     DateTimeZone timeZone;
 
@@ -78,15 +76,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return this;
     }
 
-    public ValueFormat format() {
+    public DocValueFormat format() {
         return format;
-    }
-
-    public ValueFormatter formatter() {
-        return format.formatter();
-    }
-
-    public ValueParser parser() {
-        return format.parser();
     }
 }

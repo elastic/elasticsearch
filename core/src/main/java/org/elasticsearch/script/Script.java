@@ -26,7 +26,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,7 +46,6 @@ public class Script implements ToXContent, Streamable {
      * using {@link StreamInput#readOptionalStreamable(Supplier)}
      */
     public static final Supplier<Script> SUPPLIER = new Supplier<Script>() {
-
         @Override
         public Script get() {
             return new Script();
@@ -238,30 +237,26 @@ public class Script implements ToXContent, Streamable {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
+        if (this == obj) return true;
+        if (obj == null) return false;
+        if (getClass() != obj.getClass()) return false;
         Script other = (Script) obj;
         if (lang == null) {
-            if (other.lang != null)
-                return false;
-        } else if (!lang.equals(other.lang))
-            return false;
+            if (other.lang != null) return false;
+        } else {
+            if (!lang.equals(other.lang)) return false;
+        }
         if (params == null) {
-            if (other.params != null)
-                return false;
-        } else if (!params.equals(other.params))
-            return false;
+            if (other.params != null) return false;
+        } else {
+            if (!params.equals(other.params)) return false;
+        }
         if (script == null) {
-            if (other.script != null)
-                return false;
-        } else if (!script.equals(other.script))
-            return false;
-        if (type != other.type)
-            return false;
+            if (other.script != null) return false;
+        } else {
+            if (!script.equals(other.script)) return false;
+        }
+        if (type != other.type) return false;
         return true;
     }
 

@@ -32,9 +32,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -926,13 +926,6 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     }
                     Store.verify(indexOutput);
                     indexOutput.close();
-                    // write the checksum
-                    if (fileInfo.metadata().hasLegacyChecksum()) {
-                        Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
-                        legacyChecksums.add(fileInfo.metadata());
-                        legacyChecksums.write(store);
-
-                    }
                     store.directory().sync(Collections.singleton(fileInfo.physicalName()));
                     success = true;
                 } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {

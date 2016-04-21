@@ -350,13 +350,11 @@ public class SimpleVersioningIT extends ESIntegTestCase {
 
     private IDSource getRandomIDs() {
         IDSource ids;
-        final Random random = getRandom();
+        final Random random = random();
         switch (random.nextInt(6)) {
             case 0:
                 // random simple
-                if (VERBOSE) {
-                    System.out.println("TEST: use random simple ids");
-                }
+                logger.info("--> use random simple ids");
                 ids = new IDSource() {
                     @Override
                     public String next() {
@@ -366,9 +364,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 break;
             case 1:
                 // random realistic unicode
-                if (VERBOSE) {
-                    System.out.println("TEST: use random realistic unicode ids");
-                }
+                logger.info("--> use random realistic unicode ids");
                 ids = new IDSource() {
                     @Override
                     public String next() {
@@ -378,9 +374,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 break;
             case 2:
                 // sequential
-                if (VERBOSE) {
-                    System.out.println("TEST: use seuquential ids");
-                }
+                logger.info("--> use sequential ids");
                 ids = new IDSource() {
                     int upto;
 
@@ -392,9 +386,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 break;
             case 3:
                 // zero-pad sequential
-                if (VERBOSE) {
-                    System.out.println("TEST: use zero-pad seuquential ids");
-                }
+                logger.info("--> use zero-padded sequential ids");
                 ids = new IDSource() {
                     final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
                     final String zeroPad = String.format(Locale.ROOT, "%0" + TestUtil.nextInt(random, 4, 20) + "d", 0);
@@ -409,9 +401,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 break;
             case 4:
                 // random long
-                if (VERBOSE) {
-                    System.out.println("TEST: use random long ids");
-                }
+                logger.info("--> use random long ids");
                 ids = new IDSource() {
                     final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
                     int upto;
@@ -424,9 +414,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 break;
             case 5:
                 // zero-pad random long
-                if (VERBOSE) {
-                    System.out.println("TEST: use zero-pad random long ids");
-                }
+                logger.info("--> use zero-padded random long ids");
                 ids = new IDSource() {
                     final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
                     final String zeroPad = String.format(Locale.ROOT, "%015d", 0);
@@ -528,7 +516,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         newSettings.put("index.gc_deletes", "1000000h");
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet());
 
-        Random random = getRandom();
+        Random random = random();
 
         // Generate random IDs:
         IDSource idSource = getRandomIDs();
@@ -539,9 +527,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             idPrefix = "";
         } else {
             idPrefix = TestUtil.randomSimpleString(random);
-            if (VERBOSE) {
-                System.out.println("TEST: use id prefix: " + idPrefix);
-            }
+            logger.debug("--> use id prefix {}", idPrefix);
         }
 
         int numIDs;
@@ -564,9 +550,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         final IDAndVersion[] idVersions = new IDAndVersion[TestUtil.nextInt(random, numIDs / 2, numIDs * (TEST_NIGHTLY ? 8 : 2))];
         final Map<String, IDAndVersion> truth = new HashMap<>();
 
-        if (VERBOSE) {
-            System.out.println("TEST: use " + numIDs + " ids; " + idVersions.length + " operations");
-        }
+        logger.debug("--> use {} ids; {} operations", numIDs, idVersions.length);
 
         for (int i = 0; i < idVersions.length; i++) {
 
@@ -596,10 +580,9 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             idVersions[i] = x;
         }
 
-        if (VERBOSE) {
-            for (IDAndVersion idVersion : idVersions) {
-                System.out.println("id=" + idVersion.id + " version=" + idVersion.version + " delete?=" + idVersion.delete + " truth?=" + (truth.get(idVersion.id) == idVersion));
-            }
+        for (IDAndVersion idVersion : idVersions) {
+            logger.debug("--> id={} version={} delete?={} truth?={}", idVersion.id, idVersion.version, idVersion.delete,
+                truth.get(idVersion.id) == idVersion);
         }
 
         final AtomicInteger upto = new AtomicInteger();
@@ -613,7 +596,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 public void run() {
                     try {
                         //final Random threadRandom = RandomizedContext.current().getRandom();
-                        final Random threadRandom = getRandom();
+                        final Random threadRandom = random();
                         startingGun.await();
                         while (true) {
 
@@ -623,8 +606,8 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                             if (index >= idVersions.length) {
                                 break;
                             }
-                            if (VERBOSE && index % 100 == 0) {
-                                System.out.println(Thread.currentThread().getName() + ": index=" + index);
+                            if (index % 100 == 0) {
+                                logger.trace("{}: index={}", Thread.currentThread().getName(), index);
                             }
                             IDAndVersion idVersion = idVersions[index];
 
@@ -657,18 +640,18 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                             idVersion.indexFinishTime = System.nanoTime() - startTime;
 
                             if (threadRandom.nextInt(100) == 7) {
-                                System.out.println(threadID + ": TEST: now refresh at " + (System.nanoTime() - startTime));
+                                logger.trace("--> {}: TEST: now refresh at {}", threadID, System.nanoTime() - startTime);
                                 refresh();
-                                System.out.println(threadID + ": TEST: refresh done at " + (System.nanoTime() - startTime));
+                                logger.trace("--> {}: TEST: refresh done at {}", threadID, System.nanoTime() - startTime);
                             }
                             if (threadRandom.nextInt(100) == 7) {
-                                System.out.println(threadID + ": TEST: now flush at " + (System.nanoTime() - startTime));
+                                logger.trace("--> {}: TEST: now flush at {}", threadID, System.nanoTime() - startTime);
                                 try {
                                     flush();
                                 } catch (FlushNotAllowedEngineException fnaee) {
                                     // OK
                                 }
-                                System.out.println(threadID + ": TEST: flush done at " + (System.nanoTime() - startTime));
+                                logger.trace("--> {}: TEST: flush done at {}", threadID, System.nanoTime() - startTime);
                             }
                         }
                     } catch (Exception e) {
@@ -696,16 +679,17 @@ public class SimpleVersioningIT extends ESIntegTestCase {
             }
             long actualVersion = client().prepareGet("test", "type", id).execute().actionGet().getVersion();
             if (actualVersion != expected) {
-                System.out.println("FAILED: idVersion=" + idVersion + " actualVersion=" + actualVersion);
+                logger.error("--> FAILED: idVersion={} actualVersion= {}", idVersion, actualVersion);
                 failed = true;
             }
         }
 
         if (failed) {
-            System.out.println("All versions:");
+            StringBuilder sb = new StringBuilder();
             for (int i = 0; i < idVersions.length; i++) {
-                System.out.println("i=" + i + " " + idVersions[i]);
+                sb.append("i=").append(i).append(" ").append(idVersions[i]).append(System.lineSeparator());
             }
+            logger.error("All versions: {}", sb);
             fail("wrong versions for some IDs");
         }
     }
@@ -717,7 +701,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 .admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.number_of_shards", 1))
                 .execute().
                 actionGet();

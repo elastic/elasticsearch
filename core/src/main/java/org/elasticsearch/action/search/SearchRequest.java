@@ -295,6 +295,13 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         return this.requestCache;
     }
 
+    /**
+     * @return true if the request only has suggest
+     */
+    public boolean isSuggestOnly() {
+        return source != null && source.isSuggestOnly();
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -312,7 +319,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             scroll = readScroll(in);
         }
         if (in.readBoolean()) {
-            source = SearchSourceBuilder.readSearchSourceFrom(in);
+            source = new SearchSourceBuilder(in);
         }
 
         types = in.readStringArray();

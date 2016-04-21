@@ -118,7 +118,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     // Issue #3629
     public void testExplainDateRangeInQueryString() {
-        assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder()
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.number_of_shards", 1)));
 
@@ -178,7 +178,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     public void testExplainMatchPhrasePrefix() {
         assertAcked(prepareCreate("test").setSettings(
-                Settings.settingsBuilder().put(indexSettings())
+                Settings.builder().put(indexSettings())
                         .put("index.analysis.filter.syns.type", "synonym")
                         .putArray("index.analysis.filter.syns.synonyms", "one,two")
                         .put("index.analysis.analyzer.syns.tokenizer", "standard")
@@ -243,9 +243,9 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         // fuzzy queries
         assertExplanation(QueryBuilders.fuzzyQuery("field", "the").fuzziness(Fuzziness.fromEdits(2)),
-                containsString("field:the field:tree^0.3333333"), true);
+                containsString("field:the (field:tree)^0.3333333"), true);
         assertExplanation(QueryBuilders.fuzzyQuery("field", "jump"),
-                containsString("field:jumps^0.75"), true);
+                containsString("(field:jumps)^0.75"), true);
 
         // more like this queries
         assertExplanation(QueryBuilders.moreLikeThisQuery(new String[] { "field" }, null, MoreLikeThisQueryBuilder.ids("1"))

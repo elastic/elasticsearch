@@ -25,7 +25,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,8 +46,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
-import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.CAMELCASE;
-import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.UNDERSCORE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class XContentBuilderTests extends ESTestCase {
@@ -166,17 +163,7 @@ public class XContentBuilderTests extends ESTestCase {
 
         byte[] data = bos.bytes().toBytes();
         String sData = new String(data, "UTF8");
-        System.out.println("DATA: " + sData);
-    }
-
-    public void testFieldCaseConversion() throws Exception {
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).fieldCaseConversion(CAMELCASE);
-        builder.startObject().field("test_name", "value").endObject();
-        assertThat(builder.string(), equalTo("{\"testName\":\"value\"}"));
-
-        builder = XContentFactory.contentBuilder(XContentType.JSON).fieldCaseConversion(UNDERSCORE);
-        builder.startObject().field("testName", "value").endObject();
-        assertThat(builder.string(), equalTo("{\"test_name\":\"value\"}"));
+        assertThat(sData, equalTo("{\"name\":\"something\", source : { test : \"value\" },\"name2\":\"something2\"}"));
     }
 
     public void testByteConversion() throws Exception {
@@ -290,9 +277,9 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(pathBuilder.string(), equalTo(stringBuilder.string()));
     }
 
-    public void testHandlingOfPath_XContentBuilderStringName() throws IOException {
+    public void testHandlingOfPath_StringName() throws IOException {
         Path path = PathUtils.get("path");
-        XContentBuilderString name = new XContentBuilderString("file");
+        String name = new String("file");
 
         XContentBuilder pathBuilder = XContentFactory.contentBuilder(XContentType.JSON);
         pathBuilder.startObject().field(name, path).endObject();

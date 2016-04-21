@@ -47,6 +47,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
             "timeout",
             "master_timeout",
             "index",
+            "preserve_existing",
             "expand_wildcards",
             "ignore_unavailable",
             "allow_no_indices"));
@@ -62,13 +63,14 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));
+        updateSettingsRequest.setPreserveExisting(request.paramAsBoolean("preserve_existing", updateSettingsRequest.isPreserveExisting()));
         updateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateSettingsRequest.masterNodeTimeout()));
         updateSettingsRequest.indicesOptions(IndicesOptions.fromRequest(request, updateSettingsRequest.indicesOptions()));
 
-        Settings.Builder updateSettings = Settings.settingsBuilder();
+        Settings.Builder updateSettings = Settings.builder();
         String bodySettingsStr = request.content().toUtf8();
         if (Strings.hasText(bodySettingsStr)) {
-            Settings buildSettings = Settings.settingsBuilder().loadFromSource(bodySettingsStr).build();
+            Settings buildSettings = Settings.builder().loadFromSource(bodySettingsStr).build();
             for (Map.Entry<String, String> entry : buildSettings.getAsMap().entrySet()) {
                 String key = entry.getKey();
                 String value = entry.getValue();

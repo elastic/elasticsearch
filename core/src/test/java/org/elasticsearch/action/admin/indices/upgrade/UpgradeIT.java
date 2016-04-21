@@ -98,13 +98,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
             }
             indexRandom(true, docs);
             ensureGreen(indexName);
-            if (globalCompatibilityVersion().before(Version.V_1_4_0_Beta1)) {
-                // before 1.4 and the wait_if_ongoing flag, flushes could fail randomly, so we
-                // need to continue to try flushing until all shards succeed
-                assertTrue(awaitBusy(() -> flush(indexName).getFailedShards() == 0));
-            } else {
-                assertEquals(0, flush(indexName).getFailedShards());
-            }
+            assertEquals(0, flush(indexName).getFailedShards());
 
             // index more docs that won't be flushed
             numDocs = scaledRandomIntBetween(100, 1000);
@@ -140,7 +134,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
         // means we can never generate ancient segments in this test (unless Lucene major version bumps but ES major version does not):
         assertFalse(hasAncientSegments(client(), indexToUpgrade));
 
-        logger.info("--> Running upgrade on index " + indexToUpgrade);
+        logger.info("--> Running upgrade on index {}", indexToUpgrade);
         assertNoFailures(client().admin().indices().prepareUpgrade(indexToUpgrade).get());
         awaitBusy(() -> {
             try {
@@ -234,7 +228,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
         ESLogger logger = Loggers.getLogger(UpgradeIT.class);
         int toUpgrade = 0;
         for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
-            logger.info("Index: " + status.getIndex() + ", total: " + status.getTotalBytes() + ", toUpgrade: " + status.getToUpgradeBytes());
+            logger.info("Index: {}, total: {}, toUpgrade: {}", status.getIndex(), status.getTotalBytes(), status.getToUpgradeBytes());
             toUpgrade += status.getToUpgradeBytes();
         }
         return toUpgrade == 0;

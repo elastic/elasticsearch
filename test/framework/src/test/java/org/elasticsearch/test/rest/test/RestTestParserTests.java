@@ -74,7 +74,7 @@ public class RestTestParserTests extends ESTestCase {
                         "\"Get type mapping - pre 1.0\":\n" +
                         "\n" +
                         "  - skip:\n" +
-                        "      version:     \"0.90.9 - \"\n" +
+                        "      version:     \"2.0.0 - \"\n" +
                         "      reason:      \"for newer versions the index name is always returned\"\n" +
                         "\n" +
                         "  - do:\n" +
@@ -121,7 +121,7 @@ public class RestTestParserTests extends ESTestCase {
         assertThat(restTestSuite.getTestSections().get(1).getName(), equalTo("Get type mapping - pre 1.0"));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().isEmpty(), equalTo(false));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getReason(), equalTo("for newer versions the index name is always returned"));
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getLowerVersion(), equalTo(Version.V_0_90_9));
+        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getLowerVersion(), equalTo(Version.V_2_0_0));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getUpperVersion(), equalTo(Version.CURRENT));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().size(), equalTo(3));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().get(0), instanceOf(DoSection.class));

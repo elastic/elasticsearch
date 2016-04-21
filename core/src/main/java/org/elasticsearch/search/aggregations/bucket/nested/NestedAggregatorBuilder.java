@@ -19,20 +19,24 @@
 
 package org.elasticsearch.search.aggregations.bucket.nested;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class NestedAggregatorBuilder extends AggregatorBuilder<NestedAggregatorBuilder> {
-
-    static final NestedAggregatorBuilder PROTOTYPE = new NestedAggregatorBuilder("", "");
+    public static final String NAME = InternalNested.TYPE.name();
+    public static final ParseField AGGREGATION_FIELD_NAME = new ParseField(NAME);
 
     private final String path;
 
@@ -49,6 +53,19 @@ public class NestedAggregatorBuilder extends AggregatorBuilder<NestedAggregatorB
             throw new IllegalArgumentException("[path] must not be null: [" + name + "]");
         }
         this.path = path;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public NestedAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalNested.TYPE);
+        path = in.readString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(path);
     }
 
     /**
@@ -72,17 +89,35 @@ public class NestedAggregatorBuilder extends AggregatorBuilder<NestedAggregatorB
         return builder;
     }
 
-    @Override
-    protected NestedAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-        String path = in.readString();
-        NestedAggregatorBuilder factory = new NestedAggregatorBuilder(name, path);
-        return factory;
+    public static NestedAggregatorBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        String path = null;
+
+        XContentParser.Token token;
+        String currentFieldName = null;
+        XContentParser parser = context.parser();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if (context.getParseFieldMatcher().match(currentFieldName, NestedAggregator.PATH_FIELD)) {
+                    path = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + aggregationName + "].");
+            }
+        }
+
+        if (path == null) {
+            // "field" doesn't exist, so we fall back to the context of the ancestors
+            throw new ParsingException(parser.getTokenLocation(), "Missing [path] field for nested aggregation [" + aggregationName + "]");
+        }
+
+        return new NestedAggregatorBuilder(aggregationName, path);
     }
 
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(path);
-    }
 
     @Override
     protected int doHashCode() {
@@ -93,5 +128,10 @@ public class NestedAggregatorBuilder extends AggregatorBuilder<NestedAggregatorB
     protected boolean doEquals(Object obj) {
         NestedAggregatorBuilder other = (NestedAggregatorBuilder) obj;
         return Objects.equals(path, other.path);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

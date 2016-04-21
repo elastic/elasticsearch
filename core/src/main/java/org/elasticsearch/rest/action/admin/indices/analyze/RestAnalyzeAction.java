@@ -53,8 +53,8 @@ public class RestAnalyzeAction extends BaseRestHandler {
         public static final ParseField TEXT = new ParseField("text");
         public static final ParseField FIELD = new ParseField("field");
         public static final ParseField TOKENIZER = new ParseField("tokenizer");
-        public static final ParseField TOKEN_FILTERS = new ParseField("token_filters", "filters");
-        public static final ParseField CHAR_FILTERS = new ParseField("char_filters");
+        public static final ParseField TOKEN_FILTERS = new ParseField("filter", "token_filter");
+        public static final ParseField CHAR_FILTERS = new ParseField("char_filter");
         public static final ParseField EXPLAIN = new ParseField("explain");
         public static final ParseField ATTRIBUTES = new ParseField("attributes");
     }
@@ -78,8 +78,8 @@ public class RestAnalyzeAction extends BaseRestHandler {
         analyzeRequest.analyzer(request.param("analyzer"));
         analyzeRequest.field(request.param("field"));
         analyzeRequest.tokenizer(request.param("tokenizer"));
-        analyzeRequest.tokenFilters(request.paramAsStringArray("token_filters", request.paramAsStringArray("filters", analyzeRequest.tokenFilters())));
-        analyzeRequest.charFilters(request.paramAsStringArray("char_filters", analyzeRequest.charFilters()));
+        analyzeRequest.tokenFilters(request.paramAsStringArray("filter", request.paramAsStringArray("token_filter", analyzeRequest.tokenFilters())));
+        analyzeRequest.charFilters(request.paramAsStringArray("char_filter", analyzeRequest.charFilters()));
         analyzeRequest.explain(request.paramAsBoolean("explain", false));
         analyzeRequest.attributes(request.paramAsStringArray("attributes", analyzeRequest.attributes()));
 
@@ -102,7 +102,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
     public static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest, ParseFieldMatcher parseFieldMatcher) {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new IllegalArgumentException("Malforrmed content, must start with an object");
+                throw new IllegalArgumentException("Malformed content, must start with an object");
             } else {
                 XContentParser.Token token;
                 String currentFieldName = null;
@@ -144,8 +144,12 @@ public class RestAnalyzeAction extends BaseRestHandler {
                             charFilters.add(parser.text());
                         }
                         analyzeRequest.charFilters(charFilters.toArray(new String[charFilters.size()]));
-                    } else if (parseFieldMatcher.match(currentFieldName, Fields.EXPLAIN) && token == XContentParser.Token.VALUE_BOOLEAN) {
-                        analyzeRequest.explain(parser.booleanValue());
+                    } else if (parseFieldMatcher.match(currentFieldName, Fields.EXPLAIN)) {
+                        if (parser.isBooleanValue()) {
+                            analyzeRequest.explain(parser.booleanValue());
+                        } else {
+                            throw new IllegalArgumentException(currentFieldName + " must be either 'true' or 'false'");
+                        }
                     } else if (parseFieldMatcher.match(currentFieldName, Fields.ATTRIBUTES) && token == XContentParser.Token.START_ARRAY){
                         List<String> attributes = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

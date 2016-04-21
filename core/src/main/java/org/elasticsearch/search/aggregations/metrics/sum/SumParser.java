@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.metrics.sum;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -39,11 +38,6 @@ public class SumParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalSum.TYPE.name();
-    }
-
-    @Override
     protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
             ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
         return false;
@@ -53,10 +47,5 @@ public class SumParser extends NumericValuesSourceParser {
     protected SumAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         return new SumAggregatorBuilder(aggregationName);
-    }
-
-    @Override
-    public AggregatorBuilder<?> getFactoryPrototypes() {
-        return SumAggregatorBuilder.PROTOTYPE;
     }
 }

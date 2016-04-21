@@ -37,21 +37,21 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
+import org.elasticsearch.action.percolate.MultiPercolateResponse;
 import org.elasticsearch.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
@@ -62,8 +62,10 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
@@ -73,7 +75,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     public void testSpecifiedIndexUnavailableMultipleIndices() throws Exception {
-        createIndex("test1");
+        assertAcked(prepareCreate("test1").addMapping("query", "query", "type=percolator"));
         ensureYellow();
 
         // Verify defaults
@@ -90,7 +92,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists("test1", "test2"), true);
         verify(percolate("test1", "test2"), true);
         verify(mpercolate(null, "test1", "test2"), false);
-        verify(suggest("test1", "test2"), true);
         verify(getAliases("test1", "test2"), true);
         verify(getFieldMapping("test1", "test2"), true);
         verify(getMapping("test1", "test2"), true);
@@ -110,7 +111,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists("test1", "test2").setIndicesOptions(options), true);
         verify(percolate("test1", "test2").setIndicesOptions(options), true);
         verify(mpercolate(options, "test1", "test2").setIndicesOptions(options), false);
-        verify(suggest("test1", "test2").setIndicesOptions(options), true);
         verify(getAliases("test1", "test2").setIndicesOptions(options), true);
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), true);
         verify(getMapping("test1", "test2").setIndicesOptions(options), true);
@@ -130,14 +130,13 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists("test1", "test2").setIndicesOptions(options), false);
         verify(percolate("test1", "test2").setIndicesOptions(options), false);
         verify(mpercolate(options, "test1", "test2").setIndicesOptions(options), false);
-        verify(suggest("test1", "test2").setIndicesOptions(options), false);
         verify(getAliases("test1", "test2").setIndicesOptions(options), false);
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getSettings("test1", "test2").setIndicesOptions(options), false);
 
         options = IndicesOptions.strictExpandOpen();
-        assertAcked(prepareCreate("test2"));
+        assertAcked(prepareCreate("test2").addMapping("query", "query", "type=percolator"));
         ensureYellow();
         verify(search("test1", "test2").setIndicesOptions(options), false);
         verify(msearch(options, "test1", "test2").setIndicesOptions(options), false);
@@ -152,7 +151,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists("test1", "test2").setIndicesOptions(options), false);
         verify(percolate("test1", "test2").setIndicesOptions(options), false);
         verify(mpercolate(options, "test1", "test2").setIndicesOptions(options), false);
-        verify(suggest("test1", "test2").setIndicesOptions(options), false);
         verify(getAliases("test1", "test2").setIndicesOptions(options), false);
         verify(getFieldMapping("test1", "test2").setIndicesOptions(options), false);
         verify(getMapping("test1", "test2").setIndicesOptions(options), false);
@@ -160,7 +158,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     public void testSpecifiedIndexUnavailableSingleIndexThatIsClosed() throws Exception {
-        assertAcked(prepareCreate("test1"));
+        assertAcked(prepareCreate("test1").addMapping("query", "query", "type=percolator"));
         // we need to wait until all shards are allocated since recovery from
         // gateway will fail unless the majority of the replicas was allocated
         // pre-closing. with lots of replicas this will fail.
@@ -182,7 +180,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists("test1").setIndicesOptions(options), true);
         verify(percolate("test1").setIndicesOptions(options), true);
         verify(mpercolate(options, "test1").setIndicesOptions(options), true);
-        verify(suggest("test1").setIndicesOptions(options), true);
         verify(getAliases("test1").setIndicesOptions(options), true);
         verify(getFieldMapping("test1").setIndicesOptions(options), true);
         verify(getMapping("test1").setIndicesOptions(options), true);
@@ -202,7 +199,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists("test1").setIndicesOptions(options), false);
         verify(percolate("test1").setIndicesOptions(options), false);
         verify(mpercolate(options, "test1").setIndicesOptions(options), false);
-        verify(suggest("test1").setIndicesOptions(options), false);
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
@@ -225,7 +221,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists("test1").setIndicesOptions(options), false);
         verify(percolate("test1").setIndicesOptions(options), false);
         verify(mpercolate(options, "test1").setIndicesOptions(options), false);
-        verify(suggest("test1").setIndicesOptions(options), false);
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
@@ -246,7 +241,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(aliasExists("test1").setIndicesOptions(options), true);
         verify(typesExists("test1").setIndicesOptions(options), true);
         verify(percolate("test1").setIndicesOptions(options), true);
-        verify(suggest("test1").setIndicesOptions(options), true);
         verify(getAliases("test1").setIndicesOptions(options), true);
         verify(getFieldMapping("test1").setIndicesOptions(options), true);
         verify(getMapping("test1").setIndicesOptions(options), true);
@@ -265,13 +259,12 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(aliasExists("test1").setIndicesOptions(options), false);
         verify(typesExists("test1").setIndicesOptions(options), false);
         verify(percolate("test1").setIndicesOptions(options), false);
-        verify(suggest("test1").setIndicesOptions(options), false);
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
         verify(getSettings("test1").setIndicesOptions(options), false);
 
-        assertAcked(prepareCreate("test1"));
+        assertAcked(prepareCreate("test1").addMapping("query", "query", "type=percolator"));
         ensureYellow();
 
         options = IndicesOptions.strictExpandOpenAndForbidClosed();
@@ -287,7 +280,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(aliasExists("test1").setIndicesOptions(options), false);
         verify(typesExists("test1").setIndicesOptions(options), false);
         verify(percolate("test1").setIndicesOptions(options), false);
-        verify(suggest("test1").setIndicesOptions(options), false);
         verify(getAliases("test1").setIndicesOptions(options), false);
         verify(getFieldMapping("test1").setIndicesOptions(options), false);
         verify(getMapping("test1").setIndicesOptions(options), false);
@@ -300,7 +292,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         waitForRelocation();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder().put("location", randomRepoPath())).get();
+                .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         client().admin().cluster().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
 
@@ -340,7 +332,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists(indices), false);
         verify(percolate(indices), false);
         verify(mpercolate(null, indices), false);
-        verify(suggest(indices), false);
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
@@ -361,13 +352,12 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists(indices).setIndicesOptions(options), false);
         verify(percolate(indices).setIndicesOptions(options), false);
         verify(mpercolate(options, indices), false);
-        verify(suggest(indices).setIndicesOptions(options), false);
         verify(getAliases(indices).setIndicesOptions(options), false);
         verify(getFieldMapping(indices).setIndicesOptions(options), false);
         verify(getMapping(indices).setIndicesOptions(options), false);
         verify(getSettings(indices).setIndicesOptions(options), false);
 
-        assertAcked(prepareCreate("foobar"));
+        assertAcked(prepareCreate("foobar").addMapping("query", "query", "type=percolator"));
         client().prepareIndex("foobar", "type", "1").setSource("k", "v").setRefresh(true).execute().actionGet();
 
         // Verify defaults for wildcards, with one wildcard expression and one existing index
@@ -385,7 +375,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists(indices), false);
         verify(percolate(indices), false);
         verify(mpercolate(null, indices), false);
-        verify(suggest(indices), false);
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
@@ -406,7 +395,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists(indices), false);
         verify(percolate(indices), false);
         verify(mpercolate(null, indices), false);
-        verify(suggest(indices), false);
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
@@ -427,7 +415,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(typesExists(indices).setIndicesOptions(options), false);
         verify(percolate(indices).setIndicesOptions(options), false);
         verify(mpercolate(options, indices), false);
-        verify(suggest(indices).setIndicesOptions(options), false);
         verify(getAliases(indices).setIndicesOptions(options), false);
         verify(getFieldMapping(indices).setIndicesOptions(options), false);
         verify(getMapping(indices).setIndicesOptions(options), false);
@@ -440,7 +427,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         waitForRelocation();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder().put("location", randomRepoPath())).get();
+                .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         client().admin().cluster().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
 
@@ -642,9 +629,12 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
             return "a plugin that adds a dynamic tst setting";
         }
 
-        private static final Setting<String> INDEX_A = new Setting<>("index.a", "", Function.identity(), true, Setting.Scope.INDEX);
-        private static final Setting<String> INDEX_C = new Setting<>("index.c", "", Function.identity(), true, Setting.Scope.INDEX);
-        private static final Setting<String> INDEX_E = new Setting<>("index.e", "", Function.identity(), false, Setting.Scope.INDEX);
+        private static final Setting<String> INDEX_A =
+            new Setting<>("index.a", "", Function.identity(), Property.Dynamic, Property.IndexScope);
+        private static final Setting<String> INDEX_C =
+            new Setting<>("index.c", "", Function.identity(), Property.Dynamic, Property.IndexScope);
+        private static final Setting<String> INDEX_E =
+            new Setting<>("index.e", "", Function.identity(), Property.IndexScope);
 
 
         public void onModule(SettingsModule module) {
@@ -681,7 +671,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         try {
             verify(client().admin().indices().prepareUpdateSettings("barbaz").setSettings(Settings.builder().put("e", "f")), false);
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Can't update non dynamic settings[[index.e]] for open indices [[barbaz]]"));
+            assertThat(e.getMessage(), startsWith("Can't update non dynamic settings [[index.e]] for open indices [[barbaz"));
         }
         verify(client().admin().indices().prepareUpdateSettings("baz*").setSettings(Settings.builder().put("a", "b")), true);
     }
@@ -748,10 +738,6 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         return builder.add(percolate(indices));
     }
 
-    private static SuggestRequestBuilder suggest(String... indices) {
-        return client().prepareSuggest(indices).addSuggestion(SuggestBuilders.termSuggestion("name").field("a"));
-    }
-
     private static GetAliasesRequestBuilder getAliases(String... indices) {
         return client().admin().indices().prepareGetAliases("dummy").addIndices(indices);
     }
@@ -788,7 +774,13 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
             if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
                 assertThat(multiSearchResponse.getResponses().length, equalTo(1));
+                assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
                 assertThat(multiSearchResponse.getResponses()[0].getResponse(), nullValue());
+            } else if (requestBuilder instanceof MultiPercolateRequestBuilder) {
+                MultiPercolateResponse multiPercolateResponse = ((MultiPercolateRequestBuilder) requestBuilder).get();
+                assertThat(multiPercolateResponse.getItems().length, equalTo(1));
+                assertThat(multiPercolateResponse.getItems()[0].isFailure(), is(true));
+                assertThat(multiPercolateResponse.getItems()[0].getResponse(), nullValue());
             } else {
                 try {
                     requestBuilder.get();

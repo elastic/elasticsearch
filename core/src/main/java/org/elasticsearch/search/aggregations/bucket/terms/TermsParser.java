@@ -40,13 +40,6 @@ import java.util.Map;
  *
  */
 public class TermsParser extends AbstractTermsParser {
-
-
-    @Override
-    public String type() {
-        return StringTerms.TYPE.name();
-    }
-
     @Override
     protected TermsAggregatorBuilder doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode collectMode, String executionHint,
@@ -177,10 +170,4 @@ public class TermsParser extends AbstractTermsParser {
         }
         return Order.aggregation(key, asc);
     }
-
-    @Override
-    public TermsAggregatorBuilder getFactoryPrototypes() {
-        return TermsAggregatorBuilder.PROTOTYPE;
-    }
-
 }

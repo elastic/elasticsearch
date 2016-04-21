@@ -51,6 +51,11 @@ public class PluginBuildPlugin extends BuildPlugin {
                 project.integTest.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
                 project.tasks.run.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
             }
+
+            project.namingConventions {
+                // Plugins decalare extensions of ESIntegTestCase as "Tests" instead of IT.
+                skipIntegTestInDisguise = true
+            }
         }
         createIntegTestTask(project)
         createBundleTask(project)
@@ -63,11 +68,10 @@ public class PluginBuildPlugin extends BuildPlugin {
             testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
-            provided "com.spatial4j:spatial4j:${project.versions.spatial4j}"
+            provided "org.locationtech.spatial4j:spatial4j:${project.versions.spatial4j}"
             provided "com.vividsolutions:jts:${project.versions.jts}"
             provided "log4j:log4j:${project.versions.log4j}"
             provided "log4j:apache-log4j-extras:${project.versions.log4j}"
-            provided "org.slf4j:slf4j-api:${project.versions.slf4j}"
             provided "net.java.dev.jna:jna:${project.versions.jna}"
         }
     }
@@ -101,11 +105,6 @@ public class PluginBuildPlugin extends BuildPlugin {
             from pluginMetadata // metadata (eg custom security policy)
             from project.jar // this plugin's jar
             from project.configurations.runtime - project.configurations.provided // the dep jars
-            // hack just for slf4j, in case it is "upgrade" from provided to compile,
-            // since it is not actually provided in distributions
-            from project.configurations.runtime.fileCollection { Dependency dep ->
-                return dep.name == 'slf4j-api' && project.configurations.compile.dependencies.contains(dep)
-            }
             // extra files for the plugin to go into the zip
             from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging
             from('src/main') {

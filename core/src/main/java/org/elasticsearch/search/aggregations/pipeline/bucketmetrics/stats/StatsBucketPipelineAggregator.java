@@ -20,13 +20,13 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
@@ -55,7 +55,7 @@ public class StatsBucketPipelineAggregator extends BucketMetricsPipelineAggregat
     private double min = Double.POSITIVE_INFINITY;
     private double max = Double.NEGATIVE_INFINITY;
 
-    protected StatsBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, ValueFormatter formatter,
+    protected StatsBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat formatter,
                                             Map<String, Object> metaData) {
         super(name, bucketsPaths, gapPolicy, formatter, metaData);
     }
@@ -87,7 +87,7 @@ public class StatsBucketPipelineAggregator extends BucketMetricsPipelineAggregat
 
     @Override
     protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        return new InternalStatsBucket(name(), count, sum, min, max, formatter, pipelineAggregators, metadata);
+        return new InternalStatsBucket(name(), count, sum, min, max, format, pipelineAggregators, metadata);
     }
 
 }

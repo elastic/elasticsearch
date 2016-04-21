@@ -35,8 +35,6 @@ import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
 
 /**
  * A set of utilities around Logging.
- *
- *
  */
 public class Loggers {
 
@@ -58,20 +56,24 @@ public class Loggers {
         return consoleLoggingEnabled;
     }
 
-    public static ESLogger getLogger(Class clazz, Settings settings, ShardId shardId, String... prefixes) {
+    public static ESLogger getLogger(Class<?> clazz, Settings settings, ShardId shardId, String... prefixes) {
         return getLogger(clazz, settings, shardId.getIndex(), asArrayList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }
 
-    /** Just like {@link #getLogger(Class, org.elasticsearch.common.settings.Settings,ShardId,String...)} but String loggerName instead of Class. */
+    /**
+     * Just like {@link #getLogger(Class, org.elasticsearch.common.settings.Settings,ShardId,String...)} but String loggerName instead of
+     * Class.
+     */
     public static ESLogger getLogger(String loggerName, Settings settings, ShardId shardId, String... prefixes) {
-        return getLogger(loggerName, settings, asArrayList(shardId.getIndexName(), Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
+        return getLogger(loggerName, settings,
+                asArrayList(shardId.getIndexName(), Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }
 
-    public static ESLogger getLogger(Class clazz, Settings settings, Index index, String... prefixes) {
+    public static ESLogger getLogger(Class<?> clazz, Settings settings, Index index, String... prefixes) {
         return getLogger(clazz, settings, asArrayList(SPACE, index.getName(), prefixes).toArray(new String[0]));
     }
 
-    public static ESLogger getLogger(Class clazz, Settings settings, String... prefixes) {
+    public static ESLogger getLogger(Class<?> clazz, Settings settings, String... prefixes) {
         return getLogger(buildClassLoggerName(clazz), settings, prefixes);
     }
 
@@ -117,11 +119,11 @@ public class Loggers {
         return ESLoggerFactory.getLogger(getLoggerName(s));
     }
 
-    public static ESLogger getLogger(Class clazz) {
+    public static ESLogger getLogger(Class<?> clazz) {
         return ESLoggerFactory.getLogger(getLoggerName(buildClassLoggerName(clazz)));
     }
 
-    public static ESLogger getLogger(Class clazz, String... prefixes) {
+    public static ESLogger getLogger(Class<?> clazz, String... prefixes) {
         return getLogger(buildClassLoggerName(clazz), prefixes);
     }
 
@@ -146,7 +148,7 @@ public class Loggers {
         return ESLoggerFactory.getLogger(prefix, getLoggerName(name));
     }
 
-    private static String buildClassLoggerName(Class clazz) {
+    private static String buildClassLoggerName(Class<?> clazz) {
         String name = clazz.getName();
         if (name.startsWith("org.elasticsearch.")) {
             name = Classes.getPackageName(clazz);

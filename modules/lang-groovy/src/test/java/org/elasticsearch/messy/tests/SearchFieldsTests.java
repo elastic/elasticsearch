@@ -87,9 +87,9 @@ public class SearchFieldsTests extends ESIntegTestCase {
                 // _timestamp is randomly enabled via templates but we don't want it here to test stored fields behaviour
                 .startObject("_timestamp").field("enabled", false).endObject()
                 .startObject("properties")
-                .startObject("field1").field("type", "string").field("store", true).endObject()
-                .startObject("field2").field("type", "string").field("store", false).endObject()
-                .startObject("field3").field("type", "string").field("store", true).endObject()
+                .startObject("field1").field("type", "text").field("store", true).endObject()
+                .startObject("field2").field("type", "text").field("store", false).endObject()
+                .startObject("field3").field("type", "text").field("store", true).endObject()
                 .endObject().endObject().endObject().string();
 
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
@@ -201,7 +201,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertNoFailures(response);
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
-        assertThat(response.getHits().getAt(0).isSourceEmpty(), equalTo(true));
+        assertThat(response.getHits().getAt(0).hasSource(), equalTo(true));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
         Set<String> fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
         fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
@@ -482,12 +482,12 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
     public void testGetFieldsComplexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1))
+                .setSettings(Settings.builder().put("index.refresh_interval", -1))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")
                         .startObject("field3").field("type", "object").startObject("properties")
-                        .startObject("field4").field("type", "string").field("store", true)
+                        .startObject("field4").field("type", "text").field("store", true)
                         .endObject().endObject()
                         .endObject().endObject()
                         .endObject().endObject()
@@ -539,7 +539,8 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
     // see #8203
     public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
-        createIndex("test");
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type", "test_field", "type=keyword").get());
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("test_field", "foobar"));
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setSource(
@@ -554,7 +555,8 @@ public class SearchFieldsTests extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_source").field("enabled", false).endObject().startObject("properties")
-                .startObject("string_field").field("type", "string").endObject()
+                .startObject("text_field").field("type", "text").field("fielddata", true).endObject()
+                .startObject("keyword_field").field("type", "keyword").endObject()
                 .startObject("byte_field").field("type", "byte").endObject()
                 .startObject("short_field").field("type", "short").endObject()
                 .startObject("integer_field").field("type", "integer").endObject()
@@ -569,7 +571,8 @@ public class SearchFieldsTests extends ESIntegTestCase {
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
-                .field("string_field", "foo")
+                .field("text_field", "foo")
+                .field("keyword_field", "foo")
                 .field("byte_field", (byte) 1)
                 .field("short_field", (short) 2)
                 .field("integer_field", 3)
@@ -583,7 +586,8 @@ public class SearchFieldsTests extends ESIntegTestCase {
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         SearchRequestBuilder builder = client().prepareSearch().setQuery(matchAllQuery())
-                .addFieldDataField("string_field")
+                .addFieldDataField("text_field")
+                .addFieldDataField("keyword_field")
                 .addFieldDataField("byte_field")
                 .addFieldDataField("short_field")
                 .addFieldDataField("integer_field")
@@ -599,7 +603,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
         Set<String> fields = new HashSet<>(searchResponse.getHits().getAt(0).fields().keySet());
         fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
-                "float_field", "double_field", "date_field", "boolean_field", "string_field")));
+                "float_field", "double_field", "date_field", "boolean_field", "text_field", "keyword_field")));
 
         assertThat(searchResponse.getHits().getAt(0).fields().get("byte_field").value().toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(0).fields().get("short_field").value().toString(), equalTo("2"));
@@ -609,7 +613,8 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).fields().get("double_field").value(), equalTo((Object) 6.0d));
         assertThat(searchResponse.getHits().getAt(0).fields().get("date_field").value(), equalTo((Object) 1332374400000L));
         assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) 1L));
-
+        assertThat(searchResponse.getHits().getAt(0).fields().get("text_field").value(), equalTo("foo"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("keyword_field").value(), equalTo("foo"));
     }
 
     public void testScriptFields() throws Exception {

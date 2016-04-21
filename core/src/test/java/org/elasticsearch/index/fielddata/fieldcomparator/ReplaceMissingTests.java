@@ -52,7 +52,7 @@ public class ReplaceMissingTests extends ESTestCase {
         iw.close();
 
         DirectoryReader reader = DirectoryReader.open(dir);
-        LeafReader ar = getOnlySegmentReader(reader);
+        LeafReader ar = getOnlyLeafReader(reader);
         SortedDocValues raw = ar.getSortedDocValues("field");
         assertEquals(2, raw.getValueCount());
 

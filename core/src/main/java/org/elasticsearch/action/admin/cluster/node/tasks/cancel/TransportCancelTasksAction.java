@@ -26,10 +26,10 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -84,21 +84,21 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     }
 
     protected void processTasks(CancelTasksRequest request, Consumer<CancellableTask> operation) {
-        if (request.taskId().isSet() == false) {
+        if (request.getTaskId().isSet()) {
             // we are only checking one task, we can optimize it
-            CancellableTask task = taskManager.getCancellableTask(request.taskId().getId());
+            CancellableTask task = taskManager.getCancellableTask(request.getTaskId().getId());
             if (task != null) {
                 if (request.match(task)) {
                     operation.accept(task);
                 } else {
-                    throw new IllegalArgumentException("task [" + request.taskId() + "] doesn't support this operation");
+                    throw new IllegalArgumentException("task [" + request.getTaskId() + "] doesn't support this operation");
                 }
             } else {
-                if (taskManager.getTask(request.taskId().getId()) != null) {
+                if (taskManager.getTask(request.getTaskId().getId()) != null) {
                     // The task exists, but doesn't support cancellation
-                    throw new IllegalArgumentException("task [" + request.taskId() + "] doesn't support cancellation");
+                    throw new IllegalArgumentException("task [" + request.getTaskId() + "] doesn't support cancellation");
                 } else {
-                    throw new ResourceNotFoundException("task [{}] doesn't support cancellation", request.taskId());
+                    throw new ResourceNotFoundException("task [{}] doesn't support cancellation", request.getTaskId());
                 }
             }
         } else {
@@ -113,14 +113,14 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     @Override
     protected synchronized TaskInfo taskOperation(CancelTasksRequest request, CancellableTask cancellableTask) {
         final BanLock banLock = new BanLock(nodes -> removeBanOnNodes(cancellableTask, nodes));
-        Set<String> childNodes = taskManager.cancel(cancellableTask, request.reason(), banLock::onTaskFinished);
+        Set<String> childNodes = taskManager.cancel(cancellableTask, request.getReason(), banLock::onTaskFinished);
         if (childNodes != null) {
             if (childNodes.isEmpty()) {
                 logger.trace("cancelling task {} with no children", cancellableTask.getId());
                 return cancellableTask.taskInfo(clusterService.localNode(), false);
             } else {
                 logger.trace("cancelling task {} with children on nodes [{}]", cancellableTask.getId(), childNodes);
-                setBanOnNodes(request.reason(), cancellableTask, childNodes, banLock);
+                setBanOnNodes(request.getReason(), cancellableTask, childNodes, banLock);
                 return cancellableTask.taskInfo(clusterService.localNode(), false);
             }
         } else {
@@ -251,7 +251,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            parentTaskId = new TaskId(in);
+            parentTaskId = TaskId.readFromStream(in);
             ban = in.readBoolean();
             if (ban) {
                 reason = in.readString();

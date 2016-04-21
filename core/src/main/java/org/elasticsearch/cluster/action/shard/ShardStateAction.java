@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.action.shard;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
@@ -30,7 +29,6 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
@@ -38,6 +36,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -54,6 +53,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -93,7 +93,7 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     private void sendShardAction(final String actionName, final ClusterStateObserver observer, final ShardRoutingEntry shardRoutingEntry, final Listener listener) {
-        DiscoveryNode masterNode = observer.observedState().nodes().masterNode();
+        DiscoveryNode masterNode = observer.observedState().nodes().getMasterNode();
         if (masterNode == null) {
             logger.warn("{} no master known for action [{}] for shard [{}]", shardRoutingEntry.getShardRouting().shardId(), actionName, shardRoutingEntry.getShardRouting());
             waitForNewMasterAndRetry(actionName, observer, shardRoutingEntry, listener);
@@ -112,7 +112,7 @@ public class ShardStateAction extends AbstractComponent {
                             waitForNewMasterAndRetry(actionName, observer, shardRoutingEntry, listener);
                         } else {
                             logger.warn("{} unexpected failure while sending request [{}] to [{}] for shard [{}]", exp, shardRoutingEntry.getShardRouting().shardId(), actionName, masterNode, shardRoutingEntry);
-                            listener.onFailure(exp.getCause());
+                            listener.onFailure(exp instanceof RemoteTransportException ? exp.getCause() : exp);
                         }
                     }
                 });
@@ -151,7 +151,7 @@ public class ShardStateAction extends AbstractComponent {
             @Override
             public void onNewClusterState(ClusterState state) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("new cluster state [{}] after waiting for master election to fail shard [{}]", shardRoutingEntry.getShardRouting().shardId(), state.prettyPrint(), shardRoutingEntry);
+                    logger.trace("new cluster state [{}] after waiting for master election to fail shard [{}]", state.prettyPrint(), shardRoutingEntry);
                 }
                 sendShardAction(actionName, observer, shardRoutingEntry, listener);
             }
@@ -321,7 +321,7 @@ public class ShardStateAction extends AbstractComponent {
             if (numberOfUnassignedShards > 0) {
                 String reason = String.format(Locale.ROOT, "[%d] unassigned shards after failing shards", numberOfUnassignedShards);
                 if (logger.isTraceEnabled()) {
-                    logger.trace(reason + ", scheduling a reroute");
+                    logger.trace("{}, scheduling a reroute", reason);
                 }
                 routingService.reroute(reason);
             }

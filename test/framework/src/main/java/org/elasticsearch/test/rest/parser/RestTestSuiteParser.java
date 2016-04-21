@@ -73,7 +73,7 @@ public class RestTestSuiteParser implements RestTestFragmentParser<RestTestSuite
         XContentParser parser = parseContext.parser();
 
         parser.nextToken();
-        assert parser.currentToken() == XContentParser.Token.START_OBJECT;
+        assert parser.currentToken() == XContentParser.Token.START_OBJECT : "expected token to be START_OBJECT but was " + parser.currentToken();
 
         RestTestSuite restTestSuite = new RestTestSuite(parseContext.getApi(), parseContext.getSuiteName());
 

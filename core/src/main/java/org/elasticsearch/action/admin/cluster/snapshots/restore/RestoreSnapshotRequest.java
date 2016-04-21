@@ -324,7 +324,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * @return this request
      */
     public RestoreSnapshotRequest settings(String source) {
-        this.settings = Settings.settingsBuilder().loadFromSource(source).build();
+        this.settings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 
@@ -441,7 +441,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * Sets settings that should be added/changed in all restored indices
      */
     public RestoreSnapshotRequest indexSettings(String source) {
-        this.indexSettings = Settings.settingsBuilder().loadFromSource(source).build();
+        this.indexSettings = Settings.builder().loadFromSource(source).build();
         return this;
     }
 

@@ -48,17 +48,14 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLen
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * {@link ESSmokeClientTestCase} is an abstract base class to run integration
- * tests against an external Elasticsearch Cluster.
+ * An abstract base class to run integration tests against an Elasticsearch cluster running outside of the test process.
  * <p>
- * You can define a list of transport addresses from where you can reach your cluster
- * by setting "tests.cluster" system property. It defaults to "localhost:9300".
+ * You can define a list of transport addresses from where you can reach your cluster by setting "tests.cluster" system
+ * property. It defaults to "localhost:9300". If you run this from `gradle integTest` then it will start the clsuter for
+ * you and set up the property.
  * <p>
- * All tests can be run from maven using mvn install as maven will start an external cluster first.
- * <p>
- * If you want to debug this module from your IDE, then start an external cluster by yourself
- * then run JUnit. If you changed the default port, set "tests.cluster=localhost:PORT" when running
- * your test.
+ * If you want to debug this module from your IDE, then start an external cluster by yourself, maybe with `gradle run`,
+ * then run JUnit. If you changed the default port, set "-Dtests.cluster=localhost:PORT" when running your test.
  */
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 public abstract class ESSmokeClientTestCase extends LuceneTestCase {
@@ -76,7 +73,7 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
     protected String index;
 
     private static Client startClient(Path tempDir, TransportAddress... transportAddresses) {
-        Settings clientSettings = Settings.settingsBuilder()
+        Settings clientSettings = Settings.builder()
                 .put("node.name", "qa_smoke_client_" + counter.getAndIncrement())
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true) // prevents any settings to be replaced by system properties.
                 .put("client.transport.ignore_cluster_name", true)

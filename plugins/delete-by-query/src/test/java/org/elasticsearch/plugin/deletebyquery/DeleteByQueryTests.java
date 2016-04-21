@@ -276,7 +276,7 @@ public class DeleteByQueryTests extends ESIntegTestCase {
         assertSearchContextsClosed();
     }
 
-    public void testConcurrentDeleteByQueriesOnDifferentDocs() throws Exception {
+    public void testConcurrentDeleteByQueriesOnDifferentDocs() throws Throwable {
         createIndex("test");
         ensureGreen();
 
@@ -324,19 +324,18 @@ public class DeleteByQueryTests extends ESIntegTestCase {
 
         Throwable assertionError = exceptionHolder.get();
         if (assertionError != null) {
-            assertionError.printStackTrace();
+            throw assertionError;
         }
-        assertThat(assertionError + " should be null", assertionError, nullValue());
-        refresh();
 
+        refresh();
         for (int i = 0; i < threads.length; i++) {
             assertHitCount(client().prepareSearch("test").setSize(0).setQuery(QueryBuilders.termQuery("field", i)).get(), 0);
         }
         assertSearchContextsClosed();
     }
 
-    public void testConcurrentDeleteByQueriesOnSameDocs() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
+    public void testConcurrentDeleteByQueriesOnSameDocs() throws Throwable {
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         final long docs = randomIntBetween(50, 100);
@@ -386,9 +385,8 @@ public class DeleteByQueryTests extends ESIntegTestCase {
 
         Throwable assertionError = exceptionHolder.get();
         if (assertionError != null) {
-            assertionError.printStackTrace();
+            throw assertionError;
         }
-        assertThat(assertionError + " should be null", assertionError, nullValue());
         assertHitCount(client().prepareSearch("test").setSize(0).get(), 0L);
         assertThat(deleted.get(), equalTo(docs));
         assertSearchContextsClosed();

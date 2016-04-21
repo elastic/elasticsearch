@@ -19,40 +19,55 @@
 
 package org.elasticsearch.plugins;
 
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.cli.CliTool;
-import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.cli.UserError;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.cli.Terminal.Verbosity.VERBOSE;
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserError;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.env.Environment;
+
+import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
 /**
  * A command for the plugin cli to remove a plugin from elasticsearch.
  */
-class RemovePluginCommand extends CliTool.Command {
-    private final String pluginName;
+class RemovePluginCommand extends Command {
 
-    public RemovePluginCommand(Terminal terminal, String pluginName) {
-        super(terminal);
-        this.pluginName = pluginName;
+    private final Environment env;
+    private final OptionSpec<String> arguments;
+
+    RemovePluginCommand(Environment env) {
+        super("Removes a plugin from elasticsearch");
+        this.env = env;
+        this.arguments = parser.nonOptions("plugin name");
     }
 
     @Override
-    public CliTool.ExitStatus execute(Settings settings, Environment env) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        // TODO: in jopt-simple 5.0 we can enforce a min/max number of positional args
+        List<String> args = arguments.values(options);
+        if (args.size() != 1) {
+            throw new UserError(ExitCodes.USAGE, "Must supply a single plugin id argument");
+        }
+        execute(terminal, args.get(0));
+    }
+
+    // pkg private for testing
+    void execute(Terminal terminal, String pluginName) throws Exception {
         terminal.println("-> Removing " + Strings.coalesceToEmpty(pluginName) + "...");
 
         Path pluginDir = env.pluginsFile().resolve(pluginName);
         if (Files.exists(pluginDir) == false) {
-            throw new UserError(CliTool.ExitStatus.USAGE, "Plugin " + pluginName + " not found. Run 'plugin list' to get list of installed plugins.");
+            throw new UserError(ExitCodes.USAGE, "Plugin " + pluginName + " not found. Run 'plugin list' to get list of installed plugins.");
         }
 
         List<Path> pluginPaths = new ArrayList<>();
@@ -60,7 +75,7 @@ class RemovePluginCommand extends CliTool.Command {
         Path pluginBinDir = env.binFile().resolve(pluginName);
         if (Files.exists(pluginBinDir)) {
             if (Files.isDirectory(pluginBinDir) == false) {
-                throw new UserError(CliTool.ExitStatus.IO_ERROR, "Bin dir for " + pluginName + " is not a directory");
+                throw new UserError(ExitCodes.IO_ERROR, "Bin dir for " + pluginName + " is not a directory");
             }
             pluginPaths.add(pluginBinDir);
             terminal.println(VERBOSE, "Removing: " + pluginBinDir);
@@ -72,7 +87,5 @@ class RemovePluginCommand extends CliTool.Command {
         pluginPaths.add(tmpPluginDir);
 
         IOUtils.rm(pluginPaths.toArray(new Path[pluginPaths.size()]));
-
-        return CliTool.ExitStatus.OK;
     }
 }

@@ -30,7 +30,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -51,7 +50,7 @@ public class CircuitBreakerNoopIT extends ESIntegTestCase {
     }
 
     public void testNoopRequestBreaker() throws Exception {
-        assertAcked(prepareCreate("cb-test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
+        assertAcked(prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
         Client client = client();
 
         // index some different terms so we have some field data for loading
@@ -68,7 +67,7 @@ public class CircuitBreakerNoopIT extends ESIntegTestCase {
     }
 
     public void testNoopFielddataBreaker() throws Exception {
-        assertAcked(prepareCreate("cb-test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
+        assertAcked(prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
         Client client = client();
 
         // index some different terms so we have some field data for loading

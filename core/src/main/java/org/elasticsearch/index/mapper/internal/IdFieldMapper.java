@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -67,6 +66,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public static final MappedFieldType FIELD_TYPE = new IdFieldType();
 
         static {
+            FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
@@ -112,7 +112,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
     static final class IdFieldType extends MappedFieldType {
 
         public IdFieldType() {
-            setFieldDataType(new FieldDataType("string"));
         }
 
         protected IdFieldType(IdFieldType ref) {
@@ -127,19 +126,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
-        }
-
-        @Override
-        public boolean useTermQueryWithQueryString() {
-            return true;
         }
 
         @Override

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
@@ -161,11 +163,12 @@ import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
+import org.elasticsearch.action.main.MainAction;
+import org.elasticsearch.action.main.TransportMainAction;
 import org.elasticsearch.action.percolate.MultiPercolateAction;
 import org.elasticsearch.action.percolate.PercolateAction;
 import org.elasticsearch.action.percolate.TransportMultiPercolateAction;
 import org.elasticsearch.action.percolate.TransportPercolateAction;
-import org.elasticsearch.action.percolate.TransportShardMultiPercolateAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
@@ -174,14 +177,6 @@ import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
-import org.elasticsearch.action.search.type.TransportSearchDfsQueryAndFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchDfsQueryThenFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchQueryAndFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchQueryThenFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchScrollQueryAndFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchScrollQueryThenFetchAction;
-import org.elasticsearch.action.suggest.SuggestAction;
-import org.elasticsearch.action.suggest.TransportSuggestAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -266,12 +261,14 @@ public class ActionModule extends AbstractModule {
         bind(ActionFilters.class).asEagerSingleton();
         bind(AutoCreateIndex.class).asEagerSingleton();
         bind(DestructiveOperations.class).asEagerSingleton();
+        registerAction(MainAction.INSTANCE, TransportMainAction.class);
         registerAction(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         registerAction(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
         registerAction(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
         registerAction(ListTasksAction.INSTANCE, TransportListTasksAction.class);
         registerAction(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
 
+        registerAction(ClusterAllocationExplainAction.INSTANCE, TransportClusterAllocationExplainAction.class);
         registerAction(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
         registerAction(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
         registerAction(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
@@ -327,25 +324,16 @@ public class ActionModule extends AbstractModule {
         registerAction(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class,
                 TransportShardMultiTermsVectorAction.class);
         registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class);
-        registerAction(SuggestAction.INSTANCE, TransportSuggestAction.class);
         registerAction(UpdateAction.INSTANCE, TransportUpdateAction.class);
         registerAction(MultiGetAction.INSTANCE, TransportMultiGetAction.class,
                 TransportShardMultiGetAction.class);
         registerAction(BulkAction.INSTANCE, TransportBulkAction.class,
                 TransportShardBulkAction.class);
-        registerAction(SearchAction.INSTANCE, TransportSearchAction.class,
-                TransportSearchDfsQueryThenFetchAction.class,
-                TransportSearchQueryThenFetchAction.class,
-                TransportSearchDfsQueryAndFetchAction.class,
-                TransportSearchQueryAndFetchAction.class
-        );
-        registerAction(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class,
-                TransportSearchScrollQueryThenFetchAction.class,
-                TransportSearchScrollQueryAndFetchAction.class
-        );
+        registerAction(SearchAction.INSTANCE, TransportSearchAction.class);
+        registerAction(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
         registerAction(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
         registerAction(PercolateAction.INSTANCE, TransportPercolateAction.class);
-        registerAction(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class, TransportShardMultiPercolateAction.class);
+        registerAction(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class);
         registerAction(ExplainAction.INSTANCE, TransportExplainAction.class);
         registerAction(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
         registerAction(RecoveryAction.INSTANCE, TransportRecoveryAction.class);

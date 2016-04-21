@@ -108,7 +108,7 @@ final class JVMCheck {
             if (workAround != null) {
                 sb.append(System.lineSeparator());
                 sb.append("If you absolutely cannot upgrade, please add ").append(workAround);
-                sb.append(" to the JAVA_OPTS environment variable.");
+                sb.append(" to the ES_JAVA_OPTS environment variable.");
                 sb.append(System.lineSeparator());
                 sb.append("Upgrading is preferred, this workaround will result in degraded performance.");
             }
@@ -200,7 +200,7 @@ final class JVMCheck {
             HotSpotCheck bug = JVM_BROKEN_HOTSPOT_VERSIONS.get(Constants.JVM_VERSION);
             if (bug != null && bug.check()) {
                 if (bug.getWorkaround().isPresent() && ManagementFactory.getRuntimeMXBean().getInputArguments().contains(bug.getWorkaround().get())) {
-                    Loggers.getLogger(JVMCheck.class).warn(bug.getWarningMessage().get());
+                    Loggers.getLogger(JVMCheck.class).warn("{}", bug.getWarningMessage().get());
                 } else {
                     throw new RuntimeException(bug.getErrorMessage());
                 }

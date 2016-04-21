@@ -21,23 +21,32 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.ingest.core.IngestInfo;
 import org.elasticsearch.ingest.core.Pipeline;
+import org.elasticsearch.ingest.core.ProcessorInfo;
+import org.elasticsearch.ingest.processor.RemoveProcessor;
 import org.elasticsearch.ingest.processor.SetProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -52,6 +61,7 @@ public class PipelineStoreTests extends ESTestCase {
         store = new PipelineStore(Settings.EMPTY);
         ProcessorsRegistry.Builder registryBuilder = new ProcessorsRegistry.Builder();
         registryBuilder.registerProcessor("set", (templateService, registry) -> new SetProcessor.Factory(TestTemplateService.instance()));
+        registryBuilder.registerProcessor("remove", (templateService, registry) -> new RemoveProcessor.Factory(TestTemplateService.instance()));
         store.buildProcessorFactoryRegistry(registryBuilder, null);
     }
 
@@ -195,6 +205,43 @@ public class PipelineStoreTests extends ESTestCase {
         store.innerUpdatePipelines(clusterState);
         pipeline = store.get(id);
         assertThat(pipeline, nullValue());
+    }
+
+    public void testValidate() throws Exception {
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}},{\"remove\" : {\"field\": \"_field\"}}]}"));
+
+        DiscoveryNode node1 = new DiscoveryNode("_node_id1", new LocalTransportAddress("_id"),
+                emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode("_node_id2", new LocalTransportAddress("_id"),
+                emptyMap(), emptySet(), Version.CURRENT);
+        Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+        ingestInfos.put(node1, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
+        ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"))));
+
+        try {
+            store.validatePipeline(ingestInfos, putRequest);
+            fail("exception expected");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Processor type [remove] is not installed on node [{_node_id2}{local}{local[_id]}]"));
+        }
+
+        ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
+        store.validatePipeline(ingestInfos, putRequest);
+    }
+
+    public void testValidateNoIngestInfo() throws Exception {
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"));
+        try {
+            store.validatePipeline(Collections.emptyMap(), putRequest);
+            fail("exception expected");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), equalTo("Ingest info is empty"));
+        }
+
+        DiscoveryNode discoveryNode = new DiscoveryNode("_node_id", new LocalTransportAddress("_id"),
+                emptyMap(), emptySet(), Version.CURRENT);
+        IngestInfo ingestInfo = new IngestInfo(Collections.singletonList(new ProcessorInfo("set")));
+        store.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest);
     }
 
 }

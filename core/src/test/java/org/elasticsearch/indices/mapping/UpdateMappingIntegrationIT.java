@@ -28,6 +28,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -47,7 +48,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_ME
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -63,9 +63,10 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     public void testDynamicUpdates() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        settingsBuilder()
+                        Settings.builder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
+                                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -97,10 +98,10 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     public void testUpdateMappingWithoutType() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        settingsBuilder()
+                        Settings.builder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
-                ).addMapping("doc", "{\"doc\":{\"properties\":{\"body\":{\"type\":\"string\"}}}}")
+                ).addMapping("doc", "{\"doc\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -112,13 +113,13 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").execute().actionGet();
         assertThat(getMappingsResponse.mappings().get("test").get("doc").source().toString(),
-                equalTo("{\"doc\":{\"properties\":{\"body\":{\"type\":\"string\"},\"date\":{\"type\":\"integer\"}}}}"));
+                equalTo("{\"doc\":{\"properties\":{\"body\":{\"type\":\"text\"},\"date\":{\"type\":\"integer\"}}}}"));
     }
 
     public void testUpdateMappingWithoutTypeMultiObjects() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        settingsBuilder()
+                        Settings.builder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
@@ -138,10 +139,10 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     public void testUpdateMappingWithConflicts() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        settingsBuilder()
+                        Settings.builder()
                                 .put("index.number_of_shards", 2)
                                 .put("index.number_of_replicas", 0)
-                ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"string\"}}}}")
+                ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -150,39 +151,39 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                     .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}").execute().actionGet();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [body] of different type, current_type [string], merged_type [integer]"));
+            assertThat(e.getMessage(), containsString("mapper [body] of different type, current_type [text], merged_type [integer]"));
         }
     }
 
     public void testUpdateMappingWithNormsConflicts() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"string\", \"norms\": { \"enabled\": false }}}}}")
+                .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": false }}}}")
                 .execute().actionGet();
         try {
             client().admin().indices().preparePutMapping("test").setType("type")
-                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"string\", \"norms\": { \"enabled\": true }}}}}").execute()
+                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": true }}}}").execute()
                     .actionGet();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [body] has different [omit_norms]"));
+            assertThat(e.getMessage(), containsString("mapper [body] has different [norms]"));
         }
     }
 
     /*
-    Second regression test for https://github.com/elasticsearch/elasticsearch/issues/3381
+    Second regression test for https://github.com/elastic/elasticsearch/issues/3381
      */
     public void testUpdateMappingNoChanges() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        settingsBuilder()
+                        Settings.builder()
                                 .put("index.number_of_shards", 2)
                                 .put("index.number_of_replicas", 0)
-                ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"string\"}}}}")
+                ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type")
-                .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"string\"}}}}")
+                .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}")
                 .execute().actionGet();
 
         //no changes, we return

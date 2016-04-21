@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -57,19 +55,12 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
     private static final String DATE_FORMAT = "yyyy-MM-dd:hh-mm-ss";
 
     private DateTime date(String date) {
-        return DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date);
+        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(AssertingLocalTransport.TestPlugin.class);
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(AssertingLocalTransport.ASSERTING_TRANSPORT_MIN_VERSION_KEY.getKey(), Version.V_1_4_0_Beta1).build();
     }
 
     @Before

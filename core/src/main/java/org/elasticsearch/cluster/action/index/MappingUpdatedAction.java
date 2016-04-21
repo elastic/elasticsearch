@@ -19,17 +19,17 @@
 
 package org.elasticsearch.cluster.action.index;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 
@@ -41,7 +41,9 @@ import java.util.concurrent.TimeoutException;
  */
 public class MappingUpdatedAction extends AbstractComponent {
 
-    public static final Setting<TimeValue> INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING = Setting.positiveTimeSetting("indices.mapping.dynamic_timeout", TimeValue.timeValueSeconds(30), true, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING =
+        Setting.positiveTimeSetting("indices.mapping.dynamic_timeout", TimeValue.timeValueSeconds(30),
+            Property.Dynamic, Property.NodeScope);
 
     private IndicesAdminClient client;
     private volatile TimeValue dynamicMappingUpdateTimeout;
@@ -62,48 +64,20 @@ public class MappingUpdatedAction extends AbstractComponent {
         this.client = client.admin().indices();
     }
 
-    private PutMappingRequestBuilder updateMappingRequest(String index, String type, Mapping mappingUpdate, final TimeValue timeout) {
+    private PutMappingRequestBuilder updateMappingRequest(Index index, String type, Mapping mappingUpdate, final TimeValue timeout) {
         if (type.equals(MapperService.DEFAULT_MAPPING)) {
             throw new IllegalArgumentException("_default_ mapping should not be updated");
         }
-        return client.preparePutMapping(index).setType(type).setSource(mappingUpdate.toString())
+        return client.preparePutMapping().setConcreteIndex(index).setType(type).setSource(mappingUpdate.toString())
                 .setMasterNodeTimeout(timeout).setTimeout(timeout);
     }
 
-    public void updateMappingOnMaster(String index, String type, Mapping mappingUpdate, final TimeValue timeout, final MappingUpdateListener listener) {
-        final PutMappingRequestBuilder request = updateMappingRequest(index, type, mappingUpdate, timeout);
-        if (listener == null) {
-            request.execute();
-        } else {
-            final ActionListener<PutMappingResponse> actionListener = new ActionListener<PutMappingResponse>() {
-                @Override
-                public void onResponse(PutMappingResponse response) {
-                    if (response.isAcknowledged()) {
-                        listener.onMappingUpdate();
-                    } else {
-                        listener.onFailure(new TimeoutException("Failed to acknowledge the mapping response within [" + timeout + "]"));
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    listener.onFailure(e);
-                }
-            };
-            request.execute(actionListener);
-        }
-    }
-
-    public void updateMappingOnMasterAsynchronously(String index, String type, Mapping mappingUpdate) throws Exception {
-        updateMappingOnMaster(index, type, mappingUpdate, dynamicMappingUpdateTimeout, null);
-    }
-
     /**
-     * Same as {@link #updateMappingOnMasterSynchronously(String, String, Mapping, TimeValue)}
+     * Same as {@link #updateMappingOnMaster(Index, String, Mapping, TimeValue)}
      * using the default timeout.
      */
-    public void updateMappingOnMasterSynchronously(String index, String type, Mapping mappingUpdate) throws Exception {
-        updateMappingOnMasterSynchronously(index, type, mappingUpdate, dynamicMappingUpdateTimeout);
+    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate) throws Exception {
+        updateMappingOnMaster(index, type, mappingUpdate, dynamicMappingUpdateTimeout);
     }
 
     /**
@@ -111,19 +85,9 @@ public class MappingUpdatedAction extends AbstractComponent {
      * {@code timeout}. When this method returns successfully mappings have
      * been applied to the master node and propagated to data nodes.
      */
-    public void updateMappingOnMasterSynchronously(String index, String type, Mapping mappingUpdate, TimeValue timeout) throws Exception {
+    public void updateMappingOnMaster(Index index, String type, Mapping mappingUpdate, TimeValue timeout) throws Exception {
         if (updateMappingRequest(index, type, mappingUpdate, timeout).get().isAcknowledged() == false) {
             throw new TimeoutException("Failed to acknowledge mapping update within [" + timeout + "]");
         }
-    }
-
-    /**
-     * A listener to be notified when the mappings were updated
-     */
-    public static interface MappingUpdateListener {
-
-        void onMappingUpdate();
-
-        void onFailure(Throwable t);
     }
 }

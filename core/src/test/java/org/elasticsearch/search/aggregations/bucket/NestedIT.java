@@ -84,7 +84,7 @@ public class NestedIT extends ESIntegTestCase {
         numParents = randomIntBetween(3, 10);
         numChildren = new int[numParents];
         aggCollectionMode = randomFrom(SubAggCollectionMode.values());
-        logger.info("AGG COLLECTION MODE: " + aggCollectionMode);
+        logger.info("AGG COLLECTION MODE: {}", aggCollectionMode);
         int totalChildren = 0;
         for (int i = 0; i < numParents; ++i) {
             if (i == numParents - 1 && totalChildren == 0) {
@@ -297,7 +297,7 @@ public class NestedIT extends ESIntegTestCase {
     public void testNestNestedAggs() throws Exception {
         SearchResponse response = client().prepareSearch("idx_nested_nested_aggs")
                 .addAggregation(nested("level1", "nested1")
-                        .subAggregation(terms("a").field("nested1.a")
+                        .subAggregation(terms("a").field("nested1.a.keyword")
                                 .collectMode(aggCollectionMode)
                         .subAggregation(nested("level2", "nested1.nested2")
                                         .subAggregation(sum("sum").field("nested1.nested2.b")))))
@@ -360,7 +360,7 @@ public class NestedIT extends ESIntegTestCase {
         }
     }
 
-    // Test based on: https://github.com/elasticsearch/elasticsearch/issues/9280
+    // Test based on: https://github.com/elastic/elasticsearch/issues/9280
     public void testParentFilterResolvedCorrectly() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("provider").startObject("properties")
                     .startObject("comments")
@@ -463,7 +463,7 @@ public class NestedIT extends ESIntegTestCase {
         assertAcked(
                 prepareCreate("idx4")
                         .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                        .addMapping("product", "categories", "type=text", "name", "type=text", "property", "type=nested")
+                        .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idx4");
 

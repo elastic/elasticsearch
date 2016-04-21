@@ -63,19 +63,19 @@ public class ShapeRelationTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(ShapeRelation.DISJOINT.readFrom(in), equalTo(ShapeRelation.INTERSECTS));
+                assertThat(ShapeRelation.readFromStream(in), equalTo(ShapeRelation.INTERSECTS));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(1);
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(ShapeRelation.DISJOINT.readFrom(in), equalTo(ShapeRelation.DISJOINT));
+                assertThat(ShapeRelation.readFromStream(in), equalTo(ShapeRelation.DISJOINT));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(2);
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(ShapeRelation.DISJOINT.readFrom(in), equalTo(ShapeRelation.WITHIN));
+                assertThat(ShapeRelation.readFromStream(in), equalTo(ShapeRelation.WITHIN));
             }
         }
     }
@@ -84,7 +84,7 @@ public class ShapeRelationTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(randomIntBetween(3, Integer.MAX_VALUE));
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                ShapeRelation.DISJOINT.readFrom(in);
+                ShapeRelation.readFromStream(in);
                 fail("Expected IOException");
             } catch(IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown ShapeRelation ordinal ["));

@@ -19,6 +19,14 @@
 
 package org.elasticsearch.rest.action.search;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
+import java.util.Map;
+
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -33,7 +41,7 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.TemplateQueryParser;
+import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -44,14 +52,7 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-
-import java.util.Map;
-
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import org.elasticsearch.search.suggest.Suggesters;
 
 /**
  */
@@ -60,13 +61,14 @@ public class RestMultiSearchAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
     private final IndicesQueriesRegistry indicesQueriesRegistry;
     private final AggregatorParsers aggParsers;
-
+    private final Suggesters suggesters;
 
     @Inject
     public RestMultiSearchAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry,
-            AggregatorParsers aggParsers) {
+                                 AggregatorParsers aggParsers, Suggesters suggesters) {
         super(settings, client);
         this.aggParsers = aggParsers;
+        this.suggesters = suggesters;
 
         controller.registerHandler(GET, "/_msearch", this);
         controller.registerHandler(POST, "/_msearch", this);
@@ -97,7 +99,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, multiSearchRequest.indicesOptions());
         parseRequest(multiSearchRequest, RestActions.getRestContent(request), isTemplateRequest, indices, types,
                 request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex, indicesQueriesRegistry,
-                parseFieldMatcher, aggParsers);
+                parseFieldMatcher, aggParsers, suggesters);
         client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
     }
 
@@ -112,12 +114,12 @@ public class RestMultiSearchAction extends BaseRestHandler {
                                                    @Nullable String routing,
                                                    IndicesOptions indicesOptions,
                                                    boolean allowExplicitIndex, IndicesQueriesRegistry indicesQueriesRegistry,
-            ParseFieldMatcher parseFieldMatcher, AggregatorParsers aggParsers) throws Exception {
+                                                   ParseFieldMatcher parseFieldMatcher, AggregatorParsers aggParsers,
+                                                   Suggesters suggesters) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
         int length = data.length();
         byte marker = xContent.streamSeparator();
-        final QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry);
         while (true) {
             int nextMarker = findNextMarker(marker, from, data, length);
             if (nextMarker == -1) {
@@ -185,15 +187,15 @@ public class RestMultiSearchAction extends BaseRestHandler {
             final BytesReference slice = data.slice(from, nextMarker - from);
             if (isTemplateRequest) {
                 try (XContentParser parser = XContentFactory.xContent(slice).createParser(slice)) {
-                    queryParseContext.reset(parser);
-                    queryParseContext.parseFieldMatcher(parseFieldMatcher);
-                    Template template = TemplateQueryParser.parse(parser, queryParseContext.parseFieldMatcher(), "params", "template");
+                    final QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry, parser, parseFieldMatcher);
+                    Template template = TemplateQueryBuilder.parse(parser, queryParseContext.getParseFieldMatcher(), "params", "template");
                     searchRequest.template(template);
                 }
             } else {
                 try (XContentParser requestParser = XContentFactory.xContent(slice).createParser(slice)) {
-                    queryParseContext.reset(requestParser);
-                    searchRequest.source(SearchSourceBuilder.parseSearchSource(requestParser, queryParseContext, aggParsers));
+                    final QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry, requestParser,
+                            parseFieldMatcher);
+                    searchRequest.source(SearchSourceBuilder.fromXContent(queryParseContext, aggParsers, suggesters));
                 }
             }
             // move pointers

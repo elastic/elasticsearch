@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -38,6 +39,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.CountDownLatch;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 /**
  * Fake ClusterInfoService class that allows updating the nodes stats disk
@@ -69,12 +73,12 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes());
         paths[0] = path;
         FsInfo fsInfo = new FsInfo(System.currentTimeMillis(), paths);
-        return new NodeStats(new DiscoveryNode(nodeName, DummyTransportAddress.INSTANCE, Version.CURRENT),
+        return new NodeStats(new DiscoveryNode(nodeName, DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT),
             System.currentTimeMillis(),
             null, null, null, null, null,
             fsInfo,
             null, null, null,
-            null, null);
+            null, null, null);
     }
 
     @Inject

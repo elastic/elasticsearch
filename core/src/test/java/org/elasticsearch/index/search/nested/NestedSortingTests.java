@@ -42,9 +42,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.AbstractFieldDataTestCase;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.NoOrdinalsStringFieldDataTests;
@@ -64,8 +62,8 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class NestedSortingTests extends AbstractFieldDataTestCase {
     @Override
-    protected FieldDataType getFieldDataType() {
-        return new FieldDataType("string", Settings.builder().put("format", "paged_bytes"));
+    protected String getFieldDataType() {
+        return "string";
     }
 
     public void testDuel() throws Exception {
@@ -75,7 +73,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             List<Document> docs = new ArrayList<>(numChildren + 1);
             for (int j = 0; j < numChildren; ++j) {
                 Document doc = new Document();
-                doc.add(new StringField("f", TestUtil.randomSimpleString(getRandom(), 2), Field.Store.NO));
+                doc.add(new StringField("f", TestUtil.randomSimpleString(random(), 2), Field.Store.NO));
                 doc.add(new StringField("__type", "child", Field.Store.NO));
                 docs.add(doc);
             }
@@ -87,18 +85,18 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
             docs.add(parent);
             writer.addDocuments(docs);
             if (rarely()) { // we need to have a bit more segments than what RandomIndexWriter would do by default
-                DirectoryReader.open(writer, false).close();
+                DirectoryReader.open(writer).close();
             }
         }
         writer.commit();
 
         MultiValueMode sortMode = randomFrom(Arrays.asList(MultiValueMode.MIN, MultiValueMode.MAX));
-        DirectoryReader reader = DirectoryReader.open(writer, false);
+        DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
         IndexSearcher searcher = new IndexSearcher(reader);
         PagedBytesIndexFieldData indexFieldData1 = getForField("f");
         IndexFieldData<?> indexFieldData2 = NoOrdinalsStringFieldDataTests.hideOrdinals(indexFieldData1);
-        final String missingValue = randomBoolean() ? null : TestUtil.randomSimpleString(getRandom(), 2);
+        final String missingValue = randomBoolean() ? null : TestUtil.randomSimpleString(random(), 2);
         final int n = randomIntBetween(1, numDocs + 2);
         final boolean reverse = randomBoolean();
 
@@ -278,7 +276,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         writer.addDocument(document);
 
         MultiValueMode sortMode = MultiValueMode.MIN;
-        DirectoryReader reader = DirectoryReader.open(writer, false);
+        DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
         IndexSearcher searcher = new IndexSearcher(reader);
         PagedBytesIndexFieldData indexFieldData = getForField("field2");

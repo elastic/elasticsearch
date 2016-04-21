@@ -42,7 +42,6 @@ import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -71,7 +70,7 @@ public final class ExternalTestCluster extends TestCluster {
 
     public ExternalTestCluster(Path tempDir, Settings additionalSettings, Collection<Class<? extends Plugin>> pluginClasses, TransportAddress... transportAddresses) {
         super(0);
-        Settings clientSettings = Settings.settingsBuilder()
+        Settings clientSettings = Settings.builder()
                 .put(additionalSettings)
                 .put("node.name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true) // prevents any settings to be replaced by system properties.
@@ -95,10 +94,10 @@ public final class ExternalTestCluster extends TestCluster {
             for (int i = 0; i < nodeInfos.getNodes().length; i++) {
                 NodeInfo nodeInfo = nodeInfos.getNodes()[i];
                 httpAddresses[i] = ((InetSocketTransportAddress) nodeInfo.getHttp().address().publishAddress()).address();
-                if (DiscoveryNode.dataNode(nodeInfo.getSettings())) {
+                if (DiscoveryNode.isDataNode(nodeInfo.getSettings())) {
                     dataNodes++;
                     masterAndDataNodes++;
-                } else if (DiscoveryNode.masterNode(nodeInfo.getSettings())) {
+                } else if (DiscoveryNode.isMasterNode(nodeInfo.getSettings())) {
                     masterAndDataNodes++;
                 }
             }

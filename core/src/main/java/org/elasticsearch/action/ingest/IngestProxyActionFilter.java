@@ -29,9 +29,9 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -83,13 +83,7 @@ public final class IngestProxyActionFilter implements ActionFilter {
 
     @SuppressWarnings("unchecked")
     private void forwardIngestRequest(Action<?, ?, ?> action, ActionRequest request, ActionListener<?> listener) {
-        transportService.sendRequest(randomIngestNode(), action.name(), request, new ActionListenerResponseHandler(listener) {
-            @Override
-            public TransportResponse newInstance() {
-                return action.newResponse();
-            }
-
-        });
+        transportService.sendRequest(randomIngestNode(), action.name(), request, new ActionListenerResponseHandler(listener, action::newResponse));
     }
 
     @Override

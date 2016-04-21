@@ -39,6 +39,7 @@ final class JNACLibrary {
     public static final int MCL_CURRENT = 1;
     public static final int ENOMEM = 12;
     public static final int RLIMIT_MEMLOCK = Constants.MAC_OS_X ? 6 : 8;
+    public static final int RLIMIT_AS = Constants.MAC_OS_X ? 5 : 9;
     public static final long RLIM_INFINITY = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
 
     static {

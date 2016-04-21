@@ -65,12 +65,10 @@ public class ThreadPoolStatsTests extends ESTestCase {
         try (BytesStreamOutput os = new BytesStreamOutput()) {
 
             List<ThreadPoolStats.Stats> stats = new ArrayList<>();
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SUGGEST, -1, 0, 0, 0, 0, 0L));
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SEARCH, -1, 0, 0, 0, 0, 0L));
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.WARMER, -1, 0, 0, 0, 0, 0L));
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.GENERIC, -1, 0, 0, 0, 0, 0L));
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.FORCE_MERGE, -1, 0, 0, 0, 0, 0L));
-            stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.PERCOLATE, -1, 0, 0, 0, 0, 0L));
             stats.add(new ThreadPoolStats.Stats(ThreadPool.Names.SAME, -1, 0, 0, 0, 0, 0L));
 
 
@@ -103,10 +101,8 @@ public class ThreadPoolStatsTests extends ESTestCase {
                 }
                 assertThat(names, contains(ThreadPool.Names.FORCE_MERGE,
                         ThreadPool.Names.GENERIC,
-                        ThreadPool.Names.PERCOLATE,
                         ThreadPool.Names.SAME,
                         ThreadPool.Names.SEARCH,
-                        ThreadPool.Names.SUGGEST,
                         ThreadPool.Names.WARMER));
             }
         }

@@ -333,7 +333,7 @@ public class CollectionUtils {
         assert indices.length >= numValues;
         if (numValues > 1) {
             new InPlaceMergeSorter() {
-                final Comparator<BytesRef> comparator = BytesRef.getUTF8SortedAsUnicodeComparator();
+                final Comparator<BytesRef> comparator = Comparator.naturalOrder();
                 @Override
                 protected int compare(int i, int j) {
                     return comparator.compare(bytes.get(scratch, indices[i]), bytes.get(scratch1, indices[j]));

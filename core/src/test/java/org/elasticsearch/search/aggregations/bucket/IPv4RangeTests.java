@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.common.network.Cidrs;
-import org.elasticsearch.index.mapper.ip.IpFieldMapper;
+import org.elasticsearch.index.mapper.ip.LegacyIpFieldMapper;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeAggregatorBuilder.Range;
@@ -44,8 +44,8 @@ public class IPv4RangeTests extends BaseAggregationTestCase<IPv4RangeAggregatorB
                 if (randomBoolean()) {
                     factory.addRange(new Range(key, from, to));
                 } else {
-                    String fromAsStr = Double.isInfinite(from) ? null : IpFieldMapper.longToIp((long) from);
-                    String toAsStr = Double.isInfinite(to) ? null : IpFieldMapper.longToIp((long) to);
+                    String fromAsStr = Double.isInfinite(from) ? null : LegacyIpFieldMapper.longToIp((long) from);
+                    String toAsStr = Double.isInfinite(to) ? null : LegacyIpFieldMapper.longToIp((long) to);
                     factory.addRange(new Range(key, fromAsStr, toAsStr));
                 }
             } else {

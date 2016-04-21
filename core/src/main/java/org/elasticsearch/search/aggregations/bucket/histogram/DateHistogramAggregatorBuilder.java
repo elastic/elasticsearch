@@ -19,27 +19,43 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class DateHistogramAggregatorBuilder extends AbstractHistogramBuilder<DateHistogramAggregatorBuilder> {
 
-    public static final DateHistogramAggregatorBuilder PROTOTYPE = new DateHistogramAggregatorBuilder("");
+    public static final String NAME = InternalDateHistogram.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private DateHistogramInterval dateHistogramInterval;
 
     public DateHistogramAggregatorBuilder(String name) {
         super(name, InternalDateHistogram.HISTOGRAM_FACTORY);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public DateHistogramAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalDateHistogram.HISTOGRAM_FACTORY);
+        dateHistogramInterval = in.readOptionalWriteable(DateHistogramInterval::new);
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        super.innerWriteTo(out);
+        out.writeOptionalWriteable(dateHistogramInterval);
     }
 
     /**
@@ -85,7 +101,7 @@ public class DateHistogramAggregatorBuilder extends AbstractHistogramBuilder<Dat
 
     @Override
     public String getWriteableName() {
-        return InternalDateHistogram.TYPE.name();
+        return NAME;
     }
 
     @Override
@@ -96,24 +112,6 @@ public class DateHistogramAggregatorBuilder extends AbstractHistogramBuilder<Dat
             builder.value(dateHistogramInterval.toString());
         }
         return builder;
-    }
-
-    @Override
-    protected DateHistogramAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
-        DateHistogramAggregatorBuilder factory = new DateHistogramAggregatorBuilder(name);
-        if (in.readBoolean()) {
-            factory.dateHistogramInterval = DateHistogramInterval.readFromStream(in);
-        }
-        return factory;
-    }
-
-    @Override
-    protected void writeFactoryToStream(StreamOutput out) throws IOException {
-        boolean hasDateInterval = dateHistogramInterval != null;
-        out.writeBoolean(hasDateInterval);
-        if (hasDateInterval) {
-            dateHistogramInterval.writeTo(out);
-        }
     }
 
     @Override

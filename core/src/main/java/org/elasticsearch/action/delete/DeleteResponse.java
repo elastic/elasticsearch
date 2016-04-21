@@ -23,7 +23,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
@@ -77,7 +76,7 @@ public class DeleteResponse extends DocWriteResponse {
     }
 
     static final class Fields {
-        static final XContentBuilderString FOUND = new XContentBuilderString("found");
+        static final String FOUND = "found";
     }
 
     @Override

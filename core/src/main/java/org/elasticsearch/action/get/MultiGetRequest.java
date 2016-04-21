@@ -198,7 +198,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             version = in.readLong();
             versionType = VersionType.fromValue(in.readByte());
 
-            fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
+            fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
         }
 
         @Override
@@ -220,7 +220,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             out.writeLong(version);
             out.writeByte(versionType.getValue());
 
-            FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
+            out.writeOptionalStreamable(fetchSourceContext);
         }
 
         @Override
@@ -260,7 +260,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     }
 
     String preference;
-    Boolean realtime;
+    boolean realtime = true;
     boolean refresh;
     public boolean ignoreErrorsOnGeneratedFields = false;
 
@@ -319,11 +319,11 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     }
 
     public boolean realtime() {
-        return this.realtime == null ? true : this.realtime;
+        return this.realtime;
     }
 
     @Override
-    public MultiGetRequest realtime(Boolean realtime) {
+    public MultiGetRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;
     }
@@ -509,12 +509,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         super.readFrom(in);
         preference = in.readOptionalString();
         refresh = in.readBoolean();
-        byte realtime = in.readByte();
-        if (realtime == 0) {
-            this.realtime = false;
-        } else if (realtime == 1) {
-            this.realtime = true;
-        }
+        realtime = in.readBoolean();
         ignoreErrorsOnGeneratedFields = in.readBoolean();
 
         int size = in.readVInt();
@@ -529,13 +524,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         super.writeTo(out);
         out.writeOptionalString(preference);
         out.writeBoolean(refresh);
-        if (realtime == null) {
-            out.writeByte((byte) -1);
-        } else if (realtime == false) {
-            out.writeByte((byte) 0);
-        } else {
-            out.writeByte((byte) 1);
-        }
+        out.writeBoolean(realtime);
         out.writeBoolean(ignoreErrorsOnGeneratedFields);
 
         out.writeVInt(items.size());

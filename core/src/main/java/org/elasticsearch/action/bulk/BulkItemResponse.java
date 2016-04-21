@@ -25,12 +25,14 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -66,17 +68,23 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString STATUS = new XContentBuilderString("status");
-        static final XContentBuilderString ERROR = new XContentBuilderString("error");
+        static final String _INDEX = "_index";
+        static final String _TYPE = "_type";
+        static final String _ID = "_id";
+        static final String STATUS = "status";
+        static final String ERROR = "error";
     }
 
     /**
      * Represents a failure.
      */
-    public static class Failure {
+    public static class Failure implements Writeable, ToXContent {
+        static final String INDEX_FIELD = "index";
+        static final String TYPE_FIELD = "type";
+        static final String ID_FIELD = "id";
+        static final String CAUSE_FIELD = "cause";
+        static final String STATUS_FIELD = "status";
+
         private final String index;
         private final String type;
         private final String id;
@@ -90,6 +98,26 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
             this.cause = t;
             this.status = ExceptionsHelper.status(t);
         }
+
+        /**
+         * Read from a stream.
+         */
+        public Failure(StreamInput in) throws IOException {
+            index = in.readString();
+            type = in.readString();
+            id = in.readOptionalString();
+            cause = in.readThrowable();
+            status = ExceptionsHelper.status(cause);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(getIndex());
+            out.writeString(getType());
+            out.writeOptionalString(getId());
+            out.writeThrowable(getCause());
+        }
+
 
         /**
          * The index name of the action.
@@ -126,8 +154,30 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
             return this.status;
         }
 
+        /**
+         * The actual cause of the failure.
+         */
         public Throwable getCause() {
             return cause;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(INDEX_FIELD, index);
+            builder.field(TYPE_FIELD, type);
+            if (id != null) {
+                builder.field(ID_FIELD, id);
+            }
+            builder.startObject(CAUSE_FIELD);
+            ElasticsearchException.toXContent(builder, params, cause);
+            builder.endObject();
+            builder.field(STATUS_FIELD, status.getStatus());
+            return builder;
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true);
         }
     }
 
@@ -265,11 +315,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
         }
 
         if (in.readBoolean()) {
-            String fIndex = in.readString();
-            String fType = in.readString();
-            String fId = in.readOptionalString();
-            Throwable throwable = in.readThrowable();
-            failure = new Failure(fIndex, fType, fId, throwable);
+            failure = new Failure(in);
         }
     }
 
@@ -294,10 +340,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeString(failure.getIndex());
-            out.writeString(failure.getType());
-            out.writeOptionalString(failure.getId());
-            out.writeThrowable(failure.getCause());
+            failure.writeTo(out);
         }
     }
 }

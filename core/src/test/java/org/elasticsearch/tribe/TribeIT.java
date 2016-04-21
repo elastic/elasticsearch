@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -95,9 +95,9 @@ public class TribeIT extends ESIntegTestCase {
 
         };
         cluster2 = new InternalTestCluster(InternalTestCluster.configuredNodeMode(), randomLong(), createTempDir(), 2, 2,
-                Strings.randomBase64UUID(getRandom()), nodeConfigurationSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, Collections.emptyList(), Function.identity());
+                UUIDs.randomBase64UUID(random()), nodeConfigurationSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, Collections.emptyList(), Function.identity());
 
-        cluster2.beforeTest(getRandom(), 0.1);
+        cluster2.beforeTest(random(), 0.1);
         cluster2.ensureAtLeastNumDataNodes(2);
     }
 
@@ -132,6 +132,9 @@ public class TribeIT extends ESIntegTestCase {
         Settings.Builder tribe1Defaults = Settings.builder();
         Settings.Builder tribe2Defaults = Settings.builder();
         for (Map.Entry<String, String> entry : asMap.entrySet()) {
+            if (entry.getKey().startsWith("path.")) {
+                continue;
+            }
             tribe1Defaults.put("tribe.t1." + entry.getKey(), entry.getValue());
             tribe2Defaults.put("tribe.t2." + entry.getKey(), entry.getValue());
         }
@@ -424,8 +427,8 @@ public class TribeIT extends ESIntegTestCase {
             @Override
             public void run() {
                 DiscoveryNodes tribeNodes = tribeNode.client().admin().cluster().prepareState().get().getState().getNodes();
-                assertThat(countDataNodesForTribe("t1", tribeNodes), equalTo(internalCluster().client().admin().cluster().prepareState().get().getState().getNodes().dataNodes().size()));
-                assertThat(countDataNodesForTribe("t2", tribeNodes), equalTo(cluster2.client().admin().cluster().prepareState().get().getState().getNodes().dataNodes().size()));
+                assertThat(countDataNodesForTribe("t1", tribeNodes), equalTo(internalCluster().client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size()));
+                assertThat(countDataNodesForTribe("t2", tribeNodes), equalTo(cluster2.client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size()));
             }
         });
     }
@@ -433,7 +436,7 @@ public class TribeIT extends ESIntegTestCase {
     private int countDataNodesForTribe(String tribeName, DiscoveryNodes nodes) {
         int count = 0;
         for (DiscoveryNode node : nodes) {
-            if (!node.dataNode()) {
+            if (!node.isDataNode()) {
                 continue;
             }
             if (tribeName.equals(node.getAttributes().get("tribe.name"))) {

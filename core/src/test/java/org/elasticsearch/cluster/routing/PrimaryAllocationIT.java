@@ -29,7 +29,6 @@ import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisconnectPartition;
@@ -78,11 +77,11 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final String primaryNode;
         final String replicaNode;
         if (shards.get(0).primary()) {
-            primaryNode = state.getRoutingNodes().node(shards.get(0).currentNodeId()).node().name();
-            replicaNode = state.getRoutingNodes().node(shards.get(1).currentNodeId()).node().name();
+            primaryNode = state.getRoutingNodes().node(shards.get(0).currentNodeId()).node().getName();
+            replicaNode = state.getRoutingNodes().node(shards.get(1).currentNodeId()).node().getName();
         } else {
-            primaryNode = state.getRoutingNodes().node(shards.get(1).currentNodeId()).node().name();
-            replicaNode = state.getRoutingNodes().node(shards.get(0).currentNodeId()).node().name();
+            primaryNode = state.getRoutingNodes().node(shards.get(1).currentNodeId()).node().getName();
+            replicaNode = state.getRoutingNodes().node(shards.get(0).currentNodeId()).node().getName();
         }
 
         NetworkDisconnectPartition partition = new NetworkDisconnectPartition(
@@ -109,7 +108,12 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         logger.info("--> check that old primary shard does not get promoted to primary again");
         // kick reroute and wait for all shard states to be fetched
         client(master).admin().cluster().prepareReroute().get();
-        assertBusy(() -> assertThat(internalCluster().getInstance(GatewayAllocator.class, master).getNumberOfInFlightFetch(), equalTo(0)));
+        assertBusy(new Runnable() { 
+            @Override
+            public void run() {
+                assertThat(internalCluster().getInstance(GatewayAllocator.class, master).getNumberOfInFlightFetch(), equalTo(0));
+            }
+        });
         // kick reroute a second time and check that all shards are unassigned
         assertThat(client(master).admin().cluster().prepareReroute().get().getState().getRoutingNodes().unassigned().size(), equalTo(2));
     }
@@ -158,7 +162,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : storeStatuses) {
             int shardId = shardStoreStatuses.key;
             IndicesShardStoresResponse.StoreStatus storeStatus = randomFrom(shardStoreStatuses.value);
-            logger.info("--> adding allocation command for shard " + shardId);
+            logger.info("--> adding allocation command for shard {}", shardId);
             // force allocation based on node id
             if (useStaleReplica) {
                 rerouteBuilder.add(new AllocateStalePrimaryAllocationCommand("test", shardId, storeStatus.getNode().getId(), true));

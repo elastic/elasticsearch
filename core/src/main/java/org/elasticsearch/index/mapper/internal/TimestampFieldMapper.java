@@ -26,16 +26,16 @@ import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.analysis.NumericDateAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDateFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,7 +52,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_timestamp";
     public static final String DEFAULT_DATE_TIME_FORMAT = "epoch_millis||strictDateOptionalTime";
 
-    public static class Defaults extends DateFieldMapper.Defaults {
+    public static class Defaults extends LegacyDateFieldMapper.Defaults {
         public static final String NAME = "_timestamp";
 
         // TODO: this should be removed
@@ -65,8 +65,8 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_64_BIT);
             FIELD_TYPE.setName(NAME);
             FIELD_TYPE.setDateTimeFormatter(DATE_TIME_FORMATTER);
-            FIELD_TYPE.setIndexAnalyzer(NumericDateAnalyzer.buildNamedAnalyzer(DATE_TIME_FORMATTER, Defaults.PRECISION_STEP_64_BIT));
-            FIELD_TYPE.setSearchAnalyzer(NumericDateAnalyzer.buildNamedAnalyzer(DATE_TIME_FORMATTER, Integer.MAX_VALUE));
+            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
         }
@@ -86,8 +86,8 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public DateFieldMapper.DateFieldType fieldType() {
-            return (DateFieldMapper.DateFieldType)fieldType;
+        public LegacyDateFieldMapper.DateFieldType fieldType() {
+            return (LegacyDateFieldMapper.DateFieldType)fieldType;
         }
 
         public Builder enabled(EnabledAttributeMapper enabledState) {
@@ -169,7 +169,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final class TimestampFieldType extends DateFieldMapper.DateFieldType {
+    public static final class TimestampFieldType extends LegacyDateFieldMapper.DateFieldType {
 
         public TimestampFieldType() {}
 
@@ -182,12 +182,9 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             return new TimestampFieldType(this);
         }
 
-        /**
-         * Override the default behavior to return a timestamp
-         */
         @Override
         public Object valueForSearch(Object value) {
-            return value(value);
+            return value;
         }
     }
 
@@ -245,7 +242,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         if (enabledState.enabled) {
             long timestamp = context.sourceToParse().timestamp();
             if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-                fields.add(new LongFieldMapper.CustomLongNumericField(timestamp, fieldType()));
+                fields.add(new LegacyLongFieldMapper.CustomLongNumericField(timestamp, fieldType()));
             }
             if (fieldType().hasDocValues()) {
                 fields.add(new NumericDocValuesField(fieldType().name(), timestamp));

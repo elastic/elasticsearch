@@ -34,7 +34,7 @@ import java.util.Map;
  * New field value will be an array containing all of the different extracted items.
  * Throws exception if the field is null or a type other than string.
  */
-public class SplitProcessor extends AbstractProcessor {
+public final class SplitProcessor extends AbstractProcessor {
 
     public static final String TYPE = "split";
 

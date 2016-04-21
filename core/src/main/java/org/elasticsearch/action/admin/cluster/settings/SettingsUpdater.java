@@ -32,8 +32,8 @@ import static org.elasticsearch.cluster.ClusterState.builder;
  * due to the update.
  */
 final class SettingsUpdater {
-    final Settings.Builder transientUpdates = Settings.settingsBuilder();
-    final Settings.Builder persistentUpdates = Settings.settingsBuilder();
+    final Settings.Builder transientUpdates = Settings.builder();
+    final Settings.Builder persistentUpdates = Settings.builder();
     private final ClusterSettings clusterSettings;
 
     SettingsUpdater(ClusterSettings clusterSettings) {
@@ -50,11 +50,11 @@ final class SettingsUpdater {
 
     synchronized ClusterState updateSettings(final ClusterState currentState, Settings transientToApply, Settings persistentToApply) {
         boolean changed = false;
-        Settings.Builder transientSettings = Settings.settingsBuilder();
+        Settings.Builder transientSettings = Settings.builder();
         transientSettings.put(currentState.metaData().transientSettings());
         changed |= clusterSettings.updateDynamicSettings(transientToApply, transientSettings, transientUpdates, "transient");
 
-        Settings.Builder persistentSettings = Settings.settingsBuilder();
+        Settings.Builder persistentSettings = Settings.builder();
         persistentSettings.put(currentState.metaData().persistentSettings());
         changed |= clusterSettings.updateDynamicSettings(persistentToApply, persistentSettings, persistentUpdates, "persistent");
 

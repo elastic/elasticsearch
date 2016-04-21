@@ -29,7 +29,7 @@ my $Issue_URL  = "http://github.com/${User_Repo}issues/";
 
 my @Groups = qw(
     breaking deprecation feature
-    enhancement bug regression upgrade build doc test
+    enhancement bug regression upgrade non-issue build docs test
 );
 my %Group_Labels = (
     breaking    => 'Breaking changes',
@@ -42,6 +42,7 @@ my %Group_Labels = (
     regression  => 'Regressions',
     test        => 'Tests',
     upgrade     => 'Upgrades',
+    "non-issue" => 'Non-issue',
     other       => 'NOT CLASSIFIED',
 );
 
@@ -157,8 +158,10 @@ sub fetch_issues {
 ISSUE:
     for my $issue (@issues) {
         next if $seen{ $issue->{number} } && !$issue->{pull_request};
+        # uncomment for including/excluding PRs already issued in other versions
+        # next if grep {$_->{name}=~/^v2/} @{$issue->{labels}};
         my %labels = map { $_->{name} => 1 } @{ $issue->{labels} };
-        my ($header) = map { substr( $_, 1 ) } grep {/^:/} keys %labels;
+        my ($header) = map { substr( $_, 1 ) } grep {/^:/} sort keys %labels;
         $header ||= 'NOT CLASSIFIED';
         for (@Groups) {
             if ( $labels{$_} ) {

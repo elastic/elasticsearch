@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
@@ -34,7 +35,6 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
@@ -60,7 +60,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
     private void testSearchAndRelocateConcurrently(final int numberOfReplicas) throws Exception {
         final int numShards = between(1, 20);
         client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numberOfReplicas))
+                .setSettings(Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numberOfReplicas))
                 .addMapping("type", "loc", "type=geo_point", "test", "type=text").execute().actionGet();
         ensureGreen();
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
@@ -142,7 +142,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                 }
                 assertThat("numberOfReplicas: " + numberOfReplicas + " failed in iteration " + i + ", verification: " + verified, thrownExceptions, Matchers.emptyIterable());
                 // if we hit only non-critical exceptions we only make sure that the post search works
-                logger.info("Non-CriticalExceptions: " + nonCriticalExceptions.toString());
+                logger.info("Non-CriticalExceptions: {}", nonCriticalExceptions);
                 assertThat("numberOfReplicas: " + numberOfReplicas + " failed in iteration " + i + ", verification: " + verified, postSearchOK, is(true));
             }
         }

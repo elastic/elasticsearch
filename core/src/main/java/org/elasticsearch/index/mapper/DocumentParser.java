@@ -19,10 +19,16 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.CloseableThreadLocal;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -31,13 +37,14 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
-import org.elasticsearch.index.mapper.core.FloatFieldMapper;
-import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDateFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyFloatFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyIntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
@@ -46,24 +53,9 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
-
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 /** A parser for documents, given mappings from a DocumentMapper */
-class DocumentParser implements Closeable {
-
-    private CloseableThreadLocal<ParseContext.InternalParseContext> cache = new CloseableThreadLocal<ParseContext.InternalParseContext>() {
-        @Override
-        protected ParseContext.InternalParseContext initialValue() {
-            return new ParseContext.InternalParseContext(indexSettings.getSettings(), docMapperParser, docMapper, new ContentPath(0));
-        }
-    };
+final class DocumentParser {
 
     private final IndexSettings indexSettings;
     private final DocumentMapperParser docMapperParser;
@@ -80,7 +72,7 @@ class DocumentParser implements Closeable {
 
         source.type(docMapper.type());
         final Mapping mapping = docMapper.mapping();
-        final ParseContext.InternalParseContext context = cache.get();
+        final ParseContext.InternalParseContext context = new ParseContext.InternalParseContext(indexSettings.getSettings(), docMapperParser, docMapper, new ContentPath(0));
         XContentParser parser = null;
         try {
             parser = parser(source);
@@ -96,13 +88,14 @@ class DocumentParser implements Closeable {
                 parser.close();
             }
         }
+        String remainingPath = context.path().pathAsText("");
+        if (remainingPath.isEmpty() == false) {
+            throw new IllegalStateException("found leftover path elements: " + remainingPath);
+        }
 
         reverseOrder(context);
-        applyDocBoost(context);
 
-        ParsedDocument doc = parsedDocument(source, context, update(context, mapping));
-        // reset the context to free up memory
-        context.reset(null, null, null);
+        ParsedDocument doc = parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()));
         return doc;
     }
 
@@ -117,10 +110,7 @@ class DocumentParser implements Closeable {
             // entire type is disabled
             parser.skipChildren();
         } else if (emptyDoc == false) {
-            Mapper update = parseObject(context, mapping.root, true);
-            if (update != null) {
-                context.addDynamicMappingsUpdate(update);
-            }
+            parseObjectOrNested(context, mapping.root, true);
         }
 
         for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
@@ -186,24 +176,6 @@ class DocumentParser implements Closeable {
         }
     }
 
-    private static void applyDocBoost(ParseContext.InternalParseContext context) {
-        // apply doc boost
-        if (context.docBoost() != 1.0f) {
-            Set<String> encounteredFields = new HashSet<>();
-            for (ParseContext.Document doc : context.docs()) {
-                encounteredFields.clear();
-                for (IndexableField field : doc) {
-                    if (field.fieldType().indexOptions() != IndexOptions.NONE && !field.fieldType().omitNorms()) {
-                        if (!encounteredFields.contains(field.name())) {
-                            ((Field) field).setBoost(context.docBoost() * field.boost());
-                            encounteredFields.add(field.name());
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     private static ParsedDocument parsedDocument(SourceToParse source, ParseContext.InternalParseContext context, Mapping update) {
         return new ParsedDocument(
             context.uid(),
@@ -220,11 +192,6 @@ class DocumentParser implements Closeable {
     }
 
 
-    private static Mapping update(ParseContext.InternalParseContext context, Mapping mapping) {
-        Mapper rootDynamicUpdate = context.dynamicMappingsUpdate();
-        return rootDynamicUpdate != null ? mapping.mappingUpdate(rootDynamicUpdate) : null;
-    }
-
     private static MapperParsingException wrapInMapperParsingException(SourceToParse source, Throwable e) {
         // if its already a mapper parsing exception, no need to wrap it...
         if (e instanceof MapperParsingException) {
@@ -239,10 +206,156 @@ class DocumentParser implements Closeable {
         return new MapperParsingException("failed to parse", e);
     }
 
-    static ObjectMapper parseObject(ParseContext context, ObjectMapper mapper, boolean atRoot) throws IOException {
+    /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */
+    static Mapping createDynamicUpdate(Mapping mapping, DocumentMapper docMapper, List<Mapper> dynamicMappers) {
+        if (dynamicMappers.isEmpty()) {
+            return null;
+        }
+        // We build a mapping by first sorting the mappers, so that all mappers containing a common prefix
+        // will be processed in a contiguous block. When the prefix is no longer seen, we pop the extra elements
+        // off the stack, merging them upwards into the existing mappers.
+        Collections.sort(dynamicMappers, (Mapper o1, Mapper o2) -> o1.name().compareTo(o2.name()));
+        Iterator<Mapper> dynamicMapperItr = dynamicMappers.iterator();
+        List<ObjectMapper> parentMappers = new ArrayList<>();
+        Mapper firstUpdate = dynamicMapperItr.next();
+        parentMappers.add(createUpdate(mapping.root(), firstUpdate.name().split("\\."), 0, firstUpdate));
+        Mapper previousMapper = null;
+        while (dynamicMapperItr.hasNext()) {
+            Mapper newMapper = dynamicMapperItr.next();
+            if (previousMapper != null && newMapper.name().equals(previousMapper.name())) {
+                // We can see the same mapper more than once, for example, if we had foo.bar and foo.baz, where
+                // foo did not yet exist. This will create 2 copies in dynamic mappings, which should be identical.
+                // Here we just skip over the duplicates, but we merge them to ensure there are no conflicts.
+                newMapper.merge(previousMapper, false);
+                continue;
+            }
+            previousMapper = newMapper;
+            String[] nameParts = newMapper.name().split("\\.");
+
+            // We first need the stack to only contain mappers in common with the previously processed mapper
+            // For example, if the first mapper processed was a.b.c, and we now have a.d, the stack will contain
+            // a.b, and we want to merge b back into the stack so it just contains a
+            int i = removeUncommonMappers(parentMappers, nameParts);
+
+            // Then we need to add back mappers that may already exist within the stack, but are not on it.
+            // For example, if we processed a.b, followed by an object mapper a.c.d, and now are adding a.c.d.e
+            // then the stack will only have a on it because we will have already merged a.c.d into the stack.
+            // So we need to pull a.c, followed by a.c.d, onto the stack so e can be added to the end.
+            i = expandCommonMappers(parentMappers, nameParts, i);
+
+            // If there are still parents of the new mapper which are not on the stack, we need to pull them
+            // from the existing mappings. In order to maintain the invariant that the stack only contains
+            // fields which are updated, we cannot simply add the existing mappers to the stack, since they
+            // may have other subfields which will not be updated. Instead, we pull the mapper from the existing
+            // mappings, and build an update with only the new mapper and its parents. This then becomes our
+            // "new mapper", and can be added to the stack.
+            if (i < nameParts.length - 1) {
+                newMapper = createExistingMapperUpdate(parentMappers, nameParts, i, docMapper, newMapper);
+            }
+
+            if (newMapper instanceof ObjectMapper) {
+                parentMappers.add((ObjectMapper)newMapper);
+            } else {
+                addToLastMapper(parentMappers, newMapper, true);
+            }
+        }
+        popMappers(parentMappers, 1, true);
+        assert parentMappers.size() == 1;
+
+        return mapping.mappingUpdate(parentMappers.get(0));
+    }
+
+    private static void popMappers(List<ObjectMapper> parentMappers, int keepBefore, boolean merge) {
+        assert keepBefore >= 1; // never remove the root mapper
+        // pop off parent mappers not needed by the current mapper,
+        // merging them backwards since they are immutable
+        for (int i = parentMappers.size() - 1; i >= keepBefore; --i) {
+            addToLastMapper(parentMappers, parentMappers.remove(i), merge);
+        }
+    }
+
+    /**
+     * Adds a mapper as an update into the last mapper. If merge is true, the new mapper
+     * will be merged in with other child mappers of the last parent, otherwise it will be a new update.
+     */
+    private static void addToLastMapper(List<ObjectMapper> parentMappers, Mapper mapper, boolean merge) {
+        assert parentMappers.size() >= 1;
+        int lastIndex = parentMappers.size() - 1;
+        ObjectMapper withNewMapper = parentMappers.get(lastIndex).mappingUpdate(mapper);
+        if (merge) {
+            withNewMapper = parentMappers.get(lastIndex).merge(withNewMapper, false);
+        }
+        parentMappers.set(lastIndex, withNewMapper);
+    }
+
+    /**
+     * Removes mappers that exist on the stack, but are not part of the path of the current nameParts,
+     * Returns the next unprocessed index from nameParts.
+     */
+    private static int removeUncommonMappers(List<ObjectMapper> parentMappers, String[] nameParts) {
+        int keepBefore = 1;
+        while (keepBefore < parentMappers.size() &&
+            parentMappers.get(keepBefore).simpleName().equals(nameParts[keepBefore - 1])) {
+            ++keepBefore;
+        }
+        popMappers(parentMappers, keepBefore, true);
+        return keepBefore - 1;
+    }
+
+    /**
+     * Adds mappers from the end of the stack that exist as updates within those mappers.
+     * Returns the next unprocessed index from nameParts.
+     */
+    private static int expandCommonMappers(List<ObjectMapper> parentMappers, String[] nameParts, int i) {
+        ObjectMapper last = parentMappers.get(parentMappers.size() - 1);
+        while (i < nameParts.length - 1 && last.getMapper(nameParts[i]) != null) {
+            Mapper newLast = last.getMapper(nameParts[i]);
+            assert newLast instanceof ObjectMapper;
+            last = (ObjectMapper) newLast;
+            parentMappers.add(last);
+            ++i;
+        }
+        return i;
+    }
+
+    /** Creates an update for intermediate object mappers that are not on the stack, but parents of newMapper. */
+    private static ObjectMapper createExistingMapperUpdate(List<ObjectMapper> parentMappers, String[] nameParts, int i,
+                                                           DocumentMapper docMapper, Mapper newMapper) {
+        String updateParentName = nameParts[i];
+        final ObjectMapper lastParent = parentMappers.get(parentMappers.size() - 1);
+        if (parentMappers.size() > 1) {
+            // only prefix with parent mapper if the parent mapper isn't the root (which has a fake name)
+            updateParentName = lastParent.name() + '.' + nameParts[i];
+        }
+        ObjectMapper updateParent = docMapper.objectMappers().get(updateParentName);
+        assert updateParent != null : updateParentName + " doesn't exist";
+        return createUpdate(updateParent, nameParts, i + 1, newMapper);
+    }
+
+    /** Build an update for the parent which will contain the given mapper and any intermediate fields. */
+    private static ObjectMapper createUpdate(ObjectMapper parent, String[] nameParts, int i, Mapper mapper) {
+        List<ObjectMapper> parentMappers = new ArrayList<>();
+        ObjectMapper previousIntermediate = parent;
+        for (; i < nameParts.length - 1; ++i) {
+            Mapper intermediate = previousIntermediate.getMapper(nameParts[i]);
+            assert intermediate != null : "Field " + previousIntermediate.name() + " does not have a subfield " + nameParts[i];
+            assert intermediate instanceof ObjectMapper;
+            parentMappers.add((ObjectMapper)intermediate);
+            previousIntermediate = (ObjectMapper)intermediate;
+        }
+        if (parentMappers.isEmpty() == false) {
+            // add the new mapper to the stack, and pop down to the original parent level
+            addToLastMapper(parentMappers, mapper, false);
+            popMappers(parentMappers, 1, false);
+            mapper = parentMappers.get(0);
+        }
+        return parent.mappingUpdate(mapper);
+    }
+
+    static void parseObjectOrNested(ParseContext context, ObjectMapper mapper, boolean atRoot) throws IOException {
         if (mapper.isEnabled() == false) {
             context.parser().skipChildren();
-            return null;
+            return;
         }
         XContentParser parser = context.parser();
 
@@ -253,7 +366,7 @@ class DocumentParser implements Closeable {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NULL) {
             // the object is null ("obj1" : null), simply bail
-            return null;
+            return;
         }
 
         if (token.isValue()) {
@@ -275,21 +388,19 @@ class DocumentParser implements Closeable {
         }
 
         ObjectMapper update = null;
-        update = innerParseObject(context, mapper, parser, currentFieldName, token, update);
+        innerParseObject(context, mapper, parser, currentFieldName, token);
         // restore the enable path flag
         if (nested.isNested()) {
             nested(context, nested);
         }
-        return update;
     }
 
-    private static ObjectMapper innerParseObject(ParseContext context, ObjectMapper mapper, XContentParser parser, String currentFieldName, XContentParser.Token token, ObjectMapper update) throws IOException {
+    private static void innerParseObject(ParseContext context, ObjectMapper mapper, XContentParser parser, String currentFieldName, XContentParser.Token token) throws IOException {
         while (token != XContentParser.Token.END_OBJECT) {
-            ObjectMapper newUpdate = null;
             if (token == XContentParser.Token.START_OBJECT) {
-                newUpdate = parseObject(context, mapper, currentFieldName);
+                parseObject(context, mapper, currentFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
-                newUpdate = parseArray(context, mapper, currentFieldName);
+                parseArray(context, mapper, currentFieldName);
             } else if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_NULL) {
@@ -297,18 +408,10 @@ class DocumentParser implements Closeable {
             } else if (token == null) {
                 throw new MapperParsingException("object mapping for [" + mapper.name() + "] tried to parse field [" + currentFieldName + "] as object, but got EOF, has a concrete value been provided to it?");
             } else if (token.isValue()) {
-                newUpdate = parseValue(context, mapper, currentFieldName, token);
+                parseValue(context, mapper, currentFieldName, token);
             }
             token = parser.nextToken();
-            if (newUpdate != null) {
-                if (update == null) {
-                    update = newUpdate;
-                } else {
-                    update = update.merge(newUpdate, false);
-                }
-            }
         }
-        return update;
     }
 
     private static void nested(ParseContext context, ObjectMapper.Nested nested) {
@@ -354,38 +457,31 @@ class DocumentParser implements Closeable {
         return context;
     }
 
-    private static Mapper parseObjectOrField(ParseContext context, Mapper mapper) throws IOException {
+    private static void parseObjectOrField(ParseContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper) {
-            return parseObject(context, (ObjectMapper) mapper, false);
+            parseObjectOrNested(context, (ObjectMapper) mapper, false);
         } else {
             FieldMapper fieldMapper = (FieldMapper)mapper;
             Mapper update = fieldMapper.parse(context);
-            if (fieldMapper.copyTo() != null) {
-                parseCopyFields(context, fieldMapper, fieldMapper.copyTo().copyToFields());
+            if (update != null) {
+                context.addDynamicMapper(update);
             }
-            return update;
+            if (fieldMapper.copyTo() != null) {
+                parseCopyFields(context, fieldMapper.copyTo().copyToFields());
+            }
         }
     }
 
     private static ObjectMapper parseObject(final ParseContext context, ObjectMapper mapper, String currentFieldName) throws IOException {
-        if (currentFieldName == null) {
-            throw new MapperParsingException("object mapping [" + mapper.name() + "] trying to serialize an object with no field associated with it, current value [" + context.parser().textOrNull() + "]");
-        }
+        assert currentFieldName != null;
         context.path().add(currentFieldName);
 
         ObjectMapper update = null;
-        Mapper objectMapper = mapper.getMapper(currentFieldName);
+        Mapper objectMapper = getMapper(mapper, currentFieldName);
         if (objectMapper != null) {
-            final Mapper subUpdate = parseObjectOrField(context, objectMapper);
-            if (subUpdate != null) {
-                // propagate mapping update
-                update = mapper.mappingUpdate(subUpdate);
-            }
+            parseObjectOrField(context, objectMapper);
         } else {
-            ObjectMapper.Dynamic dynamic = mapper.dynamic();
-            if (dynamic == null) {
-                dynamic = dynamicOrDefault(context.root().dynamic());
-            }
+            ObjectMapper.Dynamic dynamic = dynamicOrDefault(mapper, context);
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(mapper.fullPath(), currentFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.TRUE) {
@@ -394,15 +490,12 @@ class DocumentParser implements Closeable {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "object");
                 if (builder == null) {
                     builder = new ObjectMapper.Builder(currentFieldName).enabled(true);
-                    // if this is a non root object, then explicitly set the dynamic behavior if set
-                    if (!(mapper instanceof RootObjectMapper) && mapper.dynamic() != ObjectMapper.Defaults.DYNAMIC) {
-                        ((ObjectMapper.Builder) builder).dynamic(mapper.dynamic());
-                    }
                 }
                 Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
                 objectMapper = builder.build(builderContext);
+                context.addDynamicMapper(objectMapper);
                 context.path().add(currentFieldName);
-                update = mapper.mappingUpdate(parseAndMergeUpdate(objectMapper, context));
+                parseObjectOrField(context, objectMapper);
             } else {
                 // not dynamic, read everything up to end object
                 context.parser().skipChildren();
@@ -413,60 +506,55 @@ class DocumentParser implements Closeable {
         return update;
     }
 
-    private static ObjectMapper parseArray(ParseContext context, ObjectMapper parentMapper, String lastFieldName) throws IOException {
+    private static void parseArray(ParseContext context, ObjectMapper parentMapper, String lastFieldName) throws IOException {
         String arrayFieldName = lastFieldName;
-        Mapper mapper = parentMapper.getMapper(lastFieldName);
+        Mapper mapper = getMapper(parentMapper, lastFieldName);
         if (mapper != null) {
             // There is a concrete mapper for this field already. Need to check if the mapper
             // expects an array, if so we pass the context straight to the mapper and if not
             // we serialize the array components
             if (mapper instanceof ArrayValueMapperParser) {
-                final Mapper subUpdate = parseObjectOrField(context, mapper);
-                if (subUpdate != null) {
-                    // propagate the mapping update
-                    return parentMapper.mappingUpdate(subUpdate);
-                } else {
-                    return null;
-                }
+                parseObjectOrField(context, mapper);
             } else {
-                return parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
+                parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
             }
         } else {
 
-            ObjectMapper.Dynamic dynamic = parentMapper.dynamic();
-            if (dynamic == null) {
-                dynamic = dynamicOrDefault(context.root().dynamic());
-            }
+            ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(parentMapper.fullPath(), arrayFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.TRUE) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, arrayFieldName, "object");
                 if (builder == null) {
-                    return parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
+                    parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
+                    return;
                 }
                 Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
                 mapper = builder.build(builderContext);
-                if (mapper != null && mapper instanceof ArrayValueMapperParser) {
+                assert mapper != null;
+                if (mapper instanceof ArrayValueMapperParser) {
+                    context.addDynamicMapper(mapper);
                     context.path().add(arrayFieldName);
-                    mapper = parseAndMergeUpdate(mapper, context);
-                    return parentMapper.mappingUpdate(mapper);
+                    parseObjectOrField(context, mapper);
+                    context.path().remove();
                 } else {
-                    return parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
+                    parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                 }
             } else {
-                return parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
+                // TODO: shouldn't this skip, not parse?
+                parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
             }
         }
     }
 
-    private static ObjectMapper parseNonDynamicArray(ParseContext context, ObjectMapper mapper, String lastFieldName, String arrayFieldName) throws IOException {
+    private static void parseNonDynamicArray(ParseContext context, ObjectMapper mapper, String lastFieldName, String arrayFieldName) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
-                return parseObject(context, mapper, lastFieldName);
+                parseObject(context, mapper, lastFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
-                return parseArray(context, mapper, lastFieldName);
+                parseArray(context, mapper, lastFieldName);
             } else if (token == XContentParser.Token.FIELD_NAME) {
                 lastFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_NULL) {
@@ -474,31 +562,26 @@ class DocumentParser implements Closeable {
             } else if (token == null) {
                 throw new MapperParsingException("object mapping for [" + mapper.name() + "] with array for [" + arrayFieldName + "] tried to parse as array, but got EOF, is there a mismatch in types for the same field?");
             } else {
-                return parseValue(context, mapper, lastFieldName, token);
+                parseValue(context, mapper, lastFieldName, token);
             }
         }
-        return null;
     }
 
-    private static ObjectMapper parseValue(final ParseContext context, ObjectMapper parentMapper, String currentFieldName, XContentParser.Token token) throws IOException {
+    private static void parseValue(final ParseContext context, ObjectMapper parentMapper, String currentFieldName, XContentParser.Token token) throws IOException {
         if (currentFieldName == null) {
             throw new MapperParsingException("object mapping [" + parentMapper.name() + "] trying to serialize a value with no field associated with it, current value [" + context.parser().textOrNull() + "]");
         }
-        Mapper mapper = parentMapper.getMapper(currentFieldName);
+        Mapper mapper = getMapper(parentMapper, currentFieldName);
         if (mapper != null) {
-            Mapper subUpdate = parseObjectOrField(context, mapper);
-            if (subUpdate == null) {
-                return null;
-            }
-            return parentMapper.mappingUpdate(subUpdate);
+            parseObjectOrField(context, mapper);
         } else {
-            return parseDynamicValue(context, parentMapper, currentFieldName, token);
+            parseDynamicValue(context, parentMapper, currentFieldName, token);
         }
     }
 
     private static void parseNullValue(ParseContext context, ObjectMapper parentMapper, String lastFieldName) throws IOException {
         // we can only handle null values if we have mappings for them
-        Mapper mapper = parentMapper.getMapper(lastFieldName);
+        Mapper mapper = getMapper(parentMapper, lastFieldName);
         if (mapper != null) {
             // TODO: passing null to an object seems bogus?
             parseObjectOrField(context, mapper);
@@ -510,56 +593,81 @@ class DocumentParser implements Closeable {
     private static Mapper.Builder<?,?> createBuilderFromFieldType(final ParseContext context, MappedFieldType fieldType, String currentFieldName) {
         Mapper.Builder builder = null;
         if (fieldType instanceof StringFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
-            if (builder == null) {
-                builder = new StringFieldMapper.Builder(currentFieldName);
-            }
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "string", "string");
         } else if (fieldType instanceof TextFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "text", "string");
             if (builder == null) {
-                builder = new TextFieldMapper.Builder(currentFieldName);
+                builder = new TextFieldMapper.Builder(currentFieldName)
+                        .addMultiField(new KeywordFieldMapper.Builder("keyword").ignoreAbove(256));
             }
         } else if (fieldType instanceof KeywordFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
-            if (builder == null) {
-                builder = new KeywordFieldMapper.Builder(currentFieldName);
-            }
-        } else if (fieldType instanceof DateFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
-            if (builder == null) {
-                builder = new DateFieldMapper.Builder(currentFieldName);
-            }
-        } else if (fieldType.numericType() != null) {
-            switch (fieldType.numericType()) {
-            case LONG:
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "keyword", "string");
+        } else {
+            switch (fieldType.typeName()) {
+            case DateFieldMapper.CONTENT_TYPE:
+                builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
+                break;
+            case "long":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
-                if (builder == null) {
-                    builder = new LongFieldMapper.Builder(currentFieldName);
-                }
                 break;
-            case DOUBLE:
+            case "double":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
-                if (builder == null) {
-                    builder = new DoubleFieldMapper.Builder(currentFieldName);
-                }
                 break;
-            case INT:
+            case "integer":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "integer");
-                if (builder == null) {
-                    builder = new IntegerFieldMapper.Builder(currentFieldName);
-                }
                 break;
-            case FLOAT:
+            case "float":
                 builder = context.root().findTemplateBuilder(context, currentFieldName, "float");
-                if (builder == null) {
-                    builder = new FloatFieldMapper.Builder(currentFieldName);
-                }
+                break;
+            case BooleanFieldMapper.CONTENT_TYPE:
+                builder = context.root().findTemplateBuilder(context, currentFieldName, "boolean");
                 break;
             default:
-                throw new AssertionError("Unexpected numeric type " + fieldType.numericType());
+                break;
             }
         }
+        if (builder == null) {
+            Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(currentFieldName);
+            Mapper.TypeParser typeParser = parserContext.typeParser(fieldType.typeName());
+            if (typeParser == null) {
+                throw new MapperParsingException("Cannot generate dynamic mappings of type [" + fieldType.typeName()
+                    + "] for [" + currentFieldName + "]");
+            }
+            builder = typeParser.parse(currentFieldName, new HashMap<>(), parserContext);
+        }
         return builder;
+    }
+
+    private static Mapper.Builder<?, ?> newLongBuilder(String name, Version indexCreated) {
+        if (indexCreated.onOrAfter(Version.V_5_0_0)) {
+            return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG);
+        } else {
+            return new LegacyLongFieldMapper.Builder(name);
+        }
+    }
+
+    private static Mapper.Builder<?, ?> newFloatBuilder(String name, Version indexCreated) {
+        if (indexCreated.onOrAfter(Version.V_5_0_0)) {
+            return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);
+        } else {
+            return new LegacyFloatFieldMapper.Builder(name);
+        }
+    }
+
+    private static Mapper.Builder<?, ?> newDateBuilder(String name, FormatDateTimeFormatter dateTimeFormatter, Version indexCreated) {
+        if (indexCreated.onOrAfter(Version.V_5_0_0)) {
+            DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
+            if (dateTimeFormatter != null) {
+                builder.dateTimeFormatter(dateTimeFormatter);
+            }
+            return builder;
+        } else {
+            LegacyDateFieldMapper.Builder builder = new LegacyDateFieldMapper.Builder(name);
+            if (dateTimeFormatter != null) {
+                builder.dateTimeFormatter(dateTimeFormatter);
+            }
+            return builder;
+        }
     }
 
     private static Mapper.Builder<?,?> createBuilderFromDynamicValue(final ParseContext context, XContentParser.Token token, String currentFieldName) throws IOException {
@@ -568,7 +676,7 @@ class DocumentParser implements Closeable {
             // we need to do it here so we can handle things like attachment templates, where calling
             // text (to see if its a date) causes the binary value to be cleared
             {
-                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string", null);
+                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "text", null);
                 if (builder != null) {
                     return builder;
                 }
@@ -583,7 +691,7 @@ class DocumentParser implements Closeable {
                             dateTimeFormatter.parser().parseMillis(text);
                             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
                             if (builder == null) {
-                                builder = new DateFieldMapper.Builder(currentFieldName).dateTimeFormatter(dateTimeFormatter);
+                                builder = newDateBuilder(currentFieldName, dateTimeFormatter, Version.indexCreated(context.indexSettings()));
                             }
                             return builder;
                         } catch (Exception e) {
@@ -598,7 +706,7 @@ class DocumentParser implements Closeable {
                     Long.parseLong(text);
                     Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
                     if (builder == null) {
-                        builder = new LongFieldMapper.Builder(currentFieldName);
+                        builder = newLongBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
                     }
                     return builder;
                 } catch (NumberFormatException e) {
@@ -608,7 +716,7 @@ class DocumentParser implements Closeable {
                     Double.parseDouble(text);
                     Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
                     if (builder == null) {
-                        builder = new DoubleFieldMapper.Builder(currentFieldName);
+                        builder = newFloatBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
                     }
                     return builder;
                 } catch (NumberFormatException e) {
@@ -617,7 +725,8 @@ class DocumentParser implements Closeable {
             }
             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
             if (builder == null) {
-                builder = new StringFieldMapper.Builder(currentFieldName);
+                builder = new TextFieldMapper.Builder(currentFieldName)
+                        .addMultiField(new KeywordFieldMapper.Builder("keyword").ignoreAbove(256));
             }
             return builder;
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
@@ -625,7 +734,7 @@ class DocumentParser implements Closeable {
             if (numberType == XContentParser.NumberType.INT || numberType == XContentParser.NumberType.LONG) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
                 if (builder == null) {
-                    builder = new LongFieldMapper.Builder(currentFieldName);
+                    builder = newLongBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
                 }
                 return builder;
             } else if (numberType == XContentParser.NumberType.FLOAT || numberType == XContentParser.NumberType.DOUBLE) {
@@ -634,7 +743,7 @@ class DocumentParser implements Closeable {
                     // no templates are defined, we use float by default instead of double
                     // since this is much more space-efficient and should be enough most of
                     // the time
-                    builder = new FloatFieldMapper.Builder(currentFieldName);
+                    builder = newFloatBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
                 }
                 return builder;
             }
@@ -660,26 +769,22 @@ class DocumentParser implements Closeable {
         throw new IllegalStateException("Can't handle serializing a dynamic type with content token [" + token + "] and field name [" + currentFieldName + "]");
     }
 
-    private static ObjectMapper parseDynamicValue(final ParseContext context, ObjectMapper parentMapper, String currentFieldName, XContentParser.Token token) throws IOException {
-        ObjectMapper.Dynamic dynamic = parentMapper.dynamic();
-        if (dynamic == null) {
-            dynamic = dynamicOrDefault(context.root().dynamic());
-        }
+    private static void parseDynamicValue(final ParseContext context, ObjectMapper parentMapper, String currentFieldName, XContentParser.Token token) throws IOException {
+        ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
             throw new StrictDynamicMappingException(parentMapper.fullPath(), currentFieldName);
         }
         if (dynamic == ObjectMapper.Dynamic.FALSE) {
-            return null;
+            return;
         }
         final String path = context.path().pathAsText(currentFieldName);
         final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
         final MappedFieldType existingFieldType = context.mapperService().fullName(path);
-        Mapper.Builder builder = null;
+        final Mapper.Builder builder;
         if (existingFieldType != null) {
             // create a builder of the same type
             builder = createBuilderFromFieldType(context, existingFieldType, currentFieldName);
-        }
-        if (builder == null) {
+        } else {
             builder = createBuilderFromDynamicValue(context, token, currentFieldName);
         }
         Mapper mapper = builder.build(builderContext);
@@ -687,18 +792,13 @@ class DocumentParser implements Closeable {
             // try to not introduce a conflict
             mapper = mapper.updateFieldType(Collections.singletonMap(path, existingFieldType));
         }
+        context.addDynamicMapper(mapper);
 
-        mapper = parseAndMergeUpdate(mapper, context);
-
-        ObjectMapper update = null;
-        if (mapper != null) {
-            update = parentMapper.mappingUpdate(mapper);
-        }
-        return update;
+        parseObjectOrField(context, mapper);
     }
 
     /** Creates instances of the fields that the current field should be copied to */
-    private static void parseCopyFields(ParseContext context, FieldMapper fieldMapper, List<String> copyToFields) throws IOException {
+    private static void parseCopyFields(ParseContext context, List<String> copyToFields) throws IOException {
         if (!context.isWithinCopyTo() && copyToFields.isEmpty() == false) {
             context = context.createCopyToContext();
             for (String field : copyToFields) {
@@ -732,8 +832,9 @@ class DocumentParser implements Closeable {
             // The path of the dest field might be completely different from the current one so we need to reset it
             context = context.overridePath(new ContentPath(0));
 
-            String[] paths = Strings.splitStringToArray(field, '.');
-            String fieldName = paths[paths.length-1];
+            // TODO: why Strings.splitStringToArray instead of String.split?
+            final String[] paths = Strings.splitStringToArray(field, '.');
+            final String fieldName = paths[paths.length-1];
             ObjectMapper mapper = context.root();
             ObjectMapper[] mappers = new ObjectMapper[paths.length-1];
             if (paths.length > 1) {
@@ -742,10 +843,7 @@ class DocumentParser implements Closeable {
                     mapper = context.docMapper().objectMappers().get(context.path().pathAsText(paths[i]));
                     if (mapper == null) {
                         // One mapping is missing, check if we are allowed to create a dynamic one.
-                        ObjectMapper.Dynamic dynamic = parent.dynamic();
-                        if (dynamic == null) {
-                            dynamic = dynamicOrDefault(context.root().dynamic());
-                        }
+                        ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context);
 
                         switch (dynamic) {
                             case STRICT:
@@ -753,10 +851,6 @@ class DocumentParser implements Closeable {
                             case TRUE:
                                 Mapper.Builder builder = context.root().findTemplateBuilder(context, paths[i], "object");
                                 if (builder == null) {
-                                    // if this is a non root object, then explicitly set the dynamic behavior if set
-                                    if (!(parent instanceof RootObjectMapper) && parent.dynamic() != ObjectMapper.Defaults.DYNAMIC) {
-                                        ((ObjectMapper.Builder) builder).dynamic(parent.dynamic());
-                                    }
                                     builder = new ObjectMapper.Builder(paths[i]).enabled(true);
                                 }
                                 Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
@@ -764,12 +858,11 @@ class DocumentParser implements Closeable {
                                 if (mapper.nested() != ObjectMapper.Nested.NO) {
                                     throw new MapperParsingException("It is forbidden to create dynamic nested objects ([" + context.path().pathAsText(paths[i]) + "]) through `copy_to`");
                                 }
+                                context.addDynamicMapper(mapper);
                                 break;
                             case FALSE:
                               // Maybe we should log something to tell the user that the copy_to is ignored in this case.
                               break;
-                            default:
-                                throw new AssertionError("Unexpected dynamic type " + dynamic);
 
                         }
                     }
@@ -778,42 +871,44 @@ class DocumentParser implements Closeable {
                     parent = mapper;
                 }
             }
-            ObjectMapper update = parseDynamicValue(context, mapper, fieldName, context.parser().currentToken());
-            assert update != null; // we are parsing a dynamic value so we necessarily created a new mapping
+            parseDynamicValue(context, mapper, fieldName, context.parser().currentToken());
+        }
+    }
 
-            if (paths.length > 1) {
-                for (int i = paths.length - 2; i >= 0; i--) {
-                    ObjectMapper parent = context.root();
-                    if (i > 0) {
-                        parent = mappers[i-1];
-                    }
-                    assert parent != null;
-                    update = parent.mappingUpdate(update);
-                }
+    // find what the dynamic setting is given the current parse context and parent
+    private static ObjectMapper.Dynamic dynamicOrDefault(ObjectMapper parentMapper, ParseContext context) {
+        ObjectMapper.Dynamic dynamic = parentMapper.dynamic();
+        while (dynamic == null) {
+            int lastDotNdx = parentMapper.name().lastIndexOf('.');
+            if (lastDotNdx == -1) {
+                // no dot means we the parent is the root, so just delegate to the default outside the loop
+                break;
             }
-            context.addDynamicMappingsUpdate(update);
+            String parentName = parentMapper.name().substring(0, lastDotNdx);
+            parentMapper = context.docMapper().objectMappers().get(parentName);
+            if (parentMapper == null) {
+                // If parentMapper is ever null, it means the parent of the current mapper was dynamically created.
+                // But in order to be created dynamically, the dynamic setting of that parent was necessarily true
+                return ObjectMapper.Dynamic.TRUE;
+            }
+            dynamic = parentMapper.dynamic();
         }
-    }
-
-    /**
-     * Parse the given {@code context} with the given {@code mapper} and apply
-     * the potential mapping update in-place. This method is useful when
-     * composing mapping updates.
-     */
-    private static <M extends Mapper> M parseAndMergeUpdate(M mapper, ParseContext context) throws IOException {
-        final Mapper update = parseObjectOrField(context, mapper);
-        if (update != null) {
-            mapper = (M) mapper.merge(update, false);
+        if (dynamic == null) {
+            return context.root().dynamic() == null ? ObjectMapper.Dynamic.TRUE : context.root().dynamic();
         }
-        return mapper;
+        return dynamic;
     }
 
-    private static ObjectMapper.Dynamic dynamicOrDefault(ObjectMapper.Dynamic dynamic) {
-        return dynamic == null ? ObjectMapper.Dynamic.TRUE : dynamic;
-    }
-
-    @Override
-    public void close() {
-        cache.close();
+    // looks up a child mapper, but takes into account field names that expand to objects
+    static Mapper getMapper(ObjectMapper objectMapper, String fieldName) {
+        String[] subfields = fieldName.split("\\.");
+        for (int i = 0; i < subfields.length - 1; ++i) {
+            Mapper mapper = objectMapper.getMapper(subfields[i]);
+            if (mapper == null || (mapper instanceof ObjectMapper) == false) {
+                return null;
+            }
+            objectMapper = (ObjectMapper)mapper;
+        }
+        return objectMapper.getMapper(subfields[subfields.length - 1]);
     }
 }

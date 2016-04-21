@@ -63,7 +63,7 @@ public class VariousDocTests extends AttachmentUnitTestCase {
     }
 
     /**
-     * Test for https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/104
+     * Test for https://github.com/elastic/elasticsearch-mapper-attachments/issues/104
      */
     public void testWordDocxDocument104() throws Exception {
         assertParseable("issue-104.docx");
@@ -112,7 +112,7 @@ public class VariousDocTests extends AttachmentUnitTestCase {
 
     /**
      * Test for ASCIIDOC
-     * Not yet supported by Tika: https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/29
+     * Not yet supported by Tika: https://github.com/elastic/elasticsearch-mapper-attachments/issues/29
      */
     public void testAsciidocDocument() throws Exception {
         assertParseable("asciidoc.asciidoc");

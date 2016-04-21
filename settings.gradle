@@ -11,11 +11,13 @@ List projects = [
   'test:framework',
   'test:fixtures:example-fixture',
   'test:fixtures:hdfs-fixture',
+  'test:logger-usage',
   'modules:ingest-grok',
   'modules:lang-expression',
   'modules:lang-groovy',
   'modules:lang-mustache',
   'modules:lang-painless',
+  'modules:reindex',
   'plugins:analysis-icu',
   'plugins:analysis-kuromoji',
   'plugins:analysis-phonetic',
@@ -37,9 +39,11 @@ List projects = [
   'plugins:repository-s3',
   'plugins:jvm-example',
   'plugins:store-smb',
+  'qa:backwards-5.0',
   'qa:evil-tests',
   'qa:smoke-test-client',
   'qa:smoke-test-multinode',
+  'qa:smoke-test-reindex-with-groovy',
   'qa:smoke-test-plugins',
   'qa:smoke-test-ingest-with-all-dependencies',
   'qa:smoke-test-ingest-disabled',
@@ -89,4 +93,3 @@ if (xplugins.exists()) {
     addSubProjects(':x-plugins', extraPluginDir)
   }
 }
-

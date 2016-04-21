@@ -22,12 +22,11 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,9 +39,27 @@ public abstract class BucketMetricsPipelineAggregatorBuilder<AF extends BucketMe
     private String format = null;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
 
-    public BucketMetricsPipelineAggregatorBuilder(String name, String type, String[] bucketsPaths) {
+    protected BucketMetricsPipelineAggregatorBuilder(String name, String type, String[] bucketsPaths) {
         super(name, type, bucketsPaths);
     }
+
+    /**
+     * Read from a stream.
+     */
+    protected BucketMetricsPipelineAggregatorBuilder(StreamInput in, String type) throws IOException {
+        super(in, type);
+        format = in.readOptionalString();
+        gapPolicy = GapPolicy.readFrom(in);
+    }
+
+    @Override
+    protected final void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(format);
+        gapPolicy.writeTo(out);
+        innerWriteTo(out);
+    }
+
+    protected abstract void innerWriteTo(StreamOutput out) throws IOException;
 
     /**
      * Sets the format to use on the output of this aggregation.
@@ -60,11 +77,11 @@ public abstract class BucketMetricsPipelineAggregatorBuilder<AF extends BucketMe
         return format;
     }
 
-    protected ValueFormatter formatter() {
+    protected DocValueFormat formatter() {
         if (format != null) {
-            return ValueFormat.Patternable.Number.format(format).formatter();
+            return new DocValueFormat.Decimal(format);
         } else {
-            return ValueFormatter.RAW;
+            return DocValueFormat.RAW;
         }
     }
 
@@ -109,26 +126,6 @@ public abstract class BucketMetricsPipelineAggregatorBuilder<AF extends BucketMe
     }
 
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
-
-    @Override
-    protected final PipelineAggregatorBuilder<AF> doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-        BucketMetricsPipelineAggregatorBuilder<AF> factory = innerReadFrom(name, bucketsPaths, in);
-        factory.format = in.readOptionalString();
-        factory.gapPolicy = GapPolicy.readFrom(in);
-        return factory;
-    }
-
-    protected abstract BucketMetricsPipelineAggregatorBuilder<AF> innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
-            throws IOException;
-
-    @Override
-    protected final void doWriteTo(StreamOutput out) throws IOException {
-        innerWriteTo(out);
-        out.writeOptionalString(format);
-        gapPolicy.writeTo(out);
-    }
-
-    protected abstract void innerWriteTo(StreamOutput out) throws IOException;
 
     @Override
     protected final int doHashCode() {

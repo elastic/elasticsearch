@@ -26,7 +26,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.lang.management.BufferPoolMXBean;
@@ -195,7 +194,7 @@ public class JvmStats implements Streamable, ToXContent {
 
             builder.startObject(Fields.POOLS);
             for (MemoryPool pool : mem) {
-                builder.startObject(pool.getName(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(pool.getName());
                 builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, pool.used);
                 builder.byteSizeField(Fields.MAX_IN_BYTES, Fields.MAX, pool.max);
 
@@ -219,7 +218,7 @@ public class JvmStats implements Streamable, ToXContent {
 
             builder.startObject(Fields.COLLECTORS);
             for (GarbageCollector collector : gc) {
-                builder.startObject(collector.getName(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(collector.getName());
                 builder.field(Fields.COLLECTION_COUNT, collector.getCollectionCount());
                 builder.timeValueField(Fields.COLLECTION_TIME_IN_MILLIS, Fields.COLLECTION_TIME, collector.collectionTime);
                 builder.endObject();
@@ -232,7 +231,7 @@ public class JvmStats implements Streamable, ToXContent {
         if (bufferPools != null) {
             builder.startObject(Fields.BUFFER_POOLS);
             for (BufferPool bufferPool : bufferPools) {
-                builder.startObject(bufferPool.getName(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(bufferPool.getName());
                 builder.field(Fields.COUNT, bufferPool.getCount());
                 builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, bufferPool.used);
                 builder.byteSizeField(Fields.TOTAL_CAPACITY_IN_BYTES, Fields.TOTAL_CAPACITY, bufferPool.totalCapacity);
@@ -254,54 +253,54 @@ public class JvmStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString JVM = new XContentBuilderString("jvm");
-        static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
-        static final XContentBuilderString UPTIME = new XContentBuilderString("uptime");
-        static final XContentBuilderString UPTIME_IN_MILLIS = new XContentBuilderString("uptime_in_millis");
+        static final String JVM = "jvm";
+        static final String TIMESTAMP = "timestamp";
+        static final String UPTIME = "uptime";
+        static final String UPTIME_IN_MILLIS = "uptime_in_millis";
 
-        static final XContentBuilderString MEM = new XContentBuilderString("mem");
-        static final XContentBuilderString HEAP_USED = new XContentBuilderString("heap_used");
-        static final XContentBuilderString HEAP_USED_IN_BYTES = new XContentBuilderString("heap_used_in_bytes");
-        static final XContentBuilderString HEAP_USED_PERCENT = new XContentBuilderString("heap_used_percent");
-        static final XContentBuilderString HEAP_MAX = new XContentBuilderString("heap_max");
-        static final XContentBuilderString HEAP_MAX_IN_BYTES = new XContentBuilderString("heap_max_in_bytes");
-        static final XContentBuilderString HEAP_COMMITTED = new XContentBuilderString("heap_committed");
-        static final XContentBuilderString HEAP_COMMITTED_IN_BYTES = new XContentBuilderString("heap_committed_in_bytes");
+        static final String MEM = "mem";
+        static final String HEAP_USED = "heap_used";
+        static final String HEAP_USED_IN_BYTES = "heap_used_in_bytes";
+        static final String HEAP_USED_PERCENT = "heap_used_percent";
+        static final String HEAP_MAX = "heap_max";
+        static final String HEAP_MAX_IN_BYTES = "heap_max_in_bytes";
+        static final String HEAP_COMMITTED = "heap_committed";
+        static final String HEAP_COMMITTED_IN_BYTES = "heap_committed_in_bytes";
 
-        static final XContentBuilderString NON_HEAP_USED = new XContentBuilderString("non_heap_used");
-        static final XContentBuilderString NON_HEAP_USED_IN_BYTES = new XContentBuilderString("non_heap_used_in_bytes");
-        static final XContentBuilderString NON_HEAP_COMMITTED = new XContentBuilderString("non_heap_committed");
-        static final XContentBuilderString NON_HEAP_COMMITTED_IN_BYTES = new XContentBuilderString("non_heap_committed_in_bytes");
+        static final String NON_HEAP_USED = "non_heap_used";
+        static final String NON_HEAP_USED_IN_BYTES = "non_heap_used_in_bytes";
+        static final String NON_HEAP_COMMITTED = "non_heap_committed";
+        static final String NON_HEAP_COMMITTED_IN_BYTES = "non_heap_committed_in_bytes";
 
-        static final XContentBuilderString POOLS = new XContentBuilderString("pools");
-        static final XContentBuilderString USED = new XContentBuilderString("used");
-        static final XContentBuilderString USED_IN_BYTES = new XContentBuilderString("used_in_bytes");
-        static final XContentBuilderString MAX = new XContentBuilderString("max");
-        static final XContentBuilderString MAX_IN_BYTES = new XContentBuilderString("max_in_bytes");
-        static final XContentBuilderString PEAK_USED = new XContentBuilderString("peak_used");
-        static final XContentBuilderString PEAK_USED_IN_BYTES = new XContentBuilderString("peak_used_in_bytes");
-        static final XContentBuilderString PEAK_MAX = new XContentBuilderString("peak_max");
-        static final XContentBuilderString PEAK_MAX_IN_BYTES = new XContentBuilderString("peak_max_in_bytes");
+        static final String POOLS = "pools";
+        static final String USED = "used";
+        static final String USED_IN_BYTES = "used_in_bytes";
+        static final String MAX = "max";
+        static final String MAX_IN_BYTES = "max_in_bytes";
+        static final String PEAK_USED = "peak_used";
+        static final String PEAK_USED_IN_BYTES = "peak_used_in_bytes";
+        static final String PEAK_MAX = "peak_max";
+        static final String PEAK_MAX_IN_BYTES = "peak_max_in_bytes";
 
-        static final XContentBuilderString THREADS = new XContentBuilderString("threads");
-        static final XContentBuilderString COUNT = new XContentBuilderString("count");
-        static final XContentBuilderString PEAK_COUNT = new XContentBuilderString("peak_count");
+        static final String THREADS = "threads";
+        static final String COUNT = "count";
+        static final String PEAK_COUNT = "peak_count";
 
-        static final XContentBuilderString GC = new XContentBuilderString("gc");
-        static final XContentBuilderString COLLECTORS = new XContentBuilderString("collectors");
-        static final XContentBuilderString COLLECTION_COUNT = new XContentBuilderString("collection_count");
-        static final XContentBuilderString COLLECTION_TIME = new XContentBuilderString("collection_time");
-        static final XContentBuilderString COLLECTION_TIME_IN_MILLIS = new XContentBuilderString("collection_time_in_millis");
+        static final String GC = "gc";
+        static final String COLLECTORS = "collectors";
+        static final String COLLECTION_COUNT = "collection_count";
+        static final String COLLECTION_TIME = "collection_time";
+        static final String COLLECTION_TIME_IN_MILLIS = "collection_time_in_millis";
 
-        static final XContentBuilderString BUFFER_POOLS = new XContentBuilderString("buffer_pools");
-        static final XContentBuilderString NAME = new XContentBuilderString("name");
-        static final XContentBuilderString TOTAL_CAPACITY = new XContentBuilderString("total_capacity");
-        static final XContentBuilderString TOTAL_CAPACITY_IN_BYTES = new XContentBuilderString("total_capacity_in_bytes");
+        static final String BUFFER_POOLS = "buffer_pools";
+        static final String NAME = "name";
+        static final String TOTAL_CAPACITY = "total_capacity";
+        static final String TOTAL_CAPACITY_IN_BYTES = "total_capacity_in_bytes";
 
-        static final XContentBuilderString CLASSES = new XContentBuilderString("classes");
-        static final XContentBuilderString CURRENT_LOADED_COUNT = new XContentBuilderString("current_loaded_count");
-        static final XContentBuilderString TOTAL_LOADED_COUNT = new XContentBuilderString("total_loaded_count");
-        static final XContentBuilderString TOTAL_UNLOADED_COUNT = new XContentBuilderString("total_unloaded_count");
+        static final String CLASSES = "classes";
+        static final String CURRENT_LOADED_COUNT = "current_loaded_count";
+        static final String TOTAL_LOADED_COUNT = "total_loaded_count";
+        static final String TOTAL_UNLOADED_COUNT = "total_unloaded_count";
     }
 
 

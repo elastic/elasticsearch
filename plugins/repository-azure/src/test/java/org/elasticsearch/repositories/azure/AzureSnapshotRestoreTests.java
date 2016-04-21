@@ -105,7 +105,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         Client client = client();
         logger.info("-->  creating azure repository with path [{}]", getRepositoryPath());
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("azure").setSettings(Settings.settingsBuilder()
+                .setType("azure").setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                         .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
                         .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
@@ -174,7 +174,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     }
 
     /**
-     * For issue #51: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/51
+     * For issue #51: https://github.com/elastic/elasticsearch-cloud-azure/issues/51
      */
     public void testMultipleSnapshots() throws URISyntaxException, StorageException {
         final String indexName = "test-idx-1";
@@ -196,7 +196,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
 
         logger.info("creating Azure repository with path [{}]", getRepositoryPath());
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository(repositoryName)
-                .setType("azure").setSettings(Settings.settingsBuilder()
+                .setType("azure").setSettings(Settings.builder()
                                 .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                                 .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
                                 .put(Repository.BASE_PATH_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
@@ -236,14 +236,14 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         Client client = client();
         logger.info("-->  creating azure repository with path [{}]", getRepositoryPath());
         PutRepositoryResponse putRepositoryResponse1 = client.admin().cluster().preparePutRepository("test-repo1")
-                .setType("azure").setSettings(Settings.settingsBuilder()
+                .setType("azure").setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName().concat("-1"))
                         .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
                         .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse1.isAcknowledged(), equalTo(true));
         PutRepositoryResponse putRepositoryResponse2 = client.admin().cluster().preparePutRepository("test-repo2")
-                .setType("azure").setSettings(Settings.settingsBuilder()
+                .setType("azure").setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName().concat("-2"))
                         .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
                         .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
@@ -298,7 +298,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     }
 
     /**
-     * For issue #26: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/26
+     * For issue #26: https://github.com/elastic/elasticsearch-cloud-azure/issues/26
      */
     public void testListBlobs_26() throws StorageException, URISyntaxException {
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
@@ -315,7 +315,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating azure repository without any path");
         PutRepositoryResponse putRepositoryResponse = client.preparePutRepository("test-repo").setType("azure")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -336,7 +336,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
 
         logger.info("-->  creating azure repository path [{}]", getRepositoryPath());
         putRepositoryResponse = client.preparePutRepository("test-repo").setType("azure")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                         .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
         ).get();
@@ -356,13 +356,13 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     }
 
     /**
-     * For issue #28: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/28
+     * For issue #28: https://github.com/elastic/elasticsearch-cloud-azure/issues/28
      */
     public void testGetDeleteNonExistingSnapshot_28() throws StorageException, URISyntaxException {
         ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating azure repository without any path");
         PutRepositoryResponse putRepositoryResponse = client.preparePutRepository("test-repo").setType("azure")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -383,7 +383,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     }
 
     /**
-     * For issue #21: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/21
+     * For issue #21: https://github.com/elastic/elasticsearch-cloud-azure/issues/21
      */
     public void testForbiddenContainerName() throws Exception {
         checkContainerName("", false);
@@ -413,7 +413,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
             public void run() {
                 try {
                     PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
-                            .setType("azure").setSettings(Settings.settingsBuilder()
+                            .setType("azure").setSettings(Settings.builder()
                                             .put(Repository.CONTAINER_SETTING.getKey(), container)
                                             .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
                                             .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
@@ -437,13 +437,13 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     }
 
     /**
-     * Test case for issue #23: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/23
+     * Test case for issue #23: https://github.com/elastic/elasticsearch-cloud-azure/issues/23
      */
     public void testNonExistingRepo_23() {
         Client client = client();
         logger.info("-->  creating azure repository with path [{}]", getRepositoryPath());
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("azure").setSettings(Settings.settingsBuilder()
+                .setType("azure").setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                         .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
                         .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
@@ -491,7 +491,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         logger.info("-->  creating azure repository while container is being removed");
         try {
             client.preparePutRepository("test-repo").setType("azure")
-                    .setSettings(Settings.settingsBuilder()
+                    .setSettings(Settings.builder()
                             .put(Repository.CONTAINER_SETTING.getKey(), container)
                     ).get();
             fail("we should get a RepositoryVerificationException");

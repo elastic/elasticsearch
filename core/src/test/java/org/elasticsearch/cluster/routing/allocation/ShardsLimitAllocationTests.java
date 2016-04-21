@@ -31,13 +31,13 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESAllocationTestCase;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.allocation.RoutingNodesUtils.numberOfShardsOfType;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -46,7 +46,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(ShardsLimitAllocationTests.class);
 
     public void testIndexLevelShardsLimitAllocate() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
+        AllocationService strategy = createAllocationService(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
 
         logger.info("Building initial routing table");
 
@@ -88,7 +88,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
     }
 
     public void testClusterLevelShardsLimitAllocate() {
-        AllocationService strategy = createAllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
                 .build());
@@ -124,7 +124,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().unassigned().size(), equalTo(2));
 
         // Bump the cluster total shards to 2
-        strategy = createAllocationService(settingsBuilder()
+        strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 2)
                 .build());
@@ -146,7 +146,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
     }
 
     public void testIndexLevelShardsLimitRemain() {
-        AllocationService strategy = createAllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -212,7 +212,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
             assertThat(shardRouting.getIndexName(), equalTo("test1"));
         }
 
-        logger.info("update " + ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() + " for test, see that things move");
+        logger.info("update {} for test, see that things move", ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey());
         metaData = MetaData.builder(metaData)
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)

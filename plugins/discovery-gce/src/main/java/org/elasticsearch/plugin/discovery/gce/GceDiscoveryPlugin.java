@@ -21,7 +21,6 @@ package org.elasticsearch.plugin.discovery.gce;
 
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.util.ClassInfo;
-
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cloud.gce.GceModule;
@@ -32,8 +31,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.gce.GceDiscovery;
 import org.elasticsearch.discovery.gce.GceUnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.plugins.Plugin;
 
 import java.security.AccessController;
@@ -42,10 +41,13 @@ import java.util.Collection;
 import java.util.Collections;
 
 public class GceDiscoveryPlugin extends Plugin {
+
+    public static final String GCE = "gce";
+
     static {
         /*
          * GCE's http client changes access levels because its silly and we
-         * can't allow that on any old stack stack so we pull it here, up front,
+         * can't allow that on any old stack so we pull it here, up front,
          * so we can cleanly check the permissions for it. Without this changing
          * the permission can fail if any part of core is on the stack because
          * our plugin permissions don't allow core to "reach through" plugins to
@@ -93,18 +95,16 @@ public class GceDiscoveryPlugin extends Plugin {
     }
 
     public void onModule(DiscoveryModule discoveryModule) {
-        discoveryModule.addDiscoveryType("gce", GceDiscovery.class);
+        discoveryModule.addDiscoveryType(GCE, ZenDiscovery.class);
         // If discovery.type: gce, we add Gce as a unicast provider
-        if (GceDiscovery.GCE.equalsIgnoreCase(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))) {
-            discoveryModule.addUnicastHostProvider(GceUnicastHostsProvider.class);
-        }
+            discoveryModule.addUnicastHostProvider(GCE, GceUnicastHostsProvider.class);
     }
 
     public void onModule(SettingsModule settingsModule) {
         // Register GCE settings
         settingsModule.registerSetting(GceComputeService.PROJECT_SETTING);
         settingsModule.registerSetting(GceComputeService.ZONE_SETTING);
-        settingsModule.registerSetting(GceDiscovery.TAGS_SETTING);
+        settingsModule.registerSetting(GceUnicastHostsProvider.TAGS_SETTING);
         settingsModule.registerSetting(GceComputeService.REFRESH_SETTING);
         settingsModule.registerSetting(GceComputeService.RETRY_SETTING);
         settingsModule.registerSetting(GceComputeService.MAX_WAIT_SETTING);

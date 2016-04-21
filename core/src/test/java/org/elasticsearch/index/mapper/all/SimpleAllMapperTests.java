@@ -19,20 +19,16 @@
 
 package org.elasticsearch.index.mapper.all;
 
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lucene.all.AllEntries;
-import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.all.AllTokenStream;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -62,10 +58,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SimpleAllMapperTests extends ESSingleNodeTestCase {
@@ -77,93 +70,119 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
 
     public void testSimpleAllMappers() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("person", new CompressedXContent(mapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
-        AllField field = (AllField) doc.getField("_all");
-        // One field is boosted so we should see AllTokenStream used:
-        assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null), Matchers.instanceOf(AllTokenStream.class));
-        AllEntries allEntries = field.getAllEntries();
-        assertThat(allEntries.fields().size(), equalTo(3));
-        assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
-        assertThat(allEntries.fields().contains("name.last"), equalTo(true));
-        assertThat(allEntries.fields().contains("simple1"), equalTo(true));
+        IndexableField[] fields = doc.getFields("_all");
+        assertThat(fields.length, equalTo(3));
+        String[] expected = new String[] {"banon", "last location", "1"};
+        for (int i = 0; i < fields.length; i++) {
+            assertThat(fields[i].stringValue(), equalTo(expected[i]));
+            assertThat(fields[i].fieldType().omitNorms(), equalTo(true));
+            if (i == 0) {
+                // The field "name.last" is boosted so we should see AllTokenStream used:
+                assertThat(fields[i].tokenStream(docMapper.mappers().indexAnalyzer(), null),
+                    Matchers.instanceOf(AllTokenStream.class));
+            } else {
+                assertThat(fields[i].tokenStream(docMapper.mappers().indexAnalyzer(), null),
+                    Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
+            }
+        }
         AllFieldMapper mapper = docMapper.allFieldMapper();
-        assertThat(field.fieldType().omitNorms(), equalTo(true));
-        assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(AllTermQuery.class));
+        assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")),
+            Matchers.instanceOf(AllTermQuery.class));
     }
 
     public void testAllMappersNoBoost() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/noboost-mapping.json");
         IndexService index = createIndex("test");
-        DocumentMapper docMapper = index.mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
+        DocumentMapper docMapper = index.mapperService().documentMapperParser().parse("person",
+            new CompressedXContent(mapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
+
         Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
-        AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = field.getAllEntries();
-        assertThat(allEntries.fields().size(), equalTo(3));
-        assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
-        assertThat(allEntries.fields().contains("name.last"), equalTo(true));
-        assertThat(allEntries.fields().contains("simple1"), equalTo(true));
-        assertThat(field.fieldType().omitNorms(), equalTo(false));
+        IndexableField[] fields = doc.getFields("_all");
+        assertThat(fields.length, equalTo(3));
+        String[] expected = new String[] {"banon", "last location", "1"};
+        for (int i = 0; i < fields.length; i++) {
+            assertThat(fields[i].stringValue(), equalTo(expected[i]));
+            assertThat(fields[i].fieldType().omitNorms(), equalTo(false));
+        }
+        AllFieldMapper mapper = docMapper.allFieldMapper();
+        assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")),
+            Matchers.instanceOf(AllTermQuery.class));
     }
 
     public void testAllMappersTermQuery() throws Exception {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_omit_positions_on_all.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
+        String mapping =
+            copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_omit_positions_on_all.json");
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person",
+            new CompressedXContent(mapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
-        AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = field.getAllEntries();
-        assertThat(allEntries.fields().size(), equalTo(3));
-        assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
-        assertThat(allEntries.fields().contains("name.last"), equalTo(true));
-        assertThat(allEntries.fields().contains("simple1"), equalTo(true));
+        IndexableField[] fields = doc.getFields("_all");
+        assertThat(fields.length, equalTo(3));
+        String[] expected = new String[] {"banon", "last location", "1"};
+        for (int i = 0; i < fields.length; i++) {
+            assertThat(fields[i].stringValue(), equalTo(expected[i]));
+            assertThat(fields[i].fieldType().omitNorms(), equalTo(false));
+        }
         AllFieldMapper mapper = docMapper.allFieldMapper();
-        assertThat(field.fieldType().omitNorms(), equalTo(false));
-        assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(AllTermQuery.class));
-
+        assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")),
+            Matchers.instanceOf(AllTermQuery.class));
     }
 
     // #6187: make sure we see AllTermQuery even when offsets are indexed in the _all field:
     public void testAllMappersWithOffsetsTermQuery() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_offsets_on_all.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
+        DocumentMapper docMapper =
+            createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
-        AllField field = (AllField) doc.getField("_all");
-        // _all field indexes positions, and mapping has boosts, so we should see AllTokenStream:
-        assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null), Matchers.instanceOf(AllTokenStream.class));
-        AllEntries allEntries = field.getAllEntries();
-        assertThat(allEntries.fields().size(), equalTo(3));
-        assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
-        assertThat(allEntries.fields().contains("name.last"), equalTo(true));
-        assertThat(allEntries.fields().contains("simple1"), equalTo(true));
+        IndexableField[] fields = doc.getFields("_all");
+        assertThat(fields.length, equalTo(3));
+        String[] expected = new String[] {"banon", "last location", "1"};
+        for (int i = 0; i < fields.length; i++) {
+            assertThat(fields[i].stringValue(), equalTo(expected[i]));
+            assertThat(fields[i].fieldType().omitNorms(), equalTo(false));
+        }
         AllFieldMapper mapper = docMapper.allFieldMapper();
-        assertThat(field.fieldType().omitNorms(), equalTo(false));
-        assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(AllTermQuery.class));
+        assertThat(mapper.fieldType().queryStringTermQuery(new Term("_all", "foobar")),
+            Matchers.instanceOf(AllTermQuery.class));
     }
 
     // #6187: if _all doesn't index positions then we never use AllTokenStream, even if some fields have boost
     public void testBoostWithOmitPositions() throws Exception {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_boost_omit_positions_on_all.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
+        String mapping =
+            copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_boost_omit_positions_on_all.json");
+        DocumentMapper docMapper =
+            createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
-        AllField field = (AllField) doc.getField("_all");
-        // _all field omits positions, so we should not get AllTokenStream even though fields are boosted
-        assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null), Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
+        IndexableField[] fields = doc.getFields("_all");
+        assertThat(fields.length, equalTo(3));
+        for (IndexableField field : fields) {
+            // _all field omits positions, so we should not get AllTokenStream even though fields are boosted
+            assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null),
+                Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
+        }
     }
 
     // #6187: if no fields were boosted, we shouldn't use AllTokenStream
     public void testNoBoost() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/noboost-mapping.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("person", new CompressedXContent(mapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
-        AllField field = (AllField) doc.getField("_all");
-        // no fields have boost, so we should not see AllTokenStream:
-        assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null), Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
+        IndexableField[] fields = doc.getFields("_all");
+        assertThat(fields.length, equalTo(3));
+        for (IndexableField field : fields) {
+            // no fields have boost, so we should not see AllTokenStream:
+            assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer(), null),
+                Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
+        }
     }
 
     public void testSimpleAllMappersWithReparse() throws Exception {
@@ -175,31 +194,38 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         DocumentMapper builtDocMapper = parser.parse("person", new CompressedXContent(builtMapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = builtDocMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
-
-        AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = field.getAllEntries();
-        assertThat(allEntries.fields().toString(), allEntries.fields().size(), equalTo(3));
-        assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
-        assertThat(allEntries.fields().contains("name.last"), equalTo(true));
-        assertThat(allEntries.fields().contains("simple1"), equalTo(true));
-        assertThat(field.fieldType().omitNorms(), equalTo(true));
+        IndexableField[] fields = doc.getFields("_all");
+        assertThat(fields.length, equalTo(3));
+        String[] expected = new String[] {"banon", "last location", "1"};
+        for (int i = 0; i < fields.length; i++) {
+            assertThat(fields[i].stringValue(), equalTo(expected[i]));
+            assertThat(fields[i].fieldType().omitNorms(), equalTo(true));
+            if (i == 0) {
+                // The field "name.last" is boosted so we should see AllTokenStream used:
+                assertThat(fields[i].tokenStream(docMapper.mappers().indexAnalyzer(), null),
+                    Matchers.instanceOf(AllTokenStream.class));
+            } else {
+                assertThat(fields[i].tokenStream(docMapper.mappers().indexAnalyzer(), null),
+                    Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
+            }
+        }
     }
 
     public void testSimpleAllMappersWithStore() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/store-mapping.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("person", new CompressedXContent(mapping));
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
-        AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = field.getAllEntries();
-        assertThat(allEntries.fields().size(), equalTo(2));
-        assertThat(allEntries.fields().contains("name.last"), equalTo(true));
-        assertThat(allEntries.fields().contains("simple1"), equalTo(true));
-
-        String text = field.stringValue();
-        assertThat(text, equalTo(allEntries.buildText()));
-        assertThat(field.fieldType().omitNorms(), equalTo(false));
+        IndexableField[] fields = doc.getFields("_all");
+        assertThat(fields.length, equalTo(2));
+        String[] expected = new String[] {"banon", "1"};
+        for (int i = 0; i < fields.length; i++) {
+            assertThat(fields[i].stringValue(), equalTo(expected[i]));
+            assertThat(fields[i].fieldType().omitNorms(), equalTo(false));
+        }
     }
+
 
     public void testSimpleAllMappersWithReparseWithStore() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
@@ -211,19 +237,17 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = builtDocMapper.parse("test", "person", "1", new BytesArray(json)).rootDoc();
 
-        AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = field.getAllEntries();
-        assertThat(allEntries.fields().size(), equalTo(2));
-        assertThat(allEntries.fields().contains("name.last"), equalTo(true));
-        assertThat(allEntries.fields().contains("simple1"), equalTo(true));
-
-        String text = field.stringValue();
-        assertThat(text, equalTo(allEntries.buildText()));
-        assertThat(field.fieldType().omitNorms(), equalTo(false));
+        IndexableField[] fields = doc.getFields("_all");
+        assertThat(fields.length, equalTo(2));
+        String[] expected = new String[] {"banon", "1"};
+        for (int i = 0; i < fields.length; i++) {
+            assertThat(fields[i].stringValue(), equalTo(expected[i]));
+            assertThat(fields[i].fieldType().omitNorms(), equalTo(false));
+        }
     }
 
     public void testRandom() throws Exception {
-        boolean omitNorms = false;
+        boolean norms = true;
         boolean stored = false;
         boolean enabled = true;
         boolean tv_stored = false;
@@ -239,7 +263,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             allDefault = false;
             mappingBuilder.startObject("_all");
             if (randomBoolean()) {
-                booleanOptionList.add(new Tuple<>("omit_norms", omitNorms = randomBoolean()));
+                booleanOptionList.add(new Tuple<>("norms", norms = randomBoolean()));
             }
             if (randomBoolean()) {
                 booleanOptionList.add(new Tuple<>("store", stored = randomBoolean()));
@@ -272,7 +296,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         String mapping = mappingBuilder.endObject().endObject().bytes().toUtf8();
-        logger.info(mapping);
+        logger.info("Mapping: {}", mapping);
         DocumentMapper docMapper = parser.parse("test", new CompressedXContent(mapping));
         String builtMapping = docMapper.mappingSource().string();
         // reparse it
@@ -283,25 +307,21 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
                 .field("foobar", "foobar")
                 .endObject().bytes().toBytes();
         Document doc = builtDocMapper.parse("test", "test", "1", new BytesArray(json)).rootDoc();
-        AllField field = (AllField) doc.getField("_all");
+        IndexableField[] fields = doc.getFields("_all");
         if (enabled) {
-            assertThat(field.fieldType().omitNorms(), equalTo(omitNorms));
-            assertThat(field.fieldType().stored(), equalTo(stored));
-            assertThat(field.fieldType().storeTermVectorOffsets(), equalTo(tv_offsets));
-            assertThat(field.fieldType().storeTermVectorPayloads(), equalTo(tv_payloads));
-            assertThat(field.fieldType().storeTermVectorPositions(), equalTo(tv_positions));
-            assertThat(field.fieldType().storeTermVectors(), equalTo(tv_stored));
-            AllEntries allEntries = field.getAllEntries();
-            assertThat(allEntries.fields().size(), equalTo(2));
-            assertThat(allEntries.fields().contains("foobar"), equalTo(true));
-            assertThat(allEntries.fields().contains("foo"), equalTo(true));
-            if (!stored) {
-                assertThat(field.stringValue(), nullValue());
+            assertThat(fields.length, equalTo(2));
+            String[] expected = new String[] {"bar", "foobar"};
+            for (int i = 0; i < fields.length; i++) {
+                assertThat(fields[i].fieldType().omitNorms(), equalTo(!norms));
+                assertThat(fields[i].fieldType().stored(), equalTo(stored));
+                assertThat(fields[i].fieldType().storeTermVectorOffsets(), equalTo(tv_offsets));
+                assertThat(fields[i].fieldType().storeTermVectorPayloads(), equalTo(tv_payloads));
+                assertThat(fields[i].fieldType().storeTermVectorPositions(), equalTo(tv_positions));
+                assertThat(fields[i].fieldType().storeTermVectors(), equalTo(tv_stored));
+                assertThat(fields[i].stringValue(), equalTo(expected[i]));
             }
-            String text = stored ? field.stringValue() : "bar foobar";
-            assertThat(text.trim(), equalTo(allEntries.buildText().trim()));
         } else {
-            assertThat(field, nullValue());
+            assertThat(fields.length, equalTo(0));
         }
         if (similarity == null) {
             assertThat(builtDocMapper.allFieldMapper().fieldType().similarity(), nullValue());
@@ -319,8 +339,11 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testMultiField_includeInAllSetToFalse() throws IOException {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/multifield-mapping_include_in_all_set_to_false.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("test", new CompressedXContent(mapping));
+        String mapping =
+            copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/" +
+                "multifield-mapping_include_in_all_set_to_false.json");
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("test", new CompressedXContent(mapping));
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
@@ -331,14 +354,15 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
                 .endObject();
 
         Document doc = docMapper.parse("test", "test", "1", builder.bytes()).rootDoc();
-        AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = field.getAllEntries();
-        assertThat(allEntries.fields(), empty());
+        IndexableField[] fields = doc.getFields("_all");
+        assertThat(fields.length, equalTo(0));
     }
 
     public void testMultiField_defaults() throws IOException {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/multifield-mapping_default.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("test", new CompressedXContent(mapping));
+        String mapping =
+            copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/multifield-mapping_default.json");
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("test", new CompressedXContent(mapping));
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
@@ -349,10 +373,9 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
                 .endObject();
 
         Document doc = docMapper.parse("test", "test", "1", builder.bytes()).rootDoc();
-        AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = field.getAllEntries();
-        assertThat(allEntries.fields(), hasSize(1));
-        assertThat(allEntries.fields(), hasItem("foo.bar"));
+        IndexableField[] fields = doc.getFields("_all");
+        assertThat(fields.length, equalTo(1));
+        assertThat(fields[0].stringValue(), equalTo("Elasticsearch rules!"));
     }
 
     public void testMisplacedTypeInRoot() throws IOException {
@@ -366,7 +389,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    // related to https://github.com/elasticsearch/elasticsearch/issues/5864
+    // related to https://github.com/elastic/elasticsearch/issues/5864
     public void testMistypedTypeInRoot() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mistyped_type_in_root.json");
         try {
@@ -378,9 +401,10 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    // issue https://github.com/elasticsearch/elasticsearch/issues/5864
+    // issue https://github.com/elastic/elasticsearch/issues/5864
     public void testMisplacedMappingAsRoot() throws IOException {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/misplaced_mapping_key_in_root.json");
+        String mapping =
+            copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/misplaced_mapping_key_in_root.json");
         try {
             createIndex("test").mapperService().documentMapperParser().parse("test", new CompressedXContent(mapping));
             fail("Expected MapperParsingException");
@@ -390,13 +414,15 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    // issue https://github.com/elasticsearch/elasticsearch/issues/5864
+    // issue https://github.com/elastic/elasticsearch/issues/5864
     // test that RootObjectMapping still works
     public void testRootObjectMapperPropertiesDoNotCauseException() throws IOException {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_dynamic_template_mapping.json");
+        String mapping =
+            copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_dynamic_template_mapping.json");
         parser.parse("test", new CompressedXContent(mapping));
-        mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_dynamic_date_formats_mapping.json");
+        mapping =
+            copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_dynamic_date_formats_mapping.json");
         parser.parse("test", new CompressedXContent(mapping));
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_date_detection_mapping.json");
         parser.parse("test", new CompressedXContent(mapping));
@@ -404,7 +430,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
         parser.parse("test", new CompressedXContent(mapping));
     }
 
-    // issue https://github.com/elasticsearch/elasticsearch/issues/5864
+    // issue https://github.com/elastic/elasticsearch/issues/5864
     public void testMetadataMappersStillWorking() throws MapperParsingException, IOException {
         String mapping = "{";
         Map<String, String> rootTypes = new HashMap<>();
@@ -430,31 +456,22 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
             createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
             fail();
         } catch (MapperParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("[_all] is always tokenized and cannot have doc values"));
+            assertThat(e.getDetailedMessage(),
+                containsString("[_all] is always tokenized and cannot have doc values"));
         }
 
-
-        mapping = jsonBuilder().startObject().startObject("type")
-            .startObject("_all")
-                .startObject("fielddata")
-                    .field("format", "doc_values")
-            .endObject().endObject().endObject().endObject().string();
-        Settings legacySettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        try {
-            createIndex("test_old", legacySettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-            fail();
-        } catch (MapperParsingException e) {
-            assertThat(e.getDetailedMessage(), containsString("[_all] is always tokenized and cannot have doc values"));
-        }
     }
 
     public void testAutoBoost() throws Exception {
         for (boolean boost : new boolean[] {false, true}) {
             String index = "test_" + boost;
-            IndexService indexService = createIndex(index, client().admin().indices().prepareCreate(index).addMapping("type", "foo", "type=text" + (boost ? ",boost=2" : "")));
+            IndexService indexService =
+                createIndex(index, client().admin().indices().prepareCreate(index)
+                    .addMapping("type", "foo", "type=text" + (boost ? ",boost=2" : "")));
             client().prepareIndex(index, "type").setSource("foo", "bar").get();
             client().admin().indices().prepareRefresh(index).get();
-            Query query = indexService.mapperService().documentMapper("type").allFieldMapper().fieldType().termQuery("bar", null);
+            Query query = indexService.mapperService()
+                .documentMapper("type").allFieldMapper().fieldType().termQuery("bar", null);
             try (Searcher searcher = indexService.getShardOrNull(0).acquireSearcher("tests")) {
                 query = searcher.searcher().rewrite(query);
                 final Class<?> expected = boost ? AllTermQuery.class : TermQuery.class;
@@ -464,15 +481,18 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testIncludeInObjectNotAllowed() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        String mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("type").endObject().endObject().string();
+        DocumentMapper docMapper = createIndex("test").mapperService()
+            .documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         try {
             docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject().field("_all", "foo").endObject().bytes());
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("Field [_all] is a metadata field and cannot be added inside a document"));
+            assertTrue(e.getMessage(),
+                e.getMessage().contains("Field [_all] is a metadata field and cannot be added inside a document"));
         }
     }
 }

@@ -28,11 +28,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChildTaskRequest;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -61,10 +61,10 @@ import java.util.function.Supplier;
  * The base class for transport actions that are interacting with currently running tasks.
  */
 public abstract class TransportTasksAction<
-    OperationTask extends Task,
-    TasksRequest extends BaseTasksRequest<TasksRequest>,
-    TasksResponse extends BaseTasksResponse,
-    TaskResponse extends Writeable<TaskResponse>
+        OperationTask extends Task,
+        TasksRequest extends BaseTasksRequest<TasksRequest>,
+        TasksResponse extends BaseTasksResponse,
+        TaskResponse extends Writeable
     > extends HandledTransportAction<TasksRequest, TasksResponse> {
 
     protected final ClusterName clusterName;
@@ -113,10 +113,10 @@ public abstract class TransportTasksAction<
                     results.add(response);
                 }
             } catch (Exception ex) {
-                exceptions.add(new TaskOperationFailure(clusterService.localNode().id(), task.getId(), ex));
+                exceptions.add(new TaskOperationFailure(clusterService.localNode().getId(), task.getId(), ex));
             }
         });
-        return new NodeTasksResponse(clusterService.localNode().id(), results, exceptions);
+        return new NodeTasksResponse(clusterService.localNode().getId(), results, exceptions);
     }
 
     protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
@@ -124,25 +124,25 @@ public abstract class TransportTasksAction<
     }
 
     protected String[] resolveNodes(TasksRequest request, ClusterState clusterState) {
-        if (request.taskId().isSet()) {
-            return clusterState.nodes().resolveNodesIds(request.nodesIds());
+        if (request.getTaskId().isSet()) {
+            return new String[]{request.getTaskId().getNodeId()};
         } else {
-            return new String[]{request.taskId().getNodeId()};
+            return clusterState.nodes().resolveNodesIds(request.getNodesIds());
         }
     }
 
     protected void processTasks(TasksRequest request, Consumer<OperationTask> operation) {
-        if (request.taskId().isSet() == false) {
+        if (request.getTaskId().isSet()) {
             // we are only checking one task, we can optimize it
-            Task task = taskManager.getTask(request.taskId().getId());
+            Task task = taskManager.getTask(request.getTaskId().getId());
             if (task != null) {
                 if (request.match(task)) {
                     operation.accept((OperationTask) task);
                 } else {
-                    throw new ResourceNotFoundException("task [{}] doesn't support this operation", request.taskId());
+                    throw new ResourceNotFoundException("task [{}] doesn't support this operation", request.getTaskId());
                 }
             } else {
-                throw new ResourceNotFoundException("task [{}] is missing", request.taskId());
+                throw new ResourceNotFoundException("task [{}] is missing", request.getTaskId());
             }
         } else {
             for (Task task : taskManager.getTasks().values()) {
@@ -205,10 +205,10 @@ public abstract class TransportTasksAction<
             ClusterState clusterState = clusterService.state();
             String[] nodesIds = resolveNodes(request, clusterState);
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
-            ImmutableOpenMap<String, DiscoveryNode> nodes = clusterState.nodes().nodes();
+            ImmutableOpenMap<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();
             this.nodes = new DiscoveryNode[nodesIds.length];
-            for (int i = 0; i < nodesIds.length; i++) {
-                this.nodes[i] = nodes.get(nodesIds[i]);
+            for (int i = 0; i < this.nodesIds.length; i++) {
+                this.nodes[i] = nodes.get(this.nodesIds[i]);
             }
             this.responses = new AtomicReferenceArray<>(this.nodesIds.length);
         }
@@ -224,8 +224,8 @@ public abstract class TransportTasksAction<
                 }
             } else {
                 TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-                if (request.timeout() != null) {
-                    builder.withTimeout(request.timeout());
+                if (request.getTimeout() != null) {
+                    builder.withTimeout(request.getTimeout());
                 }
                 builder.withCompress(transportCompress());
                 for (int i = 0; i < nodesIds.length; i++) {
@@ -235,15 +235,9 @@ public abstract class TransportTasksAction<
                     try {
                         if (node == null) {
                             onFailure(idx, nodeId, new NoSuchNodeException(nodeId));
-                        } else if (!clusterService.localNode().shouldConnectTo(node) && !clusterService.localNode().equals(node)) {
-                            // the check "!clusterService.localNode().equals(node)" is to maintain backward comp. where before
-                            // we allowed to connect from "local" client node to itself, certain tests rely on it, if we remove it, we
-                            // need to fix
-                            // those (and they randomize the client node usage, so tricky to find when)
-                            onFailure(idx, nodeId, new NodeShouldNotConnectException(clusterService.localNode(), node));
                         } else {
                             NodeTaskRequest nodeRequest = new NodeTaskRequest(request);
-                            nodeRequest.setParentTask(clusterService.localNode().id(), task.getId());
+                            nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                             taskManager.registerChildTask(task, node.getId());
                             transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
                                 new BaseTransportResponseHandler<NodeTasksResponse>() {
@@ -259,7 +253,7 @@ public abstract class TransportTasksAction<
 
                                     @Override
                                     public void handleException(TransportException exp) {
-                                        onFailure(idx, node.id(), exp);
+                                        onFailure(idx, node.getId(), exp);
                                     }
 
                                     @Override

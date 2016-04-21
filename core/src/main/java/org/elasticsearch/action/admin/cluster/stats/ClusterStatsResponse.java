@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
@@ -110,7 +109,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             status = ClusterHealthStatus.fromValue(in.readByte());
         }
         clusterUUID = in.readString();
-        nodesStats = ClusterStatsNodes.readNodeStats(in);
+        nodesStats = new ClusterStatsNodes(in);
         indicesStats = ClusterStatsIndices.readIndicesStats(in);
     }
 
@@ -130,11 +129,11 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     }
 
     static final class Fields {
-        static final XContentBuilderString NODES = new XContentBuilderString("nodes");
-        static final XContentBuilderString INDICES = new XContentBuilderString("indices");
-        static final XContentBuilderString UUID = new XContentBuilderString("uuid");
-        static final XContentBuilderString CLUSTER_NAME = new XContentBuilderString("cluster_name");
-        static final XContentBuilderString STATUS = new XContentBuilderString("status");
+        static final String NODES = "nodes";
+        static final String INDICES = "indices";
+        static final String UUID = "uuid";
+        static final String CLUSTER_NAME = "cluster_name";
+        static final String STATUS = "status";
     }
 
     @Override

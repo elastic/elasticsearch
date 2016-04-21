@@ -33,7 +33,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
-import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,6 +42,8 @@ import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.net.InetSocketAddress;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 
 public class UnicastZenPingIT extends ESTestCase {
@@ -56,23 +58,25 @@ public class UnicastZenPingIT extends ESTestCase {
         NetworkService networkService = new NetworkService(settings);
         ElectMasterService electMasterService = new ElectMasterService(settings, Version.CURRENT);
 
-        NettyTransport transportA = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
+        NettyTransport transportA = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry(), new NoneCircuitBreakerService());
         final TransportService transportServiceA = new TransportService(transportA, threadPool).start();
         transportServiceA.acceptIncomingRequests();
-        final DiscoveryNode nodeA = new DiscoveryNode("UZP_A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
+        final DiscoveryNode nodeA = new DiscoveryNode("UZP_A", transportServiceA.boundAddress().publishAddress(),
+                emptyMap(), emptySet(), Version.CURRENT);
 
         InetSocketTransportAddress addressA = (InetSocketTransportAddress) transportA.boundAddress().publishAddress();
 
-        NettyTransport transportB = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry());
+        NettyTransport transportB = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT, new NamedWriteableRegistry(), new NoneCircuitBreakerService());
         final TransportService transportServiceB = new TransportService(transportB, threadPool).start();
         transportServiceB.acceptIncomingRequests();
-        final DiscoveryNode nodeB = new DiscoveryNode("UZP_B", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
+        final DiscoveryNode nodeB = new DiscoveryNode("UZP_B", transportServiceA.boundAddress().publishAddress(),
+                emptyMap(), emptySet(), Version.CURRENT);
 
         InetSocketTransportAddress addressB = (InetSocketTransportAddress) transportB.boundAddress().publishAddress();
 
-        Settings hostsSettings = Settings.settingsBuilder().putArray("discovery.zen.ping.unicast.hosts",
-                NetworkAddress.formatAddress(new InetSocketAddress(addressA.address().getAddress(), addressA.address().getPort())),
-                NetworkAddress.formatAddress(new InetSocketAddress(addressB.address().getAddress(), addressB.address().getPort())))
+        Settings hostsSettings = Settings.builder().putArray("discovery.zen.ping.unicast.hosts",
+                NetworkAddress.format(new InetSocketAddress(addressA.address().getAddress(), addressA.address().getPort())),
+                NetworkAddress.format(new InetSocketAddress(addressB.address().getAddress(), addressB.address().getPort())))
                 .build();
 
         UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, transportServiceA, clusterName, Version.CURRENT, electMasterService, null);
@@ -80,11 +84,6 @@ public class UnicastZenPingIT extends ESTestCase {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.builder().put(nodeA).localNodeId("UZP_A").build();
-            }
-
-            @Override
-            public NodeService nodeService() {
-                return null;
             }
 
             @Override
@@ -102,11 +101,6 @@ public class UnicastZenPingIT extends ESTestCase {
             }
 
             @Override
-            public NodeService nodeService() {
-                return null;
-            }
-
-            @Override
             public boolean nodeHasJoinedClusterOnce() {
                 return true;
             }
@@ -117,14 +111,14 @@ public class UnicastZenPingIT extends ESTestCase {
             logger.info("ping from UZP_A");
             ZenPing.PingResponse[] pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(10));
             assertThat(pingResponses.length, equalTo(1));
-            assertThat(pingResponses[0].node().id(), equalTo("UZP_B"));
+            assertThat(pingResponses[0].node().getId(), equalTo("UZP_B"));
             assertTrue(pingResponses[0].hasJoinedOnce());
 
             // ping again, this time from B,
             logger.info("ping from UZP_B");
             pingResponses = zenPingB.pingAndWait(TimeValue.timeValueSeconds(10));
             assertThat(pingResponses.length, equalTo(1));
-            assertThat(pingResponses[0].node().id(), equalTo("UZP_A"));
+            assertThat(pingResponses[0].node().getId(), equalTo("UZP_A"));
             assertFalse(pingResponses[0].hasJoinedOnce());
 
         } finally {

@@ -116,7 +116,7 @@ public abstract class MetaDataStateFormat<T> {
         final Path finalStatePath = stateLocation.resolve(fileName);
         try {
             final String resourceDesc = "MetaDataStateFormat.write(path=\"" + tmpStatePath + "\")";
-            try (OutputStreamIndexOutput out = new OutputStreamIndexOutput(resourceDesc, Files.newOutputStream(tmpStatePath), BUFFER_SIZE)) {
+            try (OutputStreamIndexOutput out = new OutputStreamIndexOutput(resourceDesc, fileName, Files.newOutputStream(tmpStatePath), BUFFER_SIZE)) {
                 CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
                 out.writeInt(format.index());
                 out.writeLong(version);
@@ -295,15 +295,15 @@ public abstract class MetaDataStateFormat<T> {
             try {
                 final Path stateFile = pathAndStateId.file;
                 final long id = pathAndStateId.id;
-                final XContentParser parser;
                 if (pathAndStateId.legacy) { // read the legacy format -- plain XContent
                     final byte[] data = Files.readAllBytes(stateFile);
                     if (data.length == 0) {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());
                         continue;
                     }
-                    parser = XContentHelper.createParser(new BytesArray(data));
-                    state = fromXContent(parser);
+                    try (final XContentParser parser = XContentHelper.createParser(new BytesArray(data))) {
+                        state = fromXContent(parser);
+                    }
                     if (state == null) {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());
                     }
@@ -313,7 +313,7 @@ public abstract class MetaDataStateFormat<T> {
                 }
                 return state;
             } catch (Throwable e) {
-                exceptions.add(e);
+                exceptions.add(new IOException("failed to read " + pathAndStateId.toString(), e));
                 logger.debug("{}: failed to read [{}], ignoring...", e, pathAndStateId.file.toAbsolutePath(), prefix);
             }
         }

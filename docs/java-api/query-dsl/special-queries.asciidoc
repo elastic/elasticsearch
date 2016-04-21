@@ -27,3 +27,5 @@ include::template-query.asciidoc[]
 
 include::script-query.asciidoc[]
 
+include::percolate-query.asciidoc[]
+

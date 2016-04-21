@@ -250,9 +250,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                         } else if (shouldGetFromSource(ignoreErrorsOnGeneratedFields, docMapper, fieldMapper)) {
                             List<Object> values = searchLookup.source().extractRawValues(field);
                             if (!values.isEmpty()) {
-                                for (int i = 0; i < values.size(); i++) {
-                                    values.set(i, fieldMapper.fieldType().valueForSearch(values.get(i)));
-                                }
                                 value = values;
                             }
 

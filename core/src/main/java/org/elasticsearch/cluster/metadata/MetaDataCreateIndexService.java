@@ -28,7 +28,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -39,8 +38,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -53,6 +54,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -85,7 +87,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUI
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  * Service responsible for submitting create index requests
@@ -174,7 +175,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     }
 
     public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        Settings.Builder updatedSettingsBuilder = Settings.settingsBuilder();
+        Settings.Builder updatedSettingsBuilder = Settings.builder();
         updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         indexScopedSettings.validate(updatedSettingsBuilder);
         request.settings(updatedSettingsBuilder.build());
@@ -188,7 +189,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
-                        boolean indexCreated = false;
+                        Index createdIndex = null;
                         String removalReason = null;
                         try {
                             validate(request, currentState);
@@ -264,7 +265,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 }
                             }
 
-                            Settings.Builder indexSettingsBuilder = settingsBuilder();
+                            Settings.Builder indexSettingsBuilder = Settings.builder();
                             // apply templates, here, in reverse order, since first ones are better matching
                             for (int i = templates.size() - 1; i >= 0; i--) {
                                 indexSettingsBuilder.put(templates.get(i).settings());
@@ -293,7 +294,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                             if (indexSettingsBuilder.get(SETTING_VERSION_CREATED) == null) {
                                 DiscoveryNodes nodes = currentState.nodes();
-                                final Version createdVersion = Version.smallest(version, nodes.smallestNonClientNodeVersion());
+                                final Version createdVersion = Version.smallest(version, nodes.getSmallestNonClientNodeVersion());
                                 indexSettingsBuilder.put(SETTING_VERSION_CREATED, createdVersion);
                             }
 
@@ -301,17 +302,16 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 indexSettingsBuilder.put(SETTING_CREATION_DATE, new DateTime(DateTimeZone.UTC).getMillis());
                             }
 
-                            indexSettingsBuilder.put(SETTING_INDEX_UUID, Strings.randomBase64UUID());
+                            indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
                             Settings actualIndexSettings = indexSettingsBuilder.build();
 
                             // Set up everything, now locally create the index to see that things are ok, and apply
                             final IndexMetaData tmpImd = IndexMetaData.builder(request.index()).settings(actualIndexSettings).build();
                             // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                            indicesService.createIndex(nodeServicesProvider, tmpImd, Collections.emptyList());
-                            indexCreated = true;
+                            final IndexService indexService = indicesService.createIndex(nodeServicesProvider, tmpImd, Collections.emptyList());
+                            createdIndex = indexService.index();
                             // now add the mappings
-                            IndexService indexService = indicesService.indexServiceSafe(request.index());
                             MapperService mapperService = indexService.mapperService();
                             // first, add the default mapping
                             if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
@@ -415,9 +415,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             removalReason = "cleaning up after validating index on master";
                             return updatedState;
                         } finally {
-                            if (indexCreated) {
+                            if (createdIndex != null) {
                                 // Index was already partially created - need to clean up
-                                indicesService.removeIndex(request.index(), removalReason != null ? removalReason : "failed to create index");
+                                indicesService.removeIndex(createdIndex, removalReason != null ? removalReason : "failed to create index");
                             }
                         }
                     }

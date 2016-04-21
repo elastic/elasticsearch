@@ -76,6 +76,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
             return this.name;
         }
 
+        /** Returns a newly built mapper. */
         public abstract Y build(BuilderContext context);
     }
 

@@ -23,14 +23,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -38,6 +36,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
@@ -87,7 +86,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
     protected void masterOperation(IndicesShardStoresRequest request, ClusterState state, ActionListener<IndicesShardStoresResponse> listener) {
         final RoutingTable routingTables = state.routingTable();
         final RoutingNodes routingNodes = state.getRoutingNodes();
-        final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         final Set<ShardId> shardIdsToFetch = new HashSet<>();
 
         logger.trace("using cluster state version [{}] to determine shards", state.version());
@@ -110,27 +109,25 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         // we could fetch all shard store info from every node once (nNodes requests)
         // we have to implement a TransportNodesAction instead of using TransportNodesListGatewayStartedShards
         // for fetching shard stores info, that operates on a list of shards instead of a single shard
-        new AsyncShardStoresInfoFetches(state.nodes(), routingNodes, state.metaData(), shardIdsToFetch, listener).start();
+        new AsyncShardStoresInfoFetches(state.nodes(), routingNodes, shardIdsToFetch, listener).start();
     }
 
     @Override
     protected ClusterBlockException checkBlock(IndicesShardStoresRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndices(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     private class AsyncShardStoresInfoFetches {
         private final DiscoveryNodes nodes;
         private final RoutingNodes routingNodes;
-        private final MetaData metaData;
         private final Set<ShardId> shardIds;
         private final ActionListener<IndicesShardStoresResponse> listener;
         private CountDown expectedOps;
         private final Queue<InternalAsyncFetch.Response> fetchResponses;
 
-        AsyncShardStoresInfoFetches(DiscoveryNodes nodes, RoutingNodes routingNodes, MetaData metaData, Set<ShardId> shardIds, ActionListener<IndicesShardStoresResponse> listener) {
+        AsyncShardStoresInfoFetches(DiscoveryNodes nodes, RoutingNodes routingNodes, Set<ShardId> shardIds, ActionListener<IndicesShardStoresResponse> listener) {
             this.nodes = nodes;
             this.routingNodes = routingNodes;
-            this.metaData = metaData;
             this.shardIds = shardIds;
             this.listener = listener;
             this.fetchResponses = new ConcurrentLinkedQueue<>();
@@ -143,7 +140,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             } else {
                 for (ShardId shardId : shardIds) {
                     InternalAsyncFetch fetch = new InternalAsyncFetch(logger, "shard_stores", shardId, listShardStoresInfo);
-                    fetch.fetchData(nodes, metaData, Collections.<String>emptySet());
+                    fetch.fetchData(nodes, Collections.<String>emptySet());
                 }
             }
         }
@@ -194,7 +191,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             }
 
             private IndicesShardStoresResponse.StoreStatus.AllocationStatus getAllocationStatus(String index, int shardID, DiscoveryNode node) {
-                for (ShardRouting shardRouting : routingNodes.node(node.id())) {
+                for (ShardRouting shardRouting : routingNodes.node(node.getId())) {
                     ShardId shardId = shardRouting.shardId();
                     if (shardId.id() == shardID && shardId.getIndexName().equals(index)) {
                         if (shardRouting.primary()) {

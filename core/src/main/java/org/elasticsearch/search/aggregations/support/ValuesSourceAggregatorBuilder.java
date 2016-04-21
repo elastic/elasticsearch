@@ -26,20 +26,16 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
@@ -60,6 +56,21 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
             super(name, type, valuesSourceType, targetValueType);
         }
 
+        /**
+         * Read an aggregation from a stream that does not serialize its targetValueType. This should be used by most subclasses.
+         */
+        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
+            super(in, type, valuesSourceType, targetValueType);
+        }
+
+        /**
+         * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
+         * {@link #serializeTargetValueType()} to return true.
+         */
+        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType) throws IOException {
+            super(in, type, valuesSourceType);
+        }
+
         @Override
         public AB subAggregations(Builder subFactories) {
             throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
@@ -73,7 +84,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     private ValueType valueType = null;
     private String format = null;
     private Object missing = null;
-    private DateTimeZone timeZone;
+    private DateTimeZone timeZone = null;
     protected ValuesSourceConfig<VS> config;
 
     protected ValuesSourceAggregatorBuilder(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
@@ -83,6 +94,87 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         }
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
+    }
+
+    /**
+     * Read an aggregation from a stream that does not serialize its targetValueType. This should be used by most subclasses.
+     */
+    protected ValuesSourceAggregatorBuilder(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType)
+            throws IOException {
+        super(in, type);
+        assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
+        this.valuesSourceType = valuesSourceType;
+        this.targetValueType = targetValueType;
+        read(in);
+    }
+
+    /**
+     * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
+     * {@link #serializeTargetValueType()} to return true.
+     */
+    protected ValuesSourceAggregatorBuilder(StreamInput in, Type type, ValuesSourceType valuesSourceType) throws IOException {
+        super(in, type);
+        assert serializeTargetValueType() : "Wrong read constructor called for subclass that serializes its targetValueType";
+        this.valuesSourceType = valuesSourceType;
+        this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
+        read(in);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    private void read(StreamInput in) throws IOException {
+        field = in.readOptionalString();
+        if (in.readBoolean()) {
+            script = Script.readScript(in);
+        }
+        if (in.readBoolean()) {
+            valueType = ValueType.readFromStream(in);
+        }
+        format = in.readOptionalString();
+        missing = in.readGenericValue();
+        if (in.readBoolean()) {
+            timeZone = DateTimeZone.forID(in.readString());
+        }
+    }
+
+    @Override
+    protected final void doWriteTo(StreamOutput out) throws IOException {
+        if (serializeTargetValueType()) {
+            out.writeOptionalWriteable(targetValueType);
+        }
+        out.writeOptionalString(field);
+        boolean hasScript = script != null;
+        out.writeBoolean(hasScript);
+        if (hasScript) {
+            script.writeTo(out);
+        }
+        boolean hasValueType = valueType != null;
+        out.writeBoolean(hasValueType);
+        if (hasValueType) {
+            valueType.writeTo(out);
+        }
+        out.writeOptionalString(format);
+        out.writeGenericValue(missing);
+        boolean hasTimeZone = timeZone != null;
+        out.writeBoolean(hasTimeZone);
+        if (hasTimeZone) {
+            out.writeString(timeZone.getID());
+        }
+        innerWriteTo(out);
+    }
+
+    /**
+     * Write subclass's state to the stream.
+     */
+    protected abstract void innerWriteTo(StreamOutput out) throws IOException;
+
+    /**
+     * Should this builder serialize its targetValueType? Defaults to false. All subclasses that override this to true should use the three
+     * argument read constructor rather than the four argument version.
+     */
+    protected boolean serializeTargetValueType() {
+        return false;
     }
 
     /**
@@ -279,7 +371,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         config.missing = missing;
         config.timeZone = timeZone;
         config.script = createScript(script, context.searchContext());
-        config.format = resolveFormat(format, this.timeZone, fieldType);
+        config.format = fieldType.docValueFormat(format, timeZone);
         return config;
     }
 
@@ -288,91 +380,16 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
                 : context.scriptService().search(context.lookup(), script, ScriptContext.Standard.AGGS, Collections.emptyMap());
     }
 
-    private static ValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
+    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
         if (valueType == null) {
-            return ValueFormat.RAW; // we can't figure it out
+            return DocValueFormat.RAW; // we can't figure it out
         }
-        ValueFormat valueFormat = valueType.defaultFormat;
-        if (valueFormat != null && valueFormat instanceof ValueFormat.Patternable && format != null) {
-            return ((ValueFormat.Patternable) valueFormat).create(format);
+        DocValueFormat valueFormat = valueType.defaultFormat;
+        if (valueFormat instanceof DocValueFormat.Decimal && format != null) {
+            valueFormat = new DocValueFormat.Decimal(format);
         }
         return valueFormat;
     }
-
-    private static ValueFormat resolveFormat(@Nullable String format, @Nullable DateTimeZone timezone, MappedFieldType fieldType) {
-        if (fieldType instanceof DateFieldMapper.DateFieldType) {
-            return format != null ? ValueFormat.DateTime.format(format, timezone) : ValueFormat.DateTime.mapper(
-                    (DateFieldMapper.DateFieldType) fieldType, timezone);
-        }
-        if (fieldType instanceof IpFieldMapper.IpFieldType) {
-            return ValueFormat.IPv4;
-        }
-        if (fieldType instanceof BooleanFieldMapper.BooleanFieldType) {
-            return ValueFormat.BOOLEAN;
-        }
-        if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-            return format != null ? ValueFormat.Number.format(format) : ValueFormat.RAW;
-        }
-        return ValueFormat.RAW;
-    }
-
-    @Override
-    protected final void doWriteTo(StreamOutput out) throws IOException {
-        valuesSourceType.writeTo(out);
-        boolean hasTargetValueType = targetValueType != null;
-        out.writeBoolean(hasTargetValueType);
-        if (hasTargetValueType) {
-            targetValueType.writeTo(out);
-        }
-        innerWriteTo(out);
-        out.writeOptionalString(field);
-        boolean hasScript = script != null;
-        out.writeBoolean(hasScript);
-        if (hasScript) {
-            script.writeTo(out);
-        }
-        boolean hasValueType = valueType != null;
-        out.writeBoolean(hasValueType);
-        if (hasValueType) {
-            valueType.writeTo(out);
-        }
-        out.writeOptionalString(format);
-        out.writeGenericValue(missing);
-        boolean hasTimeZone = timeZone != null;
-        out.writeBoolean(hasTimeZone);
-        if (hasTimeZone) {
-            out.writeString(timeZone.getID());
-        }
-    }
-
-    protected abstract void innerWriteTo(StreamOutput out) throws IOException;
-
-    @SuppressWarnings("unchecked")
-    @Override
-    protected final AB doReadFrom(String name, StreamInput in) throws IOException {
-        ValuesSourceType valuesSourceType = ValuesSourceType.ANY.readFrom(in);
-        ValueType targetValueType = null;
-        if (in.readBoolean()) {
-            targetValueType = ValueType.STRING.readFrom(in);
-        }
-        ValuesSourceAggregatorBuilder<VS, AB> factory = innerReadFrom(name, valuesSourceType, targetValueType, in);
-        factory.field = in.readOptionalString();
-        if (in.readBoolean()) {
-            factory.script = Script.readScript(in);
-        }
-        if (in.readBoolean()) {
-            factory.valueType = ValueType.STRING.readFrom(in);
-        }
-        factory.format = in.readOptionalString();
-        factory.missing = in.readGenericValue();
-        if (in.readBoolean()) {
-            factory.timeZone = DateTimeZone.forID(in.readString());
-        }
-        return (AB) factory;
-    }
-
-    protected abstract ValuesSourceAggregatorBuilder<VS, AB> innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

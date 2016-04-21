@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardStateMetaData;
@@ -67,9 +68,13 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
         }
     };
 
-    public static final Setting<String> NODE_INITIAL_SHARDS_SETTING = new Setting<>("gateway.initial_shards", (settings) -> settings.get("gateway.local.initial_shards", "quorum"), INITIAL_SHARDS_PARSER, true, Setting.Scope.CLUSTER);
+    public static final Setting<String> NODE_INITIAL_SHARDS_SETTING =
+        new Setting<>("gateway.initial_shards", (settings) -> settings.get("gateway.local.initial_shards", "quorum"), INITIAL_SHARDS_PARSER,
+            Property.Dynamic, Property.NodeScope);
     @Deprecated
-    public static final Setting<String> INDEX_RECOVERY_INITIAL_SHARDS_SETTING = new Setting<>("index.recovery.initial_shards", (settings) -> NODE_INITIAL_SHARDS_SETTING.get(settings) , INITIAL_SHARDS_PARSER, true, Setting.Scope.INDEX);
+    public static final Setting<String> INDEX_RECOVERY_INITIAL_SHARDS_SETTING =
+        new Setting<>("index.recovery.initial_shards", (settings) -> NODE_INITIAL_SHARDS_SETTING.get(settings) , INITIAL_SHARDS_PARSER,
+            Property.Dynamic, Property.IndexScope);
 
     public PrimaryShardAllocator(Settings settings) {
         super(settings);
@@ -89,7 +94,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 continue;
             }
 
-            final IndexMetaData indexMetaData = metaData.index(shard.getIndexName());
+            final IndexMetaData indexMetaData = metaData.getIndexSafe(shard.index());
             // don't go wild here and create a new IndexSetting object for every shard this could cause a lot of garbage
             // on cluster restart if we allocate a boat load of shards
             if (shard.allocatedPostIndexCreate(indexMetaData) == false) {
@@ -113,7 +118,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             final boolean enoughAllocationsFound;
 
             if (lastActiveAllocationIds.isEmpty()) {
-                assert Version.indexCreated(indexMetaData.getSettings()).before(Version.V_3_0_0) : "trying to allocated a primary with an empty allocation id set, but index is new";
+                assert Version.indexCreated(indexMetaData.getSettings()).before(Version.V_5_0_0_alpha1) : "trying to allocated a primary with an empty allocation id set, but index is new";
                 // when we load an old index (after upgrading cluster) or restore a snapshot of an old index
                 // fall back to old version-based allocation mode
                 // Note that once the shard has been active, lastActiveAllocationIds will be non-empty
@@ -123,7 +128,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 } else {
                     enoughAllocationsFound = isEnoughVersionBasedAllocationsFound(indexMetaData, nodeShardsResult);
                 }
-                logger.debug("[{}][{}]: version-based allocation for pre-{} index found {} allocations of {}", shard.index(), shard.id(), Version.V_3_0_0, nodeShardsResult.allocationsFound, shard);
+                logger.debug("[{}][{}]: version-based allocation for pre-{} index found {} allocations of {}", shard.index(), shard.id(), Version.V_5_0_0_alpha1, nodeShardsResult.allocationsFound, shard);
             } else {
                 assert lastActiveAllocationIds.isEmpty() == false;
                 // use allocation ids to select nodes
@@ -153,12 +158,12 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 NodeGatewayStartedShards nodeShardState = nodesToAllocate.yesNodeShards.get(0);
                 logger.debug("[{}][{}]: allocating [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, nodeShardState.getNode());
                 changed = true;
-                unassignedIterator.initialize(nodeShardState.getNode().id(), nodeShardState.allocationId(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                unassignedIterator.initialize(nodeShardState.getNode().getId(), nodeShardState.allocationId(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
             } else if (nodesToAllocate.throttleNodeShards.isEmpty() == true && nodesToAllocate.noNodeShards.isEmpty() == false) {
                 NodeGatewayStartedShards nodeShardState = nodesToAllocate.noNodeShards.get(0);
                 logger.debug("[{}][{}]: forcing allocating [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, nodeShardState.getNode());
                 changed = true;
-                unassignedIterator.initialize(nodeShardState.getNode().id(), nodeShardState.allocationId(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                unassignedIterator.initialize(nodeShardState.getNode().getId(), nodeShardState.allocationId(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
             } else {
                 // we are throttling this, but we have enough to allocate to this node, ignore it for now
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, nodesToAllocate.throttleNodeShards);
@@ -182,17 +187,19 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             DiscoveryNode node = nodeShardState.getNode();
             String allocationId = nodeShardState.allocationId();
 
-            if (ignoreNodes.contains(node.id())) {
+            if (ignoreNodes.contains(node.getId())) {
                 continue;
             }
 
             if (nodeShardState.storeException() == null) {
-                if (allocationId == null && nodeShardState.legacyVersion() != ShardStateMetaData.NO_VERSION) {
-                    // old shard with no allocation id, assign dummy value so that it gets added below in case of matchAnyShard
-                    allocationId = "_n/a_";
+                if (allocationId == null && nodeShardState.legacyVersion() == ShardStateMetaData.NO_VERSION) {
+                    logger.trace("[{}] on node [{}] has no shard state information", shard, nodeShardState.getNode());
+                } else if (allocationId != null) {
+                    assert nodeShardState.legacyVersion() == ShardStateMetaData.NO_VERSION : "Allocation id and legacy version cannot be both present";
+                    logger.trace("[{}] on node [{}] has allocation id [{}]", shard, nodeShardState.getNode(), allocationId);
+                } else {
+                    logger.trace("[{}] on node [{}] has no allocation id, out-dated shard (shard state version: [{}])", shard, nodeShardState.getNode(), nodeShardState.legacyVersion());
                 }
-
-                logger.trace("[{}] on node [{}] has allocation id [{}] of shard", shard, nodeShardState.getNode(), allocationId);
             } else {
                 logger.trace("[{}] on node [{}] has allocation id [{}] but the store can not be opened, treating as no allocation id", nodeShardState.storeException(), shard, nodeShardState.getNode(), allocationId);
                 allocationId = null;
@@ -265,7 +272,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
         List<NodeGatewayStartedShards> throttledNodeShards = new ArrayList<>();
         List<NodeGatewayStartedShards> noNodeShards = new ArrayList<>();
         for (NodeGatewayStartedShards nodeShardState : nodeShardStates) {
-            RoutingNode node = allocation.routingNodes().node(nodeShardState.getNode().id());
+            RoutingNode node = allocation.routingNodes().node(nodeShardState.getNode().getId());
             if (node == null) {
                 continue;
             }
@@ -295,13 +302,24 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             long version = nodeShardState.legacyVersion();
             DiscoveryNode node = nodeShardState.getNode();
 
-            if (ignoreNodes.contains(node.id())) {
+            if (ignoreNodes.contains(node.getId())) {
                 continue;
             }
 
-            // no version means it does not exists, which is what the API returns, and what we expect to
             if (nodeShardState.storeException() == null) {
-                logger.trace("[{}] on node [{}] has version [{}] of shard", shard, nodeShardState.getNode(), version);
+                if (version == ShardStateMetaData.NO_VERSION && nodeShardState.allocationId() == null) {
+                    logger.trace("[{}] on node [{}] has no shard state information", shard, nodeShardState.getNode());
+                } else if (version != ShardStateMetaData.NO_VERSION) {
+                    assert nodeShardState.allocationId() == null : "Allocation id and legacy version cannot be both present";
+                    logger.trace("[{}] on node [{}] has version [{}] of shard", shard, nodeShardState.getNode(), version);
+                } else {
+                    // shard was already selected in a 5.x cluster as primary for recovery, was initialized (and wrote a new state file) but
+                    // did not make it to STARTED state before the cluster crashed (otherwise list of active allocation ids would be
+                    // non-empty and allocation id - based allocation mode would be chosen).
+                    // Prefer this shard copy again.
+                    version = Long.MAX_VALUE;
+                    logger.trace("[{}] on node [{}] has allocation id [{}]", shard, nodeShardState.getNode(), nodeShardState.allocationId());
+                }
             } else {
                 // when there is an store exception, we disregard the reported version and assign it as no version (same as shard does not exist)
                 logger.trace("[{}] on node [{}] has version [{}] but the store can not be opened, treating no version", nodeShardState.storeException(), shard, nodeShardState.getNode(), version);

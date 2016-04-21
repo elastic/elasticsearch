@@ -19,9 +19,13 @@
 
 package org.elasticsearch.node.internal;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.cli.CliToolTestCase;
-import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
@@ -29,17 +33,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class InternalSettingsPreparerTests extends ESTestCase {
 
@@ -47,7 +42,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
 
     @Before
     public void createBaseEnvSettings() {
-        baseEnvSettings = settingsBuilder()
+        baseEnvSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
     }
@@ -81,19 +76,11 @@ public class InternalSettingsPreparerTests extends ESTestCase {
     }
 
     public void testReplacePromptPlaceholders() {
-        final Terminal terminal = new CliToolTestCase.MockTerminal() {
-            @Override
-            public char[] readSecret(String message) {
-                return "replaced".toCharArray();
-            }
+        MockTerminal terminal = new MockTerminal();
+        terminal.addTextInput("text");
+        terminal.addSecretInput("replaced");
 
-            @Override
-            public String readText(String message) {
-                return "text";
-            }
-        };
-
-        Settings.Builder builder = settingsBuilder()
+        Settings.Builder builder = Settings.builder()
                 .put(baseEnvSettings)
                 .put("password.replace", InternalSettingsPreparer.SECRET_PROMPT_VALUE)
                 .put("dont.replace", "prompt:secret")
@@ -116,7 +103,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
     }
 
     public void testReplaceSecretPromptPlaceholderWithNullTerminal() {
-        Settings.Builder builder = settingsBuilder()
+        Settings.Builder builder = Settings.builder()
                 .put(baseEnvSettings)
                 .put("replace_me1", InternalSettingsPreparer.SECRET_PROMPT_VALUE);
         try {
@@ -128,7 +115,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
     }
 
     public void testReplaceTextPromptPlaceholderWithNullTerminal() {
-        Settings.Builder builder = settingsBuilder()
+        Settings.Builder builder = Settings.builder()
                 .put(baseEnvSettings)
                 .put("replace_me1", InternalSettingsPreparer.TEXT_PROMPT_VALUE);
         try {
@@ -146,7 +133,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
             Path config = home.resolve("config");
             Files.createDirectory(config);
             Files.copy(garbage, config.resolve("elasticsearch.yml"));
-            InternalSettingsPreparer.prepareEnvironment(settingsBuilder()
+            InternalSettingsPreparer.prepareEnvironment(Settings.builder()
                 .put("config.ignore_system_properties", true)
                 .put(baseEnvSettings)
                 .build(), null);
@@ -165,7 +152,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         Files.copy(properties, config.resolve("elasticsearch.properties"));
 
         try {
-            InternalSettingsPreparer.prepareEnvironment(settingsBuilder()
+            InternalSettingsPreparer.prepareEnvironment(Settings.builder()
                 .put("config.ignore_system_properties", true)
                 .put(baseEnvSettings)
                 .build(), null);

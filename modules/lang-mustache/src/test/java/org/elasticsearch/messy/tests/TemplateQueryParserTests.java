@@ -23,8 +23,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
@@ -48,7 +48,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.TemplateQueryParser;
+import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -88,7 +88,7 @@ public class TemplateQueryParserTests extends ESTestCase {
 
     @Before
     public void setup() throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(Environment.PATH_CONF_SETTING.getKey(), this.getDataPath("config"))
                 .put("node.name", getClass().getName())
@@ -115,10 +115,6 @@ public class TemplateQueryParserTests extends ESTestCase {
                     @Override
                     protected void configureSearch() {
                         // skip so we don't need transport
-                    }
-                    @Override
-                    protected void configureSuggesters() {
-                        // skip so we don't need IndicesService
                     }
                 },
                 scriptModule,
@@ -153,7 +149,7 @@ public class TemplateQueryParserTests extends ESTestCase {
             }
         });
         IndicesQueriesRegistry indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
-        context = new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry);
+        context = new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry, null, null);
     }
 
     @Override
@@ -167,11 +163,11 @@ public class TemplateQueryParserTests extends ESTestCase {
         String templateString = "{" + "\"query\":{\"match_{{template}}\": {}}," + "\"params\":{\"template\":\"all\"}" + "}";
 
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
-        context.reset(templateSourceParser);
+        context.reset();
         templateSourceParser.nextToken();
 
-        TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
-        Query query = QueryBuilder.rewriteQuery(parser.fromXContent(context.parseContext()), context).toQuery(context);
+        Query query = QueryBuilder.rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)),
+                context).toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
 
@@ -179,10 +175,9 @@ public class TemplateQueryParserTests extends ESTestCase {
         String templateString = "{" + "  \"inline\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\"," + "  \"params\":{"
                 + "    \"template\":\"all\"," + "    \"use_it\": true" + "  }" + "}";
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
-        context.reset(templateSourceParser);
+        context.reset();
 
-        TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
-        Query query = QueryBuilder.rewriteQuery(parser.fromXContent(context.parseContext()), context).toQuery(context);
+        Query query = QueryBuilder.rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)), context).toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
 
@@ -196,11 +191,10 @@ public class TemplateQueryParserTests extends ESTestCase {
                 + "  \"params\":{" + "    \"size\":2" + "  }\n" + "}";
 
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
-        context.reset(templateSourceParser);
+        context.reset();
 
-        TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
         try {
-            parser.fromXContent(context.parseContext()).rewrite(context);
+            TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).rewrite(context);
             fail("Expected ParsingException");
         } catch (ParsingException e) {
             assertThat(e.getMessage(), containsString("query malformed, no field after start_object"));
@@ -211,12 +205,12 @@ public class TemplateQueryParserTests extends ESTestCase {
         String templateString = "{ \"file\": \"storedTemplate\" ,\"params\":{\"template\":\"all\" } } ";
 
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
-        context.reset(templateSourceParser);
+        context.reset();
         templateSourceParser.nextToken();
 
 
-        TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
-        Query query = QueryBuilder.rewriteQuery(parser.fromXContent(context.parseContext()), context).toQuery(context);
+        Query query = QueryBuilder.rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)),
+                context).toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
 
@@ -224,11 +218,10 @@ public class TemplateQueryParserTests extends ESTestCase {
         String templateString = "{ \"file\": \"storedTemplate\" ,\"params\":{\"template\":\"all\" } } ";
 
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
-        context.reset(templateSourceParser);
+        context.reset();
         templateSourceParser.nextToken();
-        TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
         try {
-            parser.fromXContent(context.parseContext()).toQuery(context);
+            TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).toQuery(context);
             fail();
         } catch (UnsupportedOperationException ex) {
             assertEquals("this query must be rewritten first", ex.getMessage());

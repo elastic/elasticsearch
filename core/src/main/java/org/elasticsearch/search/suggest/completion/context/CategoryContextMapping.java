@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A {@link ContextMapping} that uses a simple string as a criteria
@@ -44,7 +46,7 @@ import java.util.Set;
  * {@link CategoryQueryContext} defines options for constructing
  * a unit of query context for this context type
  */
-public class CategoryContextMapping extends ContextMapping {
+public class CategoryContextMapping extends ContextMapping<CategoryQueryContext> {
 
     private static final String FIELD_FIELDNAME = "path";
 
@@ -137,6 +139,11 @@ public class CategoryContextMapping extends ContextMapping {
         return (values == null) ? Collections.<CharSequence>emptySet() : values;
     }
 
+    @Override
+    protected CategoryQueryContext fromXContent(QueryParseContext context) throws IOException {
+        return CategoryQueryContext.fromXContent(context);
+    }
+
     /**
      * Parse a list of {@link CategoryQueryContext}
      * using <code>parser</code>. A QueryContexts accepts one of the following forms:
@@ -154,19 +161,13 @@ public class CategoryContextMapping extends ContextMapping {
      *  </ul>
      */
     @Override
-    public List<QueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
-        List<QueryContext> queryContexts = new ArrayList<>();
-        Token token = parser.nextToken();
-        if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
-            CategoryQueryContext parse = CategoryQueryContext.parse(parser);
-            queryContexts.add(new QueryContext(parse.getCategory().toString(), parse.getBoost(), parse.isPrefix()));
-        } else if (token == Token.START_ARRAY) {
-            while (parser.nextToken() != Token.END_ARRAY) {
-                CategoryQueryContext parse = CategoryQueryContext.parse(parser);
-                queryContexts.add(new QueryContext(parse.getCategory().toString(), parse.getBoost(), parse.isPrefix()));
-            }
-        }
-        return queryContexts;
+    public List<InternalQueryContext> toInternalQueryContexts(List<CategoryQueryContext> queryContexts) {
+        List<InternalQueryContext> internalInternalQueryContexts = new ArrayList<>(queryContexts.size());
+        internalInternalQueryContexts.addAll(
+            queryContexts.stream()
+                .map(queryContext -> new InternalQueryContext(queryContext.getCategory(), queryContext.getBoost(), queryContext.isPrefix()))
+                .collect(Collectors.toList()));
+        return internalInternalQueryContexts;
     }
 
     @Override

@@ -43,7 +43,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
-@ESBackcompatTestCase.CompatibilityVersion(version = Version.V_1_2_0_ID) // we throw an exception if we create an index with _field_names that is 1.3
 public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -117,7 +116,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
 
     /**
      * Test case for #5030: Upgrading analysis plugins fails
-     * See https://github.com/elasticsearch/elasticsearch/issues/5030
+     * See https://github.com/elastic/elasticsearch/issues/5030
      */
     public void testThatPluginAnalyzersCanBeUpdated() throws Exception {
         final XContentBuilder mapping = jsonBuilder().startObject()

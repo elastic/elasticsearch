@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -45,12 +46,17 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    private static String DEFAULT_METRICS = Strings.arrayToCommaDelimitedString(EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray());
+    private static String DEFAULT_METRICS = Strings
+            .arrayToCommaDelimitedString(EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray());
+
+    private final AllocationCommandRegistry registry;
 
     @Inject
-    public RestClusterRerouteAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
+    public RestClusterRerouteAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter,
+            AllocationCommandRegistry registry) {
         super(settings, client);
         this.settingsFilter = settingsFilter;
+        this.registry = registry;
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/reroute", this);
     }
 
@@ -62,7 +68,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         clusterRerouteRequest.timeout(request.paramAsTime("timeout", clusterRerouteRequest.timeout()));
         clusterRerouteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRerouteRequest.masterNodeTimeout()));
         if (request.hasContent()) {
-            clusterRerouteRequest.source(request.content());
+            clusterRerouteRequest.source(request.content(), registry, parseFieldMatcher);
         }
 
         client.admin().cluster().reroute(clusterRerouteRequest, new AcknowledgedRestListener<ClusterRerouteResponse>(channel) {

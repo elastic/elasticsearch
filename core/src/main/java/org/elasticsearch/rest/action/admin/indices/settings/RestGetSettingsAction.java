@@ -77,7 +77,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
                     if (cursor.value.getAsMap().isEmpty()) {
                         continue;
                     }
-                    builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject(cursor.key);
                     builder.startObject("settings");
                     cursor.value.toXContent(builder, request);
                     builder.endObject();

@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -106,9 +107,20 @@ public class FilterIT extends ESIntegTestCase {
     }
 
     // See NullPointer issue when filters are empty:
-    // https://github.com/elasticsearch/elasticsearch/issues/8438
+    // https://github.com/elastic/elasticsearch/issues/8438
     public void testEmptyFilterDeclarations() throws Exception {
-        QueryBuilder emptyFilter = new BoolQueryBuilder();
+        QueryBuilder<?> emptyFilter = new BoolQueryBuilder();
+        SearchResponse response = client().prepareSearch("idx").addAggregation(filter("tag1", emptyFilter)).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Filter filter = response.getAggregations().get("tag1");
+        assertThat(filter, notNullValue());
+        assertThat(filter.getDocCount(), equalTo((long) numDocs));
+    }
+
+    public void testEmptyFilter() throws Exception {
+        QueryBuilder<?> emptyFilter = new EmptyQueryBuilder();
         SearchResponse response = client().prepareSearch("idx").addAggregation(filter("tag1", emptyFilter)).execute().actionGet();
 
         assertSearchResponse(response);

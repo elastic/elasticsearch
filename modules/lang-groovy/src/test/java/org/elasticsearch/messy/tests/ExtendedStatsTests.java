@@ -19,25 +19,34 @@
 package org.elasticsearch.messy.tests;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.missing.Missing;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.metrics.AbstractNumericTestCase;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats.Bounds;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.missing;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -117,6 +126,24 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getStdDeviation(), equalTo(Double.NaN));
         assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER)), is(true));
         assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER)), is(true));
+    }
+
+    public void testPartiallyUnmapped() {
+        double sigma = randomDouble() * 5;
+        ExtendedStats s1 = client().prepareSearch("idx")
+                .addAggregation(extendedStats("stats").field("value").sigma(sigma)).get()
+                .getAggregations().get("stats");
+        ExtendedStats s2 = client().prepareSearch("idx", "idx_unmapped")
+                .addAggregation(extendedStats("stats").field("value").sigma(sigma)).get()
+                .getAggregations().get("stats");
+        assertEquals(s1.getAvg(), s2.getAvg(), 1e-10);
+        assertEquals(s1.getCount(), s2.getCount());
+        assertEquals(s1.getMin(), s2.getMin(), 0d);
+        assertEquals(s1.getMax(), s2.getMax(), 0d);
+        assertEquals(s1.getStdDeviation(), s2.getStdDeviation(), 1e-10);
+        assertEquals(s1.getSumOfSquares(), s2.getSumOfSquares(), 1e-10);
+        assertEquals(s1.getStdDeviationBound(Bounds.LOWER), s2.getStdDeviationBound(Bounds.LOWER), 1e-10);
+        assertEquals(s1.getStdDeviationBound(Bounds.UPPER), s2.getStdDeviationBound(Bounds.UPPER), 1e-10);
     }
 
     @Override
@@ -498,16 +525,80 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         checkUpperLowerBounds(stats, sigma);
     }
 
+    public void testEmptySubAggregation() {
+        SearchResponse searchResponse = client().prepareSearch("idx")
+            .setQuery(matchAllQuery())
+            .addAggregation(terms("value").field("value")
+                .subAggregation(missing("values").field("values")
+                    .subAggregation(extendedStats("stats").field("value"))))
+            .execute().actionGet();
 
-    private void assertShardExecutionState(SearchResponse response, int expectedFailures) throws Exception {
-        ShardSearchFailure[] failures = response.getShardFailures();
-        if (failures.length != expectedFailures) {
-            for (ShardSearchFailure failure : failures) {
-                logger.error("Shard Failure: {}", failure.reason(), failure.toString());
-            }
-            fail("Unexpected shard failures!");
+        assertHitCount(searchResponse, 10);
+
+        Terms terms = searchResponse.getAggregations().get("value");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getBuckets().size(), equalTo(10));
+
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            assertThat(bucket.getDocCount(), equalTo(1L));
+
+            Missing missing = bucket.getAggregations().get("values");
+            assertThat(missing, notNullValue());
+            assertThat(missing.getDocCount(), equalTo(0L));
+
+            ExtendedStats stats = missing.getAggregations().get("stats");
+            assertThat(stats, notNullValue());
+            assertThat(stats.getName(), equalTo("stats"));
+            assertThat(stats.getSumOfSquares(), equalTo(0.0));
+            assertThat(stats.getCount(), equalTo(0L));
+            assertThat(stats.getSum(), equalTo(0.0));
+            assertThat(stats.getMin(), equalTo(Double.POSITIVE_INFINITY));
+            assertThat(stats.getMax(), equalTo(Double.NEGATIVE_INFINITY));
+            assertThat(Double.isNaN(stats.getStdDeviation()), is(true));
+            assertThat(Double.isNaN(stats.getAvg()), is(true));
+            assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.UPPER)), is(true));
+            assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER)), is(true));
         }
-        assertThat("Not all shards are initialized", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+    }
+
+    @Override
+    public void testOrderByEmptyAggregation() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
+                .addAggregation(terms("terms").field("value").order(Order.compound(Order.aggregation("filter>extendedStats.avg", true)))
+                        .subAggregation(
+                                filter("filter", termQuery("value", 100)).subAggregation(extendedStats("extendedStats").field("value"))))
+                .get();
+
+        assertHitCount(searchResponse, 10);
+
+        Terms terms = searchResponse.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        List<Terms.Bucket> buckets = terms.getBuckets();
+        assertThat(buckets, notNullValue());
+        assertThat(buckets.size(), equalTo(10));
+
+        for (int i = 0; i < 10; i++) {
+            Terms.Bucket bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKeyAsNumber(), equalTo((long) i + 1));
+            assertThat(bucket.getDocCount(), equalTo(1L));
+            Filter filter = bucket.getAggregations().get("filter");
+            assertThat(filter, notNullValue());
+            assertThat(filter.getDocCount(), equalTo(0L));
+            ExtendedStats extendedStats = filter.getAggregations().get("extendedStats");
+            assertThat(extendedStats, notNullValue());
+            assertThat(extendedStats.getMin(), equalTo(Double.POSITIVE_INFINITY));
+            assertThat(extendedStats.getMax(), equalTo(Double.NEGATIVE_INFINITY));
+            assertThat(extendedStats.getAvg(), equalTo(Double.NaN));
+            assertThat(extendedStats.getSum(), equalTo(0.0));
+            assertThat(extendedStats.getCount(), equalTo(0L));
+            assertThat(extendedStats.getStdDeviation(), equalTo(Double.NaN));
+            assertThat(extendedStats.getSumOfSquares(), equalTo(0.0));
+            assertThat(extendedStats.getVariance(), equalTo(Double.NaN));
+            assertThat(extendedStats.getStdDeviationBound(Bounds.LOWER), equalTo(Double.NaN));
+            assertThat(extendedStats.getStdDeviationBound(Bounds.UPPER), equalTo(Double.NaN));
+
+        }
     }
 
     private void checkUpperLowerBounds(ExtendedStats stats, double sigma) {

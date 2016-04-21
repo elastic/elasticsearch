@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
-import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -120,45 +119,20 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
             final Index index = new Index("test", "_na_");
             final String name = "ngr";
             Version v = randomVersion(random());
-            if (v.onOrAfter(Version.V_0_90_2)) {
-                Builder builder = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3);
-                boolean compatVersion = false;
-                if ((compatVersion = random().nextBoolean())) {
-                    builder.put("version", "4." + random().nextInt(3));
-                }
-                boolean reverse = random().nextBoolean();
-                if (reverse) {
-                    builder.put("side", "back");
-                }
-                Settings settings = builder.build();
-                Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
-                Tokenizer tokenizer = new MockTokenizer();
-                tokenizer.setReader(new StringReader("foo bar"));
-                TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create(tokenizer);
-                if (reverse) {
-                    assertThat(edgeNGramTokenFilter, instanceOf(ReverseStringFilter.class));
-                } else if (compatVersion) {
-                    assertThat(edgeNGramTokenFilter, instanceOf(Lucene43EdgeNGramTokenFilter.class));
-                } else {
-                    assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
-                }
-
+            Builder builder = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3);
+            boolean reverse = random().nextBoolean();
+            if (reverse) {
+                builder.put("side", "back");
+            }
+            Settings settings = builder.build();
+            Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
+            Tokenizer tokenizer = new MockTokenizer();
+            tokenizer.setReader(new StringReader("foo bar"));
+            TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create(tokenizer);
+            if (reverse) {
+                assertThat(edgeNGramTokenFilter, instanceOf(ReverseStringFilter.class));
             } else {
-                Builder builder = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3);
-                boolean reverse = random().nextBoolean();
-                if (reverse) {
-                    builder.put("side", "back");
-                }
-                Settings settings = builder.build();
-                Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
-                Tokenizer tokenizer = new MockTokenizer();
-                tokenizer.setReader(new StringReader("foo bar"));
-                TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create(tokenizer);
-                if (reverse) {
-                    assertThat(edgeNGramTokenFilter, instanceOf(ReverseStringFilter.class));
-                } else {
-                    assertThat(edgeNGramTokenFilter, instanceOf(Lucene43EdgeNGramTokenFilter.class));
-                }
+                assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
             }
         }
     }

@@ -19,15 +19,13 @@
 
 package org.elasticsearch.search.rescore;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -40,11 +38,32 @@ import java.util.Objects;
 /**
  * The abstract base builder for instances of {@link RescoreBuilder}.
  */
-public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> implements ToXContent, NamedWriteable<RB> {
+public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> extends ToXContentToBytes implements NamedWriteable {
 
     protected Integer windowSize;
 
     private static ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
+
+    /**
+     * Construct an empty RescoreBuilder.
+     */
+    public RescoreBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected RescoreBuilder(StreamInput in) throws IOException {
+        windowSize = in.readOptionalVInt();
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalVInt(this.windowSize);
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     @SuppressWarnings("unchecked")
     public RB windowSize(int windowSize) {
@@ -66,7 +85,7 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> implements T
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(fieldName, WINDOW_SIZE_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(fieldName, WINDOW_SIZE_FIELD)) {
                     windowSize = parser.intValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support [" + fieldName + "]");
@@ -74,7 +93,7 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> implements T
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // we only have QueryRescorer at this point
                 if (QueryRescorerBuilder.NAME.equals(fieldName)) {
-                    rescorer = QueryRescorerBuilder.PROTOTYPE.fromXContent(parseContext);
+                    rescorer = QueryRescorerBuilder.fromXContent(parseContext);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support rescorer with name [" + fieldName + "]");
                 }
@@ -126,34 +145,5 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> implements T
         @SuppressWarnings("rawtypes")
         RescoreBuilder other = (RescoreBuilder) obj;
         return Objects.equals(windowSize, other.windowSize);
-    }
-
-    @Override
-    public RB readFrom(StreamInput in) throws IOException {
-        RB builder = doReadFrom(in);
-        builder.windowSize = in.readOptionalVInt();
-        return builder;
-    }
-
-    protected abstract RB doReadFrom(StreamInput in) throws IOException;
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        doWriteTo(out);
-        out.writeOptionalVInt(this.windowSize);
-    }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
-
-    @Override
-    public final String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.prettyPrint();
-            toXContent(builder, EMPTY_PARAMS);
-            return builder.string();
-        } catch (Exception e) {
-            return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
-        }
     }
 }

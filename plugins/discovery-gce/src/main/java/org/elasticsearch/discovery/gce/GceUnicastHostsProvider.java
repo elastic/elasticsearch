@@ -30,6 +30,8 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -41,11 +43,22 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 /**
  *
  */
 public class GceUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
+
+    /**
+     * discovery.gce.tags: The gce discovery can filter machines to include in the cluster based on tags.
+     */
+    public static final Setting<List<String>> TAGS_SETTING =
+            Setting.listSetting("discovery.gce.tags", emptyList(), Function.identity(), Property.NodeScope);
 
     static final class Status {
         private static final String TERMINATED = "TERMINATED";
@@ -79,7 +92,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         this.project = GceComputeService.PROJECT_SETTING.get(settings);
         this.zones = GceComputeService.ZONE_SETTING.get(settings);
 
-        this.tags = GceDiscovery.TAGS_SETTING.get(settings);
+        this.tags = TAGS_SETTING.get(settings);
         if (logger.isDebugEnabled()) {
             logger.debug("using tags {}", this.tags);
         }
@@ -113,7 +126,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         try {
             InetAddress inetAddress = networkService.resolvePublishHostAddresses(null);
             if (inetAddress != null) {
-                ipAddress = NetworkAddress.formatAddress(inetAddress);
+                ipAddress = NetworkAddress.format(inetAddress);
             }
         } catch (IOException e) {
             // We can't find the publish host address... Hmmm. Too bad :-(
@@ -136,7 +149,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                 logger.trace("gce instance {} with status {} found.", name, status);
 
                 // We don't want to connect to TERMINATED status instances
-                // See https://github.com/elasticsearch/elasticsearch-cloud-gce/issues/3
+                // See https://github.com/elastic/elasticsearch-cloud-gce/issues/3
                 if (Status.TERMINATED.equals(status)) {
                     logger.debug("node {} is TERMINATED. Ignoring", name);
                     continue;
@@ -230,7 +243,8 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                         for (TransportAddress transportAddress : addresses) {
                             logger.trace("adding {}, type {}, address {}, transport_address {}, status {}", name, type,
                                     ip_private, transportAddress, status);
-                            cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + 0, transportAddress, version.minimumCompatibilityVersion()));
+                            cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + 0, transportAddress,
+                                    emptyMap(), emptySet(), version.minimumCompatibilityVersion()));
                         }
                     }
                 } catch (Exception e) {

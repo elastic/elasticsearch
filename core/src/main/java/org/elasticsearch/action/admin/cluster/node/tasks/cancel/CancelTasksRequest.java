@@ -53,12 +53,18 @@ public class CancelTasksRequest extends BaseTasksRequest<CancelTasksRequest> {
         return super.match(task) && task instanceof CancellableTask;
     }
 
-    public CancelTasksRequest reason(String reason) {
+    /**
+     * Set the reason for canceling the task.
+     */
+    public CancelTasksRequest setReason(String reason) {
         this.reason = reason;
         return this;
     }
 
-    public String reason() {
+    /**
+     * The reason for canceling the task.
+     */
+    public String getReason() {
         return reason;
     }
 }

@@ -29,10 +29,10 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
@@ -99,19 +99,11 @@ public class AggregationContext {
             if (config.missing instanceof Number) {
                 missing = (Number) config.missing;
             } else {
-                if (config.fieldContext != null && config.fieldContext.fieldType() instanceof DateFieldMapper.DateFieldType) {
-                    final DateFieldMapper.DateFieldType fieldType = (DateFieldMapper.DateFieldType) config.fieldContext.fieldType();
-                    try {
-                        missing = fieldType.dateTimeFormatter().parser().parseDateTime(config.missing.toString()).getMillis();
-                    } catch (IllegalArgumentException e) {
-                        throw new SearchParseException(context, "Expected a date value in [missing] but got [" + config.missing + "]", null, e);
-                    }
+                if (config.fieldContext != null && config.fieldContext.fieldType() != null) {
+                    missing = config.fieldContext.fieldType().docValueFormat(null, DateTimeZone.UTC)
+                            .parseDouble(config.missing.toString(), false, context.nowCallable());
                 } else {
-                    try {
-                        missing = Double.parseDouble(config.missing.toString());
-                    } catch (NumberFormatException e) {
-                        throw new SearchParseException(context, "Expected a numeric value in [missing] but got [" + config.missing + "]", null, e);
-                    }
+                    missing = Double.parseDouble(config.missing.toString());
                 }
             }
             return (VS) MissingValues.replaceMissing((ValuesSource.Numeric) vs, missing);

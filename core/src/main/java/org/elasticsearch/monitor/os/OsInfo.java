@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -68,14 +67,14 @@ public class OsInfo implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString OS = new XContentBuilderString("os");
-        static final XContentBuilderString NAME = new XContentBuilderString("name");
-        static final XContentBuilderString ARCH = new XContentBuilderString("arch");
-        static final XContentBuilderString VERSION = new XContentBuilderString("version");
-        static final XContentBuilderString REFRESH_INTERVAL = new XContentBuilderString("refresh_interval");
-        static final XContentBuilderString REFRESH_INTERVAL_IN_MILLIS = new XContentBuilderString("refresh_interval_in_millis");
-        static final XContentBuilderString AVAILABLE_PROCESSORS = new XContentBuilderString("available_processors");
-        static final XContentBuilderString ALLOCATED_PROCESSORS = new XContentBuilderString("allocated_processors");
+        static final String OS = "os";
+        static final String NAME = "name";
+        static final String ARCH = "arch";
+        static final String VERSION = "version";
+        static final String REFRESH_INTERVAL = "refresh_interval";
+        static final String REFRESH_INTERVAL_IN_MILLIS = "refresh_interval_in_millis";
+        static final String AVAILABLE_PROCESSORS = "available_processors";
+        static final String ALLOCATED_PROCESSORS = "allocated_processors";
     }
 
     @Override

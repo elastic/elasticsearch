@@ -19,17 +19,17 @@
 
 package org.elasticsearch.search.geo;
 
-import com.spatial4j.core.context.SpatialContext;
-import com.spatial4j.core.distance.DistanceUtils;
-import com.spatial4j.core.exception.InvalidShapeException;
-import com.spatial4j.core.shape.Shape;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.locationtech.spatial4j.context.SpatialContext;
+import org.locationtech.spatial4j.distance.DistanceUtils;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Shape;
 
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
-import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.apache.lucene.spatial.util.GeoProjectionUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.LineStringBuilder;
@@ -374,7 +375,7 @@ public class GeoFilterIT extends ESIntegTestCase {
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("country")
@@ -560,13 +561,13 @@ public class GeoFilterIT extends ESIntegTestCase {
             strategy.makeQuery(args);
             return true;
         } catch (UnsupportedSpatialOperation e) {
-            e.printStackTrace();
+            ESLoggerFactory.getLogger(GeoFilterIT.class.getName()).info("Unsupported spatial operation {}", e, relation);
             return false;
         }
     }
 
     protected static String randomhash(int length) {
-        return randomhash(getRandom(), length);
+        return randomhash(random(), length);
     }
 
     protected static String randomhash(Random random) {
@@ -574,7 +575,7 @@ public class GeoFilterIT extends ESIntegTestCase {
     }
 
     protected static String randomhash() {
-        return randomhash(getRandom());
+        return randomhash(random());
     }
 
     protected static String randomhash(Random random, int length) {

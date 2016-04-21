@@ -65,7 +65,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         }
 
         try {
-            SpanNearQueryBuilder spanNearQueryBuilder = new SpanNearQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, 1);
+            SpanNearQueryBuilder spanNearQueryBuilder = new SpanNearQueryBuilder(new SpanTermQueryBuilder("field", "value"), 1);
             spanNearQueryBuilder.clause(null);
             fail("cannot be null");
         } catch (IllegalArgumentException e) {
@@ -114,7 +114,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
     }
 
     public void testCollectPayloadsDeprecated() throws Exception {
-        assertEquals("We can remove support for ignoring collect_payloads in 4.0", 3, Version.CURRENT.major);
+        assertEquals("We can remove support for ignoring collect_payloads in 6.0.0", 5, Version.CURRENT.major);
         String json =
                 "{\n" +
                 "  \"span_near\" : {\n" +

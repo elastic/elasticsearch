@@ -37,7 +37,7 @@ import java.util.Set;
 
 public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
 
-    static Settings DEFAULT_NODE_SETTINGS = Settings.settingsBuilder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen").build();
+    static Settings DEFAULT_NODE_SETTINGS = Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen").build();
     private static final String IP_ADDR = "127.0.0.1";
 
     final int numOfNodes;

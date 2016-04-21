@@ -69,7 +69,7 @@ public class RestControllerTests extends ESTestCase {
         assertThat(relevantHeaders, equalTo(headersArray));
     }
 
-    public void testApplyRelevantHeaders() {
+    public void testApplyRelevantHeaders() throws Exception {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final RestController restController = new RestController(Settings.EMPTY) {
             @Override

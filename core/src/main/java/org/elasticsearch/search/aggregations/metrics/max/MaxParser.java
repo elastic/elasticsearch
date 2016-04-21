@@ -38,11 +38,6 @@ public class MaxParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalMax.TYPE.name();
-    }
-
-    @Override
     protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
             ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
         return false;
@@ -53,10 +48,4 @@ public class MaxParser extends NumericValuesSourceParser {
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         return new MaxAggregatorBuilder(aggregationName);
     }
-
-    @Override
-    public MaxAggregatorBuilder getFactoryPrototypes() {
-        return MaxAggregatorBuilder.PROTOTYPE;
-    }
-
 }

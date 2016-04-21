@@ -24,7 +24,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -69,6 +68,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -91,7 +91,10 @@ public class StringTermsTests extends AbstractTermsTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        createIndex("idx");
+        assertAcked(client().admin().indices().prepareCreate("idx")
+                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
+                        MULTI_VALUED_FIELD_NAME, "type=keyword",
+                        "tag", "type=keyword").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             builders.add(client().prepareIndex("idx", "type").setSource(
@@ -164,7 +167,10 @@ public class StringTermsTests extends AbstractTermsTestCase {
         bucketProps.put("sum_d", 1d);
         expectedMultiSortBuckets.put((String) bucketProps.get("_term"), bucketProps);
 
-        createIndex("sort_idx");
+        assertAcked(client().admin().indices().prepareCreate("sort_idx")
+                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
+                        MULTI_VALUED_FIELD_NAME, "type=keyword",
+                        "tag", "type=keyword").get());
         for (int i = 1; i <= 3; i++) {
             builders.add(client().prepareIndex("sort_idx", "multi_sort_type").setSource(
                     jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, "val1").field("l", 1).field("d", i).endObject()));
@@ -243,7 +249,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         ExecutionMode[] executionModes = new ExecutionMode[] { null, ExecutionMode.GLOBAL_ORDINALS, ExecutionMode.GLOBAL_ORDINALS_HASH,
                 ExecutionMode.GLOBAL_ORDINALS_LOW_CARDINALITY };
         for (ExecutionMode executionMode : executionModes) {
-            logger.info("Execution mode:" + executionMode);
+            logger.info("Execution mode: {}", executionMode);
             SearchResponse response = client()
                     .prepareSearch("idx")
                     .setTypes("type")
@@ -1447,13 +1453,6 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket.getDocCount(), equalTo(i == 0 ? 5L : 2L));
             i++;
         }
-
-        response = client().prepareSearch("idx", "empty_bucket_idx").setTypes("type")
-                .addAggregation(terms("terms").executionHint(randomExecutionHint()).field(FieldNamesFieldMapper.NAME)).execute()
-                .actionGet();
-        assertSearchResponse(response);
-        terms = response.getAggregations().get("terms");
-        assertEquals(5L, terms.getBucketByKey("i").getDocCount());
     }
 
     public void testOtherDocCount() {

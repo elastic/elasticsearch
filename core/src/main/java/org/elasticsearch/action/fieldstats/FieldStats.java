@@ -19,21 +19,25 @@
 
 package org.elasticsearch.action.fieldstats;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
-public abstract class FieldStats<T extends Comparable<T>> implements Streamable, ToXContent {
+public abstract class FieldStats<T> implements Streamable, ToXContent {
 
-    private byte type;
+    private final byte type;
     private long maxDoc;
     private long docCount;
     private long sumDocFreq;
@@ -41,7 +45,8 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
     protected T minValue;
     protected T maxValue;
 
-    protected FieldStats() {
+    protected FieldStats(int type) {
+        this.type = (byte) type;
     }
 
     protected FieldStats(int type, long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq) {
@@ -168,6 +173,8 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
     }
 
+    protected abstract int compare(T a, T b);
+
     /**
      * @return <code>true</code> if this instance matches with the provided index constraint, otherwise <code>false</code> is returned
      */
@@ -175,9 +182,9 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         int cmp;
         T value  = valueOf(constraint.getValue(), constraint.getOptionalFormat());
         if (constraint.getProperty() == IndexConstraint.Property.MIN) {
-            cmp = minValue.compareTo(value);
+            cmp = compare(minValue, value);
         } else if (constraint.getProperty() == IndexConstraint.Property.MAX) {
-            cmp = maxValue.compareTo(value);
+            cmp = compare(maxValue, value);
         } else {
             throw new IllegalArgumentException("Unsupported property [" + constraint.getProperty() + "]");
         }
@@ -233,9 +240,25 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         out.writeLong(sumTotalTermFreq);
     }
 
-    public static class Long extends FieldStats<java.lang.Long> {
+    private static abstract class ComparableFieldStats<T extends Comparable<? super T>> extends FieldStats<T> {
+        protected ComparableFieldStats(int type) {
+            super(type);
+        }
+
+        protected ComparableFieldStats(int type, long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq) {
+            super(type, maxDoc, docCount, sumDocFreq, sumTotalTermFreq);
+        }
+
+        @Override
+        protected int compare(T a, T b) {
+            return a.compareTo(b);
+        }
+    }
+
+    public static class Long extends ComparableFieldStats<java.lang.Long> {
 
         public Long() {
+            super(0);
         }
 
         public Long(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, long minValue, long maxValue) {
@@ -290,62 +313,10 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
 
     }
 
-    public static final class Float extends FieldStats<java.lang.Float> {
-
-        public Float() {
-        }
-
-        public Float(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, float minValue, float maxValue) {
-            super(1, maxDoc, docCount, sumDocFreq, sumTotalTermFreq);
-            this.minValue = minValue;
-            this.maxValue = maxValue;
-        }
-
-        @Override
-        public String getMinValueAsString() {
-            return String.valueOf(minValue.floatValue());
-        }
-
-        @Override
-        public String getMaxValueAsString() {
-            return String.valueOf(maxValue.floatValue());
-        }
-
-        @Override
-        public void append(FieldStats stats) {
-            super.append(stats);
-            Float other = (Float) stats;
-            this.minValue = Math.min(other.minValue, minValue);
-            this.maxValue = Math.max(other.maxValue, maxValue);
-        }
-
-        @Override
-        protected java.lang.Float valueOf(String value, String optionalFormat) {
-            if (optionalFormat != null) {
-                throw new UnsupportedOperationException("custom format isn't supported");
-            }
-            return java.lang.Float.valueOf(value);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            minValue = in.readFloat();
-            maxValue = in.readFloat();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeFloat(minValue);
-            out.writeFloat(maxValue);
-        }
-
-    }
-
-    public static final class Double extends FieldStats<java.lang.Double> {
+    public static final class Double extends ComparableFieldStats<java.lang.Double> {
 
         public Double() {
+            super(2);
         }
 
         public Double(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, double minValue, double maxValue) {
@@ -396,9 +367,10 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
 
     }
 
-    public static final class Text extends FieldStats<BytesRef> {
+    public static final class Text extends ComparableFieldStats<BytesRef> {
 
         public Text() {
+            super(3);
         }
 
         public Text(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, BytesRef minValue, BytesRef maxValue) {
@@ -467,7 +439,7 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         public Date(long maxDoc, long docCount, long sumDocFreq, long sumTotalTermFreq, long minValue, long maxValue, FormatDateTimeFormatter dateFormatter) {
-            super(4, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, minValue, maxValue);
+            super(1, maxDoc, docCount, sumDocFreq, sumTotalTermFreq, minValue, maxValue);
             this.dateFormatter = dateFormatter;
         }
 
@@ -504,6 +476,62 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
 
     }
 
+    public static class Ip extends FieldStats<InetAddress> {
+
+        private InetAddress minValue, maxValue;
+
+        public Ip(int maxDoc, int docCount, long sumDocFreq, long sumTotalTermFreq,
+                InetAddress minValue, InetAddress maxValue) {
+            super(4, maxDoc, docCount, sumDocFreq, sumTotalTermFreq);
+            this.minValue = minValue;
+            this.maxValue = maxValue;
+        }
+
+        public Ip() {
+            super(4);
+        }
+
+        @Override
+        public String getMinValueAsString() {
+            return NetworkAddress.format(minValue);
+        }
+
+        @Override
+        public String getMaxValueAsString() {
+            return NetworkAddress.format(maxValue);
+        }
+
+        @Override
+        protected InetAddress valueOf(String value, String optionalFormat) {
+            try {
+                return InetAddress.getByName(value);
+            } catch (UnknownHostException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        protected int compare(InetAddress a, InetAddress b) {
+            byte[] ab = InetAddressPoint.encode(a);
+            byte[] bb = InetAddressPoint.encode(b);
+            return StringHelper.compare(ab.length, ab, 0, bb, 0);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            minValue = valueOf(in.readString(), null);
+            maxValue = valueOf(in.readString(), null);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(NetworkAddress.format(minValue));
+            out.writeString(NetworkAddress.format(maxValue));
+        }
+    }
+
     public static FieldStats read(StreamInput in) throws IOException {
         FieldStats stats;
         byte type = in.readByte();
@@ -512,7 +540,7 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
                 stats = new Long();
                 break;
             case 1:
-                stats = new Float();
+                stats = new Date();
                 break;
             case 2:
                 stats = new Double();
@@ -521,27 +549,26 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
                 stats = new Text();
                 break;
             case 4:
-                stats = new Date();
+                stats = new Ip();
                 break;
             default:
                 throw new IllegalArgumentException("Illegal type [" + type + "]");
         }
-        stats.type = type;
         stats.readFrom(in);
         return stats;
     }
 
     private final static class Fields {
 
-        final static XContentBuilderString MAX_DOC = new XContentBuilderString("max_doc");
-        final static XContentBuilderString DOC_COUNT = new XContentBuilderString("doc_count");
-        final static XContentBuilderString DENSITY = new XContentBuilderString("density");
-        final static XContentBuilderString SUM_DOC_FREQ = new XContentBuilderString("sum_doc_freq");
-        final static XContentBuilderString SUM_TOTAL_TERM_FREQ = new XContentBuilderString("sum_total_term_freq");
-        final static XContentBuilderString MIN_VALUE = new XContentBuilderString("min_value");
-        final static XContentBuilderString MIN_VALUE_AS_STRING = new XContentBuilderString("min_value_as_string");
-        final static XContentBuilderString MAX_VALUE = new XContentBuilderString("max_value");
-        final static XContentBuilderString MAX_VALUE_AS_STRING = new XContentBuilderString("max_value_as_string");
+        final static String MAX_DOC = new String("max_doc");
+        final static String DOC_COUNT = new String("doc_count");
+        final static String DENSITY = new String("density");
+        final static String SUM_DOC_FREQ = new String("sum_doc_freq");
+        final static String SUM_TOTAL_TERM_FREQ = new String("sum_total_term_freq");
+        final static String MIN_VALUE = new String("min_value");
+        final static String MIN_VALUE_AS_STRING = new String("min_value_as_string");
+        final static String MAX_VALUE = new String("max_value");
+        final static String MAX_VALUE_AS_STRING = new String("max_value_as_string");
 
     }
 

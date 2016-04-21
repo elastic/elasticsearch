@@ -33,7 +33,7 @@ import java.util.Map;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class IngestMustacheSetProcessorIT extends AbstractMustacheTests {
+public class IngestMustacheSetProcessorIT extends AbstractMustacheTestCase {
 
     public void testExpression() throws Exception {
         SetProcessor processor = createSetProcessor("_index", "text {{var}}");

@@ -40,7 +40,6 @@ public final class TranslogConfig {
 
     public static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(8, ByteSizeUnit.KB);
     private final BigArrays bigArrays;
-    private volatile TranslogGeneration translogGeneration;
     private final IndexSettings indexSettings;
     private final ShardId shardId;
     private final Path translogPath;
@@ -91,24 +90,6 @@ public final class TranslogConfig {
      */
     public Path getTranslogPath() {
         return translogPath;
-    }
-
-    /**
-     * Returns the translog generation to open. If this is <code>null</code> a new translog is created. If non-null
-     * the translog tries to open the given translog generation. The generation is treated as the last generation referenced
-     * form already committed data. This means all operations that have not yet been committed should be in the translog
-     * file referenced by this generation. The translog creation will fail if this generation can't be opened.
-     */
-    public TranslogGeneration getTranslogGeneration() {
-        return translogGeneration;
-    }
-
-    /**
-     * Set the generation to be opened. Use <code>null</code> to start with a fresh translog.
-     * @see #getTranslogGeneration()
-     */
-    public void setTranslogGeneration(TranslogGeneration translogGeneration) {
-        this.translogGeneration = translogGeneration;
     }
 
     /**

@@ -32,11 +32,11 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
@@ -128,8 +128,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 }
                 MappedFieldType fieldType = indexService.mapperService().fullName(request.field());
                 if (fieldType != null) {
-                    if (fieldType.isNumeric()) {
-                        throw new IllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are not supported on numeric fields");
+                    if (fieldType.tokenized() == false) {
+                        throw new IllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are only supported on tokenized fields");
                     }
                     analyzer = fieldType.indexAnalyzer();
                     field = fieldType.name();

@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -33,6 +32,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -114,7 +114,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                 // We're about to send a second update task, so we need to check if we're still the elected master
                 // For example the minimum_master_node could have been breached and we're no longer elected master,
                 // so we should *not* execute the reroute.
-                if (!clusterService.state().nodes().localNodeMaster()) {
+                if (!clusterService.state().nodes().isLocalNodeElectedMaster()) {
                     logger.debug("Skipping reroute after cluster update settings, because node is no longer master");
                     listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(), updater.getPersistentUpdate()));
                     return;

@@ -34,7 +34,7 @@ import java.util.List;
  * A container class to hold the profile results for a single shard in the request.
  * Contains a list of query profiles, a collector tree and a total rewrite tree.
  */
-public final class ProfileShardResult implements Writeable<ProfileShardResult>, ToXContent {
+public final class ProfileShardResult implements Writeable, ToXContent {
 
     private final List<ProfileResult> profileResults;
 
@@ -50,6 +50,9 @@ public final class ProfileShardResult implements Writeable<ProfileShardResult>, 
         this.rewriteTime = rewriteTime;
     }
 
+    /**
+     * Read from a stream.
+     */
     public ProfileShardResult(StreamInput in) throws IOException {
         int profileSize = in.readVInt();
         profileResults = new ArrayList<>(profileSize);
@@ -60,6 +63,17 @@ public final class ProfileShardResult implements Writeable<ProfileShardResult>, 
         profileCollector = new CollectorResult(in);
         rewriteTime = in.readLong();
     }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(profileResults.size());
+        for (ProfileResult p : profileResults) {
+            p.writeTo(out);
+        }
+        profileCollector.writeTo(out);
+        out.writeLong(rewriteTime);
+    }
+
 
     public List<ProfileResult> getQueryResults() {
         return Collections.unmodifiableList(profileResults);
@@ -86,20 +100,4 @@ public final class ProfileShardResult implements Writeable<ProfileShardResult>, 
         builder.endArray();
         return builder;
     }
-
-    @Override
-    public ProfileShardResult readFrom(StreamInput in) throws IOException {
-        return new ProfileShardResult(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(profileResults.size());
-        for (ProfileResult p : profileResults) {
-            p.writeTo(out);
-        }
-        profileCollector.writeTo(out);
-        out.writeLong(rewriteTime);
-    }
-
 }

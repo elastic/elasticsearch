@@ -71,7 +71,7 @@ public class TermsLookupTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             termsLookup.writeTo(output);
             try (StreamInput in = StreamInput.wrap(output.bytes())) {
-                TermsLookup deserializedLookup = TermsLookup.readTermsLookupFrom(in);
+                TermsLookup deserializedLookup = new TermsLookup(in);
                 assertEquals(deserializedLookup, termsLookup);
                 assertEquals(deserializedLookup.hashCode(), termsLookup.hashCode());
                 assertNotSame(deserializedLookup, termsLookup);

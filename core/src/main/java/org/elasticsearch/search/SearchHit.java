@@ -108,9 +108,10 @@ public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitFie
     byte[] source();
 
     /**
-     * Is the source empty (not available) or not.
+     * Is the source available or not. A source with no fields will return true. This will return false if {@code fields} doesn't contain
+     * {@code _source} or if source is disabled in the mapping.
      */
-    boolean isSourceEmpty();
+    boolean hasSource();
 
     /**
      * The source of the document as a map (can be <tt>null</tt>).

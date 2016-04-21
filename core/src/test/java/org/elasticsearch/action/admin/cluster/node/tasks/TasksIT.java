@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -27,10 +30,11 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskInfo;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.percolate.PercolateAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -40,6 +44,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.test.tasks.MockTaskManagerListener;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.ReceiveTimeoutTransportException;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,8 +60,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -111,27 +122,27 @@ public class TasksIT extends ESIntegTestCase {
 
         // Verify that one of these tasks is a parent of another task
         if (tasks.get(0).getParentTaskId().isSet()) {
-            assertParentTask(Collections.singletonList(tasks.get(1)), tasks.get(0));
-        } else {
             assertParentTask(Collections.singletonList(tasks.get(0)), tasks.get(1));
+        } else {
+            assertParentTask(Collections.singletonList(tasks.get(1)), tasks.get(0));
         }
     }
 
     public void testTransportReplicationAllShardsTasks() {
-        registerTaskManageListeners(PercolateAction.NAME);  // main task
-        registerTaskManageListeners(PercolateAction.NAME + "[s]"); // shard level tasks
+        registerTaskManageListeners(FieldStatsAction.NAME);  // main task
+        registerTaskManageListeners(FieldStatsAction.NAME + "[s]"); // shard level tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().preparePercolate().setIndices("test").setDocumentType("foo").setSource("{}").get();
+        client().prepareFieldStats().setFields("field").get();
 
         // the percolate operation should produce one main task
         NumShards numberOfShards = getNumShards("test");
-        assertEquals(1, numberOfEvents(PercolateAction.NAME, Tuple::v1));
+        assertEquals(1, numberOfEvents(FieldStatsAction.NAME, Tuple::v1));
         // and then one operation per shard
-        assertEquals(numberOfShards.totalNumShards, numberOfEvents(PercolateAction.NAME + "[s]", Tuple::v1));
+        assertEquals(numberOfShards.totalNumShards, numberOfEvents(FieldStatsAction.NAME + "[s]", Tuple::v1));
 
         // the shard level tasks should have the main task as a parent
-        assertParentTask(findEvents(PercolateAction.NAME + "[s]", Tuple::v1), findEvents(PercolateAction.NAME, Tuple::v1).get(0));
+        assertParentTask(findEvents(FieldStatsAction.NAME + "[s]", Tuple::v1), findEvents(FieldStatsAction.NAME, Tuple::v1).get(0));
     }
 
     public void testTransportBroadcastByNodeTasks() {
@@ -179,7 +190,7 @@ public class TasksIT extends ESIntegTestCase {
 
         logger.debug("number of shards, total: [{}], primaries: [{}] ", numberOfShards.totalNumShards, numberOfShards.numPrimaries);
         logger.debug("main events {}", numberOfEvents(RefreshAction.NAME, Tuple::v1));
-        logger.debug("main event node {}", findEvents(RefreshAction.NAME, Tuple::v1).get(0).getNode().name());
+        logger.debug("main event node {}", findEvents(RefreshAction.NAME, Tuple::v1).get(0).getNode().getName());
         logger.debug("[s] events {}", numberOfEvents(RefreshAction.NAME + "[s]", Tuple::v1));
         logger.debug("[s][*] events {}", numberOfEvents(RefreshAction.NAME + "[s][*]", Tuple::v1));
         logger.debug("nodes with the index {}", internalCluster().nodesInclude("test"));
@@ -237,6 +248,55 @@ public class TasksIT extends ESIntegTestCase {
         }
     }
 
+
+    public void testTransportBulkTasks() {
+        registerTaskManageListeners(BulkAction.NAME);  // main task
+        registerTaskManageListeners(BulkAction.NAME + "[s]");  // shard task
+        registerTaskManageListeners(BulkAction.NAME + "[s][p]");  // shard task on primary
+        registerTaskManageListeners(BulkAction.NAME + "[s][r]");  // shard task on replica
+        createIndex("test");
+        ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
+        client().prepareBulk().add(client().prepareIndex("test", "doc", "test_id").setSource("{\"foo\": \"bar\"}")).get();
+
+        // the bulk operation should produce one main task
+        assertEquals(1, numberOfEvents(BulkAction.NAME, Tuple::v1));
+
+        // we should also get 1 or 2 [s] operation with main operation as a parent
+        // in case the primary is located on the coordinating node we will have 1 operation, otherwise - 2
+        List<TaskInfo> shardTasks = findEvents(BulkAction.NAME + "[s]", Tuple::v1);
+        assertThat(shardTasks.size(), allOf(lessThanOrEqualTo(2), greaterThanOrEqualTo(1)));
+
+        // Select the effective shard task
+        TaskInfo shardTask;
+        if (shardTasks.size() == 1) {
+            // we have only one task - it's going to be the parent task for all [s][p] and [s][r] tasks
+            shardTask = shardTasks.get(0);
+            // and it should have the main task as a parent
+            assertParentTask(shardTask, findEvents(BulkAction.NAME, Tuple::v1).get(0));
+        } else {
+            if (shardTasks.get(0).getParentTaskId().equals(shardTasks.get(1).getTaskId())) {
+                // task 1 is the parent of task 0, that means that task 0 will control [s][p] and [s][r] tasks
+                 shardTask = shardTasks.get(0);
+                // in turn the parent of the task 1 should be the main task
+                assertParentTask(shardTasks.get(1), findEvents(BulkAction.NAME, Tuple::v1).get(0));
+            } else {
+                // otherwise task 1 will control [s][p] and [s][r] tasks
+                shardTask = shardTasks.get(1);
+                // in turn the parent of the task 0 should be the main task
+                assertParentTask(shardTasks.get(0), findEvents(BulkAction.NAME, Tuple::v1).get(0));
+            }
+        }
+
+        // we should also get one [s][p] operation with shard operation as a parent
+        assertEquals(1, numberOfEvents(BulkAction.NAME + "[s][p]", Tuple::v1));
+        assertParentTask(findEvents(BulkAction.NAME + "[s][p]", Tuple::v1), shardTask);
+
+        // we should get as many [s][r] operations as we have replica shards
+        // they all should have the same shard task as a parent
+        assertEquals(getNumShards("test").numReplicas, numberOfEvents(BulkAction.NAME + "[s][r]", Tuple::v1));
+        assertParentTask(findEvents(BulkAction.NAME + "[s][r]", Tuple::v1), shardTask);
+}
+
     /**
      * Very basic "is it plugged in" style test that indexes a document and
      * makes sure that you can fetch the status of the process. The goal here is
@@ -257,8 +317,8 @@ public class TasksIT extends ESIntegTestCase {
         ReentrantLock taskFinishLock = new ReentrantLock();
         taskFinishLock.lock();
         CountDownLatch taskRegistered = new CountDownLatch(1);
-        for (ClusterService clusterService : internalCluster().getInstances(ClusterService.class)) {
-            ((MockTaskManager)clusterService.getTaskManager()).addListener(new MockTaskManagerListener() {
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            ((MockTaskManager) transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
                 @Override
                 public void onTaskRegistered(Task task) {
                     if (task.getAction().startsWith(IndexAction.NAME)) {
@@ -327,10 +387,93 @@ public class TasksIT extends ESIntegTestCase {
         assertEquals(0, client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size());
     }
 
+    public void testTasksListWaitForCompletion() throws Exception {
+        // Start blocking test task
+        ListenableActionFuture<TestTaskPlugin.NodesResponse> future = TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client())
+                .execute();
+
+        ListenableActionFuture<ListTasksResponse> waitResponseFuture;
+        try {
+            // Wait for the task to start on all nodes
+            assertBusy(() -> assertEquals(internalCluster().numDataAndMasterNodes(),
+                client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
+
+            // Spin up a request to wait for that task to finish
+            waitResponseFuture = client().admin().cluster().prepareListTasks()
+                    .setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").setWaitForCompletion(true).execute();
+        } finally {
+            // Unblock the request so the wait for completion request can finish
+            TestTaskPlugin.UnblockTestTasksAction.INSTANCE.newRequestBuilder(client()).get();
+        }
+
+        // Now that the task is unblocked the list response will come back
+        ListTasksResponse waitResponse = waitResponseFuture.get();
+        // If any tasks come back then they are the tasks we asked for - it'd be super weird if this wasn't true
+        for (TaskInfo task: waitResponse.getTasks()) {
+            assertEquals(task.getAction(), TestTaskPlugin.TestTaskAction.NAME + "[n]");
+        }
+        // See the next test to cover the timeout case
+
+        future.get();
+    }
+
+    public void testTasksListWaitForTimeout() throws Exception {
+        // Start blocking test task
+        ListenableActionFuture<TestTaskPlugin.NodesResponse> future = TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client())
+                .execute();
+        try {
+            // Wait for the task to start on all nodes
+            assertBusy(() -> assertEquals(internalCluster().numDataAndMasterNodes(),
+                client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
+
+            // Spin up a request that should wait for those tasks to finish
+            // It will timeout because we haven't unblocked the tasks
+            ListTasksResponse waitResponse = client().admin().cluster().prepareListTasks()
+                    .setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").setWaitForCompletion(true).setTimeout(timeValueMillis(100))
+                    .get();
+
+            assertFalse(waitResponse.getNodeFailures().isEmpty());
+            for (FailedNodeException failure : waitResponse.getNodeFailures()) {
+                Throwable timeoutException = failure.getCause();
+                // The exception sometimes comes back wrapped depending on the client
+                if (timeoutException.getCause() != null) {
+                    timeoutException = timeoutException.getCause();
+                }
+                assertThat(timeoutException,
+                        either(instanceOf(ElasticsearchTimeoutException.class)).or(instanceOf(ReceiveTimeoutTransportException.class)));
+            }
+        } finally {
+            // Now we can unblock those requests
+            TestTaskPlugin.UnblockTestTasksAction.INSTANCE.newRequestBuilder(client()).get();
+        }
+        future.get();
+    }
+
+    public void testTasksListWaitForNoTask() throws Exception {
+        // Spin up a request to wait for no matching tasks
+        ListenableActionFuture<ListTasksResponse> waitResponseFuture = client().admin().cluster().prepareListTasks()
+                .setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").setWaitForCompletion(true).setTimeout(timeValueMillis(10))
+                .execute();
+
+        // It should finish quickly and without complaint
+        assertThat(waitResponseFuture.get().getTasks(), emptyCollectionOf(TaskInfo.class));
+    }
+
+    public void testTasksWaitForAllTask() throws Exception {
+        // Spin up a request to wait for all tasks in the cluster to make sure it doesn't cause an infinite loop
+        ListTasksResponse response = client().admin().cluster().prepareListTasks().setWaitForCompletion(true)
+            .setTimeout(timeValueSeconds(10)).get();
+
+        // It should finish quickly and without complaint and list the list tasks themselves
+        assertThat(response.getNodeFailures(), emptyCollectionOf(FailedNodeException.class));
+        assertThat(response.getTaskFailures(), emptyCollectionOf(TaskOperationFailure.class));
+        assertThat(response.getTasks().size(), greaterThanOrEqualTo(1));
+    }
+
     @Override
     public void tearDown() throws Exception {
         for (Map.Entry<Tuple<String, String>, RecordingTaskManagerListener> entry : listeners.entrySet()) {
-            ((MockTaskManager)internalCluster().getInstance(ClusterService.class, entry.getKey().v1()).getTaskManager()).removeListener(entry.getValue());
+            ((MockTaskManager) internalCluster().getInstance(TransportService.class, entry.getKey().v1()).getTaskManager()).removeListener(entry.getValue());
         }
         listeners.clear();
         super.tearDown();
@@ -340,11 +483,11 @@ public class TasksIT extends ESIntegTestCase {
      * Registers recording task event listeners with the given action mask on all nodes
      */
     private void registerTaskManageListeners(String actionMasks) {
-        for (ClusterService clusterService : internalCluster().getInstances(ClusterService.class)) {
-            DiscoveryNode node = clusterService.localNode();
+        for (String nodeName : internalCluster().getNodeNames()) {
+            DiscoveryNode node = internalCluster().getInstance(ClusterService.class, nodeName).localNode();
             RecordingTaskManagerListener listener = new RecordingTaskManagerListener(node, Strings.splitStringToArray(actionMasks, ','));
-            ((MockTaskManager)clusterService.getTaskManager()).addListener(listener);
-            RecordingTaskManagerListener oldListener = listeners.put(new Tuple<>(node.name(), actionMasks), listener);
+            ((MockTaskManager) internalCluster().getInstance(TransportService.class, nodeName).getTaskManager()).addListener(listener);
+            RecordingTaskManagerListener oldListener = listeners.put(new Tuple<>(node.getName(), actionMasks), listener);
             assertNull(oldListener);
         }
     }
@@ -395,10 +538,14 @@ public class TasksIT extends ESIntegTestCase {
      */
     private void assertParentTask(List<TaskInfo> tasks, TaskInfo parentTask) {
         for (TaskInfo task : tasks) {
-            assertFalse(task.getParentTaskId().isSet());
-            assertEquals(parentTask.getNode().getId(), task.getParentTaskId().getNodeId());
-            assertTrue(Strings.hasLength(task.getParentTaskId().getNodeId()));
-            assertEquals(parentTask.getId(), task.getParentTaskId().getId());
+            assertParentTask(task, parentTask);
         }
+    }
+
+    private void assertParentTask(TaskInfo task, TaskInfo parentTask) {
+        assertTrue(task.getParentTaskId().isSet());
+        assertEquals(parentTask.getNode().getId(), task.getParentTaskId().getNodeId());
+        assertTrue(Strings.hasLength(task.getParentTaskId().getNodeId()));
+        assertEquals(parentTask.getId(), task.getParentTaskId().getId());
     }
 }

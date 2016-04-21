@@ -110,4 +110,12 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
         request().plugins(plugins);
         return this;
     }
+
+    /**
+     * Should the node ingest info be returned.
+     */
+    public NodesInfoRequestBuilder setIngest(boolean ingest) {
+        request().ingest(ingest);
+        return this;
+    }
 }

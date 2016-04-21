@@ -54,12 +54,6 @@ class PluginPropertiesTask extends Copy {
             if (extension.classname == null) {
                 throw new InvalidUserDataException('classname is a required setting for esplugin')
             }
-            doFirst {
-                if (extension.isolated == false) {
-                    String warning = "WARNING: Disabling plugin isolation in ${project.path} is deprecated and will be removed in the future"
-                    logger.warn("${'=' * warning.length()}\n${warning}\n${'=' * warning.length()}")
-                }
-            }
             // configure property substitution
             from(templateFile)
             into(generatedResourcesDir)
@@ -68,13 +62,18 @@ class PluginPropertiesTask extends Copy {
     }
 
     Map generateSubstitutions() {
+        def stringSnap = { version ->
+            if (version.endsWith("-SNAPSHOT")) {
+               return version.substring(0, version.length() - 9)
+            }
+            return version
+        }
         return [
             'name': extension.name,
             'description': extension.description,
-            'version': extension.version,
-            'elasticsearchVersion': VersionProperties.elasticsearch,
+            'version': stringSnap(extension.version),
+            'elasticsearchVersion': stringSnap(VersionProperties.elasticsearch),
             'javaVersion': project.targetCompatibility as String,
-            'isolated': extension.isolated as String,
             'classname': extension.classname
         ]
     }

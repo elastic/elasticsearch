@@ -143,14 +143,14 @@ public class HttpPipeliningHandlerTests extends ESTestCase {
         assertTrue(connectionFuture.await(CONNECTION_TIMEOUT));
         final Channel clientChannel = connectionFuture.getChannel();
 
-        // NetworkAddress.formatAddress makes a proper HOST header.
+        // NetworkAddress.format makes a proper HOST header.
         final HttpRequest request1 = new DefaultHttpRequest(
                 HTTP_1_1, HttpMethod.GET, PATH1);
-        request1.headers().add(HOST, NetworkAddress.formatAddress(boundAddress));
+        request1.headers().add(HOST, NetworkAddress.format(boundAddress));
 
         final HttpRequest request2 = new DefaultHttpRequest(
                 HTTP_1_1, HttpMethod.GET, PATH2);
-        request2.headers().add(HOST, NetworkAddress.formatAddress(boundAddress));
+        request2.headers().add(HOST, NetworkAddress.format(boundAddress));
 
         clientChannel.write(request1);
         clientChannel.write(request2);

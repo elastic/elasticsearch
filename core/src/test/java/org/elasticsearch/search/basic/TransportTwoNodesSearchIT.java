@@ -30,7 +30,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.GeohashCellQuery;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
@@ -54,7 +54,6 @@ import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -81,7 +80,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
     private Set<String> prepareData(int numShards) throws Exception {
         Set<String> fullExpectedIds = new TreeSet<>();
 
-        Settings.Builder settingsBuilder = settingsBuilder()
+        Settings.Builder settingsBuilder = Settings.builder()
                 .put(indexSettings());
 
         if (numShards > 0) {
@@ -120,7 +119,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
     }
 
     public void testDfsQueryThenFetch() throws Exception {
-        Settings.Builder settingsBuilder = settingsBuilder()
+        Settings.Builder settingsBuilder = Settings.builder()
             .put(indexSettings());
         client().admin().indices().create(createIndexRequest("test")
             .settings(settingsBuilder))

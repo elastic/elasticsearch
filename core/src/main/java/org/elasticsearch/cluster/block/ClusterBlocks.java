@@ -340,6 +340,12 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             return this;
         }
 
+        public Builder removeGlobalBlock(int blockId) {
+            global.removeIf(block -> block.id() == blockId);
+            return this;
+        }
+
+
         public Builder addIndexBlock(String index, ClusterBlock block) {
             if (!indices.containsKey(index)) {
                 indices.put(index, new HashSet<>());

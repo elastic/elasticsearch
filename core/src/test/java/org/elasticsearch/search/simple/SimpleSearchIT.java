@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -103,7 +102,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "1").setSource("from", "192.168.0.5", "to", "192.168.0.10").setRefresh(true).execute().actionGet();
 
         SearchResponse search = client().prepareSearch()
-                .setQuery(boolQuery().must(rangeQuery("from").lt("192.168.0.7")).must(rangeQuery("to").gt("192.168.0.7")))
+                .setQuery(boolQuery().must(rangeQuery("from").lte("192.168.0.7")).must(rangeQuery("to").gte("192.168.0.7")))
                 .execute().actionGet();
 
         assertHitCount(search, 1L);
@@ -123,6 +122,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "2").setSource("ip", "192.168.0.2").execute().actionGet();
         client().prepareIndex("test", "type1", "3").setSource("ip", "192.168.0.3").execute().actionGet();
         client().prepareIndex("test", "type1", "4").setSource("ip", "192.168.1.4").execute().actionGet();
+        client().prepareIndex("test", "type1", "5").setSource("ip", "2001:db8::ff00:42:8329").execute().actionGet();
         refresh();
 
         SearchResponse search = client().prepareSearch()
@@ -156,13 +156,28 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertHitCount(search, 4L);
 
         search = client().prepareSearch()
+                .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "2001:db8::ff00:42:8329/128")))
+                .execute().actionGet();
+        assertHitCount(search, 1L);
+
+        search = client().prepareSearch()
+                .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "2001:db8::/64")))
+                .execute().actionGet();
+        assertHitCount(search, 1L);
+
+        search = client().prepareSearch()
+                .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "::/0")))
+                .execute().actionGet();
+        assertHitCount(search, 5L);
+
+        search = client().prepareSearch()
                 .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "192.168.1.5/32")))
                 .execute().actionGet();
         assertHitCount(search, 0L);
 
         assertFailures(client().prepareSearch().setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "0/0/0/0/0"))),
                 RestStatus.BAD_REQUEST,
-                containsString("invalid IPv4/CIDR; expected [a.b.c.d, e] but was [[0, 0, 0, 0, 0]]"));
+                containsString("Expected [ip/prefix] but was [0/0/0/0/0]"));
     }
 
     public void testSimpleId() {
@@ -270,7 +285,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
             searchResponse = client().prepareSearch("test")
                     .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max))
                     .setTerminateAfter(i).execute().actionGet();
-            assertHitCount(searchResponse, (long)i);
+            assertHitCount(searchResponse, i);
             assertTrue(searchResponse.isTerminatedEarly());
         }
 
@@ -352,7 +367,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
             client().prepareSearch("idx").setQuery(QueryBuilders.regexpQuery("num", "34")).get();
             fail("SearchPhaseExecutionException should have been thrown");
         } catch (SearchPhaseExecutionException ex) {
-            assertThat(ex.getCause().getCause().getMessage(), equalTo("Cannot use regular expression to filter numeric field [num]"));
+            assertThat(ex.getCause().getCause().getMessage(), containsString("Can only use regular expression on keyword and text fields"));
         }
     }
 

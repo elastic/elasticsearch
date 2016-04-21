@@ -23,7 +23,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 
 import java.util.Random;
 
@@ -31,13 +34,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class FilterFieldDataTests extends AbstractFieldDataTestCase {
     @Override
-    protected FieldDataType getFieldDataType() {
-        // TODO Auto-generated method stub
+    protected String getFieldDataType() {
         return null;
     }
 
     public void testFilterByFrequency() throws Exception {
-        Random random = getRandom();
+        Random random = random();
         for (int i = 0; i < 1000; i++) {
             Document d = new Document();
             d.add(new StringField("id", "" + i, Field.Store.NO));
@@ -57,120 +59,60 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         }
         writer.forceMerge(1, true);
         LeafReaderContext context = refreshReader();
-        String[] formats = new String[] { "paged_bytes"};
+        final BuilderContext builderCtx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
 
-        for (String format : formats) {
-            {
-                ifdService.clear();
-                FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
-                        .put("filter.frequency.min_segment_size", 100).put("filter.frequency.min", 0.0d).put("filter.frequency.max", random.nextBoolean() ? 100 : 0.5d));
-                IndexOrdinalsFieldData fieldData = getForField(fieldDataType, "high_freq");
-                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-                RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
-                assertThat(2L, equalTo(bytesValues.getValueCount()));
-                assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
-                assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
-            }
-            {
-                ifdService.clear();
-                FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
-                        .put("filter.frequency.min_segment_size", 100).put("filter.frequency.min",  random.nextBoolean() ? 101 : 101d/200.0d).put("filter.frequency.max", 201));
-                IndexOrdinalsFieldData fieldData = getForField(fieldDataType, "high_freq");
-                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-                RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
-                assertThat(1L, equalTo(bytesValues.getValueCount()));
-                assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("5"));
-            }
-
-            {
-                ifdService.clear(); // test # docs with value
-                FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
-                        .put("filter.frequency.min_segment_size", 101).put("filter.frequency.min", random.nextBoolean() ? 101 : 101d/200.0d));
-                IndexOrdinalsFieldData fieldData = getForField(fieldDataType, "med_freq");
-                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-                RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
-                assertThat(2L, equalTo(bytesValues.getValueCount()));
-                assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
-                assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
-            }
-
-            {
-                ifdService.clear();
-                FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
-                        .put("filter.frequency.min_segment_size", 101).put("filter.frequency.min", random.nextBoolean() ? 101 : 101d/200.0d));
-                IndexOrdinalsFieldData fieldData = getForField(fieldDataType, "med_freq");
-                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-                RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
-                assertThat(2L, equalTo(bytesValues.getValueCount()));
-                assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
-                assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
-            }
-
-            {
-                ifdService.clear();
-                FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
-                        .put("filter.regex.pattern", "\\d{2,3}") // allows 10 & 100
-                        .put("filter.frequency.min_segment_size", 0)
-                        .put("filter.frequency.min", random.nextBoolean() ? 2 : 1d/200.0d) // 100, 10, 5
-                        .put("filter.frequency.max", random.nextBoolean() ? 99 : 99d/200.0d)); // 100
-                IndexOrdinalsFieldData fieldData = getForField(fieldDataType, "high_freq");
-                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-                RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
-                assertThat(1L, equalTo(bytesValues.getValueCount()));
-                assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("100"));
-            }
+        {
+            ifdService.clear();
+            MappedFieldType ft = new TextFieldMapper.Builder("high_freq")
+                    .fielddata(true)
+                    .fielddataFrequencyFilter(0, random.nextBoolean() ? 100 : 0.5d, 0)
+                    .build(builderCtx).fieldType();
+            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
+            AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+            RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
+            assertThat(2L, equalTo(bytesValues.getValueCount()));
+            assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
+            assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
+        }
+        {
+            ifdService.clear();
+            MappedFieldType ft = new TextFieldMapper.Builder("high_freq")
+                    .fielddata(true)
+                    .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, 201, 100)
+                    .build(builderCtx).fieldType();
+            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
+            AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+            RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
+            assertThat(1L, equalTo(bytesValues.getValueCount()));
+            assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("5"));
         }
 
-    }
-
-    public void testFilterByRegExp() throws Exception {
-        int hundred  = 0;
-        int ten  = 0;
-        int five  = 0;
-        for (int i = 0; i < 1000; i++) {
-            Document d = new Document();
-            d.add(new StringField("id", "" + i, Field.Store.NO));
-            if (i % 100 == 0) {
-                hundred++;
-                d.add(new StringField("high_freq", "100", Field.Store.NO));
-            }
-            if (i % 10 == 0) {
-                ten++;
-                d.add(new StringField("high_freq", "10", Field.Store.NO));
-            }
-            if (i % 5 == 0) {
-                five++;
-                d.add(new StringField("high_freq", "5", Field.Store.NO));
-
-            }
-            writer.addDocument(d);
+        {
+            ifdService.clear(); // test # docs with value
+            MappedFieldType ft = new TextFieldMapper.Builder("med_freq")
+                    .fielddata(true)
+                    .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
+                    .build(builderCtx).fieldType();
+            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
+            AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+            RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
+            assertThat(2L, equalTo(bytesValues.getValueCount()));
+            assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
+            assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
         }
-        logger.debug(hundred + " " + ten + " " + five);
-        writer.forceMerge(1, true);
-        LeafReaderContext context = refreshReader();
-        String[] formats = new String[] { "paged_bytes"};
-        for (String format : formats) {
-            {
-                ifdService.clear();
-                FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
-                        .put("filter.regex.pattern", "\\d"));
-                IndexOrdinalsFieldData fieldData = getForField(fieldDataType, "high_freq");
-                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-                RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
-                assertThat(1L, equalTo(bytesValues.getValueCount()));
-                assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("5"));
-            }
-            {
-                ifdService.clear();
-                FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
-                        .put("filter.regex.pattern", "\\d{1,2}"));
-                IndexOrdinalsFieldData fieldData = getForField(fieldDataType, "high_freq");
-                AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
-                RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
-                assertThat(2L, equalTo(bytesValues.getValueCount()));
-                assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
-                assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("5"));
-            }
+
+        {
+            ifdService.clear();
+            MappedFieldType ft = new TextFieldMapper.Builder("med_freq")
+                    .fielddata(true)
+                    .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
+                    .build(builderCtx).fieldType();
+            IndexOrdinalsFieldData fieldData = ifdService.getForField(ft);
+            AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
+            RandomAccessOrds bytesValues = loadDirect.getOrdinalsValues();
+            assertThat(2L, equalTo(bytesValues.getValueCount()));
+            assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
+            assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
         }
 
     }

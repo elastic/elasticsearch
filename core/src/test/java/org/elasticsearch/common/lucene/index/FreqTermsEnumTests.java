@@ -137,7 +137,7 @@ public class FreqTermsEnumTests extends ESTestCase {
         }
 
         // now go over each doc, build the relevant references and filter
-        reader = DirectoryReader.open(iw, true);
+        reader = DirectoryReader.open(iw);
         List<Term> filterTerms = new ArrayList<>();
         for (int docId = 0; docId < reader.maxDoc(); docId++) {
             Document doc = reader.document(docId);

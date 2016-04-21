@@ -76,7 +76,7 @@ public class GeoShapeIntegrationTests extends ESIntegTestCase {
 
         // left orientation test
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName));
-        IndexService indexService = indicesService.indexService(idxName);
+        IndexService indexService = indicesService.indexService(resolveIndex(idxName));
         MappedFieldType fieldType = indexService.mapperService().fullName("location");
         assertThat(fieldType, instanceOf(GeoShapeFieldMapper.GeoShapeFieldType.class));
 
@@ -88,7 +88,7 @@ public class GeoShapeIntegrationTests extends ESIntegTestCase {
 
         // right orientation test
         indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName+"2"));
-        indexService = indicesService.indexService(idxName+"2");
+        indexService = indicesService.indexService(resolveIndex((idxName+"2")));
         fieldType = indexService.mapperService().fullName("location");
         assertThat(fieldType, instanceOf(GeoShapeFieldMapper.GeoShapeFieldType.class));
 
@@ -103,6 +103,6 @@ public class GeoShapeIntegrationTests extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         IndexShardRoutingTable shard = state.getRoutingTable().index(index).shard(0);
         String nodeId = shard.assignedShards().get(0).currentNodeId();
-        return state.getNodes().get(nodeId).name();
+        return state.getNodes().get(nodeId).getName();
     }
 }

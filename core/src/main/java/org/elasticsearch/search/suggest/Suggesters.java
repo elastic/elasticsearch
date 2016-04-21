@@ -18,50 +18,50 @@
  */
 package org.elasticsearch.search.suggest;
 
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.ExtensionPoint;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
+import org.elasticsearch.search.suggest.phrase.Laplace;
+import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
+import org.elasticsearch.search.suggest.phrase.SmoothingModel;
+import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggester;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 
 /**
  *
  */
-public final class Suggesters extends ExtensionPoint.ClassMap<Suggester> {
-    private final Map<String, Suggester> parsers;
+public final class Suggesters {
+    private final Map<String, Suggester<?>> suggesters = new HashMap<>();
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
-    public Suggesters() {
-        this(Collections.emptyMap());
+    public Suggesters(NamedWriteableRegistry namedWriteableRegistry) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
+        register("phrase", PhraseSuggester.INSTANCE);
+        register("term", TermSuggester.INSTANCE);
+        register("completion", CompletionSuggester.INSTANCE);
+
+        // Builtin smoothing models
+        namedWriteableRegistry.register(SmoothingModel.class, Laplace.NAME, Laplace::new);
+        namedWriteableRegistry.register(SmoothingModel.class, LinearInterpolation.NAME, LinearInterpolation::new);
+        namedWriteableRegistry.register(SmoothingModel.class, StupidBackoff.NAME, StupidBackoff::new);
     }
 
-    public Suggesters(Map<String, Suggester> suggesters) {
-        super("suggester", Suggester.class, new HashSet<>(Arrays.asList("phrase", "term", "completion")), Suggesters.class, SuggestParseElement.class, SuggestPhase.class);
-        this.parsers = Collections.unmodifiableMap(suggesters);
+    public void register(String key, Suggester<?> suggester) {
+        if (suggesters.containsKey(key)) {
+            throw new IllegalArgumentException("Can't register the same [suggester] more than once for [" + key + "]");
+        }
+        suggesters.put(key, suggester);
+        namedWriteableRegistry.register(SuggestionBuilder.class, key, suggester);
     }
 
-    @Inject
-    public Suggesters(Map<String, Suggester> suggesters, ScriptService scriptService, IndicesService indexServices) {
-        this(addBuildIns(suggesters, scriptService, indexServices));
-    }
-
-    private static Map<String, Suggester> addBuildIns(Map<String, Suggester> suggesters, ScriptService scriptService, IndicesService indexServices) {
-        final Map<String, Suggester> map = new HashMap<>();
-        map.put("phrase", new PhraseSuggester(scriptService, indexServices));
-        map.put("term", new TermSuggester());
-        map.put("completion", new CompletionSuggester());
-        map.putAll(suggesters);
-        return map;
-    }
-
-    public Suggester get(String type) {
-        return parsers.get(type);
+    public Suggester<?> getSuggester(String suggesterName) {
+        Suggester<?> suggester = suggesters.get(suggesterName);
+        if (suggester == null) {
+            throw new IllegalArgumentException("suggester with name [" + suggesterName + "] not supported");
+        }
+        return suggester;
     }
 }

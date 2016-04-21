@@ -20,20 +20,19 @@
 package org.elasticsearch.snapshots.mockstore;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
@@ -49,19 +48,19 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-
 public class MockRepository extends FsRepository {
 
     public static class Plugin extends org.elasticsearch.plugins.Plugin {
+
+        public static final Setting<String> USERNAME_SETTING = Setting.simpleString("secret.mock.username", Property.NodeScope);
+        public static final Setting<String> PASSWORD_SETTING =
+            Setting.simpleString("secret.mock.password", Property.NodeScope, Property.Filtered);
 
         @Override
         public String name() {
@@ -78,8 +77,8 @@ public class MockRepository extends FsRepository {
         }
 
         public void onModule(SettingsModule module) {
-            module.registerSettingsFilter("secret.mock.password");
-
+            module.registerSetting(USERNAME_SETTING);
+            module.registerSetting(PASSWORD_SETTING);
         }
     }
 
@@ -120,7 +119,7 @@ public class MockRepository extends FsRepository {
         blockOnInitialization = repositorySettings.settings().getAsBoolean("block_on_init", false);
         randomPrefix = repositorySettings.settings().get("random", "default");
         waitAfterUnblock = repositorySettings.settings().getAsLong("wait_after_unblock", 0L);
-        logger.info("starting mock repository with random prefix " + randomPrefix);
+        logger.info("starting mock repository with random prefix {}", randomPrefix);
         mockBlobStore = new MockBlobStore(super.blobStore());
     }
 
@@ -145,7 +144,7 @@ public class MockRepository extends FsRepository {
     private static Settings localizeLocation(Settings settings, ClusterService clusterService) {
         Path location = PathUtils.get(settings.get("location"));
         location = location.resolve(clusterService.localNode().getId());
-        return settingsBuilder().put(settings).put("location", location.toAbsolutePath()).build();
+        return Settings.builder().put(settings).put("location", location.toAbsolutePath()).build();
     }
 
     private long incrementAndGetFailureCount() {
@@ -176,14 +175,12 @@ public class MockRepository extends FsRepository {
     }
 
     public synchronized void unblockExecution() {
-        if (blocked) {
-            blocked = false;
-            // Clean blocking flags, so we wouldn't try to block again
-            blockOnDataFiles = false;
-            blockOnControlFiles = false;
-            blockOnInitialization = false;
-            this.notifyAll();
-        }
+        blocked = false;
+        // Clean blocking flags, so we wouldn't try to block again
+        blockOnDataFiles = false;
+        blockOnControlFiles = false;
+        blockOnInitialization = false;
+        this.notifyAll();
     }
 
     public boolean blocked() {

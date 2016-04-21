@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tasks;
 
+import org.elasticsearch.common.Nullable;
+
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -42,6 +44,7 @@ public class CancellableTask extends Task {
     final void cancel(String reason) {
         assert reason != null;
         this.reason.compareAndSet(null, reason);
+        onCancelled();
     }
 
     /**
@@ -56,4 +59,17 @@ public class CancellableTask extends Task {
         return reason.get() != null;
     }
 
+    /**
+     * The reason the task was cancelled or null if it hasn't been cancelled.
+     */
+    @Nullable
+    public String getReasonCancelled() {
+        return reason.get();
+    }
+
+    /**
+     * Called after the task is cancelled so that it can take any actions that it has to take.
+     */
+    protected void onCancelled() {
+    }
 }

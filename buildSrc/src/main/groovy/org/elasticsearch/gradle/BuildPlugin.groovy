@@ -100,9 +100,12 @@ class BuildPlugin implements Plugin<Project> {
             println "  OS Info               : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
             if (gradleJavaVersionDetails != javaVersionDetails) {
                 println "  JDK Version (gradle)  : ${gradleJavaVersionDetails}"
+                println "  JAVA_HOME (gradle)    : ${gradleJavaHome}"
                 println "  JDK Version (compile) : ${javaVersionDetails}"
+                println "  JAVA_HOME (compile)   : ${javaHome}"
             } else {
                 println "  JDK Version           : ${gradleJavaVersionDetails}"
+                println "  JAVA_HOME             : ${gradleJavaHome}"
             }
 
             // enforce gradle version
@@ -307,6 +310,12 @@ class BuildPlugin implements Plugin<Project> {
     /** Adds repositores used by ES dependencies */
     static void configureRepositories(Project project) {
         RepositoryHandler repos = project.repositories
+        if (System.getProperty("repos.mavenlocal") != null) {
+            // with -Drepos.mavenlocal=true we can force checking the local .m2 repo which is
+            // useful for development ie. bwc tests where we install stuff in the local repository
+            // such that we don't have to pass hardcoded files to gradle
+            repos.mavenLocal()
+        }
         repos.mavenCentral()
         repos.maven {
             name 'sonatype-snapshots'
@@ -400,13 +409,14 @@ class BuildPlugin implements Plugin<Project> {
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
             systemProperty 'java.io.tmpdir', './temp'
             systemProperty 'java.awt.headless', 'true'
-            systemProperty 'tests.maven', 'true' // TODO: rename this once we've switched to gradle!
+            systemProperty 'tests.gradle', 'true'
             systemProperty 'tests.artifact', project.name
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
             // default test sysprop values
             systemProperty 'tests.ifNoTests', 'fail'
+            // TODO: remove setting logging level via system property
             systemProperty 'es.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
                 if (property.getKey().startsWith('tests.') ||

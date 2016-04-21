@@ -19,14 +19,12 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -36,6 +34,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -47,9 +46,7 @@ import java.util.Map;
  */
 public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Streamable, ToXContent {
 
-    public static class Fields {
-        public static final XContentBuilderString SUGGEST = new XContentBuilderString("suggest");
-    }
+    private static final String NAME = "suggest";
 
     private static final Comparator<Option> COMPARATOR = new Comparator<Suggest.Suggestion.Entry.Option>() {
         @Override
@@ -62,26 +59,15 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
          }
     };
 
-    private final XContentBuilderString name;
-
     private List<Suggestion<? extends Entry<? extends Option>>> suggestions;
 
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
     public Suggest() {
-        this.name = null;
-    }
-
-    public Suggest(XContentBuilderString name) {
-        this.name = name;
+        this(Collections.emptyList());
     }
 
     public Suggest(List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
-        this(null, suggestions);
-    }
-
-    public Suggest(XContentBuilderString name, List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
-        this.name = name;
         this.suggestions = suggestions;
     }
 
@@ -149,23 +135,24 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if(name == null) {
-            for (Suggestion<?> suggestion : suggestions) {
-                suggestion.toXContent(builder, params);
-            }
-        } else {
-            builder.startObject(name);
-            for (Suggestion<?> suggestion : suggestions) {
-                suggestion.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
-
+        builder.startObject(NAME);
+        toInnerXContent(builder, params);
+        builder.endObject();
         return builder;
     }
 
-    public static Suggest readSuggest(XContentBuilderString name, StreamInput in) throws IOException {
-        Suggest result = new Suggest(name);
+    /**
+     * use to write suggestion entries without <code>NAME</code> object
+     */
+    public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
+        for (Suggestion<?> suggestion : suggestions) {
+            suggestion.toXContent(builder, params);
+        }
+        return builder;
+    }
+
+    public static Suggest readSuggest(StreamInput in) throws IOException {
+        Suggest result = new Suggest();
         result.readFrom(in);
         return result;
     }
@@ -197,7 +184,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
      * The suggestion responses corresponding with the suggestions in the request.
      */
     public static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, Streamable, ToXContent {
-
 
         public static final int TYPE = 0;
         protected String name;
@@ -340,10 +326,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
             static class Fields {
 
-                static final XContentBuilderString TEXT = new XContentBuilderString("text");
-                static final XContentBuilderString OFFSET = new XContentBuilderString("offset");
-                static final XContentBuilderString LENGTH = new XContentBuilderString("length");
-                static final XContentBuilderString OPTIONS = new XContentBuilderString("options");
+                static final String TEXT = "text";
+                static final String OFFSET = "offset";
+                static final String LENGTH = "length";
+                static final String OPTIONS = "options";
 
             }
 
@@ -523,10 +509,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
                 static class Fields {
 
-                    static final XContentBuilderString TEXT = new XContentBuilderString("text");
-                    static final XContentBuilderString HIGHLIGHTED = new XContentBuilderString("highlighted");
-                    static final XContentBuilderString SCORE = new XContentBuilderString("score");
-                    static final XContentBuilderString COLLATE_MATCH = new XContentBuilderString("collate_match");
+                    static final String TEXT = "text";
+                    static final String HIGHLIGHTED = "highlighted";
+                    static final String SCORE = "score";
+                    static final String COLLATE_MATCH = "collate_match";
 
                 }
 
@@ -640,39 +626,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 @Override
                 public int hashCode() {
                     return text.hashCode();
-                }
-            }
-        }
-
-        public enum Sort {
-
-            /**
-             * Sort should first be based on score.
-             */
-            SCORE((byte) 0x0),
-
-            /**
-             * Sort should first be based on document frequency.
-             */
-            FREQUENCY((byte) 0x1);
-
-            private byte id;
-
-            private Sort(byte id) {
-                this.id = id;
-            }
-
-            public byte id() {
-                return id;
-            }
-
-            public static Sort fromId(byte id) {
-                if (id == 0) {
-                    return SCORE;
-                } else if (id == 1) {
-                    return FREQUENCY;
-                } else {
-                    throw new ElasticsearchException("Illegal suggest sort " + id);
                 }
             }
         }

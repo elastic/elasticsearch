@@ -31,7 +31,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
+import org.elasticsearch.index.query.support.InnerHitsBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -393,9 +393,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Delegates to
-     * {@link org.elasticsearch.search.suggest.SuggestBuilder#addSuggestion(org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder)}
-     * .
+     * Delegates to {@link SearchSourceBuilder#suggest(SuggestBuilder)}
      */
     public SearchRequestBuilder suggest(SuggestBuilder suggestBuilder) {
         sourceBuilder().suggest(suggestBuilder);

@@ -22,23 +22,19 @@ package org.elasticsearch.index.query.functionscore;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.function.BiFunction;
 
 /**
- * This class provides the basic functionality needed for adding a decay
- * function.
- *
- * This parser parses this kind of input
+ * Parser used for all decay functions, one instance each. It parses this kind
+ * of input:
  *
  * <pre>
  * <code>
@@ -62,28 +58,28 @@ import java.io.IOException;
  * was a week before or after that. Your "origin" for the date field would be
  * "20 May 2010" and your "scale" would be "7d".
  *
+ * <p>
  * This class parses the input and creates a scoring function from the
  * parameters origin and scale.
  * <p>
- * To write a new scoring function, create a new class that inherits from this
- * one and implements {@link #getBuilderPrototype()} and {@link #getNames()}.
- * Also create its corresponding {@link DecayFunctionBuilder}. The latter needs to
- * implement {@link DecayFunctionBuilder#doReadFrom(StreamInput)} and
- * {@link DecayFunctionBuilder#doWriteTo(StreamOutput)} for serialization purposes,
- * {@link DecayFunctionBuilder#doEquals(DecayFunctionBuilder)} and
- * {@link DecayFunctionBuilder#doHashCode()} for equality checks,
- * {@link DecayFunctionBuilder#getName()} that returns the name of the function and
- * {@link DecayFunctionBuilder#getDecayFunction()} which returns the corresponding lucene function.
- * <p>
- * See {@link GaussDecayFunctionBuilder} and {@link GaussDecayFunctionParser}
- * for an example. The parser furthermore needs to be registered in the
- * {@link org.elasticsearch.search.SearchModule SearchModule}.
- *
+ * To write a new decay scoring function, create a new class that extends
+ * {@link DecayFunctionBuilder}, setup a PARSER field with this class, and
+ * register them both using
+ * {@link org.elasticsearch.search.SearchModule#registerScoreFunction(Writeable.Reader, ScoreFunctionParser, ParseField)}.
+ * See {@link GaussDecayFunctionBuilder#PARSER} for an example.
  */
-
-public abstract class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>> implements ScoreFunctionParser<DFB> {
+public final class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>> implements ScoreFunctionParser<DFB> {
 
     public static final ParseField MULTI_VALUE_MODE = new ParseField("multi_value_mode");
+    private final BiFunction<String, BytesReference, DFB> createFromBytes;
+
+    /**
+     * Create the parser using a method reference to a "create from bytes" constructor for the {@linkplain DecayFunctionBuilder}. We use a
+     * method reference here so each use of this class doesn't have to subclass it.
+     */
+    public DecayFunctionParser(BiFunction<String, BytesReference, DFB> createFromBytes) {
+        this.createFromBytes = createFromBytes;
+    }
 
     /**
      * Parses bodies of the kind
@@ -101,7 +97,8 @@ public abstract class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>>
      * </pre>
      */
     @Override
-    public DFB fromXContent(QueryParseContext context, XContentParser parser) throws IOException, ParsingException {
+    public DFB fromXContent(QueryParseContext context) throws IOException, ParsingException {
+        XContentParser parser = context.parser();
         String currentFieldName;
         XContentParser.Token token;
         MultiValueMode multiValueMode = DecayFunctionBuilder.DEFAULT_MULTI_VALUE_MODE;
@@ -115,7 +112,7 @@ public abstract class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>>
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.copyCurrentStructure(parser);
                 functionBytes = builder.bytes();
-            } else if (context.parseFieldMatcher().match(currentFieldName, MULTI_VALUE_MODE)) {
+            } else if (context.getParseFieldMatcher().match(currentFieldName, MULTI_VALUE_MODE)) {
                 multiValueMode = MultiValueMode.fromString(parser.text());
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "malformed score function score parameters.");
@@ -124,7 +121,7 @@ public abstract class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>>
         if (fieldName == null || functionBytes == null) {
             throw new ParsingException(parser.getTokenLocation(), "malformed score function score parameters.");
         }
-        DFB functionBuilder = getBuilderPrototype().createFunctionBuilder(fieldName, functionBytes);
+        DFB functionBuilder = createFromBytes.apply(fieldName, functionBytes);
         functionBuilder.setMultiValueMode(multiValueMode);
         return functionBuilder;
     }

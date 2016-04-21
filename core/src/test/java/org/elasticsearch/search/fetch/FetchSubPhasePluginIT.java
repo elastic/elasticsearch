@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.termvectors.TermVectorsService;
@@ -173,7 +174,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 }
                 hitField.values().add(tv);
             } catch (IOException e) {
-                e.printStackTrace();
+                ESLoggerFactory.getLogger(FetchSubPhasePluginIT.class.getName()).info("Swallowed exception", e);
             }
         }
     }

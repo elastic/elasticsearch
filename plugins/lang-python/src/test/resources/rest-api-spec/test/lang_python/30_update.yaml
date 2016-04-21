@@ -1,7 +1,7 @@
 # Integration tests for Lang Python components
 #
 
-# Test case for #4: https://github.com/elasticsearch/elasticsearch-lang-python/issues/4
+# Test case for #4: https://github.com/elastic/elasticsearch-lang-python/issues/4
 # Update request that uses python script with no parameters fails with NullPointerException
 #
 "Python Update With Empty Parameters":
@@ -30,7 +30,7 @@
 
 ---
 
-# Test case for #19: https://github.com/elasticsearch/elasticsearch-lang-python/issues/19
+# Test case for #19: https://github.com/elastic/elasticsearch-lang-python/issues/19
 # Multi-line or multi-statement Python scripts raise NullPointerException
 #
 "Python Update With Multi Lines":

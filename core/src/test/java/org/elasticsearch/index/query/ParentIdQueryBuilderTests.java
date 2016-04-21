@@ -19,18 +19,22 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesTermsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.TestSearchContext;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQueryBuilder> {
 
@@ -40,7 +44,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        MapperService mapperService = queryShardContext().getMapperService();
+        MapperService mapperService = createShardContext().getMapperService();
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
             STRING_FIELD_NAME, "type=text",
             INT_FIELD_NAME, "type=integer",
@@ -61,37 +65,23 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     }
 
     @Override
-    protected void setSearchContext(String[] types) {
-        final MapperService mapperService = queryShardContext().getMapperService();
-        final IndexFieldDataService fieldData = indexFieldDataService();
-        TestSearchContext testSearchContext = new TestSearchContext(queryShardContext()) {
-
-            @Override
-            public MapperService mapperService() {
-                return mapperService; // need to build / parse inner hits sort fields
-            }
-
-            @Override
-            public IndexFieldDataService fieldData() {
-                return fieldData; // need to build / parse inner hits sort fields
-            }
-        };
-        testSearchContext.getQueryShardContext().setTypes(types);
-        SearchContext.setCurrent(testSearchContext);
-    }
-
-    @Override
     protected ParentIdQueryBuilder doCreateTestQueryBuilder() {
-        return new ParentIdQueryBuilder(CHILD_TYPE, randomAsciiOfLength(4));
+        return new ParentIdQueryBuilder(CHILD_TYPE, randomAsciiOfLength(4)).ignoreUnmapped(randomBoolean());
     }
 
     @Override
     protected void doAssertLuceneQuery(ParentIdQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, Matchers.instanceOf(DocValuesTermsQuery.class));
-        DocValuesTermsQuery termsQuery = (DocValuesTermsQuery) query;
+        assertThat(query, Matchers.instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) query;
+        assertThat(booleanQuery.clauses().size(), Matchers.equalTo(2));
+        DocValuesTermsQuery idQuery = (DocValuesTermsQuery) booleanQuery.clauses().get(0).getQuery();
         // there are no getters to get the field and terms on DocValuesTermsQuery, so lets validate by creating a
         // new query based on the builder:
-        assertThat(termsQuery, Matchers.equalTo(new DocValuesTermsQuery("_parent#" + PARENT_TYPE, queryBuilder.getId())));
+        assertThat(idQuery, Matchers.equalTo(new DocValuesTermsQuery("_parent#" + PARENT_TYPE, queryBuilder.getId())));
+
+        TermQuery typeQuery = (TermQuery) booleanQuery.clauses().get(1).getQuery();
+        assertThat(typeQuery.getTerm().field(), Matchers.equalTo(TypeFieldMapper.NAME));
+        assertThat(typeQuery.getTerm().text(), Matchers.equalTo(queryBuilder.getType()));
     }
 
     public void testFromJson() throws IOException {
@@ -100,6 +90,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
                 "  \"parent_id\" : {\n" +
                 "    \"type\" : \"child\",\n" +
                 "    \"id\" : \"123\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 3.0,\n" +
                 "    \"_name\" : \"name\"" +
                 "  }\n" +
@@ -110,6 +101,19 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
         assertThat(queryBuilder.getId(), Matchers.equalTo("123"));
         assertThat(queryBuilder.boost(), Matchers.equalTo(3f));
         assertThat(queryBuilder.queryName(), Matchers.equalTo("name"));
+    }
+
+    public void testIgnoreUnmapped() throws IOException {
+        final ParentIdQueryBuilder queryBuilder = new ParentIdQueryBuilder("unmapped", "foo");
+        queryBuilder.ignoreUnmapped(true);
+        Query query = queryBuilder.toQuery(createShardContext());
+        assertThat(query, notNullValue());
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+
+        final ParentIdQueryBuilder failingQueryBuilder = new ParentIdQueryBuilder("unmapped", "foo");
+        failingQueryBuilder.ignoreUnmapped(false);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
+        assertThat(e.getMessage(), containsString("[" + ParentIdQueryBuilder.NAME + "] no mapping found for type [unmapped]"));
     }
 
 }

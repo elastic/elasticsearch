@@ -25,6 +25,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -314,10 +318,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
-import org.elasticsearch.action.suggest.SuggestAction;
-import org.elasticsearch.action.suggest.SuggestRequest;
-import org.elasticsearch.action.suggest.SuggestRequestBuilder;
-import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
@@ -658,21 +658,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public MultiSearchRequestBuilder prepareMultiSearch() {
         return new MultiSearchRequestBuilder(this, MultiSearchAction.INSTANCE);
-    }
-
-    @Override
-    public ActionFuture<SuggestResponse> suggest(final SuggestRequest request) {
-        return execute(SuggestAction.INSTANCE, request);
-    }
-
-    @Override
-    public void suggest(final SuggestRequest request, final ActionListener<SuggestResponse> listener) {
-        execute(SuggestAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public SuggestRequestBuilder prepareSuggest(String... indices) {
-        return new SuggestRequestBuilder(this, SuggestAction.INSTANCE).setIndices(indices);
     }
 
     @Override
@@ -1263,6 +1248,21 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source) {
             return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source);
+        }
+
+        @Override
+        public void allocationExplain(ClusterAllocationExplainRequest request, ActionListener<ClusterAllocationExplainResponse> listener) {
+            execute(ClusterAllocationExplainAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<ClusterAllocationExplainResponse> allocationExplain(ClusterAllocationExplainRequest request) {
+            return execute(ClusterAllocationExplainAction.INSTANCE, request);
+        }
+
+        @Override
+        public ClusterAllocationExplainRequestBuilder prepareAllocationExplain() {
+            return new ClusterAllocationExplainRequestBuilder(this, ClusterAllocationExplainAction.INSTANCE);
         }
     }
 

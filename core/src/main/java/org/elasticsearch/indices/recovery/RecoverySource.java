@@ -20,9 +20,9 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -83,12 +83,12 @@ public class RecoverySource extends AbstractComponent implements IndexEventListe
     }
 
     private RecoveryResponse recover(final StartRecoveryRequest request) throws IOException {
-        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex().getName());
+        final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 
         // starting recovery from that our (the source) shard state is marking the shard to be in recovery mode as well, otherwise
         // the index operations will not be routed to it properly
-        RoutingNode node = clusterService.state().getRoutingNodes().node(request.targetNode().id());
+        RoutingNode node = clusterService.state().getRoutingNodes().node(request.targetNode().getId());
         if (node == null) {
             logger.debug("delaying recovery of {} as source node {} is unknown", request.shardId(), request.targetNode());
             throw new DelayRecoveryException("source node does not have the node [" + request.targetNode() + "] in its state yet..");

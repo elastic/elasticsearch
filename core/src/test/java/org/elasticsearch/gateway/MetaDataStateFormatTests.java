@@ -27,11 +27,11 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -59,11 +59,9 @@ import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to work with ExtrasFS
 public class MetaDataStateFormatTests extends ESTestCase {
@@ -225,94 +223,14 @@ public class MetaDataStateFormatTests extends ESTestCase {
         msg.append(" after: [").append(checksumAfterCorruption).append("]");
         msg.append(" checksum value after corruption: ").append(actualChecksumAfterCorruption).append("]");
         msg.append(" file: ").append(fileToCorrupt.getFileName().toString()).append(" length: ").append(dir.fileLength(fileToCorrupt.getFileName().toString()));
-        logger.debug(msg.toString());
+        logger.debug("{}", msg.toString());
         assumeTrue("Checksum collision - " + msg.toString(),
                 checksumAfterCorruption != checksumBeforeCorruption // collision
                         || actualChecksumAfterCorruption != checksumBeforeCorruption); // checksum corrupted
         }
     }
 
-    // If the latest version doesn't use the legacy format while previous versions do, then fail hard
-    public void testLatestVersionDoesNotUseLegacy() throws IOException {
-        final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
-        MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params);
-        final Path[] dirs = new Path[2];
-        dirs[0] = createTempDir();
-        dirs[1] = createTempDir();
-        for (Path dir : dirs) {
-            Files.createDirectories(dir.resolve(MetaDataStateFormat.STATE_DIR_NAME));
-        }
-        final Path dir1 = randomFrom(dirs);
-        final int v1 = randomInt(10);
-        // write a first state file in the new format
-        format.write(randomMeta(), v1, dir1);
-
-        // write older state files in the old format but with a newer version
-        final int numLegacyFiles = randomIntBetween(1, 5);
-        for (int i = 0; i < numLegacyFiles; ++i) {
-            final Path dir2 = randomFrom(dirs);
-            final int v2 = v1 + 1 + randomInt(10);
-            try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(format.format(), Files.newOutputStream(dir2.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve(MetaStateService.GLOBAL_STATE_FILE_PREFIX + v2)))) {
-                xcontentBuilder.startObject();
-                MetaData.Builder.toXContent(randomMeta(), xcontentBuilder, params);
-                xcontentBuilder.endObject();
-            }
-        }
-
-        try {
-            format.loadLatestState(logger, dirs);
-            fail("latest version can not be read");
-        } catch (IllegalStateException ex) {
-            assertThat(ex.getMessage(), startsWith("Could not find a state file to recover from among "));
-        }
-        // write the next state file in the new format and ensure it get's a higher ID
-        final MetaData meta = randomMeta();
-        format.write(meta, v1, dirs);
-        final MetaData metaData = format.loadLatestState(logger, dirs);
-        assertEquals(meta.clusterUUID(), metaData.clusterUUID());
-        final Path path = randomFrom(dirs);
-        final Path[] files = FileSystemUtils.files(path.resolve("_state"));
-        assertEquals(1, files.length);
-        assertEquals("global-" + format.findMaxStateId("global-", dirs) + ".st", files[0].getFileName().toString());
-
-    }
-
-    // If both the legacy and the new format are available for the latest version, prefer the new format
-    public void testPrefersNewerFormat() throws IOException {
-        final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
-        MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params);
-        final Path[] dirs = new Path[2];
-        dirs[0] = createTempDir();
-        dirs[1] = createTempDir();
-        for (Path dir : dirs) {
-            Files.createDirectories(dir.resolve(MetaDataStateFormat.STATE_DIR_NAME));
-        }
-        final long v = randomInt(10);
-
-        MetaData meta = randomMeta();
-        String uuid = meta.clusterUUID();
-
-        // write a first state file in the old format
-        final Path dir2 = randomFrom(dirs);
-        MetaData meta2 = randomMeta();
-        assertFalse(meta2.clusterUUID().equals(uuid));
-        try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(format.format(), Files.newOutputStream(dir2.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve(MetaStateService.GLOBAL_STATE_FILE_PREFIX + v)))) {
-            xcontentBuilder.startObject();
-            MetaData.Builder.toXContent(randomMeta(), xcontentBuilder, params);
-            xcontentBuilder.endObject();
-        }
-
-        // write a second state file in the new format but with the same version
-        format.write(meta, v, dirs);
-
-        MetaData state = format.loadLatestState(logger, dirs);
-        final Path path = randomFrom(dirs);
-        assertTrue(Files.exists(path.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + (v+1) + ".st")));
-        assertEquals(state.clusterUUID(), uuid);
-    }
-
     public void testLoadState() throws IOException {
-        final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
         final Path[] dirs = new Path[randomIntBetween(1, 5)];
         int numStates = randomIntBetween(1, 5);
         int numLegacy = randomIntBetween(0, numStates);
@@ -321,7 +239,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             meta.add(randomMeta());
         }
         Set<Path> corruptedFiles = new HashSet<>();
-        MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params);
+        MetaDataStateFormat<MetaData> format = metaDataFormat(randomFrom(XContentType.values()));
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = createTempDir();
             Files.createDirectories(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME));
@@ -331,9 +249,10 @@ public class MetaDataStateFormatTests extends ESTestCase {
                     Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-"+j);
                     Files.createFile(file); // randomly create 0-byte files -- there is extra logic to skip them
                 } else {
-                    try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(type, Files.newOutputStream(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j)))) {
+                    try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(type,
+                        Files.newOutputStream(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j)))) {
                         xcontentBuilder.startObject();
-                        MetaData.Builder.toXContent(meta.get(j), xcontentBuilder, params);
+                        MetaData.Builder.toXContent(meta.get(j), xcontentBuilder, ToXContent.EMPTY_PARAMS);
                         xcontentBuilder.endObject();
                     }
                 }
@@ -377,10 +296,23 @@ public class MetaDataStateFormatTests extends ESTestCase {
                 format.loadLatestState(logger, dirList.toArray(new Path[0]));
                 fail("latest version can not be read");
             } catch (ElasticsearchException ex) {
-                assertThat(ex.getCause(), instanceOf(CorruptStateException.class));
+                assertThat(ExceptionsHelper.unwrap(ex, CorruptStateException.class), notNullValue());
             }
         }
+    }
 
+    private static MetaDataStateFormat<MetaData> metaDataFormat(XContentType format) {
+        return new MetaDataStateFormat<MetaData>(format, MetaData.GLOBAL_STATE_FILE_PREFIX) {
+            @Override
+            public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
+                MetaData.Builder.toXContent(state, builder, ToXContent.EMPTY_PARAMS);
+            }
+
+            @Override
+            public MetaData fromXContent(XContentParser parser) throws IOException {
+                return MetaData.Builder.fromXContent(parser);
+            }
+        };
     }
 
     private MetaData randomMeta() throws IOException {
@@ -417,7 +349,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
         @Override
         protected Directory newDirectory(Path dir) throws IOException {
-            MockDirectoryWrapper  mock = new MockDirectoryWrapper(getRandom(), super.newDirectory(dir));
+            MockDirectoryWrapper  mock = new MockDirectoryWrapper(random(), super.newDirectory(dir));
             closeAfterSuite(mock);
             return mock;
         }

@@ -45,11 +45,10 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
-import java.util.List;
 
 public class MatchQuery {
 
-    public static enum Type implements Writeable<Type> {
+    public static enum Type implements Writeable {
         /**
          * The text is analyzed and terms are added to a boolean query.
          */
@@ -65,14 +64,11 @@ public class MatchQuery {
 
         private final int ordinal;
 
-        private static final Type PROTOTYPE = BOOLEAN;
-
         private Type(int ordinal) {
             this.ordinal = ordinal;
         }
 
-        @Override
-        public Type readFrom(StreamInput in) throws IOException {
+        public static Type readFromStream(StreamInput in) throws IOException {
             int ord = in.readVInt();
             for (Type type : Type.values()) {
                 if (type.ordinal == ord) {
@@ -82,30 +78,23 @@ public class MatchQuery {
             throw new ElasticsearchException("unknown serialized type [" + ord + "]");
         }
 
-        public static Type readTypeFrom(StreamInput in) throws IOException {
-            return PROTOTYPE.readFrom(in);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(this.ordinal);
         }
     }
 
-    public static enum ZeroTermsQuery implements Writeable<ZeroTermsQuery> {
+    public static enum ZeroTermsQuery implements Writeable {
         NONE(0),
         ALL(1);
 
         private final int ordinal;
 
-        private static final ZeroTermsQuery PROTOTYPE = NONE;
-
         private ZeroTermsQuery(int ordinal) {
             this.ordinal = ordinal;
         }
 
-        @Override
-        public ZeroTermsQuery readFrom(StreamInput in) throws IOException {
+        public static ZeroTermsQuery readFromStream(StreamInput in) throws IOException {
             int ord = in.readVInt();
             for (ZeroTermsQuery zeroTermsQuery : ZeroTermsQuery.values()) {
                 if (zeroTermsQuery.ordinal == ord) {
@@ -113,10 +102,6 @@ public class MatchQuery {
                 }
             }
             throw new ElasticsearchException("unknown serialized type [" + ord + "]");
-        }
-
-        public static ZeroTermsQuery readZeroTermsQueryFrom(StreamInput in) throws IOException {
-            return PROTOTYPE.readFrom(in);
         }
 
         @Override
@@ -245,7 +230,7 @@ public class MatchQuery {
          * passing through QueryBuilder.
          */
         boolean noForcedAnalyzer = this.analyzer == null;
-        if (fieldType != null && fieldType.useTermQueryWithQueryString() && noForcedAnalyzer) {
+        if (fieldType != null && fieldType.tokenized() == false && noForcedAnalyzer) {
             return termQuery(fieldType, value);
         }
 
@@ -336,10 +321,10 @@ public class MatchQuery {
                 return prefixQuery;
             } else if (query instanceof MultiPhraseQuery) {
                 MultiPhraseQuery pq = (MultiPhraseQuery)query;
-                List<Term[]> terms = pq.getTermArrays();
+                Term[][] terms = pq.getTermArrays();
                 int[] positions = pq.getPositions();
-                for (int i = 0; i < terms.size(); i++) {
-                    prefixQuery.add(terms.get(i), positions[i]);
+                for (int i = 0; i < terms.length; i++) {
+                    prefixQuery.add(terms[i], positions[i]);
                 }
                 return prefixQuery;
             } else if (query instanceof TermQuery) {

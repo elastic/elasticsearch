@@ -41,7 +41,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * setting a reproducible seed. When running the Elasticsearch server
  * process, non-reproducible sources of randomness are provided (unless
  * a setting is provided for a module that exposes a seed setting (e.g.,
- * DiscoveryService#DISCOVERY_SEED_SETTING)).
+ * DiscoveryService#NODE_ID_SEED_SETTING)).
  */
 public final class Randomness {
     private static final Method currentMethod;

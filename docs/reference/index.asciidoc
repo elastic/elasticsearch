@@ -1,10 +1,10 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:       3.0.0-beta1
-:major-version: 3.x
+:version:       5.0.0-alpha1
+:major-version: 5.x
 :branch:        master
-:jdk:           1.8.0_25
+:jdk:           1.8.0_73
 :defguide:      https://www.elastic.co/guide/en/elasticsearch/guide/current
 :plugins:       https://www.elastic.co/guide/en/elasticsearch/plugins/master
 :javaclient:    https://www.elastic.co/guide/en/elasticsearch/client/java-api/master/
@@ -47,9 +47,7 @@ include::testing.asciidoc[]
 
 include::glossary.asciidoc[]
 
-//////////////////////////////////////////
-  include::release-notes.asciidoc[]
-//////////////////////////////////////////
+include::release-notes.asciidoc[]
 
 include::redirects.asciidoc[]
 

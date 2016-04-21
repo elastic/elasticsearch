@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
@@ -29,7 +28,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
-import junit.framework.AssertionFailedError;
+
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -41,15 +40,23 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
@@ -67,14 +74,20 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Random;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.equalTo;
@@ -130,7 +143,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     protected void afterIfFailed(List<Throwable> errors) {
     }
 
-    /** called after a test is finished, but only if succesfull */
+    /** called after a test is finished, but only if successful */
     protected void afterIfSuccessful() throws Exception {
     }
 
@@ -173,12 +186,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     // this must be a separate method from other ensure checks above so suite scoped integ tests can call...TODO: fix that
     @After
     public final void ensureAllSearchContextsReleased() throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                MockSearchService.assertNoInFLightContext();
-            }
-        });
+        assertBusy(() -> MockSearchService.assertNoInFlightContext());
     }
 
     // mockdirectorywrappers currently set this boolean if checkindex fails
@@ -201,15 +209,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     // Test facilities and facades for subclasses.
     // -----------------------------------------------------------------
 
-    // TODO: replaces uses of getRandom() with random()
     // TODO: decide on one set of naming for between/scaledBetween and remove others
     // TODO: replace frequently() with usually()
-
-    /** Shortcut for {@link RandomizedContext#getRandom()}. Use {@link #random()} instead. */
-    public static Random getRandom() {
-        // TODO: replace uses of this function with random()
-        return random();
-    }
 
     /**
      * Returns a "scaled" random number between min and max (inclusive).
@@ -282,10 +283,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Returns a double value in the interval [start, end) if lowerInclusive is
      * set to true, (start, end) otherwise.
      *
-     * @param start lower bound of interval to draw uniformly distributed random numbers from
-     * @param end upper bound
+     * @param start          lower bound of interval to draw uniformly distributed random numbers from
+     * @param end            upper bound
      * @param lowerInclusive whether or not to include lower end of the interval
-     * */
+     */
     public static double randomDoubleBetween(double start, double end, boolean lowerInclusive) {
         double result = 0.0;
 
@@ -394,6 +395,26 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static String randomPositiveTimeValue() {
         return randomTimeValue(1, 1000);
+    }
+
+    /**
+     * helper to randomly perform on <code>consumer</code> with <code>value</code>
+     */
+    public static <T> void maybeSet(Consumer<T> consumer, T value) {
+        if (randomBoolean()) {
+            consumer.accept(value);
+        }
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input
+     */
+    public static <T> T randomValueOtherThan(T input, Supplier<T> randomSupplier) {
+        T randomValue = null;
+        do {
+            randomValue = randomSupplier.get();
+        } while (randomValue.equals(input));
+        return randomValue;
     }
 
     /**
@@ -555,12 +576,76 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Returns size random values
      */
     public static <T> List<T> randomSubsetOf(int size, T... values) {
-        if (size > values.length) {
-            throw new IllegalArgumentException("Can\'t pick " + size + " random objects from a list of " + values.length + " objects");
-        }
         List<T> list = arrayAsArrayList(values);
-        Collections.shuffle(list, random());
-        return list.subList(0, size);
+        return randomSubsetOf(size, list);
+    }
+
+    /**
+     * Returns a random subset of values (including a potential empty list)
+     */
+    public static <T> List<T> randomSubsetOf(Collection<T> collection) {
+        return randomSubsetOf(randomInt(collection.size() - 1), collection);
+    }
+
+    /**
+     * Returns size random values
+     */
+    public static <T> List<T> randomSubsetOf(int size, Collection<T> collection) {
+        if (size > collection.size()) {
+            throw new IllegalArgumentException("Can\'t pick " + size + " random objects from a collection of " + collection.size() + " objects");
+        }
+        List<T> tempList = new ArrayList<>(collection);
+        Collections.shuffle(tempList, random());
+        return tempList.subList(0, size);
+    }
+
+    /**
+     * Builds a set of unique items. Usually you'll get the requested count but you might get less than that number if the supplier returns
+     * lots of repeats. Make sure that the items properly implement equals and hashcode.
+     */
+    public static <T> Set<T> randomUnique(Supplier<T> supplier, int targetCount) {
+        Set<T> things = new HashSet<>();
+        int maxTries = targetCount * 10;
+        for (int t = 0; t < maxTries; t++) {
+            if (things.size() == targetCount) {
+                return things;
+            }
+            things.add(supplier.get());
+        }
+        // Oh well, we didn't get enough unique things. It'll be ok.
+        return things;
+    }
+
+    /**
+     * Randomly shuffles the fields inside objects in the {@link XContentBuilder} passed in.
+     * Recursively goes through inner objects and also shuffles them. Exceptions for this
+     * recursive shuffling behavior can be made by passing in the names of fields which
+     * internally should stay untouched.
+     */
+    public static XContentBuilder shuffleXContent(XContentBuilder builder, Set<String> exceptFieldNames) throws IOException {
+        BytesReference bytes = builder.bytes();
+        XContentParser parser = XContentFactory.xContent(bytes).createParser(bytes);
+        // use ordered maps for reproducibility
+        Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), exceptFieldNames);
+        XContentBuilder jsonBuilder = XContentFactory.contentBuilder(builder.contentType());
+        return jsonBuilder.map(shuffledMap);
+    }
+
+    private static Map<String, Object> shuffleMap(Map<String, Object> map, Set<String> exceptFieldNames) {
+        List<String> keys = new ArrayList<>(map.keySet());
+        // even though we shuffle later, we need this to make tests reproduce on different jvms
+        Collections.sort(keys);
+        Map<String, Object> targetMap = new TreeMap<>();
+        Collections.shuffle(keys, random());
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (value instanceof Map && exceptFieldNames.contains(key) == false) {
+                targetMap.put(key, shuffleMap((Map) value, exceptFieldNames));
+            } else {
+                targetMap.put(key, value);
+            }
+        }
+        return targetMap;
     }
 
     /**
@@ -631,24 +716,43 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertEquals(expected.isNativeMethod(), actual.isNativeMethod());
     }
 
-    /** A runnable that can throw any checked exception. */
-    @FunctionalInterface
-    public interface ThrowingRunnable {
-        void run() throws Throwable;
+    protected static long spinForAtLeastOneMillisecond() {
+        long nanosecondsInMillisecond = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
+        // force at least one millisecond to elapse, but ensure the
+        // clock has enough resolution to observe the passage of time
+        long start = System.nanoTime();
+        long elapsed;
+        while ((elapsed = (System.nanoTime() - start)) < nanosecondsInMillisecond) {
+            // busy spin
+        }
+        return elapsed;
     }
 
-    /** Checks a specific exception class is thrown by the given runnable, and returns it. */
-    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ThrowingRunnable runnable) {
-        try {
-            runnable.run();
-        } catch (Throwable e) {
-            if (expectedType.isInstance(e)) {
-                return expectedType.cast(e);
-            }
-            AssertionFailedError assertion = new AssertionFailedError("Unexpected exception type, expected " + expectedType.getSimpleName());
-            assertion.initCause(e);
-            throw assertion;
+    /**
+     * Creates an AnalysisService to test analysis factories and analyzers.
+     */
+    @SafeVarargs
+    public static AnalysisService createAnalysisService(Index index, Settings settings, Consumer<AnalysisModule>... moduleConsumers) throws IOException {
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        return createAnalysisService(index, nodeSettings, settings, moduleConsumers);
+    }
+
+    /**
+     * Creates an AnalysisService to test analysis factories and analyzers.
+     */
+    @SafeVarargs
+    public static AnalysisService createAnalysisService(Index index, Settings nodeSettings, Settings settings, Consumer<AnalysisModule>... moduleConsumers) throws IOException {
+        Settings indexSettings = Settings.builder().put(settings)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build();
+        Environment env = new Environment(nodeSettings);
+        AnalysisModule analysisModule = new AnalysisModule(env);
+        for (Consumer<AnalysisModule> consumer : moduleConsumers) {
+            consumer.accept(analysisModule);
         }
-        throw new AssertionFailedError("Expected exception " + expectedType.getSimpleName());
+        SettingsModule settingsModule = new SettingsModule(nodeSettings);
+        settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
+        final AnalysisService analysisService = analysisModule.buildRegistry().build(IndexSettingsModule.newIndexSettings(index, indexSettings));
+        return analysisService;
     }
 }

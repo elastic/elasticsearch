@@ -3,8 +3,11 @@
 
 The `plugin` script is used to install, list, and remove plugins. It is
 located in the `$ES_HOME/bin` directory by default but it may be in a
-{ref}/setup-dir-layout.html[different location] if you installed Elasticsearch
-with an RPM or deb package.
+different location depending on which Elasticsearch package you installed:
+
+* {ref}/zip-targz.html#zip-targz-layout[Directory layout of `.zip` and `.tar.gz` archives]
+* {ref}/deb.html#deb-layout[Directory layout of Debian package]
+* {ref}/rpm.html#rpm-layout[Directory layout of RPM]
 
 Run the following command to get usage instructions:
 
@@ -17,7 +20,7 @@ sudo bin/elasticsearch-plugin -h
 .Running as root
 =====================
 If Elasticsearch was installed using the deb or rpm package then run
-`bin/elasticsearch-plugin` as `root` so it can write to the appropriate files on disk.
+`/usr/share/elasticsearch-plugin` as `root` so it can write to the appropriate files on disk.
 Otherwise run `bin/elasticsearch-plugin` as the user that owns all of the Elasticsearch
 files.
 =====================
@@ -49,41 +52,6 @@ sudo bin/elasticsearch-plugin install analysis-icu
 
 This command will install the version of the plugin that matches your
 Elasticsearch version.
-
-[float]
-=== Community and non-core plugins
-
-Non-core plugins provided by Elasticsearch, or plugins provided by the
-community, can be installed from `download.elastic.co`, from Maven (Central
-and Sonatype), or from GitHub.  In this case, the command is as follows:
-
-[source,shell]
------------------------------------
-sudo bin/elasticsearch-plugin install [org]/[user|component]/[version]
------------------------------------
-
-For instance, to install the https://github.com/lmenezes/elasticsearch-kopf[Kopf]
-plugin from GitHub, run one of the following commands:
-
-[source,shell]
------------------------------------
-sudo bin/elasticsearch-plugin install lmenezes/elasticsearch-kopf <1>
-sudo bin/elasticsearch-plugin install lmenezes/elasticsearch-kopf/2.x <2>
------------------------------------
-<1> Installs the latest version from GitHub.
-<2> Installs the 1.x version from GitHub.
-
-When installing from Maven Central/Sonatype, `[org]` should be replaced by
-the artifact `groupId`, and `[user|component]` by the `artifactId`.  For
-instance, to install the {plugins}/mapper-attachments.html[`mapper-attachments`]
-plugin from Sonatype, run:
-
-[source,shell]
------------------------------------
-sudo bin/elasticsearch-plugin install org.elasticsearch.plugin/mapper-attachments/3.0.0 <1>
------------------------------------
-<1> When installing from `download.elastic.co` or from Maven Central/Sonatype, the
-    version is required.
 
 [float]
 === Custom URL or file system
@@ -167,7 +135,7 @@ can do this as follows:
 
 [source,sh]
 ---------------------
-sudo bin/elasticsearch-plugin -Des.path.conf=/path/to/custom/config/dir install <plugin name>
+sudo bin/elasticsearch-plugin -Ees.path.conf=/path/to/custom/config/dir install <plugin name>
 ---------------------
 
 You can also set the `CONF_DIR` environment variable to the custom config
@@ -183,13 +151,13 @@ waits. Here is some examples of setting it to different values:
 [source,shell]
 -----------------------------------
 # Wait for 30 seconds before failing
-sudo bin/elasticsearch-plugin install mobz/elasticsearch-head --timeout 30s
+sudo bin/elasticsearch-plugin install analysis-icu --timeout 30s
 
 # Wait for 1 minute before failing
-sudo bin/elasticsearch-plugin install mobz/elasticsearch-head --timeout 1m
+sudo bin/elasticsearch-plugin install analysis-icu --timeout 1m
 
 # Wait forever (default)
-sudo bin/elasticsearch-plugin install mobz/elasticsearch-head --timeout 0
+sudo bin/elasticsearch-plugin install analysis-icu --timeout 0
 -----------------------------------
 
 [float]
@@ -204,12 +172,12 @@ options can be set on the command line:
 sudo bin/elasticsearch-plugin install mobz/elasticsearch-head -DproxyHost=host_name -DproxyPort=port_number
 -----------------------------------
 
-On Windows, they need to be added to the `JAVA_OPTS` environment variable:
+On Windows, they need to be added to the `ES_JAVA_OPTS` environment variable:
 
 [source,shell]
 -----------------------------------
-set JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
-bin/elasticsearch-plugin install mobz/elasticsearch-head
+set ES_JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number"
+bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
 
 === Settings related to plugins
@@ -225,8 +193,11 @@ following to the `elasticsearch.yml` config file:
 path.plugins: /path/to/custom/plugins/dir
 ---------------------
 
-The default location of the `plugins` directory depends on
-{ref}/setup-dir-layout.html[which package you install].
+The default location of the `plugins` directory depends on which package you install:
+
+* {ref}/zip-targz.html#zip-targz-layout[Directory layout of `.zip` and `.tar.gz` archives]
+* {ref}/deb.html#deb-layout[Directory layout of Debian package]
+* {ref}/rpm.html#rpm-layout[Directory layout of RPM]
 
 [float]
 === Mandatory Plugins
@@ -237,7 +208,7 @@ example:
 
 [source,yaml]
 --------------------------------------------------
-plugin.mandatory: mapper-attachments,lang-python
+plugin.mandatory: analysis-icu,lang-js
 --------------------------------------------------
 
 For safety reasons, a node will not start if it is missing a mandatory plugin.

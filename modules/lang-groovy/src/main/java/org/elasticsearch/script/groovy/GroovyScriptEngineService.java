@@ -316,7 +316,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 });
             } catch (Throwable e) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("failed to run " + compiledScript, e);
+                    logger.trace("failed to run {}", e, compiledScript);
                 }
                 throw new ScriptException("failed to run " + compiledScript, e);
             }

@@ -34,6 +34,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -50,15 +51,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
     public static void init() {
         if (namedWriteableRegistry == null) {
             namedWriteableRegistry = new NamedWriteableRegistry();
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, PointBuilder.PROTOTYPE);
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, CircleBuilder.PROTOTYPE);
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, EnvelopeBuilder.PROTOTYPE);
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, MultiPointBuilder.PROTOTYPE);
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, LineStringBuilder.PROTOTYPE);
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, MultiLineStringBuilder.PROTOTYPE);
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, PolygonBuilder.PROTOTYPE);
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, MultiPolygonBuilder.PROTOTYPE);
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, GeometryCollectionBuilder.PROTOTYPE);
+            ShapeBuilders.register(namedWriteableRegistry);
         }
     }
 
@@ -88,7 +81,8 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
                 contentBuilder.prettyPrint();
             }
             XContentBuilder builder = testShape.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
-            XContentParser shapeParser = XContentHelper.createParser(builder.bytes());
+            XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+            XContentParser shapeParser = XContentHelper.createParser(shuffled.bytes());
             shapeParser.nextToken();
             ShapeBuilder parsedShape = ShapeBuilder.parse(shapeParser);
             assertNotSame(testShape, parsedShape);
@@ -146,8 +140,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                ShapeBuilder prototype = (ShapeBuilder) namedWriteableRegistry.getPrototype(ShapeBuilder.class, original.getWriteableName());
-                return prototype.readFrom(in);
+                return namedWriteableRegistry.getReader(ShapeBuilder.class, original.getWriteableName()).read(in);
             }
         }
     }

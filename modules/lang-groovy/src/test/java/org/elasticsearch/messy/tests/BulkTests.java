@@ -105,12 +105,12 @@ public class BulkTests extends ESIntegTestCase {
                 .actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(2L));
-        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(2L));
+        assertThat(((Number) getResponse.getField("field").getValue()).longValue(), equalTo(2L));
 
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("2").setFields("field").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(2L));
-        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(3L));
+        assertThat(((Number) getResponse.getField("field").getValue()).longValue(), equalTo(3L));
 
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("3").setFields("field1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
@@ -143,7 +143,7 @@ public class BulkTests extends ESIntegTestCase {
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("6").setFields("field").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(1L));
-        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(0L));
+        assertThat(((Number) getResponse.getField("field").getValue()).longValue(), equalTo(0L));
 
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("7").setFields("field").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
@@ -151,7 +151,7 @@ public class BulkTests extends ESIntegTestCase {
         getResponse = client().prepareGet().setIndex("test").setType("type1").setId("2").setFields("field").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getVersion(), equalTo(3L));
-        assertThat(((Long) getResponse.getField("field").getValue()), equalTo(4L));
+        assertThat(((Number) getResponse.getField("field").getValue()).longValue(), equalTo(4L));
     }
 
     public void testBulkVersioning() throws Exception {
@@ -276,7 +276,7 @@ public class BulkTests extends ESIntegTestCase {
                         .actionGet();
                 assertThat(getResponse.isExists(), equalTo(true));
                 assertThat(getResponse.getVersion(), equalTo(1L));
-                assertThat((Long) getResponse.getField("counter").getValue(), equalTo(1L));
+                assertThat(((Number) getResponse.getField("counter").getValue()).longValue(), equalTo(1L));
             }
         }
 
@@ -404,7 +404,7 @@ public class BulkTests extends ESIntegTestCase {
     }
 
     /*
-    Test for https://github.com/elasticsearch/elasticsearch/issues/3444
+    Test for https://github.com/elastic/elasticsearch/issues/3444
      */
     public void testBulkUpdateDocAsUpsertWithParent() throws Exception {
         client().admin().indices().prepareCreate("test")
@@ -433,7 +433,7 @@ public class BulkTests extends ESIntegTestCase {
 
         //we check that the _parent field was set on the child document by using the has parent query
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.hasParentQuery("parent", QueryBuilders.matchAllQuery()))
+                .setQuery(QueryBuilders.hasParentQuery("parent", QueryBuilders.matchAllQuery(), false))
                 .get();
 
         assertNoFailures(searchResponse);
@@ -441,7 +441,7 @@ public class BulkTests extends ESIntegTestCase {
     }
 
     /*
-    Test for https://github.com/elasticsearch/elasticsearch/issues/3444
+    Test for https://github.com/elastic/elasticsearch/issues/3444
      */
     public void testBulkUpdateUpsertWithParent() throws Exception {
         assertAcked(prepareCreate("test")
@@ -468,14 +468,14 @@ public class BulkTests extends ESIntegTestCase {
         client().admin().indices().prepareRefresh("test").get();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.hasParentQuery("parent", QueryBuilders.matchAllQuery()))
+                .setQuery(QueryBuilders.hasParentQuery("parent", QueryBuilders.matchAllQuery(), false))
                 .get();
 
         assertSearchHits(searchResponse, "child1");
     }
 
     /*
-     * Test for https://github.com/elasticsearch/elasticsearch/issues/8365
+     * Test for https://github.com/elastic/elasticsearch/issues/8365
      */
     public void testBulkUpdateChildMissingParentRouting() throws Exception {
         assertAcked(prepareCreate("test").addMapping("parent", "{\"parent\":{}}").addMapping("child",

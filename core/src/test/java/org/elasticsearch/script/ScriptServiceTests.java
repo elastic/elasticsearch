@@ -37,7 +37,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -68,7 +67,7 @@ public class ScriptServiceTests extends ESTestCase {
     @Before
     public void setup() throws IOException {
         Path genericConfigFolder = createTempDir();
-        baseSettings = settingsBuilder()
+        baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .build();
@@ -122,26 +121,21 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testScriptsWithoutExtensions() throws IOException {
-
         buildScriptService(Settings.EMPTY);
-        logger.info("--> setup two test files one with extension and another without");
         Path testFileNoExt = scriptsFilePath.resolve("test_no_ext");
         Path testFileWithExt = scriptsFilePath.resolve("test_script.tst");
         Streams.copy("test_file_no_ext".getBytes("UTF-8"), Files.newOutputStream(testFileNoExt));
         Streams.copy("test_file".getBytes("UTF-8"), Files.newOutputStream(testFileWithExt));
         resourceWatcherService.notifyNow();
 
-        logger.info("--> verify that file with extension was correctly processed");
         CompiledScript compiledScript = scriptService.compile(new Script("test_script", ScriptType.FILE, "test", null),
                 ScriptContext.Standard.SEARCH, Collections.emptyMap());
         assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file"));
 
-        logger.info("--> delete both files");
         Files.delete(testFileNoExt);
         Files.delete(testFileWithExt);
         resourceWatcherService.notifyNow();
 
-        logger.info("--> verify that file with extension was correctly removed");
         try {
             scriptService.compile(new Script("test_script", ScriptType.FILE, "test", null), ScriptContext.Standard.SEARCH,
                     Collections.emptyMap());
@@ -149,6 +143,25 @@ public class ScriptServiceTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), containsString("Unable to find on disk file script [test_script] using lang [test]"));
         }
+    }
+
+    public void testScriptCompiledOnceHiddenFileDetected() throws IOException {
+        buildScriptService(Settings.EMPTY);
+
+        Path testHiddenFile = scriptsFilePath.resolve(".hidden_file");
+        Streams.copy("test_hidden_file".getBytes("UTF-8"), Files.newOutputStream(testHiddenFile));
+
+        Path testFileScript = scriptsFilePath.resolve("file_script.tst");
+        Streams.copy("test_file_script".getBytes("UTF-8"), Files.newOutputStream(testFileScript));
+        resourceWatcherService.notifyNow();
+
+        CompiledScript compiledScript = scriptService.compile(new Script("file_script", ScriptType.FILE, "test", null),
+                ScriptContext.Standard.SEARCH, Collections.emptyMap());
+        assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file_script"));
+
+        Files.delete(testHiddenFile);
+        Files.delete(testFileScript);
+        resourceWatcherService.notifyNow();
     }
 
     public void testInlineScriptCompiledOnceCache() throws IOException {

@@ -23,9 +23,12 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -34,9 +37,19 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
+import org.apache.lucene.search.spans.SpanContainingQuery;
+import org.apache.lucene.search.spans.SpanFirstQuery;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanNotQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.search.spans.SpanWithinQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
@@ -44,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -92,10 +106,16 @@ public final class ExtractQueryTermsService {
      * an UnsupportedQueryException is thrown.
      */
     static Set<Term> extractQueryTerms(Query query) {
-        // TODO: add support for the TermsQuery when it has methods to access the actual terms it encapsulates
-        // TODO: add support for span queries
         if (query instanceof TermQuery) {
             return Collections.singleton(((TermQuery) query).getTerm());
+        } else if (query instanceof TermsQuery) {
+            Set<Term> terms = new HashSet<>();
+            TermsQuery termsQuery = (TermsQuery) query;
+            PrefixCodedTerms.TermIterator iterator = termsQuery.getTermData().iterator();
+            for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
+                terms.add(new Term(iterator.field(), term));
+            }
+            return  terms;
         } else if (query instanceof PhraseQuery) {
             Term[] terms = ((PhraseQuery) query).getTerms();
             if (terms.length == 0) {
@@ -154,6 +174,33 @@ public final class ExtractQueryTermsService {
         } else if (query instanceof BoostQuery) {
             Query wrappedQuery = ((BoostQuery) query).getQuery();
             return extractQueryTerms(wrappedQuery);
+        } else if (query instanceof CommonTermsQuery) {
+            List<Term> terms = ((CommonTermsQuery) query).getTerms();
+            return new HashSet<>(terms);
+        } else if (query instanceof BlendedTermQuery) {
+            List<Term> terms = ((BlendedTermQuery) query).getTerms();
+            return new HashSet<>(terms);
+        } else if (query instanceof SpanTermQuery) {
+            return Collections.singleton(((SpanTermQuery) query).getTerm());
+        } else if (query instanceof SpanNearQuery) {
+            Set<Term> bestClause = null;
+            SpanNearQuery spanNearQuery = (SpanNearQuery) query;
+            for (SpanQuery clause : spanNearQuery.getClauses()) {
+                Set<Term> temp = extractQueryTerms(clause);
+                bestClause = selectTermListWithTheLongestShortestTerm(temp, bestClause);
+            }
+            return bestClause;
+        } else if (query instanceof SpanOrQuery) {
+            Set<Term> terms = new HashSet<>();
+            SpanOrQuery spanOrQuery = (SpanOrQuery) query;
+            for (SpanQuery clause : spanOrQuery.getClauses()) {
+                terms.addAll(extractQueryTerms(clause));
+            }
+            return terms;
+        } else if (query instanceof SpanFirstQuery) {
+            return extractQueryTerms(((SpanFirstQuery)query).getMatch());
+        } else if (query instanceof SpanNotQuery) {
+            return extractQueryTerms(((SpanNotQuery) query).getInclude());
         } else {
             throw new UnsupportedQueryException(query);
         }
@@ -188,6 +235,9 @@ public final class ExtractQueryTermsService {
      * Creates a boolean query with a should clause for each term on all fields of the specified index reader.
      */
     public static Query createQueryTermsQuery(IndexReader indexReader, String queryMetadataField, String unknownQueryField) throws IOException {
+        Objects.requireNonNull(queryMetadataField);
+        Objects.requireNonNull(unknownQueryField);
+
         List<Term> extractedTerms = new ArrayList<>();
         extractedTerms.add(new Term(unknownQueryField));
         Fields fields = MultiFields.getFields(indexReader);

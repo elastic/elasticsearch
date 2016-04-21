@@ -28,9 +28,9 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -44,80 +44,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 public class CancelAllocationCommand implements AllocationCommand {
 
     public static final String NAME = "cancel";
-
-    /**
-     * Factory creating {@link CancelAllocationCommand}s
-     */
-    public static class Factory implements AllocationCommand.Factory<CancelAllocationCommand> {
-
-        @Override
-        public CancelAllocationCommand readFrom(StreamInput in) throws IOException {
-            return new CancelAllocationCommand(in.readString(), in.readVInt(), in.readString(), in.readBoolean());
-        }
-
-        @Override
-        public void writeTo(CancelAllocationCommand command, StreamOutput out) throws IOException {
-            out.writeString(command.index());
-            out.writeVInt(command.shardId());
-            out.writeString(command.node());
-            out.writeBoolean(command.allowPrimary());
-        }
-
-        @Override
-        public CancelAllocationCommand fromXContent(XContentParser parser) throws IOException {
-            String index = null;
-            int shardId = -1;
-            String nodeId = null;
-            boolean allowPrimary = false;
-
-            String currentFieldName = null;
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token.isValue()) {
-                    if ("index".equals(currentFieldName)) {
-                        index = parser.text();
-                    } else if ("shard".equals(currentFieldName)) {
-                        shardId = parser.intValue();
-                    } else if ("node".equals(currentFieldName)) {
-                        nodeId = parser.text();
-                    } else if ("allow_primary".equals(currentFieldName) || "allowPrimary".equals(currentFieldName)) {
-                        allowPrimary = parser.booleanValue();
-                    } else {
-                        throw new ElasticsearchParseException("[{}] command does not support field [{}]", NAME, currentFieldName);
-                    }
-                } else {
-                    throw new ElasticsearchParseException("[{}] command does not support complex json tokens [{}]", NAME, token);
-                }
-            }
-            if (index == null) {
-                throw new ElasticsearchParseException("[{}] command missing the index parameter", NAME);
-            }
-            if (shardId == -1) {
-                throw new ElasticsearchParseException("[{}] command missing the shard parameter", NAME);
-            }
-            if (nodeId == null) {
-                throw new ElasticsearchParseException("[{}] command missing the node parameter", NAME);
-            }
-            return new CancelAllocationCommand(index, shardId, nodeId, allowPrimary);
-        }
-
-        @Override
-        public void toXContent(CancelAllocationCommand command, XContentBuilder builder, ToXContent.Params params, String objectName) throws IOException {
-            if (objectName == null) {
-                builder.startObject();
-            } else {
-                builder.startObject(objectName);
-            }
-            builder.field("index", command.index());
-            builder.field("shard", command.shardId());
-            builder.field("node", command.node());
-            builder.field("allow_primary", command.allowPrimary());
-            builder.endObject();
-        }
-    }
-
+    public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
 
     private final String index;
     private final int shardId;
@@ -136,6 +63,24 @@ public class CancelAllocationCommand implements AllocationCommand {
         this.shardId = shardId;
         this.node = node;
         this.allowPrimary = allowPrimary;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public CancelAllocationCommand(StreamInput in) throws IOException {
+        index = in.readString();
+        shardId = in.readVInt();
+        node = in.readString();
+        allowPrimary = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(index);
+        out.writeVInt(shardId);
+        out.writeString(node);
+        out.writeBoolean(allowPrimary);
     }
 
     @Override
@@ -175,7 +120,7 @@ public class CancelAllocationCommand implements AllocationCommand {
     public RerouteExplanation execute(RoutingAllocation allocation, boolean explain) {
         DiscoveryNode discoNode = allocation.nodes().resolveNode(node);
         boolean found = false;
-        for (RoutingNodes.RoutingNodeIterator it = allocation.routingNodes().routingNodeIter(discoNode.id()); it.hasNext(); ) {
+        for (RoutingNodes.RoutingNodeIterator it = allocation.routingNodes().routingNodeIter(discoNode.getId()); it.hasNext(); ) {
             ShardRouting shardRouting = it.next();
             if (!shardRouting.shardId().getIndex().getName().equals(index)) {
                 continue;
@@ -245,5 +190,54 @@ public class CancelAllocationCommand implements AllocationCommand {
         }
         return new RerouteExplanation(this, allocation.decision(Decision.YES, "cancel_allocation_command",
                 "shard " + shardId + " on node " + discoNode + " can be cancelled"));
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("index", index());
+        builder.field("shard", shardId());
+        builder.field("node", node());
+        builder.field("allow_primary", allowPrimary());
+        return builder.endObject();
+    }
+
+    public static CancelAllocationCommand fromXContent(XContentParser parser) throws IOException {
+        String index = null;
+        int shardId = -1;
+        String nodeId = null;
+        boolean allowPrimary = false;
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if ("index".equals(currentFieldName)) {
+                    index = parser.text();
+                } else if ("shard".equals(currentFieldName)) {
+                    shardId = parser.intValue();
+                } else if ("node".equals(currentFieldName)) {
+                    nodeId = parser.text();
+                } else if ("allow_primary".equals(currentFieldName) || "allowPrimary".equals(currentFieldName)) {
+                    allowPrimary = parser.booleanValue();
+                } else {
+                    throw new ElasticsearchParseException("[{}] command does not support field [{}]", NAME, currentFieldName);
+                }
+            } else {
+                throw new ElasticsearchParseException("[{}] command does not support complex json tokens [{}]", NAME, token);
+            }
+        }
+        if (index == null) {
+            throw new ElasticsearchParseException("[{}] command missing the index parameter", NAME);
+        }
+        if (shardId == -1) {
+            throw new ElasticsearchParseException("[{}] command missing the shard parameter", NAME);
+        }
+        if (nodeId == null) {
+            throw new ElasticsearchParseException("[{}] command missing the node parameter", NAME);
+        }
+        return new CancelAllocationCommand(index, shardId, nodeId, allowPrimary);
     }
 }

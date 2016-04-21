@@ -26,7 +26,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -111,7 +110,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     static final class RoutingFieldType extends MappedFieldType {
 
         public RoutingFieldType() {
-            setFieldDataType(new FieldDataType("string"));
         }
 
         protected RoutingFieldType(RoutingFieldType ref) {
@@ -126,14 +124,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
         }
     }
 
@@ -154,11 +144,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public boolean required() {
         return this.required;
-    }
-
-    public String value(Document document) {
-        Field field = (Field) document.getField(fieldType().name());
-        return field == null ? null : (String)fieldType().value(field);
     }
 
     @Override

@@ -21,17 +21,16 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-
 public class ASCIIFoldingTokenFilterFactoryTests extends ESTokenStreamTestCase {
     public void testDefault() throws IOException {
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_ascii_folding.type", "asciifolding")
                 .build());
@@ -44,7 +43,7 @@ public class ASCIIFoldingTokenFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testPreserveOriginal() throws IOException {
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settingsBuilder()
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_ascii_folding.type", "asciifolding")
                 .put("index.analysis.filter.my_ascii_folding.preserve_original", true)

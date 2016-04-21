@@ -24,6 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -43,20 +44,28 @@ public class RestListTasksAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_tasks/{taskId}", this);
     }
 
-    @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public static ListTasksRequest generateListTasksRequest(RestRequest request) {
         boolean detailed = request.paramAsBoolean("detailed", false);
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("node_id"));
-        TaskId taskId = new TaskId(request.param("taskId"));
+        TaskId taskId = new TaskId(request.param("taskId", request.param("task_id")));
         String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
         TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
+        boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
+        TimeValue timeout = request.paramAsTime("timeout", null);
 
         ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.taskId(taskId);
-        listTasksRequest.nodesIds(nodesIds);
-        listTasksRequest.detailed(detailed);
-        listTasksRequest.actions(actions);
-        listTasksRequest.parentTaskId(parentTaskId);
-        client.admin().cluster().listTasks(listTasksRequest, new RestToXContentListener<>(channel));
+        listTasksRequest.setTaskId(taskId);
+        listTasksRequest.setNodesIds(nodesIds);
+        listTasksRequest.setDetailed(detailed);
+        listTasksRequest.setActions(actions);
+        listTasksRequest.setParentTaskId(parentTaskId);
+        listTasksRequest.setWaitForCompletion(waitForCompletion);
+        listTasksRequest.setTimeout(timeout);
+        return listTasksRequest;
+    }
+
+    @Override
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+        client.admin().cluster().listTasks(generateListTasksRequest(request), new RestToXContentListener<>(channel));
     }
 }

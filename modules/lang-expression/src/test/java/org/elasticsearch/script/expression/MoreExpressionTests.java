@@ -56,6 +56,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketScript;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -318,7 +319,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     public void testNonNumericField() {
         client().prepareIndex("test", "doc", "1").setSource("text", "this is not a number").setRefresh(true).get();
         try {
-            buildRequest("doc['text']").get();
+            buildRequest("doc['text.keyword']").get();
             fail("Expected text field to cause execution failure");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should have contained ScriptException",
@@ -383,7 +384,11 @@ public class MoreExpressionTests extends ESIntegTestCase {
                                 .script(new Script("_value * 3", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))
                 .addAggregation(
                         AggregationBuilders.stats("double_agg").field("y")
-                                .script(new Script("_value - 1.1", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)));
+                                .script(new Script("_value - 1.1", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))
+                .addAggregation(
+                        AggregationBuilders.stats("const_agg").field("x") // specifically to test a script w/o _value
+                                .script(new Script("3.0", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null))
+                );
 
         SearchResponse rsp = req.get();
         assertEquals(3, rsp.getHits().getTotalHits());
@@ -395,11 +400,17 @@ public class MoreExpressionTests extends ESIntegTestCase {
         stats = rsp.getAggregations().get("double_agg");
         assertEquals(0.7, stats.getMax(), 0.0001);
         assertEquals(0.1, stats.getMin(), 0.0001);
+
+        stats = rsp.getAggregations().get("const_agg");
+        assertThat(stats.getMax(), equalTo(3.0));
+        assertThat(stats.getMin(), equalTo(3.0));
+        assertThat(stats.getAvg(), equalTo(3.0));
     }
 
     public void testStringSpecialValueVariable() throws Exception {
         // i.e. expression script for term aggregations, which is not allowed
-        createIndex("test");
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("doc", "text", "type=keyword").get());
         ensureGreen("test");
         indexRandom(true,
                 client().prepareIndex("test", "doc", "1").setSource("text", "hello"),

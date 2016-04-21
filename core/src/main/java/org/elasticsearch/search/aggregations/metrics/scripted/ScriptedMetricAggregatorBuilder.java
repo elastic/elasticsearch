@@ -19,22 +19,38 @@
 
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedMetricAggregatorBuilder> {
 
-    static final ScriptedMetricAggregatorBuilder PROTOTYPE = new ScriptedMetricAggregatorBuilder("");
+    public static final String NAME = InternalScriptedMetric.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
+
+    private static final ParseField INIT_SCRIPT_FIELD = new ParseField("init_script");
+    private static final ParseField MAP_SCRIPT_FIELD = new ParseField("map_script");
+    private static final ParseField COMBINE_SCRIPT_FIELD = new ParseField("combine_script");
+    private static final ParseField REDUCE_SCRIPT_FIELD = new ParseField("reduce_script");
+    private static final ParseField PARAMS_FIELD = new ParseField("params");
+    private static final ParseField REDUCE_PARAMS_FIELD = new ParseField("reduce_params");
 
     private Script initScript;
     private Script mapScript;
@@ -44,6 +60,33 @@ public class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedM
 
     public ScriptedMetricAggregatorBuilder(String name) {
         super(name, InternalScriptedMetric.TYPE);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ScriptedMetricAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalScriptedMetric.TYPE);
+        initScript = in.readOptionalStreamable(Script.SUPPLIER);
+        mapScript = in.readOptionalStreamable(Script.SUPPLIER);
+        combineScript = in.readOptionalStreamable(Script.SUPPLIER);
+        reduceScript = in.readOptionalStreamable(Script.SUPPLIER);
+        if (in.readBoolean()) {
+            params = in.readMap();
+        }
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalStreamable(initScript);
+        out.writeOptionalStreamable(mapScript);
+        out.writeOptionalStreamable(combineScript);
+        out.writeOptionalStreamable(reduceScript);
+        boolean hasParams = params != null;
+        out.writeBoolean(hasParams);
+        if (hasParams) {
+            out.writeMap(params);
+        }
     }
 
     /**
@@ -149,52 +192,141 @@ public class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedM
     protected XContentBuilder internalXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject();
         if (initScript != null) {
-            builder.field(ScriptedMetricParser.INIT_SCRIPT_FIELD.getPreferredName(), initScript);
+            builder.field(INIT_SCRIPT_FIELD.getPreferredName(), initScript);
         }
 
         if (mapScript != null) {
-            builder.field(ScriptedMetricParser.MAP_SCRIPT_FIELD.getPreferredName(), mapScript);
+            builder.field(MAP_SCRIPT_FIELD.getPreferredName(), mapScript);
         }
 
         if (combineScript != null) {
-            builder.field(ScriptedMetricParser.COMBINE_SCRIPT_FIELD.getPreferredName(), combineScript);
+            builder.field(COMBINE_SCRIPT_FIELD.getPreferredName(), combineScript);
         }
 
         if (reduceScript != null) {
-            builder.field(ScriptedMetricParser.REDUCE_SCRIPT_FIELD.getPreferredName(), reduceScript);
+            builder.field(REDUCE_SCRIPT_FIELD.getPreferredName(), reduceScript);
         }
         if (params != null) {
-            builder.field(ScriptedMetricParser.PARAMS_FIELD.getPreferredName());
+            builder.field(PARAMS_FIELD.getPreferredName());
             builder.map(params);
         }
         builder.endObject();
         return builder;
     }
 
-    @Override
-    protected ScriptedMetricAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-        ScriptedMetricAggregatorBuilder factory = new ScriptedMetricAggregatorBuilder(name);
-        factory.initScript = in.readOptionalStreamable(Script.SUPPLIER);
-        factory.mapScript = in.readOptionalStreamable(Script.SUPPLIER);
-        factory.combineScript = in.readOptionalStreamable(Script.SUPPLIER);
-        factory.reduceScript = in.readOptionalStreamable(Script.SUPPLIER);
-        if (in.readBoolean()) {
-            factory.params = in.readMap();
+    public static ScriptedMetricAggregatorBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        Script initScript = null;
+        Script mapScript = null;
+        Script combineScript = null;
+        Script reduceScript = null;
+        Map<String, Object> params = null;
+        Map<String, Object> reduceParams = null;
+        XContentParser.Token token;
+        String currentFieldName = null;
+        Set<String> scriptParameters = new HashSet<>();
+        scriptParameters.add(INIT_SCRIPT_FIELD.getPreferredName());
+        scriptParameters.add(MAP_SCRIPT_FIELD.getPreferredName());
+        scriptParameters.add(COMBINE_SCRIPT_FIELD.getPreferredName());
+        scriptParameters.add(REDUCE_SCRIPT_FIELD.getPreferredName());
+        ScriptParameterParser scriptParameterParser = new ScriptParameterParser(scriptParameters);
+
+        XContentParser parser = context.parser();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (context.getParseFieldMatcher().match(currentFieldName, INIT_SCRIPT_FIELD)) {
+                    initScript = Script.parse(parser, context.getParseFieldMatcher());
+                } else if (context.getParseFieldMatcher().match(currentFieldName, MAP_SCRIPT_FIELD)) {
+                    mapScript = Script.parse(parser, context.getParseFieldMatcher());
+                } else if (context.getParseFieldMatcher().match(currentFieldName, COMBINE_SCRIPT_FIELD)) {
+                    combineScript = Script.parse(parser, context.getParseFieldMatcher());
+                } else if (context.getParseFieldMatcher().match(currentFieldName, REDUCE_SCRIPT_FIELD)) {
+                    reduceScript = Script.parse(parser, context.getParseFieldMatcher());
+                } else if (context.getParseFieldMatcher().match(currentFieldName, PARAMS_FIELD)) {
+                    params = parser.map();
+                } else if (context.getParseFieldMatcher().match(currentFieldName, REDUCE_PARAMS_FIELD)) {
+                  reduceParams = parser.map();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token.isValue()) {
+                if (!scriptParameterParser.token(currentFieldName, token, parser, context.getParseFieldMatcher())) {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + aggregationName + "].");
+            }
+        }
+
+        if (initScript == null) { // Didn't find anything using the new API so try using the old one instead
+            ScriptParameterValue scriptValue = scriptParameterParser.getScriptParameterValue(INIT_SCRIPT_FIELD.getPreferredName());
+            if (scriptValue != null) {
+                initScript = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
+            }
+        } else if (initScript.getParams() != null) {
+            throw new ParsingException(parser.getTokenLocation(), "init_script params are not supported. Parameters for the "
+                    + "init_script must be specified in the params field on the scripted_metric aggregator not inside the init_script "
+                    + "object");
+        }
+
+        if (mapScript == null) { // Didn't find anything using the new API so try using the old one instead
+            ScriptParameterValue scriptValue = scriptParameterParser.getScriptParameterValue(MAP_SCRIPT_FIELD.getPreferredName());
+            if (scriptValue != null) {
+                mapScript = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
+            }
+        } else if (mapScript.getParams() != null) {
+            throw new ParsingException(parser.getTokenLocation(), "map_script params are not supported. Parameters for the map_script "
+                    + "must be specified in the params field on the scripted_metric aggregator not inside the map_script object");
+        }
+
+        if (combineScript == null) { // Didn't find anything using the new API so try using the old one instead
+            ScriptParameterValue scriptValue = scriptParameterParser.getScriptParameterValue(COMBINE_SCRIPT_FIELD.getPreferredName());
+            if (scriptValue != null) {
+                combineScript = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
+            }
+        } else if (combineScript.getParams() != null) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "combine_script params are not supported. Parameters for the "
+                            + "combine_script must be specified in the params field on the scripted_metric aggregator not inside the "
+                            + "combine_script object");
+        }
+
+        if (reduceScript == null) { // Didn't find anything using the new API so try using the old one instead
+            ScriptParameterValue scriptValue = scriptParameterParser.getScriptParameterValue(REDUCE_SCRIPT_FIELD.getPreferredName());
+            if (scriptValue != null) {
+                reduceScript = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), reduceParams);
+            }
+        }
+
+        if (mapScript == null) {
+            throw new ParsingException(parser.getTokenLocation(), "map_script field is required in [" + aggregationName + "].");
+        }
+
+        ScriptedMetricAggregatorBuilder factory = new ScriptedMetricAggregatorBuilder(aggregationName);
+        if (initScript != null) {
+            factory.initScript(initScript);
+        }
+        if (mapScript != null) {
+            factory.mapScript(mapScript);
+        }
+        if (combineScript != null) {
+            factory.combineScript(combineScript);
+        }
+        if (reduceScript != null) {
+            factory.reduceScript(reduceScript);
+        }
+        if (params != null) {
+            factory.params(params);
         }
         return factory;
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeOptionalStreamable(initScript);
-        out.writeOptionalStreamable(mapScript);
-        out.writeOptionalStreamable(combineScript);
-        out.writeOptionalStreamable(reduceScript);
-        boolean hasParams = params != null;
-        out.writeBoolean(hasParams);
-        if (hasParams) {
-            out.writeMap(params);
-        }
+    public String getWriteableName() {
+        return NAME;
     }
 
     @Override

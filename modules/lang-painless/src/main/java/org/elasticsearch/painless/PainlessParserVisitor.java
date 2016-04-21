@@ -156,6 +156,18 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitTrap(PainlessParser.TrapContext ctx);
   /**
+   * Visit a parse tree produced by {@link PainlessParser#identifier}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIdentifier(PainlessParser.IdentifierContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#generic}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitGeneric(PainlessParser.GenericContext ctx);
+  /**
    * Visit a parse tree produced by the {@code comp}
    * labeled alternative in {@link PainlessParser#expression}.
    * @param ctx the parse tree
@@ -297,12 +309,6 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitExtdot(PainlessParser.ExtdotContext ctx);
-  /**
-   * Visit a parse tree produced by {@link PainlessParser#exttype}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitExttype(PainlessParser.ExttypeContext ctx);
   /**
    * Visit a parse tree produced by {@link PainlessParser#extcall}.
    * @param ctx the parse tree

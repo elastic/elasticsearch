@@ -25,6 +25,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -36,8 +37,6 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,7 +63,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
         PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    private ValueFormatter formatter;
+    private DocValueFormat formatter;
     private GapPolicy gapPolicy;
 
     private Script script;
@@ -74,7 +73,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
     public BucketScriptPipelineAggregator() {
     }
 
-    public BucketScriptPipelineAggregator(String name, Map<String, String> bucketsPathsMap, Script script, ValueFormatter formatter,
+    public BucketScriptPipelineAggregator(String name, Map<String, String> bucketsPathsMap, Script script, DocValueFormat formatter,
             GapPolicy gapPolicy, Map<String, Object> metadata) {
         super(name, bucketsPathsMap.values().toArray(new String[bucketsPathsMap.size()]), metadata);
         this.bucketsPathsMap = bucketsPathsMap;
@@ -140,7 +139,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         script.writeTo(out);
-        ValueFormatterStreams.writeOptional(formatter, out);
+        out.writeNamedWriteable(formatter);
         gapPolicy.writeTo(out);
         out.writeGenericValue(bucketsPathsMap);
     }
@@ -149,7 +148,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
         script = Script.readScript(in);
-        formatter = ValueFormatterStreams.readOptional(in);
+        formatter = in.readNamedWriteable(DocValueFormat.class);
         gapPolicy = GapPolicy.readFrom(in);
         bucketsPathsMap = (Map<String, String>) in.readGenericValue();
     }

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.SmoothingModel;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.StupidBackoff;
+import org.elasticsearch.index.query.QueryParseContext;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -28,6 +29,10 @@ public class StupidBackoffModelTests extends SmoothingModelTestCase {
 
     @Override
     protected SmoothingModel createTestModel() {
+        return createRandomModel();
+    }
+
+    static SmoothingModel createRandomModel() {
         return new StupidBackoff(randomDoubleBetween(0.0, 10.0, false));
     }
 
@@ -45,5 +50,10 @@ public class StupidBackoffModelTests extends SmoothingModelTestCase {
         assertThat(wordScorer, instanceOf(StupidBackoffScorer.class));
         StupidBackoff testModel = (StupidBackoff) input;
         assertEquals(testModel.getDiscount(), ((StupidBackoffScorer) wordScorer).discount(), Double.MIN_VALUE);
+    }
+
+    @Override
+    protected SmoothingModel fromXContent(QueryParseContext context) throws IOException {
+        return StupidBackoff.innerFromXContent(context);
     }
 }

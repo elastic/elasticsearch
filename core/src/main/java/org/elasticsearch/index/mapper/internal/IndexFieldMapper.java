@@ -29,6 +29,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.IndexIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -121,16 +123,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             return CONTENT_TYPE;
         }
 
-        @Override
-        public boolean useTermQueryWithQueryString() {
-            // As we spoof the presence of an indexed field we have to override
-            // the default of returning false which otherwise leads MatchQuery
-            // et al to run an analyzer over the query string and then try to
-            // hit the search index. We need them to use our termQuery(..)
-            // method which checks index names
-            return true;
-        }
-
         /**
          * This termQuery impl looks at the context to determine the index that
          * is being queried and then returns a MATCH_ALL_QUERY or MATCH_NO_QUERY
@@ -178,11 +170,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
+        public IndexFieldData.Builder fielddataBuilder() {
+            return new IndexIndexFieldData.Builder();
         }
     }
 
@@ -199,11 +188,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     public boolean enabled() {
         return this.enabledState.enabled;
-    }
-
-    public String value(Document document) {
-        Field field = (Field) document.getField(fieldType().name());
-        return field == null ? null : (String)fieldType().value(field);
     }
 
     @Override

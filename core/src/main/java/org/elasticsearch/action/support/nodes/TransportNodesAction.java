@@ -26,11 +26,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChildTaskRequest;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
@@ -110,7 +110,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
     }
 
 
-    private class AsyncAction {
+    class AsyncAction {
 
         private final NodesRequest request;
         private final String[] nodesIds;
@@ -120,14 +120,14 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         private final AtomicInteger counter = new AtomicInteger();
         private final Task task;
 
-        private AsyncAction(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
+        AsyncAction(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
             this.task = task;
             this.request = request;
             this.listener = listener;
             ClusterState clusterState = clusterService.state();
             String[] nodesIds = resolveNodes(request, clusterState);
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
-            ImmutableOpenMap<String, DiscoveryNode> nodes = clusterState.nodes().nodes();
+            ImmutableOpenMap<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();
             this.nodes = new DiscoveryNode[nodesIds.length];
             for (int i = 0; i < nodesIds.length; i++) {
                 this.nodes[i] = nodes.get(nodesIds[i]);
@@ -135,7 +135,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
             this.responses = new AtomicReferenceArray<>(this.nodesIds.length);
         }
 
-        private void start() {
+        void start() {
             if (nodesIds.length == 0) {
                 // nothing to notify
                 threadPool.generic().execute(new Runnable() {
@@ -158,15 +158,10 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                 try {
                     if (node == null) {
                         onFailure(idx, nodeId, new NoSuchNodeException(nodeId));
-                    } else if (!clusterService.localNode().shouldConnectTo(node) && !clusterService.localNode().equals(node)) {
-                        // the check "!clusterService.localNode().equals(node)" is to maintain backward comp. where before
-                        // we allowed to connect from "local" client node to itself, certain tests rely on it, if we remove it, we need to fix
-                        // those (and they randomize the client node usage, so tricky to find when)
-                        onFailure(idx, nodeId, new NodeShouldNotConnectException(clusterService.localNode(), node));
                     } else {
                         ChildTaskRequest nodeRequest = newNodeRequest(nodeId, request);
                         if (task != null) {
-                            nodeRequest.setParentTask(clusterService.localNode().id(), task.getId());
+                            nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                             taskManager.registerChildTask(task, node.getId());
                         }
 
@@ -183,7 +178,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
                             @Override
                             public void handleException(TransportException exp) {
-                                onFailure(idx, node.id(), exp);
+                                onFailure(idx, node.getId(), exp);
                             }
 
                             @Override

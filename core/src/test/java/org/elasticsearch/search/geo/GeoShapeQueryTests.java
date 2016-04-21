@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.geo;
 
-import com.spatial4j.core.shape.Rectangle;
+import org.locationtech.spatial4j.shape.Rectangle;
 import com.vividsolutions.jts.geom.Coordinate;
 
 import org.elasticsearch.action.get.GetResponse;
@@ -297,9 +297,9 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testShapeFilterWithRandomGeoCollection() throws Exception {
         // Create a random geometry collection.
-        GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(getRandom());
+        GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
 
-        logger.info("Created Random GeometryCollection containing " + gcb.numShapes() + " shapes");
+        logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
 
         client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree")
                 .execute().actionGet();
@@ -319,8 +319,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
     public void testContainsShapeQuery() throws Exception {
         // Create a random geometry collection.
-        Rectangle mbr = xRandomRectangle(getRandom(), xRandomPoint(getRandom()), true);
-        GeometryCollectionBuilder gcb = createGeometryCollectionWithin(getRandom(), mbr);
+        Rectangle mbr = xRandomRectangle(random(), xRandomPoint(random()), true);
+        GeometryCollectionBuilder gcb = createGeometryCollectionWithin(random(), mbr);
 
         client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree" )
                 .execute().actionGet();

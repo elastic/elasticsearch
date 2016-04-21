@@ -19,10 +19,13 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.set.Sets;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,38 +34,47 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * A basic setting service that can be used for per-index and per-cluster settings.
  * This service offers transactional application of updates settings.
  */
 public abstract class AbstractScopedSettings extends AbstractComponent {
+    public static final String ARCHIVED_SETTINGS_PREFIX = "archived.";
     private Settings lastSettingsApplied = Settings.EMPTY;
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
     private final Map<String, Setting<?>> complexMatchers;
     private final Map<String, Setting<?>> keySettings;
-    private final Setting.Scope scope;
+    private final Setting.Property scope;
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
 
-    protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Scope scope) {
+    protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Property scope) {
         super(settings);
         this.lastSettingsApplied = Settings.EMPTY;
         this.scope = scope;
         Map<String, Setting<?>> complexMatchers = new HashMap<>();
         Map<String, Setting<?>> keySettings = new HashMap<>();
         for (Setting<?> setting : settingsSet) {
-            if (setting.getScope() != scope) {
-                throw new IllegalArgumentException("Setting must be a " + scope + " setting but was: " + setting.getScope());
+            if (setting.getProperties().contains(scope) == false) {
+                throw new IllegalArgumentException("Setting must be a " + scope + " setting but has: " + setting.getProperties());
             }
-            if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())) == false) {
-                throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
-            }
+            validateSettingKey(setting);
+
             if (setting.hasComplexMatcher()) {
+                Setting<?> overlappingSetting = findOverlappingSetting(setting, complexMatchers);
+                if (overlappingSetting != null) {
+                    throw new IllegalArgumentException("complex setting key: [" + setting.getKey() + "] overlaps existing setting key: [" +
+                        overlappingSetting.getKey() + "]");
+                }
                 complexMatchers.putIfAbsent(setting.getKey(), setting);
             } else {
                 keySettings.putIfAbsent(setting.getKey(), setting);
@@ -70,6 +82,12 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         }
         this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
         this.keySettings = Collections.unmodifiableMap(keySettings);
+    }
+
+    protected void validateSettingKey(Setting setting) {
+        if (isValidKey(setting.getKey()) == false && (setting.isGroupSetting() && isValidGroupKey(setting.getKey())) == false) {
+            throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
+        }
     }
 
     protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other) {
@@ -92,7 +110,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         return GROUP_KEY_PATTERN.matcher(key).matches();
     }
 
-    public Setting.Scope getScope() {
+    public Setting.Property getScope() {
         return this.scope;
     }
 
@@ -212,9 +230,17 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * * Validates that all given settings are registered and valid
      */
     public final void validate(Settings settings) {
-        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-            validate(entry.getKey(), settings);
+        List<RuntimeException> exceptions = new ArrayList<>();
+        // we want them sorted for deterministic error messages
+        SortedMap<String, String> sortedSettings = new TreeMap<>(settings.getAsMap());
+        for (Map.Entry<String, String> entry : sortedSettings.entrySet()) {
+            try {
+                validate(entry.getKey(), settings);
+            } catch (RuntimeException ex) {
+                exceptions.add(ex);
+            }
         }
+        ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
 
@@ -224,7 +250,21 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     public final void validate(String key, Settings settings) {
         Setting setting = get(key);
         if (setting == null) {
-            throw new IllegalArgumentException("unknown setting [" + key + "]");
+            LevensteinDistance ld = new LevensteinDistance();
+            List<Tuple<Float, String>> scoredKeys = new ArrayList<>();
+            for (String k : this.keySettings.keySet()) {
+                float distance = ld.getDistance(key, k);
+                if (distance > 0.7f) {
+                    scoredKeys.add(new Tuple<>(distance, k));
+                }
+            }
+            CollectionUtil.timSort(scoredKeys, (a,b) -> b.v1().compareTo(a.v1()));
+            String msg = "unknown setting [" + key + "]";
+            List<String> keys = scoredKeys.stream().map((a) -> a.v2()).collect(Collectors.toList());
+            if (keys.isEmpty() == false) {
+                msg += " did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]": "any of " + keys.toString()) + "?";
+            }
+            throw new IllegalArgumentException(msg);
         }
         setting.get(settings);
     }
@@ -292,10 +332,23 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         }
         for (Map.Entry<String, Setting<?>> entry : complexMatchers.entrySet()) {
             if (entry.getValue().match(key)) {
+                assert assertMatcher(key, 1);
                 return entry.getValue().getConcreteSetting(key);
             }
         }
         return null;
+    }
+
+    private boolean assertMatcher(String key, int numComplexMatchers) {
+        List<Setting<?>> list = new ArrayList<>();
+        for (Map.Entry<String, Setting<?>> entry : complexMatchers.entrySet()) {
+            if (entry.getValue().match(key)) {
+                list.add(entry.getValue().getConcreteSetting(key));
+            }
+        }
+        assert list.size() == numComplexMatchers : "Expected " + numComplexMatchers + " complex matchers to match key [" +
+            key + "] but got: "  + list.toString();
+        return true;
     }
 
     /**
@@ -325,8 +378,9 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * Returns the value for the given setting.
      */
     public <T> T get(Setting<T> setting) {
-        if (setting.getScope() != scope) {
-            throw new IllegalArgumentException("settings scope doesn't match the setting scope [" + this.scope + "] != [" + setting.getScope() + "]");
+        if (setting.getProperties().contains(scope) == false) {
+            throw new IllegalArgumentException("settings scope doesn't match the setting scope [" + this.scope + "] not in [" +
+                setting.getProperties() + "]");
         }
         if (get(setting.getKey()) == null) {
             throw new IllegalArgumentException("setting " + setting.getKey() + " has not been registered");
@@ -373,7 +427,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private boolean updateSettings(Settings toApply, Settings.Builder target, Settings.Builder updates, String type, boolean onlyDynamic) {
         boolean changed = false;
         final Set<String> toRemove = new HashSet<>();
-        Settings.Builder settingsBuilder = Settings.settingsBuilder();
+        Settings.Builder settingsBuilder = Settings.builder();
         for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
             if (entry.getValue() == null) {
                 toRemove.add(entry.getKey());
@@ -410,4 +464,68 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         return changed;
     }
 
+    private static Setting<?> findOverlappingSetting(Setting<?> newSetting, Map<String, Setting<?>> complexMatchers) {
+        assert newSetting.hasComplexMatcher();
+        if (complexMatchers.containsKey(newSetting.getKey())) {
+            // we return null here because we use a putIfAbsent call when inserting into the map, so if it exists then we already checked
+            // the setting to make sure there are no overlapping settings.
+            return null;
+        }
+
+        for (Setting<?> existingSetting : complexMatchers.values()) {
+            if (newSetting.match(existingSetting.getKey()) || existingSetting.match(newSetting.getKey())) {
+                return existingSetting;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Archives broken or unknown settings. Any setting that is not recognized or fails
+     * validation will be archived. This means the setting is prefixed with {@value ARCHIVED_SETTINGS_PREFIX}
+     * and remains in the settings object. This can be used to detect broken settings via APIs.
+     */
+    public Settings archiveUnknownOrBrokenSettings(Settings settings) {
+        Settings.Builder builder = Settings.builder();
+        boolean changed = false;
+        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+            try {
+                Setting<?> setting = get(entry.getKey());
+                if (setting != null) {
+                    setting.get(settings);
+                    builder.put(entry.getKey(), entry.getValue());
+                } else {
+                    if (entry.getKey().startsWith(ARCHIVED_SETTINGS_PREFIX) || isPrivateSetting(entry.getKey())) {
+                        builder.put(entry.getKey(), entry.getValue());
+                    } else {
+                        changed = true;
+                        logger.warn("found unknown setting: {} value: {} - archiving", entry.getKey(), entry.getValue());
+                        // we put them back in here such that tools can check from the outside if there are any indices with broken settings. The setting can remain there
+                        // but we want users to be aware that some of their setting are broken and they can research why and what they need to do to replace them.
+                        builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());
+                    }
+                }
+            } catch (IllegalArgumentException ex) {
+                changed = true;
+                logger.warn("found invalid setting: {} value: {} - archiving",ex , entry.getKey(), entry.getValue());
+                // we put them back in here such that tools can check from the outside if there are any indices with broken settings. The setting can remain there
+                // but we want users to be aware that some of their setting sare broken and they can research why and what they need to do to replace them.
+                builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());
+            }
+        }
+        if (changed) {
+            return builder.build();
+        } else {
+            return settings;
+        }
+    }
+
+    /**
+     * Returns <code>true</code> iff the setting is a private setting ie. it should be treated as valid even though it has no internal
+     * representation. Otherwise <code>false</code>
+     */
+    // TODO this should be replaced by Setting.Property.HIDDEN or something like this.
+    protected boolean isPrivateSetting(String key) {
+        return false;
+    }
 }

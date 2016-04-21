@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineExecutionService;
 import org.elasticsearch.ingest.PipelineStore;
+import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.core.CompoundProcessor;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Pipeline;
@@ -47,6 +48,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
@@ -160,22 +162,7 @@ public class IngestActionFilterTests extends ESTestCase {
         when(threadPool.executor(any())).thenReturn(Runnable::run);
         PipelineStore store = mock(PipelineStore.class);
 
-        Processor processor = new Processor() {
-            @Override
-            public void execute(IngestDocument ingestDocument) {
-                ingestDocument.setFieldValue("field2", "value2");
-            }
-
-            @Override
-            public String getType() {
-                return null;
-            }
-
-            @Override
-            public String getTag() {
-                return null;
-            }
-        };
+        Processor processor = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field2", "value2"));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", new CompoundProcessor(processor)));
         executionService = new PipelineExecutionService(store, threadPool);
         IngestService ingestService = mock(IngestService.class);
@@ -206,23 +193,20 @@ public class IngestActionFilterTests extends ESTestCase {
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
         filter.apply(task, BulkAction.NAME, bulkRequest, actionListener, actionFilterChain);
+        verify(actionFilterChain).proceed(eq(task), eq(BulkAction.NAME), eq(bulkRequest), any());
+        verifyZeroInteractions(actionListener);
 
-        assertBusy(() -> {
-            verify(actionFilterChain).proceed(task, BulkAction.NAME, bulkRequest, actionListener);
-            verifyZeroInteractions(actionListener);
-
-            int assertedRequests = 0;
-            for (ActionRequest actionRequest : bulkRequest.requests()) {
-                if (actionRequest instanceof IndexRequest) {
-                    IndexRequest indexRequest = (IndexRequest) actionRequest;
-                    assertThat(indexRequest.sourceAsMap().size(), equalTo(2));
-                    assertThat(indexRequest.sourceAsMap().get("field1"), equalTo("value1"));
-                    assertThat(indexRequest.sourceAsMap().get("field2"), equalTo("value2"));
-                }
-                assertedRequests++;
+        int assertedRequests = 0;
+        for (ActionRequest actionRequest : bulkRequest.requests()) {
+            if (actionRequest instanceof IndexRequest) {
+                IndexRequest indexRequest = (IndexRequest) actionRequest;
+                assertThat(indexRequest.sourceAsMap().size(), equalTo(2));
+                assertThat(indexRequest.sourceAsMap().get("field1"), equalTo("value1"));
+                assertThat(indexRequest.sourceAsMap().get("field2"), equalTo("value2"));
             }
-            assertThat(assertedRequests, equalTo(numRequest));
-        });
+            assertedRequests++;
+        }
+        assertThat(assertedRequests, equalTo(numRequest));
     }
 
     @SuppressWarnings("unchecked")

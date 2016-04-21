@@ -27,6 +27,10 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -41,8 +45,10 @@ import java.io.IOException;
  */
 public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocationCommand {
     public static final String NAME = "allocate_empty_primary";
+    public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
 
-    private static final ObjectParser<Builder, Void> EMPTY_PRIMARY_PARSER = BasePrimaryAllocationCommand.createAllocatePrimaryParser(NAME);
+    private static final ObjectParser<Builder, ParseFieldMatcherSupplier> EMPTY_PRIMARY_PARSER = BasePrimaryAllocationCommand
+            .createAllocatePrimaryParser(NAME);
 
     /**
      * Creates a new {@link AllocateEmptyPrimaryAllocationCommand}
@@ -55,30 +61,33 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
         super(index, shardId, node, acceptDataLoss);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public AllocateEmptyPrimaryAllocationCommand(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
     public String name() {
         return NAME;
+    }
+
+    public static AllocateEmptyPrimaryAllocationCommand fromXContent(XContentParser parser) throws IOException {
+        return new Builder().parse(parser).build();
     }
 
     public static class Builder extends BasePrimaryAllocationCommand.Builder<AllocateEmptyPrimaryAllocationCommand> {
 
         @Override
         public Builder parse(XContentParser parser) throws IOException {
-            return EMPTY_PRIMARY_PARSER.parse(parser, this);
+            return EMPTY_PRIMARY_PARSER.parse(parser, this, () -> ParseFieldMatcher.STRICT);
         }
 
         @Override
         public AllocateEmptyPrimaryAllocationCommand build() {
             validate();
             return new AllocateEmptyPrimaryAllocationCommand(index, shard, node, acceptDataLoss);
-        }
-    }
-
-    public static class Factory extends AbstractAllocateAllocationCommand.Factory<AllocateEmptyPrimaryAllocationCommand> {
-
-        @Override
-        protected Builder newBuilder() {
-            return new Builder();
         }
     }
 
@@ -91,7 +100,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
             return explainOrThrowRejectedCommand(explain, allocation, e);
         }
         final RoutingNodes routingNodes = allocation.routingNodes();
-        RoutingNode routingNode = routingNodes.node(discoNode.id());
+        RoutingNode routingNode = routingNodes.node(discoNode.getId());
         if (routingNode == null) {
             return explainOrThrowMissingRoutingNode(allocation, explain, discoNode);
         }

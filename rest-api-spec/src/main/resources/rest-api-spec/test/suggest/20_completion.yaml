@@ -24,6 +24,8 @@ setup:
                      "type" : "completion"
                   "suggest_6":
                      "type" : "completion"
+                  title:
+                     type: keyword
 
 ---
 "Simple suggestion should work":

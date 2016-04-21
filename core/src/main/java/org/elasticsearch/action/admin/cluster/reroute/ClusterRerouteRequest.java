@@ -23,7 +23,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,7 +38,6 @@ import java.io.IOException;
  * Request to submit cluster reroute allocation commands
  */
 public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteRequest> {
-
     AllocationCommands commands = new AllocationCommands();
     boolean dryRun;
     boolean explain;
@@ -88,9 +89,18 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
     }
 
     /**
+     * Set the allocation commands to execute.
+     */
+    public ClusterRerouteRequest commands(AllocationCommand... commands) {
+        this.commands = new AllocationCommands(commands);
+        return this;
+    }
+
+    /**
      * Sets the source for the request.
      */
-    public ClusterRerouteRequest source(BytesReference source) throws Exception {
+    public ClusterRerouteRequest source(BytesReference source, AllocationCommandRegistry registry, ParseFieldMatcher parseFieldMatcher)
+            throws Exception {
         try (XContentParser parser = XContentHelper.createParser(source)) {
             XContentParser.Token token;
             String currentFieldName = null;
@@ -99,7 +109,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("commands".equals(currentFieldName)) {
-                        this.commands = AllocationCommands.fromXContent(parser);
+                        this.commands = AllocationCommands.fromXContent(parser, parseFieldMatcher, registry);
                     } else {
                         throw new ElasticsearchParseException("failed to parse reroute request, got start array with wrong field name [{}]", currentFieldName);
                     }

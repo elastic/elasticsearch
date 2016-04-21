@@ -34,11 +34,11 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.shard.ShardId;
@@ -52,7 +52,8 @@ import java.util.function.ToLongBiFunction;
  */
 public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable{
 
-    public static final Setting<ByteSizeValue> INDICES_FIELDDATA_CACHE_SIZE_KEY = Setting.byteSizeSetting("indices.fielddata.cache.size", new ByteSizeValue(-1), false, Setting.Scope.CLUSTER);
+    public static final Setting<ByteSizeValue> INDICES_FIELDDATA_CACHE_SIZE_KEY =
+        Setting.byteSizeSetting("indices.fielddata.cache.size", new ByteSizeValue(-1), Property.NodeScope);
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
 
@@ -73,8 +74,8 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         cache.invalidateAll();
     }
 
-    public IndexFieldDataCache buildIndexFieldDataCache(IndexFieldDataCache.Listener listener, Index index, String fieldName, FieldDataType fieldDataType) {
-        return new IndexFieldCache(logger, cache, index, fieldName, fieldDataType, indicesFieldDataCacheListener, listener);
+    public IndexFieldDataCache buildIndexFieldDataCache(IndexFieldDataCache.Listener listener, Index index, String fieldName) {
+        return new IndexFieldCache(logger, cache, index, fieldName, indicesFieldDataCacheListener, listener);
     }
 
     public Cache<Key, Accountable> getCache() {
@@ -89,7 +90,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         final Accountable value = notification.getValue();
         for (IndexFieldDataCache.Listener listener : key.listeners) {
             try {
-                listener.onRemoval(key.shardId, indexCache.fieldName, indexCache.fieldDataType, notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED, value.ramBytesUsed());
+                listener.onRemoval(key.shardId, indexCache.fieldName, notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED, value.ramBytesUsed());
             } catch (Throwable e) {
                 // load anyway since listeners should not throw exceptions
                 logger.error("Failed to call listener on field data cache unloading", e);
@@ -112,16 +113,14 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         private final ESLogger logger;
         final Index index;
         final String fieldName;
-        final FieldDataType fieldDataType;
         private final Cache<Key, Accountable> cache;
         private final Listener[] listeners;
 
-        IndexFieldCache(ESLogger logger,final Cache<Key, Accountable> cache, Index index, String fieldName, FieldDataType fieldDataType, Listener... listeners) {
+        IndexFieldCache(ESLogger logger,final Cache<Key, Accountable> cache, Index index, String fieldName, Listener... listeners) {
             this.logger = logger;
             this.listeners = listeners;
             this.index = index;
             this.fieldName = fieldName;
-            this.fieldDataType = fieldDataType;
             this.cache = cache;
         }
 
@@ -138,7 +137,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                 final AtomicFieldData fieldData = indexFieldData.loadDirect(context);
                 for (Listener listener : k.listeners) {
                     try {
-                        listener.onCache(shardId, fieldName, fieldDataType, fieldData);
+                        listener.onCache(shardId, fieldName, fieldData);
                     } catch (Throwable e) {
                         // load anyway since listeners should not throw exceptions
                         logger.error("Failed to call listener on atomic field data loading", e);
@@ -162,7 +161,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                 final Accountable ifd = (Accountable) indexFieldData.localGlobalDirect(indexReader);
                 for (Listener listener : k.listeners) {
                     try {
-                        listener.onCache(shardId, fieldName, fieldDataType, ifd);
+                        listener.onCache(shardId, fieldName, ifd);
                     } catch (Throwable e) {
                         // load anyway since listeners should not throw exceptions
                         logger.error("Failed to call listener on global ordinals loading", e);

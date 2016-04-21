@@ -19,11 +19,14 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.hunspell.Dictionary;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
@@ -71,9 +74,12 @@ import java.util.function.Function;
  */
 public class HunspellService extends AbstractComponent {
 
-    public final static Setting<Boolean> HUNSPELL_LAZY_LOAD = Setting.boolSetting("indices.analysis.hunspell.dictionary.lazy", Boolean.FALSE, false, Setting.Scope.CLUSTER);
-    public final static Setting<Boolean> HUNSPELL_IGNORE_CASE = Setting.boolSetting("indices.analysis.hunspell.dictionary.ignore_case", Boolean.FALSE, false, Setting.Scope.CLUSTER);
-    public final static Setting<Settings> HUNSPELL_DICTIONARY_OPTIONS = Setting.groupSetting("indices.analysis.hunspell.dictionary.", false, Setting.Scope.CLUSTER);
+    public final static Setting<Boolean> HUNSPELL_LAZY_LOAD =
+        Setting.boolSetting("indices.analysis.hunspell.dictionary.lazy", Boolean.FALSE, Property.NodeScope);
+    public final static Setting<Boolean> HUNSPELL_IGNORE_CASE =
+        Setting.boolSetting("indices.analysis.hunspell.dictionary.ignore_case", Boolean.FALSE, Property.NodeScope);
+    public final static Setting<Settings> HUNSPELL_DICTIONARY_OPTIONS =
+        Setting.groupSetting("indices.analysis.hunspell.dictionary.", Property.NodeScope);
     private final ConcurrentHashMap<String, Dictionary> dictionaries = new ConcurrentHashMap<>();
     private final Map<String, Dictionary> knownDictionaries;
     private final boolean defaultIgnoreCase;
@@ -183,7 +189,9 @@ public class HunspellService extends AbstractComponent {
 
             affixStream = Files.newInputStream(affixFiles[0]);
 
-            return new Dictionary(affixStream, dicStreams, ignoreCase);
+            try (Directory tmp = new SimpleFSDirectory(env.tmpFile())) {
+                return new Dictionary(tmp, "hunspell", affixStream, dicStreams, ignoreCase);
+            }
 
         } catch (Exception e) {
             logger.error("Could not load hunspell dictionary [{}]", e, locale);
@@ -205,12 +213,12 @@ public class HunspellService extends AbstractComponent {
     private static Settings loadDictionarySettings(Path dir, Settings defaults) {
         Path file = dir.resolve("settings.yml");
         if (Files.exists(file)) {
-            return Settings.settingsBuilder().loadFromPath(file).put(defaults).build();
+            return Settings.builder().loadFromPath(file).put(defaults).build();
         }
 
         file = dir.resolve("settings.json");
         if (Files.exists(file)) {
-            return Settings.settingsBuilder().loadFromPath(file).put(defaults).build();
+            return Settings.builder().loadFromPath(file).put(defaults).build();
         }
 
         return defaults;

@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
@@ -58,8 +59,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
 
 public class ShardSearchLocalRequest implements ShardSearchRequest {
 
-    private String index;
-    private int shardId;
+    private ShardId shardId;
     private int numberOfShards;
     private SearchType searchType;
     private Scroll scroll;
@@ -97,8 +97,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
 
     public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
             Boolean requestCache) {
-        this.index = shardId.getIndexName();
-        this.shardId = shardId.id();
+        this.shardId = shardId;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
         this.source = source;
@@ -106,13 +105,9 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.requestCache = requestCache;
     }
 
-    @Override
-    public String index() {
-        return index;
-    }
 
     @Override
-    public int shardId() {
+    public ShardId shardId() {
         return shardId;
     }
 
@@ -175,17 +170,15 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         return profile;
     }
 
-    @SuppressWarnings("unchecked")
     protected void innerReadFrom(StreamInput in) throws IOException {
-        index = in.readString();
-        shardId = in.readVInt();
+        shardId = ShardId.readShardId(in);
         searchType = SearchType.fromId(in.readByte());
         numberOfShards = in.readVInt();
         if (in.readBoolean()) {
             scroll = readScroll(in);
         }
         if (in.readBoolean()) {
-            source = SearchSourceBuilder.readSearchSourceFrom(in);
+            source = new SearchSourceBuilder(in);
         }
         types = in.readStringArray();
         filteringAliases = in.readStringArray();
@@ -195,8 +188,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     protected void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
-        out.writeString(index);
-        out.writeVInt(shardId);
+        shardId.writeTo(out);
         out.writeByte(searchType.id());
         if (!asKey) {
             out.writeVInt(numberOfShards);
@@ -231,5 +223,16 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         // copy it over, most requests are small, we might as well copy to make sure we are not sliced...
         // we could potentially keep it without copying, but then pay the price of extra unused bytes up to a page
         return out.bytes().copyBytesArray();
+    }
+
+    @Override
+    public void rewrite(QueryShardContext context) throws IOException {
+        SearchSourceBuilder source = this.source;
+        SearchSourceBuilder rewritten = null;
+        while (rewritten != source) {
+            rewritten = source.rewrite(context);
+            source = rewritten;
+        }
+        this.source = source;
     }
 }

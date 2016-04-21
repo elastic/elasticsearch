@@ -49,13 +49,16 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         return randomBoolean() ? null : randomFrom(SignificantTermsAggregatorFactory.ExecutionMode.values()).toString();
     }
 
-    // see https://github.com/elasticsearch/elasticsearch/issues/5998
+    // see https://github.com/elastic/elasticsearch/issues/5998
     public void testShardMinDocCountSignificantTermsTest() throws Exception {
-        String termtype = "string";
+        String textMappings;
         if (randomBoolean()) {
-            termtype = "long";
+            textMappings = "type=keyword";
+        } else {
+            textMappings = "type=text,fielddata=true";
         }
-        assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping(type, "{\"properties\":{\"text\": {\"type\": \"" + termtype + "\"}}}"));
+        assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0)
+                .addMapping(type, "text", textMappings));
         ensureYellow(index);
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
@@ -107,12 +110,15 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
         }
     }
 
-    // see https://github.com/elasticsearch/elasticsearch/issues/5998
+    // see https://github.com/elastic/elasticsearch/issues/5998
     public void testShardMinDocCountTermsTest() throws Exception {
-        final String [] termTypes = {"string", "long", "integer", "float", "double"};
+        final String [] termTypes = {"text", "long", "integer", "float", "double"};
         String termtype = termTypes[randomInt(termTypes.length - 1)];
-
-        assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping(type, "{\"properties\":{\"text\": {\"type\": \"" + termtype + "\"}}}"));
+        String termMappings = "type=" + termtype;
+        if (termtype.equals("text")) {
+            termMappings += ",fielddata=true";
+        }
+        assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping(type, "text", termMappings));
         ensureYellow(index);
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 

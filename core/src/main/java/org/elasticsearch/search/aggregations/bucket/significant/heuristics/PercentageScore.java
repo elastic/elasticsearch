@@ -33,12 +33,17 @@ import org.elasticsearch.index.query.QueryShardException;
 import java.io.IOException;
 
 public class PercentageScore extends SignificanceHeuristic {
-
-    public static final PercentageScore PROTOTYPE = new PercentageScore();
-
-    protected static final ParseField NAMES_FIELD = new ParseField("percentage");
+    public static final ParseField NAMES_FIELD = new ParseField("percentage");
 
     public PercentageScore() {
+    }
+
+    public PercentageScore(StreamInput in) {
+        // Nothing to read.
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
     }
 
     @Override
@@ -47,18 +52,18 @@ public class PercentageScore extends SignificanceHeuristic {
     }
 
     @Override
-    public SignificanceHeuristic readFrom(StreamInput in) throws IOException {
-        return PROTOTYPE;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAMES_FIELD.getPreferredName()).endObject();
         return builder;
+    }
+
+    public static SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)
+            throws IOException, QueryShardException {
+        // move to the closing bracket
+        if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
+            throw new ElasticsearchParseException("failed to parse [percentage] significance heuristic. expected an empty object, but got [{}] instead", parser.currentToken());
+        }
+        return new PercentageScore();
     }
 
     /**
@@ -73,24 +78,19 @@ public class PercentageScore extends SignificanceHeuristic {
             return 0;
         }
         return (double) subsetFreq / (double) supersetFreq;
-   }
+    }
 
-    public static class PercentageScoreParser implements SignificanceHeuristicParser {
-
-        @Override
-        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)
-                throws IOException, QueryShardException {
-            // move to the closing bracket
-            if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
-                throw new ElasticsearchParseException("failed to parse [percentage] significance heuristic. expected an empty object, but got [{}] instead", parser.currentToken());
-            }
-            return PROTOTYPE;
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
         }
+        return true;
+    }
 
-        @Override
-        public String[] getNames() {
-            return NAMES_FIELD.getAllNamesIncludedDeprecated();
-        }
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 
     public static class PercentageScoreBuilder implements SignificanceHeuristicBuilder {

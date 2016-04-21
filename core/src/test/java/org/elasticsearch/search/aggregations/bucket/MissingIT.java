@@ -34,6 +34,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.missing;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -49,7 +50,8 @@ public class MissingIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        createIndex("idx");
+        assertAcked(client().admin().indices().prepareCreate("idx")
+                .addMapping("type", "tag", "type=keyword").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         numDocs = randomIntBetween(5, 20);
         numDocsMissing = randomIntBetween(1, numDocs - 1);

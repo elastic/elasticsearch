@@ -48,16 +48,16 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.FilteredSearchContext;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  */
@@ -70,59 +70,46 @@ public final class InnerHitsContext {
     }
 
     public InnerHitsContext(Map<String, BaseInnerHits> innerHits) {
-        this.innerHits = innerHits;
+        this.innerHits = Objects.requireNonNull(innerHits);
     }
 
     public Map<String, BaseInnerHits> getInnerHits() {
         return innerHits;
     }
 
-    public void addInnerHitDefinition(String name, BaseInnerHits innerHit) {
-        if (innerHits.containsKey(name)) {
-            throw new IllegalArgumentException("inner_hit definition with the name [" + name + "] already exists. Use a different inner_hit name");
+    public void addInnerHitDefinition(BaseInnerHits innerHit) {
+        if (innerHits.containsKey(innerHit.getName())) {
+            throw new IllegalArgumentException("inner_hit definition with the name [" + innerHit.getName() +
+                    "] already exists. Use a different inner_hit name");
         }
 
-        innerHits.put(name, innerHit);
+        innerHits.put(innerHit.getName(), innerHit);
     }
 
-    public void addInnerHitDefinitions(Map<String, BaseInnerHits> innerHits) {
-        for (Map.Entry<String, BaseInnerHits> entry : innerHits.entrySet()) {
-            addInnerHitDefinition(entry.getKey(), entry.getValue());
-        }
-    }
+    public static abstract class BaseInnerHits extends SubSearchContext {
 
-    public static abstract class BaseInnerHits extends FilteredSearchContext {
+        private final String name;
+        private InnerHitsContext childInnerHits;
 
-        protected final ParsedQuery query;
-        private final InnerHitsContext childInnerHits;
-
-        protected BaseInnerHits(SearchContext context, ParsedQuery query, Map<String, BaseInnerHits> childInnerHits) {
+        protected BaseInnerHits(String name, SearchContext context) {
             super(context);
-            this.query = query;
-            if (childInnerHits != null && !childInnerHits.isEmpty()) {
-                this.childInnerHits = new InnerHitsContext(childInnerHits);
-            } else {
-                this.childInnerHits = null;
-            }
-        }
-
-        @Override
-        public Query query() {
-            return query.query();
-        }
-
-        @Override
-        public ParsedQuery parsedQuery() {
-            return query;
+            this.name = name;
         }
 
         public abstract TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException;
+
+        public String getName() {
+            return name;
+        }
 
         @Override
         public InnerHitsContext innerHits() {
             return childInnerHits;
         }
 
+        public void setChildInnerHits(Map<String, InnerHitsContext.BaseInnerHits> childInnerHits) {
+            this.childInnerHits = new InnerHitsContext(childInnerHits);
+        }
     }
 
     public static final class NestedInnerHits extends BaseInnerHits {
@@ -130,8 +117,8 @@ public final class InnerHitsContext {
         private final ObjectMapper parentObjectMapper;
         private final ObjectMapper childObjectMapper;
 
-        public NestedInnerHits(SearchContext context, ParsedQuery query, Map<String, BaseInnerHits> childInnerHits, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper) {
-            super(context, query, childInnerHits);
+        public NestedInnerHits(String name, SearchContext context, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper) {
+            super(name != null ? name : childObjectMapper.fullPath(), context);
             this.parentObjectMapper = parentObjectMapper;
             this.childObjectMapper = childObjectMapper;
         }
@@ -146,7 +133,7 @@ public final class InnerHitsContext {
             }
             BitSetProducer parentFilter = context.bitsetFilterCache().getBitSetProducer(rawParentFilter);
             Query childFilter = childObjectMapper.nestedTypeFilter();
-            Query q = Queries.filtered(query.query(), new NestedChildrenQuery(parentFilter, childFilter, hitContext));
+            Query q = Queries.filtered(query(), new NestedChildrenQuery(parentFilter, childFilter, hitContext));
 
             if (size() == 0) {
                 return new TopDocs(context.searcher().count(q), Lucene.EMPTY_SCORE_DOCS, 0);
@@ -292,8 +279,8 @@ public final class InnerHitsContext {
         private final MapperService mapperService;
         private final DocumentMapper documentMapper;
 
-        public ParentChildInnerHits(SearchContext context, ParsedQuery query, Map<String, BaseInnerHits> childInnerHits, MapperService mapperService, DocumentMapper documentMapper) {
-            super(context, query, childInnerHits);
+        public ParentChildInnerHits(String name, SearchContext context, MapperService mapperService, DocumentMapper documentMapper) {
+            super(name != null ? name : documentMapper.type(), context);
             this.mapperService = mapperService;
             this.documentMapper = documentMapper;
         }
@@ -317,7 +304,7 @@ public final class InnerHitsContext {
             }
 
             BooleanQuery q = new BooleanQuery.Builder()
-                .add(query.query(), Occur.MUST)
+                .add(query(), Occur.MUST)
                 // Only include docs that have the current hit as parent
                 .add(hitQuery, Occur.FILTER)
                 // Only include docs that have this inner hits type

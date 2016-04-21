@@ -21,7 +21,6 @@ package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.Protocol;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
-import org.elasticsearch.cloud.aws.Ec2Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -29,21 +28,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isEmptyString;
 
 public class Ec2DiscoverySettingsTests extends ESTestCase {
-
-    public void testDiscoveryReady() {
-        Settings settings = Settings.builder()
-                .put("discovery.type", "ec2")
-                .build();
-        boolean discoveryReady = Ec2Module.isEc2DiscoveryActive(settings, logger);
-        assertThat(discoveryReady, is(true));
-    }
-
-    public void testDiscoveryNotReady() {
-        Settings settings = Settings.EMPTY;
-        boolean discoveryReady = Ec2Module.isEc2DiscoveryActive(settings, logger);
-        assertThat(discoveryReady, is(false));
-    }
-
 
     private static final Settings AWS = Settings.builder()
         .put(AwsEc2Service.KEY_SETTING.getKey(), "global-key")

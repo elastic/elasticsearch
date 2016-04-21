@@ -19,15 +19,14 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.spatial4j.core.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LineString;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,6 +35,7 @@ import java.util.List;
 import java.util.Objects;
 
 public class LineStringBuilder extends CoordinateCollection<LineStringBuilder> {
+    public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
 
     /**
      * Construct a new LineString.
@@ -55,9 +55,12 @@ public class LineStringBuilder extends CoordinateCollection<LineStringBuilder> {
         this(coordinates.build());
     }
 
-    public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
-
-    public static final LineStringBuilder PROTOTYPE = new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0).coordinate(1.0, 1.0));
+    /**
+     * Read from a stream.
+     */
+    public LineStringBuilder(StreamInput in) throws IOException {
+        super(in);
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -181,24 +184,5 @@ public class LineStringBuilder extends CoordinateCollection<LineStringBuilder> {
         }
         LineStringBuilder other = (LineStringBuilder) obj;
         return Objects.equals(coordinates, other.coordinates);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(coordinates.size());
-        for (Coordinate point : coordinates) {
-            writeCoordinateTo(point, out);
-        }
-    }
-
-    @Override
-    public LineStringBuilder readFrom(StreamInput in) throws IOException {
-        CoordinatesBuilder coordinates = new CoordinatesBuilder();
-        int size = in.readVInt();
-        for (int i=0; i < size; i++) {
-            coordinates.coordinate(readCoordinateFrom(in));
-        }
-        LineStringBuilder lineStringBuilder = new LineStringBuilder(coordinates);
-        return lineStringBuilder;
     }
 }

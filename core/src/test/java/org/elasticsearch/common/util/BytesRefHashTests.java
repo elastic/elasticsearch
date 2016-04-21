@@ -110,7 +110,7 @@ public class BytesRefHashTests extends ESSingleNodeTestCase {
             for (int i = 0; i < 797; i++) {
                 String str;
                 do {
-                    str = TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
+                    str = TestUtil.randomRealisticUnicodeString(random(), 1000);
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();
@@ -142,7 +142,7 @@ public class BytesRefHashTests extends ESSingleNodeTestCase {
             for (int i = 0; i < 797; i++) {
                 String str;
                 do {
-                    str = TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
+                    str = TestUtil.randomRealisticUnicodeString(random(), 1000);
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();
@@ -181,7 +181,7 @@ public class BytesRefHashTests extends ESSingleNodeTestCase {
             for (int i = 0; i < 797; i++) {
                 String str;
                 do {
-                    str = TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
+                    str = TestUtil.randomRealisticUnicodeString(random(), 1000);
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();
@@ -216,7 +216,7 @@ public class BytesRefHashTests extends ESSingleNodeTestCase {
             for (int i = 0; i < 797; i++) {
                 String str;
                 do {
-                    str = TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
+                    str = TestUtil.randomRealisticUnicodeString(random(), 1000);
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();

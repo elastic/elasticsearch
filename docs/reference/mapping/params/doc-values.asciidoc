@@ -29,12 +29,10 @@ PUT my_index
     "my_type": {
       "properties": {
         "status_code": { <1>
-          "type":       "string",
-          "index":      "not_analyzed"
+          "type":       "keyword"
         },
         "session_id": { <2>
-          "type":       "string",
-          "index":      "not_analyzed",
+          "type":       "keyword",
           "doc_values": false
         }
       }

@@ -37,11 +37,6 @@ public class GeoBoundsParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalGeoBounds.TYPE.name();
-    }
-
-    @Override
     protected GeoBoundsAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         GeoBoundsAggregatorBuilder factory = new GeoBoundsAggregatorBuilder(aggregationName);
@@ -63,10 +58,4 @@ public class GeoBoundsParser extends GeoPointValuesSourceParser {
         }
         return false;
     }
-
-    @Override
-    public GeoBoundsAggregatorBuilder getFactoryPrototypes() {
-        return GeoBoundsAggregatorBuilder.PROTOTYPE;
-    }
-
 }

@@ -138,7 +138,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                     .field("type", "long")
                 .endObject()
                 .startObject("field2")
-                    .field("type", "text")
+                    .field("type", "keyword")
                 .endObject()
                 .startObject("nested")
                     .field("type", "nested")
@@ -147,7 +147,7 @@ public class DuelScrollIT extends ESIntegTestCase {
                             .field("type", "long")
                         .endObject()
                         .startObject("field4")
-                            .field("type", "text")
+                            .field("type", "keyword")
                         .endObject()
                     .endObject()
                 .endObject()
@@ -203,7 +203,7 @@ public class DuelScrollIT extends ESIntegTestCase {
         }
         sort.order(randomBoolean() ? SortOrder.ASC : SortOrder.DESC);
 
-        SearchType searchType = RandomPicks.randomFrom(getRandom(), Arrays.asList(searchTypes));
+        SearchType searchType = RandomPicks.randomFrom(random(), Arrays.asList(searchTypes));
 
         logger.info("numDocs={}, scrollRequestSize={}, sort={}, searchType={}", numDocs, scrollRequestSize, sort, searchType);
         return new TestContext(numDocs, scrollRequestSize, sort, searchType);
@@ -282,8 +282,8 @@ public class DuelScrollIT extends ESIntegTestCase {
             }
             assertEquals(control.getHits().getTotalHits(), scrollDocs);
         } catch (AssertionError e) {
-            logger.info("Control:\n" + control);
-            logger.info("Scroll size=" + size + ", from=" + scrollDocs + ":\n" + scroll);
+            logger.info("Control:\n{}", control);
+            logger.info("Scroll size={}, from={}:\n{}", size, scrollDocs, scroll);
             throw e;
         } finally {
             clearScroll(scroll.getScrollId());

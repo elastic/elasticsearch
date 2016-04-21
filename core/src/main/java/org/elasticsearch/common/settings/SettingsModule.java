@@ -20,13 +20,22 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tribe.TribeService;
 
+import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * A module that binds the provided settings to the {@link Settings} interface.
@@ -35,11 +44,14 @@ public class SettingsModule extends AbstractModule {
 
     private final Settings settings;
     private final Set<String> settingsFilterPattern = new HashSet<>();
-    private final Map<String, Setting<?>> clusterSettings = new HashMap<>();
+    private final Map<String, Setting<?>> nodeSettings = new HashMap<>();
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
-    private static final Predicate<String> TRIBE_CLIENT_NODE_SETTINGS_PREDICATE =  (s) -> s.startsWith("tribe.") && TribeService.TRIBE_SETTING_KEYS.contains(s) == false;
+    private static final Predicate<String> TRIBE_CLIENT_NODE_SETTINGS_PREDICATE =  (s) -> s.startsWith("tribe.")
+        && TribeService.TRIBE_SETTING_KEYS.contains(s) == false;
+    private final ESLogger logger;
 
     public SettingsModule(Settings settings) {
+        logger = Loggers.getLogger(getClass(), settings);
         this.settings = settings;
         for (Setting<?> setting : ClusterSettings.BUILT_IN_CLUSTER_SETTINGS) {
             registerSetting(setting);
@@ -52,10 +64,59 @@ public class SettingsModule extends AbstractModule {
     @Override
     protected void configure() {
         final IndexScopedSettings indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
-        final ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(this.clusterSettings.values()));
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()));
+        Settings indexSettings = settings.filter((s) -> s.startsWith("index.") && clusterSettings.get(s) == null);
+        if (indexSettings.isEmpty() == false) {
+            try {
+                String separator = IntStream.range(0, 85).mapToObj(s -> "*").collect(Collectors.joining("")).trim();
+                StringBuilder builder = new StringBuilder();
+                builder.append(System.lineSeparator());
+                builder.append(separator);
+                builder.append(System.lineSeparator());
+                builder.append("Found index level settings on node level configuration.");
+                builder.append(System.lineSeparator());
+                builder.append(System.lineSeparator());
+                int count = 0;
+                for (String word : ("Since elasticsearch 5.x index level settings can NOT be set on the nodes configuration like " +
+                    "the elasticsearch.yaml, in system properties or command line arguments." +
+                    "In order to upgrade all indices the settings must be updated via the /${index}/_settings API. " +
+                    "Unless all settings are dynamic all indices must be closed in order to apply the upgrade" +
+                    "Indices created in the future should use index templates to set default values."
+                    ).split(" ")) {
+                    if (count + word.length() > 85) {
+                        builder.append(System.lineSeparator());
+                        count = 0;
+                    }
+                    count += word.length() + 1;
+                    builder.append(word).append(" ");
+                }
+
+                builder.append(System.lineSeparator());
+                builder.append(System.lineSeparator());
+                builder.append("Please ensure all required values are updated on all indices by executing: ");
+                builder.append(System.lineSeparator());
+                builder.append(System.lineSeparator());
+                builder.append("curl -XPUT 'http://localhost:9200/_all/_settings?preserve_existing=true' -d '");
+                try (XContentBuilder xContentBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                    xContentBuilder.prettyPrint();
+                    xContentBuilder.startObject();
+                    indexSettings.toXContent(xContentBuilder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+                    xContentBuilder.endObject();
+                    builder.append(xContentBuilder.string());
+                }
+                builder.append("'");
+                builder.append(System.lineSeparator());
+                builder.append(separator);
+                builder.append(System.lineSeparator());
+
+                logger.warn(builder.toString());
+                throw new IllegalArgumentException("node settings must not contain any index level settings");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
         // by now we are fully configured, lets check node level settings for unregistered index settings
-        indexScopedSettings.validate(settings.filter(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE));
-        final Predicate<String> acceptOnlyClusterSettings = TRIBE_CLIENT_NODE_SETTINGS_PREDICATE.or(IndexScopedSettings.INDEX_SETTINGS_KEY_PREDICATE).negate();
+        final Predicate<String> acceptOnlyClusterSettings = TRIBE_CLIENT_NODE_SETTINGS_PREDICATE.negate();
         clusterSettings.validate(settings.filter(acceptOnlyClusterSettings));
         validateTribeSettings(settings, clusterSettings);
         bind(Settings.class).toInstance(settings);
@@ -71,19 +132,26 @@ public class SettingsModule extends AbstractModule {
      * the setting during startup.
      */
     public void registerSetting(Setting<?> setting) {
-        switch (setting.getScope()) {
-            case CLUSTER:
-                if (clusterSettings.containsKey(setting.getKey())) {
+        if (setting.isFiltered()) {
+            if (settingsFilterPattern.contains(setting.getKey()) == false) {
+                registerSettingsFilter(setting.getKey());
+            }
+        }
+        if (setting.hasNodeScope() || setting.hasIndexScope()) {
+            if (setting.hasNodeScope()) {
+                if (nodeSettings.containsKey(setting.getKey())) {
                     throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
                 }
-                clusterSettings.put(setting.getKey(), setting);
-                break;
-            case INDEX:
+                nodeSettings.put(setting.getKey(), setting);
+            }
+            if (setting.hasIndexScope()) {
                 if (indexSettings.containsKey(setting.getKey())) {
                     throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
                 }
                 indexSettings.put(setting.getKey(), setting);
-                break;
+            }
+        } else {
+            throw new IllegalArgumentException("No scope found for setting [" + setting.getKey() + "]");
         }
     }
 
@@ -101,21 +169,15 @@ public class SettingsModule extends AbstractModule {
         settingsFilterPattern.add(filter);
     }
 
-    public void registerSettingsFilterIfMissing(String filter) {
-        if (settingsFilterPattern.contains(filter) == false) {
-            registerSettingsFilter(filter);
-        }
-    }
-
     /**
      * Check if a setting has already been registered
      */
     public boolean exists(Setting<?> setting) {
-        switch (setting.getScope()) {
-            case CLUSTER:
-                return clusterSettings.containsKey(setting.getKey());
-            case INDEX:
-                return indexSettings.containsKey(setting.getKey());
+        if (setting.hasNodeScope()) {
+            return nodeSettings.containsKey(setting.getKey());
+        }
+        if (setting.hasIndexScope()) {
+            return indexSettings.containsKey(setting.getKey());
         }
         throw new IllegalArgumentException("setting scope is unknown. This should never happen!");
     }

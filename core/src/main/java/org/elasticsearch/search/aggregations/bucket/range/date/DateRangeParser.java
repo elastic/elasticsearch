@@ -38,11 +38,6 @@ public class DateRangeParser extends RangeParser {
     }
 
     @Override
-    public String type() {
-        return InternalDateRange.TYPE.name();
-    }
-
-    @Override
     protected DateRangeAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         DateRangeAggregatorBuilder factory = new DateRangeAggregatorBuilder(aggregationName);
@@ -56,10 +51,5 @@ public class DateRangeParser extends RangeParser {
             factory.keyed(keyed);
         }
         return factory;
-    }
-
-    @Override
-    public DateRangeAggregatorBuilder getFactoryPrototypes() {
-        return DateRangeAggregatorBuilder.PROTOTYPE;
     }
 }

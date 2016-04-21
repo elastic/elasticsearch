@@ -3,8 +3,8 @@
 
 It is often useful to index the same field in different ways for different
 purposes.  This is the purpose of _multi-fields_. For instance, a `string`
-field could be <<mapping-index,indexed>> as an `analyzed` field for full-text
-search, and as a `not_analyzed` field for sorting or aggregations:
+field could be mapped as a `text` field for full-text
+search, and as a `keyword` field for sorting or aggregations:
 
 [source,js]
 --------------------------------------------------
@@ -14,11 +14,10 @@ PUT /my_index
     "my_type": {
       "properties": {
         "city": {
-          "type": "string",
+          "type": "text",
           "fields": {
             "raw": { <1>
-              "type":  "string",
-              "index": "not_analyzed"
+              "type":  "keyword"
             }
           }
         }
@@ -57,8 +56,8 @@ GET /my_index/_search
 }
 --------------------------------------------------
 // AUTOSENSE
-<1> The `city.raw` field is a `not_analyzed` version of the `city` field.
-<2> The analyzed `city` field can be used for full text search.
+<1> The `city.raw` field is a `keyword` version of the `city` field.
+<2> The `city` field can be used for full text search.
 <3> The `city.raw` field can be used for sorting and aggregations
 
 NOTE: Multi-fields do not change the original `_source` field.
@@ -83,10 +82,10 @@ PUT my_index
     "my_type": {
       "properties": {
         "text": { <1>
-          "type": "string",
+          "type": "text",
           "fields": {
             "english": { <2>
-              "type":     "string",
+              "type":     "text",
               "analyzer": "english"
             }
           }

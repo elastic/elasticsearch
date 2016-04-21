@@ -24,3 +24,9 @@ dependencies {
     testCompile project(path: ':plugins:ingest-geoip', configuration: 'runtime')
     testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
 }
+
+integTest {
+    cluster {
+        plugin 'ingest-geoip', project(':plugins:ingest-geoip')
+    }
+}

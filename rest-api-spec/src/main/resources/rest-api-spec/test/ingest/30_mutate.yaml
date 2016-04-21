@@ -22,7 +22,7 @@
               {
                 "rename" : {
                   "field" : "field_to_rename",
-                  "to": "renamed_field"
+                  "target_field": "renamed_field"
                 }
               },
               {
@@ -82,15 +82,15 @@
         pipeline: "my_pipeline"
         body:  >
           {
-            field_to_rename: "value",
-            field_to_remove: "old_value",
-            field_to_lowercase: "LOWERCASE",
-            field_to_uppercase: "uppercase",
-            field_to_trim: "   trimmed   ",
-            field_to_split: "127-0-0-1",
-            field_to_join: ["127","0","0","1"],
-            field_to_convert: ["127","0","0","1"],
-            field_to_gsub: "127-0-0-1"
+            "field_to_rename": "value",
+            "field_to_remove": "old_value",
+            "field_to_lowercase": "LOWERCASE",
+            "field_to_uppercase": "uppercase",
+            "field_to_trim": "   trimmed   ",
+            "field_to_split": "127-0-0-1",
+            "field_to_join": ["127","0","0","1"],
+            "field_to_convert": ["127","0","0","1"],
+            "field_to_gsub": "127-0-0-1"
           }
 
   - do:

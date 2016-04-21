@@ -19,7 +19,13 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class StringsTests extends ESTestCase {
     public void testToCamelCase() {
@@ -59,5 +65,22 @@ public class StringsTests extends ESTestCase {
          */
         assertEquals("o", Strings.cleanTruncate("o\uD83D\uDEAB", 1));
         assertEquals("", Strings.cleanTruncate("foo", 0));
+    }
+
+    public void testEvilToString() {
+        ToXContent needsEnclosingObject = new ToXContent() {
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder.field("ok", "here").field("catastrophe", "");
+            }
+        };
+        String toString = Strings.toString(needsEnclosingObject);
+        assertThat(toString, containsString("Error building toString out of XContent"));
+        assertThat(toString, containsString("Can not write a field name, expecting a value"));
+
+        // We can salvage it!
+        toString = Strings.toString(needsEnclosingObject, true);
+        assertThat(toString, containsString("\"ok\":\"here\""));
+        assertThat(toString, containsString("\"catastrophe\":\"\""));
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -41,7 +42,6 @@ import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
@@ -50,13 +50,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
@@ -74,7 +72,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        allocationService = createAllocationService(settingsBuilder()
+        allocationService = createAllocationService(Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", 8)
             .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
             .build());
@@ -306,7 +304,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             return randomSubsetOf(1, shards.toArray(new ShardRouting[0])).get(0);
         } else {
             return
-                TestShardRouting.newShardRouting(shardRouting.index(), shardRouting.id(), DiscoveryService.generateNodeId(Settings.EMPTY), randomBoolean(), randomFrom(ShardRoutingState.values()));
+                    TestShardRouting.newShardRouting(shardRouting.index(), shardRouting.id(), DiscoveryNodeService.generateNodeId(Settings.EMPTY), randomBoolean(), randomFrom(ShardRoutingState.values()));
         }
     }
 

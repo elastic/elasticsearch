@@ -167,7 +167,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
         BytesReference bytes = write(obj);
         try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
             final String resourceDesc = "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")";
-            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(resourceDesc, byteArrayOutputStream, BUFFER_SIZE)) {
+            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(resourceDesc, blobName, byteArrayOutputStream, BUFFER_SIZE)) {
                 CodecUtil.writeHeader(indexOutput, codec, VERSION);
                 try (OutputStream indexOutputOutputStream = new IndexOutputOutputStream(indexOutput) {
                     @Override

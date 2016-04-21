@@ -25,8 +25,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -67,17 +69,20 @@ public class AssertingLocalTransport extends LocalTransport {
         }
     }
 
-    public static final Setting<Version> ASSERTING_TRANSPORT_MIN_VERSION_KEY = new Setting<>("transport.asserting.version.min",
-            Integer.toString(Version.CURRENT.minimumCompatibilityVersion().id), (s) -> Version.fromId(Integer.parseInt(s)), false, Setting.Scope.CLUSTER);
-    public static final Setting<Version> ASSERTING_TRANSPORT_MAX_VERSION_KEY = new Setting<>("transport.asserting.version.max",
-        Integer.toString(Version.CURRENT.id), (s) -> Version.fromId(Integer.parseInt(s)), false, Setting.Scope.CLUSTER);
+    public static final Setting<Version> ASSERTING_TRANSPORT_MIN_VERSION_KEY =
+        new Setting<>("transport.asserting.version.min", Integer.toString(Version.CURRENT.minimumCompatibilityVersion().id),
+            (s) -> Version.fromId(Integer.parseInt(s)), Property.NodeScope);
+    public static final Setting<Version> ASSERTING_TRANSPORT_MAX_VERSION_KEY =
+        new Setting<>("transport.asserting.version.max", Integer.toString(Version.CURRENT.id),
+            (s) -> Version.fromId(Integer.parseInt(s)), Property.NodeScope);
     private final Random random;
     private final Version minVersion;
     private final Version maxVersion;
 
     @Inject
-    public AssertingLocalTransport(Settings settings, ThreadPool threadPool, Version version, NamedWriteableRegistry namedWriteableRegistry) {
-        super(settings, threadPool, version, namedWriteableRegistry);
+    public AssertingLocalTransport(Settings settings, CircuitBreakerService circuitBreakerService, ThreadPool threadPool,
+                                   Version version, NamedWriteableRegistry namedWriteableRegistry) {
+        super(settings, threadPool, version, namedWriteableRegistry, circuitBreakerService);
         final long seed = ESIntegTestCase.INDEX_TEST_SEED_SETTING.get(settings);
         random = new Random(seed);
         minVersion = ASSERTING_TRANSPORT_MIN_VERSION_KEY.get(settings);
@@ -92,7 +97,8 @@ public class AssertingLocalTransport extends LocalTransport {
     }
 
     @Override
-    public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+    public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request,
+                            TransportRequestOptions options) throws IOException, TransportException {
         ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersionBetween(random, minVersion, maxVersion), request,
                 namedWriteableRegistry);
         super.sendRequest(node, requestId, action, request, options);

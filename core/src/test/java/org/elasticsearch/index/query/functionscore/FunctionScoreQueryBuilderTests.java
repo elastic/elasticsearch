@@ -20,37 +20,40 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
-import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MultiValueMode;
+import org.hamcrest.Matcher;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -58,7 +61,11 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.randomFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.weightFactorFunction;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -67,36 +74,15 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<FunctionScoreQueryBuilder> {
+    @BeforeClass
+    public static void registerTestRandomScoreFunction() {
+        getSearchModule().registerScoreFunction(RandomScoreFunctionBuilderWithFixedSeed::new,
+                RandomScoreFunctionBuilderWithFixedSeed::fromXContent, RandomScoreFunctionBuilderWithFixedSeed.FUNCTION_NAME_FIELD);
+    }
 
     @Override
     protected FunctionScoreQueryBuilder doCreateTestQueryBuilder() {
-        FunctionScoreQueryBuilder functionScoreQueryBuilder;
-        switch (randomIntBetween(0, 3)) {
-            case 0:
-                int numFunctions = randomIntBetween(0, 3);
-                FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders = new FunctionScoreQueryBuilder.FilterFunctionBuilder[numFunctions];
-                for (int i = 0; i < numFunctions; i++) {
-                    filterFunctionBuilders[i] = new FunctionScoreQueryBuilder.FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), randomScoreFunction());
-                }
-                if (randomBoolean()) {
-                    functionScoreQueryBuilder = new FunctionScoreQueryBuilder(RandomQueryBuilder.createQuery(random()), filterFunctionBuilders);
-                } else {
-                    functionScoreQueryBuilder = new FunctionScoreQueryBuilder(filterFunctionBuilders);
-                }
-                break;
-            case 1:
-                functionScoreQueryBuilder = new FunctionScoreQueryBuilder(randomScoreFunction());
-                break;
-            case 2:
-                functionScoreQueryBuilder = new FunctionScoreQueryBuilder(RandomQueryBuilder.createQuery(random()), randomScoreFunction());
-                break;
-            case 3:
-                functionScoreQueryBuilder = new FunctionScoreQueryBuilder(RandomQueryBuilder.createQuery(random()));
-                break;
-            default:
-                throw new UnsupportedOperationException();
-        }
-
+        FunctionScoreQueryBuilder functionScoreQueryBuilder = createRandomFunctionScoreBuilder();
         if (randomBoolean()) {
             functionScoreQueryBuilder.boostMode(randomFrom(CombineFunction.values()));
         }
@@ -112,71 +98,129 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         return functionScoreQueryBuilder;
     }
 
-    private static ScoreFunctionBuilder randomScoreFunction() {
+    /**
+     * Creates a random function score query using only constructor params. The caller is responsible for randomizing fields set outside of
+     * the constructor.
+     */
+    private static FunctionScoreQueryBuilder createRandomFunctionScoreBuilder() {
+        switch (randomIntBetween(0, 3)) {
+        case 0:
+            FilterFunctionBuilder[] functions = new FilterFunctionBuilder[randomIntBetween(0, 3)];
+            for (int i = 0; i < functions.length; i++) {
+                functions[i] = new FilterFunctionBuilder(RandomQueryBuilder.createQuery(random()), randomScoreFunction());
+            }
+            if (randomBoolean()) {
+                return new FunctionScoreQueryBuilder(RandomQueryBuilder.createQuery(random()), functions);
+            }
+            return new FunctionScoreQueryBuilder(functions);
+        case 1:
+            return new FunctionScoreQueryBuilder(randomScoreFunction());
+        case 2:
+            return new FunctionScoreQueryBuilder(RandomQueryBuilder.createQuery(random()), randomScoreFunction());
+        case 3:
+            return new FunctionScoreQueryBuilder(RandomQueryBuilder.createQuery(random()));
+        default:
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private static ScoreFunctionBuilder<?> randomScoreFunction() {
         if (randomBoolean()) {
             return new WeightBuilder().setWeight(randomFloat());
         }
-        ScoreFunctionBuilder functionBuilder;
-        //TODO random score function is temporarily disabled, it causes NPE in testToQuery when trying to access the shardId through SearchContext
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                DecayFunctionBuilder decayFunctionBuilder;
-                Float offset = randomBoolean() ? null : randomFloat();
-                double decay = randomDouble();
-                switch (randomIntBetween(0, 2)) {
-                    case 0:
-                        decayFunctionBuilder = new GaussDecayFunctionBuilder(INT_FIELD_NAME, randomFloat(), randomFloat(), offset, decay);
-                        break;
-                    case 1:
-                        decayFunctionBuilder = new ExponentialDecayFunctionBuilder(INT_FIELD_NAME, randomFloat(), randomFloat(), offset, decay);
-                        break;
-                    case 2:
-                        decayFunctionBuilder = new LinearDecayFunctionBuilder(INT_FIELD_NAME, randomFloat(), randomFloat(), offset, decay);
-                        break;
-                    default:
-                        throw new UnsupportedOperationException();
-                }
-                if (randomBoolean()) {
-                    decayFunctionBuilder.setMultiValueMode(randomFrom(MultiValueMode.values()));
-                }
-                functionBuilder = decayFunctionBuilder;
-                break;
-            case 1:
-                FieldValueFactorFunctionBuilder fieldValueFactorFunctionBuilder = new FieldValueFactorFunctionBuilder(INT_FIELD_NAME);
-                if (randomBoolean()) {
-                    fieldValueFactorFunctionBuilder.factor(randomFloat());
-                }
-                if (randomBoolean()) {
-                    fieldValueFactorFunctionBuilder.missing(randomDouble());
-                }
-                if (randomBoolean()) {
-                    fieldValueFactorFunctionBuilder.modifier(randomFrom(FieldValueFactorFunction.Modifier.values()));
-                }
-                functionBuilder = fieldValueFactorFunctionBuilder;
-                break;
-            case 2:
-                String script = "5";
-                Map<String, Object> params = Collections.emptyMap();
-                functionBuilder = new ScriptScoreFunctionBuilder(new Script(script, ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, params));
-                break;
-            case 3:
-                RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilder();
-                if (randomBoolean()) {
-                    randomScoreFunctionBuilder.seed(randomLong());
-                } else if (randomBoolean()) {
-                    randomScoreFunctionBuilder.seed(randomInt());
-                } else {
-                    randomScoreFunctionBuilder.seed(randomAsciiOfLengthBetween(1, 10));
-                }
-                functionBuilder = randomScoreFunctionBuilder;
-                break;
-            default:
-                throw new UnsupportedOperationException();
+        ScoreFunctionBuilder<?> functionBuilder;
+        switch (randomIntBetween(0, 3)) {
+        case 0:
+            DecayFunctionBuilder<?> decayFunctionBuilder = createRandomDecayFunction();
+            if (randomBoolean()) {
+                decayFunctionBuilder.setMultiValueMode(randomFrom(MultiValueMode.values()));
+            }
+            functionBuilder = decayFunctionBuilder;
+            break;
+        case 1:
+            FieldValueFactorFunctionBuilder fieldValueFactorFunctionBuilder = fieldValueFactorFunction(fieldValueFactorCompatibleField());
+            if (randomBoolean()) {
+                fieldValueFactorFunctionBuilder.factor(randomFloat());
+            }
+            if (randomBoolean()) {
+                fieldValueFactorFunctionBuilder.missing(randomDouble());
+            }
+            if (randomBoolean()) {
+                fieldValueFactorFunctionBuilder.modifier(randomFrom(FieldValueFactorFunction.Modifier.values()));
+            }
+            functionBuilder = fieldValueFactorFunctionBuilder;
+            break;
+        case 2:
+            String script = "5";
+            Map<String, Object> params = Collections.emptyMap();
+            functionBuilder = new ScriptScoreFunctionBuilder(
+                    new Script(script, ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, params));
+            break;
+        case 3:
+            RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilderWithFixedSeed();
+            if (randomBoolean()) {
+                randomScoreFunctionBuilder.seed(randomLong());
+            } else if (randomBoolean()) {
+                randomScoreFunctionBuilder.seed(randomInt());
+            } else {
+                randomScoreFunctionBuilder.seed(randomAsciiOfLengthBetween(1, 10));
+            }
+            functionBuilder = randomScoreFunctionBuilder;
+            break;
+        default:
+            throw new UnsupportedOperationException();
         }
         if (randomBoolean()) {
             functionBuilder.setWeight(randomFloat());
         }
         return functionBuilder;
+    }
+
+    /**
+     * A random field compatible with FieldValueFactor.
+     */
+    private static String fieldValueFactorCompatibleField() {
+        return randomFrom(INT_FIELD_NAME, DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
+    }
+
+    /**
+     * Create a random decay function setting all of its constructor parameters randomly. The caller is responsible for randomizing other
+     * fields.
+     */
+    private static DecayFunctionBuilder<?> createRandomDecayFunction() {
+        String field = randomFrom(INT_FIELD_NAME, DOUBLE_FIELD_NAME, DATE_FIELD_NAME, GEO_POINT_FIELD_NAME);
+        Object origin;
+        Object scale;
+        Object offset;
+        switch (field) {
+        case GEO_POINT_FIELD_NAME:
+            origin = new GeoPoint(randomDouble(), randomDouble()).geohash();
+            scale = randomFrom(DistanceUnit.values()).toString(randomDouble());
+            offset = randomFrom(DistanceUnit.values()).toString(randomDouble());
+            break;
+        case DATE_FIELD_NAME:
+            origin = new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString();
+            scale = randomPositiveTimeValue();
+            offset = randomPositiveTimeValue();
+            break;
+        default:
+            origin = randomBoolean() ? randomInt() : randomFloat();
+            scale = randomBoolean() ? between(1, Integer.MAX_VALUE) : randomFloat() + Float.MIN_NORMAL;
+            offset = randomBoolean() ? between(1, Integer.MAX_VALUE) : randomFloat() + Float.MIN_NORMAL;
+            break;
+        }
+        offset = randomBoolean() ? null : offset;
+        double decay = randomDouble();
+        switch (randomIntBetween(0, 2)) {
+        case 0:
+            return new GaussDecayFunctionBuilder(field, origin, scale, offset, decay);
+        case 1:
+            return new ExponentialDecayFunctionBuilder(field, origin, scale, offset, decay);
+        case 2:
+            return new LinearDecayFunctionBuilder(field, origin, scale, offset, decay);
+        default:
+            throw new UnsupportedOperationException();
+        }
     }
 
     @Override
@@ -196,96 +240,21 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testIllegalArguments() {
-        try {
-            new FunctionScoreQueryBuilder((QueryBuilder<?>) null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new FunctionScoreQueryBuilder((ScoreFunctionBuilder) null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new FunctionScoreQueryBuilder((FunctionScoreQueryBuilder.FilterFunctionBuilder[]) null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new FunctionScoreQueryBuilder(null, ScoreFunctionBuilders.randomFunction(123));
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new FunctionScoreQueryBuilder(new MatchAllQueryBuilder(), (ScoreFunctionBuilder) null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new FunctionScoreQueryBuilder(new MatchAllQueryBuilder(), (FunctionScoreQueryBuilder.FilterFunctionBuilder[]) null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new FunctionScoreQueryBuilder(null, new FunctionScoreQueryBuilder.FilterFunctionBuilder[0]);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new FunctionScoreQueryBuilder(QueryBuilders.matchAllQuery(), new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{null});
-            fail("content of array must not be null");
-        } catch (IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new FunctionScoreQueryBuilder.FilterFunctionBuilder(null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new FunctionScoreQueryBuilder.FilterFunctionBuilder(null, ScoreFunctionBuilders.randomFunction(123));
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new FunctionScoreQueryBuilder.FilterFunctionBuilder(new MatchAllQueryBuilder(), null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new FunctionScoreQueryBuilder(new MatchAllQueryBuilder()).scoreMode(null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new FunctionScoreQueryBuilder(new MatchAllQueryBuilder()).boostMode(null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //all good
-        }
+        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((QueryBuilder<?>) null));
+        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((ScoreFunctionBuilder<?>) null));
+        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((FilterFunctionBuilder[]) null));
+        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(null, randomFunction(123)));
+        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(matchAllQuery(), (ScoreFunctionBuilder<?>) null));
+        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(matchAllQuery(), (FilterFunctionBuilder[]) null));
+        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(null, new FilterFunctionBuilder[0]));
+        expectThrows(IllegalArgumentException.class,
+                () -> new FunctionScoreQueryBuilder(matchAllQuery(), new FilterFunctionBuilder[] { null }));
+        expectThrows(IllegalArgumentException.class, () -> new FilterFunctionBuilder((ScoreFunctionBuilder<?>) null));
+        expectThrows(IllegalArgumentException.class, () -> new FilterFunctionBuilder(null, randomFunction(123)));
+        expectThrows(IllegalArgumentException.class, () -> new FilterFunctionBuilder(matchAllQuery(), null));
+        FunctionScoreQueryBuilder builder = new FunctionScoreQueryBuilder(matchAllQuery());
+        expectThrows(IllegalArgumentException.class, () -> builder.scoreMode(null));
+        expectThrows(IllegalArgumentException.class, () -> builder.boostMode(null));
     }
 
     public void testParseFunctionsArray() throws IOException {
@@ -333,7 +302,10 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             "}";
 
         QueryBuilder<?> queryBuilder = parseQuery(functionScoreQuery);
-        //given that we copy part of the decay functions as bytes, we test that fromXContent and toXContent both work no matter what the initial format was
+        /*
+         * given that we copy part of the decay functions as bytes, we test that fromXContent and toXContent both work no matter what the
+         * initial format was
+         */
         for (int i = 0; i <= XContentType.values().length; i++) {
             assertThat(queryBuilder, instanceOf(FunctionScoreQueryBuilder.class));
             FunctionScoreQueryBuilder functionScoreQueryBuilder = (FunctionScoreQueryBuilder) queryBuilder;
@@ -351,15 +323,19 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             assertThat(termQueryBuilder.fieldName(), equalTo("field3"));
             assertThat(termQueryBuilder.value(), equalTo("value3"));
             assertThat(functionScoreQueryBuilder.filterFunctionBuilders()[2].getFilter(), instanceOf(MatchAllQueryBuilder.class));
-            assertThat(functionScoreQueryBuilder.filterFunctionBuilders()[0].getScoreFunction(), instanceOf(RandomScoreFunctionBuilder.class));
-            RandomScoreFunctionBuilder randomScoreFunctionBuilder = (RandomScoreFunctionBuilder) functionScoreQueryBuilder.filterFunctionBuilders()[0].getScoreFunction();
+            assertThat(functionScoreQueryBuilder.filterFunctionBuilders()[0].getScoreFunction(),
+                    instanceOf(RandomScoreFunctionBuilder.class));
+            RandomScoreFunctionBuilder randomScoreFunctionBuilder = (RandomScoreFunctionBuilder) functionScoreQueryBuilder
+                    .filterFunctionBuilders()[0].getScoreFunction();
             assertThat(randomScoreFunctionBuilder.getSeed(), equalTo(123456));
             assertThat(randomScoreFunctionBuilder.getWeight(), equalTo(3f));
             assertThat(functionScoreQueryBuilder.filterFunctionBuilders()[1].getScoreFunction(), instanceOf(WeightBuilder.class));
             WeightBuilder weightBuilder = (WeightBuilder) functionScoreQueryBuilder.filterFunctionBuilders()[1].getScoreFunction();
             assertThat(weightBuilder.getWeight(), equalTo(9f));
-            assertThat(functionScoreQueryBuilder.filterFunctionBuilders()[2].getScoreFunction(), instanceOf(GaussDecayFunctionBuilder.class));
-            GaussDecayFunctionBuilder gaussDecayFunctionBuilder = (GaussDecayFunctionBuilder) functionScoreQueryBuilder.filterFunctionBuilders()[2].getScoreFunction();
+            assertThat(functionScoreQueryBuilder.filterFunctionBuilders()[2].getScoreFunction(),
+                    instanceOf(GaussDecayFunctionBuilder.class));
+            GaussDecayFunctionBuilder gaussDecayFunctionBuilder = (GaussDecayFunctionBuilder) functionScoreQueryBuilder
+                    .filterFunctionBuilders()[2].getScoreFunction();
             assertThat(gaussDecayFunctionBuilder.getFieldName(), equalTo("field_name"));
             assertThat(functionScoreQueryBuilder.boost(), equalTo(3f));
             assertThat(functionScoreQueryBuilder.scoreMode(), equalTo(FiltersFunctionScoreQuery.ScoreMode.AVG));
@@ -394,7 +370,10 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             "}";
 
         QueryBuilder<?> queryBuilder = parseQuery(functionScoreQuery);
-        //given that we copy part of the decay functions as bytes, we test that fromXContent and toXContent both work no matter what the initial format was
+        /*
+         * given that we copy part of the decay functions as bytes, we test that fromXContent and toXContent both work no matter what the
+         * initial format was
+         */
         for (int i = 0; i <= XContentType.values().length; i++) {
             assertThat(queryBuilder, instanceOf(FunctionScoreQueryBuilder.class));
             FunctionScoreQueryBuilder functionScoreQueryBuilder = (FunctionScoreQueryBuilder) queryBuilder;
@@ -404,8 +383,10 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             assertThat(termQueryBuilder.value(), equalTo("value1"));
             assertThat(functionScoreQueryBuilder.filterFunctionBuilders().length, equalTo(1));
             assertThat(functionScoreQueryBuilder.filterFunctionBuilders()[0].getFilter(), instanceOf(MatchAllQueryBuilder.class));
-            assertThat(functionScoreQueryBuilder.filterFunctionBuilders()[0].getScoreFunction(), instanceOf(GaussDecayFunctionBuilder.class));
-            GaussDecayFunctionBuilder gaussDecayFunctionBuilder = (GaussDecayFunctionBuilder) functionScoreQueryBuilder.filterFunctionBuilders()[0].getScoreFunction();
+            assertThat(functionScoreQueryBuilder.filterFunctionBuilders()[0].getScoreFunction(),
+                    instanceOf(GaussDecayFunctionBuilder.class));
+            GaussDecayFunctionBuilder gaussDecayFunctionBuilder = (GaussDecayFunctionBuilder) functionScoreQueryBuilder
+                    .filterFunctionBuilders()[0].getScoreFunction();
             assertThat(gaussDecayFunctionBuilder.getFieldName(), equalTo("field_name"));
             assertThat(gaussDecayFunctionBuilder.getWeight(), nullValue());
             assertThat(functionScoreQueryBuilder.boost(), equalTo(3f));
@@ -458,13 +439,9 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             "        ]\n" +
             "    }\n" +
             "}";
-
-        try {
-            parseQuery(functionScoreQuery);
-            fail("parsing should have failed");
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), containsString("failed to parse function_score functions. already found [random_score], now encountering [script_score]."));
-        }
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(functionScoreQuery));
+        assertThat(e.getMessage(),
+                containsString("failed to parse function_score functions. already found [random_score], now encountering [script_score]."));
     }
 
     public void testProperErrorMessageWhenMissingFunction() throws IOException {
@@ -481,12 +458,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             "        ]\n" +
             "    }\n" +
             "}";
-        try {
-            parseQuery(functionScoreQuery);
-            fail("parsing should have failed");
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), containsString("an entry in functions list is missing a function."));
-        }
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(functionScoreQuery));
+        assertThat(e.getMessage(), containsString("an entry in functions list is missing a function."));
     }
 
     public void testWeight1fStillProducesWeightFunction() throws IOException {
@@ -506,8 +479,10 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         QueryBuilder<?> query = parseQuery(queryString);
         assertThat(query, instanceOf(FunctionScoreQueryBuilder.class));
         FunctionScoreQueryBuilder functionScoreQueryBuilder = (FunctionScoreQueryBuilder) query;
-        assertThat(functionScoreQueryBuilder.filterFunctionBuilders()[0].getScoreFunction(), instanceOf(FieldValueFactorFunctionBuilder.class));
-        FieldValueFactorFunctionBuilder fieldValueFactorFunctionBuilder = (FieldValueFactorFunctionBuilder) functionScoreQueryBuilder.filterFunctionBuilders()[0].getScoreFunction();
+        assertThat(functionScoreQueryBuilder.filterFunctionBuilders()[0].getScoreFunction(),
+                instanceOf(FieldValueFactorFunctionBuilder.class));
+        FieldValueFactorFunctionBuilder fieldValueFactorFunctionBuilder = (FieldValueFactorFunctionBuilder) functionScoreQueryBuilder
+                .filterFunctionBuilders()[0].getScoreFunction();
         assertThat(fieldValueFactorFunctionBuilder.fieldName(), equalTo(INT_FIELD_NAME));
         assertThat(fieldValueFactorFunctionBuilder.factor(), equalTo(FieldValueFactorFunctionBuilder.DEFAULT_FACTOR));
         assertThat(fieldValueFactorFunctionBuilder.modifier(), equalTo(FieldValueFactorFunctionBuilder.DEFAULT_MODIFIER));
@@ -530,24 +505,16 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             .endArray()
             .field("weight", 2)
             .endObject().endObject().string();
-        try {
-            parseQuery(query);
-            fail("Expect exception here because array of functions and one weight in body is not allowed.");
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), containsString("you can either define [functions] array or a single function, not both. already found [functions] array, now encountering [weight]."));
-        }
+        expectParsingException(query, "[you can either define [functions] array or a single function, not both. already "
+                + "found [functions] array, now encountering [weight].]");
         query = jsonBuilder().startObject().startObject("function_score")
             .field("weight", 2)
             .startArray("functions")
             .startObject().endObject()
             .endArray()
             .endObject().endObject().string();
-        try {
-            parseQuery(query);
-            fail("Expect exception here because array of functions and one weight in body is not allowed.");
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), containsString("you can either define [functions] array or a single function, not both. already found [weight], now encountering [functions]."));
-        }
+        expectParsingException(query, "[you can either define [functions] array or a single function, not both. already found "
+                + "[weight], now encountering [functions].]");
     }
 
     public void testMalformedThrowsException() throws IOException {
@@ -565,16 +532,13 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             "        ]\n" +
             "    }\n" +
             "}";
-        try {
-            parseQuery(json);
-            fail("Expected JsonParseException");
-        } catch (JsonParseException e) {
-            assertThat(e.getMessage(), containsString("Unexpected character ('{"));
-        }
+        JsonParseException e = expectThrows(JsonParseException.class, () -> parseQuery(json));
+        assertThat(e.getMessage(), containsString("Unexpected character ('{"));
     }
 
     public void testCustomWeightFactorQueryBuilderWithFunctionScore() throws IOException {
-        Query parsedQuery = parseQuery(functionScoreQuery(termQuery("name.last", "banon"), ScoreFunctionBuilders.weightFactorFunction(1.3f)).buildAsBytes()).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(functionScoreQuery(termQuery("name.last", "banon"), weightFactorFunction(1.3f)).buildAsBytes())
+                .toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
         assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
@@ -582,7 +546,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testCustomWeightFactorQueryBuilderWithFunctionScoreWithoutQueryGiven() throws IOException {
-        Query parsedQuery = parseQuery(functionScoreQuery(ScoreFunctionBuilders.weightFactorFunction(1.3f)).buildAsBytes()).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(functionScoreQuery(weightFactorFunction(1.3f)).buildAsBytes()).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
         assertThat(functionScoreQuery.getSubQuery() instanceof MatchAllDocsQuery, equalTo(true));
@@ -606,12 +570,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             "      ]" +
             "    }" +
             "}";
-        try {
-            parseQuery(querySource);
-            fail("parsing should have failed");
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), containsString("[field_value_factor] field 'factor' does not support lists or objects"));
-        }
+        expectParsingException(querySource, containsString("[field_value_factor] field 'factor' does not support lists or objects"));
     }
 
     public void testFromJson() throws IOException {
@@ -651,22 +610,23 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testRewrite() throws IOException {
-        FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()));
-        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(queryShardContext());
+        FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(
+                new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()));
+        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
         assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
     }
 
     public void testRewriteWithFunction() throws IOException {
+        QueryBuilder<?> firstFunction = new WrapperQueryBuilder(new TermQueryBuilder("tq", "1").toString());
         TermQueryBuilder secondFunction = new TermQueryBuilder("tq", "2");
-        QueryBuilder queryBuilder = randomBoolean() ? new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()) : new TermQueryBuilder("foo", "bar");
+        QueryBuilder<?> queryBuilder = randomBoolean() ? new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString())
+                : new TermQueryBuilder("foo", "bar");
         FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder,
-            new FunctionScoreQueryBuilder.FilterFunctionBuilder[]{
-                new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WrapperQueryBuilder(new TermQueryBuilder("tq", "1").toString()), new RandomScoreFunctionBuilder()),
-                new FunctionScoreQueryBuilder.FilterFunctionBuilder(secondFunction, new RandomScoreFunctionBuilder())
-
-            });
-        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(queryShardContext());
+                new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(firstFunction, new RandomScoreFunctionBuilder()),
+                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(secondFunction, new RandomScoreFunctionBuilder()) });
+        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
         assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
         assertEquals(rewrite.filterFunctionBuilders()[0].getFilter(), new TermQueryBuilder("tq", "1"));
@@ -681,12 +641,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "  }\n" +
                 "}";
 
-        try {
-            parseQuery(json);
-            fail("parse should have failed");
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), containsString("array [not_supported] is not supported"));
-        }
+        expectParsingException(json, "array [not_supported] is not supported");
     }
 
     public void testQueryMalformedFieldNotSupported() throws IOException {
@@ -697,12 +652,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "  }\n" +
                 "}";
 
-        try {
-            parseQuery(json);
-            fail("parse should have failed");
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), containsString("field [not_supported] is not supported"));
-        }
+        expectParsingException(json, "field [not_supported] is not supported");
     }
 
     public void testMalformedQueryFunctionFieldNotSupported() throws IOException {
@@ -715,18 +665,12 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "  }\n" +
                 "}";
 
-        try {
-            parseQuery(json);
-            fail("parse should have failed");
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), containsString("field [not_supported] is not supported"));
-        }
+        expectParsingException(json, "field [not_supported] is not supported");
     }
 
     public void testMalformedQuery() throws IOException {
         //verify that an error is thrown rather than setting the query twice (https://github.com/elastic/elasticsearch/issues/16583)
-        String json =
-            "{\n" +
+        String json = "{\n" +
                 "    \"function_score\":{\n" +
                 "        \"query\":{\n" +
                 "            \"bool\":{\n" +
@@ -739,12 +683,52 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "        }\n" +
                 "    }\n" +
                 "}";
+        expectParsingException(json, "[query] is already defined.");
+    }
 
-        try {
-            parseQuery(json);
-            fail("parse should have failed");
-        } catch(ParsingException e) {
-            assertThat(e.getMessage(), containsString("[query] is already defined."));
+    private void expectParsingException(String json, Matcher<String> messageMatcher) {
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(e.getMessage(), messageMatcher);
+    }
+
+    private void expectParsingException(String json, String message) {
+        expectParsingException(json, equalTo("failed to parse [function_score] query. " + message));
+    }
+
+    /**
+     * A hack on top of the normal random score function that fixed toQuery to work properly in this unit testing environment.
+     */
+    static class RandomScoreFunctionBuilderWithFixedSeed extends RandomScoreFunctionBuilder {
+        public static final String NAME = "random_with_fixed_seed";
+        public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);
+
+        public RandomScoreFunctionBuilderWithFixedSeed() {
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public RandomScoreFunctionBuilderWithFixedSeed(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        int getCurrentShardId() {
+            // We can't use the method that normal queries use during this test so we hack something instead
+            return 0;
+        }
+
+        @Override
+        public String getName() {
+            return NAME;
+        }
+
+        public static RandomScoreFunctionBuilder fromXContent(QueryParseContext parseContext)
+                throws IOException, ParsingException {
+            RandomScoreFunctionBuilder builder = RandomScoreFunctionBuilder.fromXContent(parseContext);
+            RandomScoreFunctionBuilderWithFixedSeed replacement = new RandomScoreFunctionBuilderWithFixedSeed();
+            replacement.seed(builder.getSeed());
+            return replacement;
         }
     }
 }

@@ -20,8 +20,11 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -30,9 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.query.support.QueryInnerHits;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
+import org.elasticsearch.index.query.support.InnerHitBuilder;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -45,53 +46,62 @@ import java.util.Set;
 public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBuilder> {
 
     public static final String NAME = "has_parent";
-    public static final boolean DEFAULT_SCORE = false;
-    private final QueryBuilder query;
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+
+    /**
+     * The default value for ignore_unmapped.
+     */
+    public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
+
+    private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
+    private static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode").withAllDeprecated("score");
+    private static final ParseField TYPE_FIELD = new ParseField("parent_type", "type");
+    private static final ParseField SCORE_FIELD = new ParseField("score");
+    private static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
+    private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
+
+    private final QueryBuilder<?> query;
     private final String type;
-    private boolean score = DEFAULT_SCORE;
-    private QueryInnerHits innerHit;
+    private final boolean score;
+    private InnerHitBuilder innerHit;
+    private boolean ignoreUnmapped = false;
 
-    /**
-     * @param type  The parent type
-     * @param query The query that will be matched with parent documents
-     */
-    public HasParentQueryBuilder(String type, QueryBuilder query) {
-        if (type == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires 'parent_type' field");
-        }
-        if (query == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires 'query' field");
-        }
-        this.type = type;
-        this.query = query;
+    public HasParentQueryBuilder(String type, QueryBuilder<?> query, boolean score) {
+        this(type, query, score, null);
     }
 
-    public HasParentQueryBuilder(String type, QueryBuilder query, boolean score, QueryInnerHits innerHits) {
-        this(type, query);
+    private HasParentQueryBuilder(String type, QueryBuilder<?> query, boolean score, InnerHitBuilder innerHit) {
+        this.type = requireValue(type, "[" + NAME + "] requires 'type' field");
+        this.query = requireValue(query, "[" + NAME + "] requires 'query' field");
         this.score = score;
-        this.innerHit = innerHits;
-    }
-
-    /**
-     * Defines if the parent score is mapped into the child documents.
-     */
-    public HasParentQueryBuilder score(boolean score) {
-        this.score = score;
-        return this;
-    }
-
-    /**
-     * Sets inner hit definition in the scope of this query and reusing the defined type and query.
-     */
-    public HasParentQueryBuilder innerHit(QueryInnerHits innerHit) {
         this.innerHit = innerHit;
-        return this;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public HasParentQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        type = in.readString();
+        score = in.readBoolean();
+        query = in.readNamedWriteable(QueryBuilder.class);
+        innerHit = in.readOptionalWriteable(InnerHitBuilder::new);
+        ignoreUnmapped = in.readBoolean();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(type);
+        out.writeBoolean(score);
+        out.writeNamedWriteable(query);
+        out.writeOptionalWriteable(innerHit);
+        out.writeBoolean(ignoreUnmapped);
     }
 
     /**
      * Returns the query to execute.
      */
-    public QueryBuilder query() {
+    public QueryBuilder<?> query() {
         return query;
     }
 
@@ -112,8 +122,34 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     /**
      *  Returns inner hit definition in the scope of this query and reusing the defined type and query.
      */
-    public QueryInnerHits innerHit() {
+    public InnerHitBuilder innerHit() {
         return innerHit;
+    }
+
+    public HasParentQueryBuilder innerHit(InnerHitBuilder innerHit) {
+        innerHit.setParentChildType(type);
+        innerHit.setQuery(query);
+        this.innerHit = innerHit;
+        return this;
+    }
+
+    /**
+     * Sets whether the query builder should ignore unmapped types (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the type is unmapped.
+     */
+    public HasParentQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
+        this.ignoreUnmapped = ignoreUnmapped;
+        return this;
+    }
+
+    /**
+     * Gets whether the query builder will ignore unmapped types (and run a
+     * {@link MatchNoDocsQuery} in place of this query) or throw an exception if
+     * the type is unmapped.
+     */
+    public boolean ignoreUnmapped() {
+        return ignoreUnmapped;
     }
 
     @Override
@@ -132,69 +168,47 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         }
         DocumentMapper parentDocMapper = context.getMapperService().documentMapper(type);
         if (parentDocMapper == null) {
-            throw new QueryShardException(context, "[has_parent] query configured 'parent_type' [" + type
-                    + "] is not a valid type");
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            } else {
+                throw new QueryShardException(context, "[" + NAME + "] query configured 'parent_type' [" + type + "] is not a valid type");
+            }
         }
 
         if (innerHit != null) {
-            try (XContentParser parser = innerHit.getXcontentParser()) {
-                XContentParser.Token token = parser.nextToken();
-                if (token != XContentParser.Token.START_OBJECT) {
-                    throw new IllegalStateException("start object expected but was: [" + token + "]");
-                }
-                InnerHitsSubSearchContext innerHits = context.getInnerHitsContext(parser);
-                if (innerHits != null) {
-                    ParsedQuery parsedQuery = new ParsedQuery(innerQuery, context.copyNamedQueries());
-                    InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.getSubSearchContext(), parsedQuery, null, context.getMapperService(), parentDocMapper);
-                    String name = innerHits.getName() != null ? innerHits.getName() : type;
-                    context.addInnerHits(name, parentChildInnerHits);
-                }
-            }
+            context.addInnerHit(innerHit);
         }
 
-        Set<String> parentTypes = new HashSet<>(5);
-        parentTypes.add(parentDocMapper.type());
+        Set<String> childTypes = new HashSet<>();
         ParentChildIndexFieldData parentChildIndexFieldData = null;
         for (DocumentMapper documentMapper : context.getMapperService().docMappers(false)) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
-            if (parentFieldMapper.active()) {
-                DocumentMapper parentTypeDocumentMapper = context.getMapperService().documentMapper(parentFieldMapper.type());
+            if (parentFieldMapper.active() && type.equals(parentFieldMapper.type())) {
+                childTypes.add(documentMapper.type());
                 parentChildIndexFieldData = context.getForField(parentFieldMapper.fieldType());
-                if (parentTypeDocumentMapper == null) {
-                    // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
-                    parentTypes.add(parentFieldMapper.type());
-                }
             }
-        }
-        if (parentChildIndexFieldData == null) {
-            throw new QueryShardException(context, "[has_parent] no _parent field configured");
         }
 
-        Query parentTypeQuery = null;
-        if (parentTypes.size() == 1) {
-            DocumentMapper documentMapper = context.getMapperService().documentMapper(parentTypes.iterator().next());
-            if (documentMapper != null) {
-                parentTypeQuery = documentMapper.typeFilter();
-            }
+        if (childTypes.isEmpty()) {
+            throw new QueryShardException(context, "[" + NAME + "] no child types found for type [" + type + "]");
+        }
+
+        Query childrenQuery;
+        if (childTypes.size() == 1) {
+            DocumentMapper documentMapper = context.getMapperService().documentMapper(childTypes.iterator().next());
+            childrenQuery = documentMapper.typeFilter();
         } else {
-            BooleanQuery.Builder parentsFilter = new BooleanQuery.Builder();
-            for (String parentTypeStr : parentTypes) {
-                DocumentMapper documentMapper = context.getMapperService().documentMapper(parentTypeStr);
-                if (documentMapper != null) {
-                    parentsFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
-                }
+            BooleanQuery.Builder childrenFilter = new BooleanQuery.Builder();
+            for (String childrenTypeStr : childTypes) {
+                DocumentMapper documentMapper = context.getMapperService().documentMapper(childrenTypeStr);
+                childrenFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
             }
-            parentTypeQuery = parentsFilter.build();
-        }
-
-        if (parentTypeQuery == null) {
-            return null;
+            childrenQuery = childrenFilter.build();
         }
 
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
-        Query childrenFilter = Queries.not(parentTypeQuery);
-        return new HasChildQueryBuilder.LateParsingQuery(childrenFilter,
+        return new HasChildQueryBuilder.LateParsingQuery(childrenQuery,
                                                          innerQuery,
                                                          HasChildQueryBuilder.DEFAULT_MIN_CHILDREN,
                                                          HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
@@ -207,15 +221,69 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field(HasParentQueryParser.QUERY_FIELD.getPreferredName());
+        builder.field(QUERY_FIELD.getPreferredName());
         query.toXContent(builder, params);
-        builder.field(HasParentQueryParser.TYPE_FIELD.getPreferredName(), type);
-        builder.field(HasParentQueryParser.SCORE_FIELD.getPreferredName(), score);
+        builder.field(TYPE_FIELD.getPreferredName(), type);
+        builder.field(SCORE_FIELD.getPreferredName(), score);
+        builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
         printBoostAndQueryName(builder);
         if (innerHit != null) {
-           innerHit.toXContent(builder, params);
+            builder.field(INNER_HITS_FIELD.getPreferredName(), innerHit, params);
         }
         builder.endObject();
+    }
+
+    public static HasParentQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        String parentType = null;
+        boolean score = false;
+        String queryName = null;
+        InnerHitBuilder innerHits = null;
+        boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        QueryBuilder<?> iqb = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                    iqb = parseContext.parseInnerQueryBuilder();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
+                    innerHits = InnerHitBuilder.fromXContent(parseContext);
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" + currentFieldName + "]");
+                }
+            } else if (token.isValue()) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
+                    parentType = parser.text();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SCORE_MODE_FIELD)) {
+                    String scoreModeValue = parser.text();
+                    if ("score".equals(scoreModeValue)) {
+                        score = true;
+                    } else if ("none".equals(scoreModeValue)) {
+                        score = false;
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" +
+                                scoreModeValue + "] as an option for score_mode");
+                    }
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SCORE_FIELD)) {
+                    score = parser.booleanValue();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
+                    ignoreUnmapped = parser.booleanValue();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    boost = parser.floatValue();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    queryName = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[has_parent] query does not support [" + currentFieldName + "]");
+                }
+            }
+        }
+        return new HasParentQueryBuilder(parentType, iqb, score, innerHits).ignoreUnmapped(ignoreUnmapped).queryName(queryName)
+                .boost(boost);
     }
 
     @Override
@@ -223,54 +291,25 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         return NAME;
     }
 
-    protected HasParentQueryBuilder(StreamInput in) throws IOException {
-        type = in.readString();
-        score = in.readBoolean();
-        query = in.readQuery();
-        if (in.readBoolean()) {
-            innerHit = new QueryInnerHits(in);
-        }
-    }
-
-    @Override
-    protected HasParentQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new HasParentQueryBuilder(in);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(type);
-        out.writeBoolean(score);
-        out.writeQuery(query);
-        if (innerHit != null) {
-            out.writeBoolean(true);
-            innerHit.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
-    }
-
     @Override
     protected boolean doEquals(HasParentQueryBuilder that) {
         return Objects.equals(query, that.query)
                 && Objects.equals(type, that.type)
                 && Objects.equals(score, that.score)
-                && Objects.equals(innerHit, that.innerHit);
+                && Objects.equals(innerHit, that.innerHit)
+                && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(query, type, score, innerHit);
+        return Objects.hash(query, type, score, innerHit, ignoreUnmapped);
     }
 
     @Override
     protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder rewrite = query.rewrite(queryShardContext);
+        QueryBuilder<?> rewrite = query.rewrite(queryShardContext);
         if (rewrite != query) {
-            HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(type, rewrite);
-            hasParentQueryBuilder.score = score;
-            hasParentQueryBuilder.innerHit = innerHit;
-            return hasParentQueryBuilder;
+            return new HasParentQueryBuilder(type, rewrite, score, innerHit);
         }
         return this;
     }

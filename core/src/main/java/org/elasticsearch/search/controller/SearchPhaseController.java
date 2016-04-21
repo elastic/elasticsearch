@@ -76,17 +76,15 @@ public class SearchPhaseController extends AbstractComponent {
         public int compare(AtomicArray.Entry<? extends QuerySearchResultProvider> o1, AtomicArray.Entry<? extends QuerySearchResultProvider> o2) {
             int i = o1.value.shardTarget().index().compareTo(o2.value.shardTarget().index());
             if (i == 0) {
-                i = o1.value.shardTarget().shardId() - o2.value.shardTarget().shardId();
+                i = o1.value.shardTarget().shardId().id() - o2.value.shardTarget().shardId().id();
             }
             return i;
         }
     };
 
     public static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
-    public static final String SEARCH_CONTROLLER_OPTIMIZE_SINGLE_SHARD_KEY = "search.controller.optimize_single_shard";
 
     private final BigArrays bigArrays;
-    private final boolean optimizeSingleShard;
 
     private ScriptService scriptService;
 
@@ -95,11 +93,6 @@ public class SearchPhaseController extends AbstractComponent {
         super(settings);
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
-        this.optimizeSingleShard = settings.getAsBoolean(SEARCH_CONTROLLER_OPTIMIZE_SINGLE_SHARD_KEY, true);
-    }
-
-    public boolean optimizeSingleShard() {
-        return optimizeSingleShard;
     }
 
     public AggregatedDfs aggregateDfs(AtomicArray<DfsSearchResult> results) {
@@ -168,50 +161,48 @@ public class SearchPhaseController extends AbstractComponent {
             return EMPTY_DOCS;
         }
 
-        if (optimizeSingleShard) {
-            boolean canOptimize = false;
-            QuerySearchResult result = null;
-            int shardIndex = -1;
-            if (results.size() == 1) {
-                canOptimize = true;
-                result = results.get(0).value.queryResult();
-                shardIndex = results.get(0).index;
-            } else {
-                // lets see if we only got hits from a single shard, if so, we can optimize...
-                for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : results) {
-                    if (entry.value.queryResult().topDocs().scoreDocs.length > 0) {
-                        if (result != null) { // we already have one, can't really optimize
-                            canOptimize = false;
-                            break;
-                        }
-                        canOptimize = true;
-                        result = entry.value.queryResult();
-                        shardIndex = entry.index;
+        boolean canOptimize = false;
+        QuerySearchResult result = null;
+        int shardIndex = -1;
+        if (results.size() == 1) {
+            canOptimize = true;
+            result = results.get(0).value.queryResult();
+            shardIndex = results.get(0).index;
+        } else {
+            // lets see if we only got hits from a single shard, if so, we can optimize...
+            for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : results) {
+                if (entry.value.queryResult().topDocs().scoreDocs.length > 0) {
+                    if (result != null) { // we already have one, can't really optimize
+                        canOptimize = false;
+                        break;
                     }
+                    canOptimize = true;
+                    result = entry.value.queryResult();
+                    shardIndex = entry.index;
                 }
             }
-            if (canOptimize) {
-                int offset = result.from();
-                if (ignoreFrom) {
-                    offset = 0;
-                }
-                ScoreDoc[] scoreDocs = result.topDocs().scoreDocs;
-                if (scoreDocs.length == 0 || scoreDocs.length < offset) {
-                    return EMPTY_DOCS;
-                }
+        }
+        if (canOptimize) {
+            int offset = result.from();
+            if (ignoreFrom) {
+                offset = 0;
+            }
+            ScoreDoc[] scoreDocs = result.topDocs().scoreDocs;
+            if (scoreDocs.length == 0 || scoreDocs.length < offset) {
+                return EMPTY_DOCS;
+            }
 
-                int resultDocsSize = result.size();
-                if ((scoreDocs.length - offset) < resultDocsSize) {
-                    resultDocsSize = scoreDocs.length - offset;
-                }
-                ScoreDoc[] docs = new ScoreDoc[resultDocsSize];
-                for (int i = 0; i < resultDocsSize; i++) {
-                    ScoreDoc scoreDoc = scoreDocs[offset + i];
-                    scoreDoc.shardIndex = shardIndex;
-                    docs[i] = scoreDoc;
-                }
-                return docs;
+            int resultDocsSize = result.size();
+            if ((scoreDocs.length - offset) < resultDocsSize) {
+                resultDocsSize = scoreDocs.length - offset;
             }
+            ScoreDoc[] docs = new ScoreDoc[resultDocsSize];
+            for (int i = 0; i < resultDocsSize; i++) {
+                ScoreDoc scoreDoc = scoreDocs[offset + i];
+                scoreDoc.shardIndex = shardIndex;
+                docs[i] = scoreDoc;
+            }
+            return docs;
         }
 
         @SuppressWarnings("unchecked")
@@ -395,7 +386,7 @@ public class SearchPhaseController extends AbstractComponent {
                 Suggest.group(groupedSuggestions, shardResult);
             }
 
-            suggest = hasSuggestions ? new Suggest(Suggest.Fields.SUGGEST, Suggest.reduce(groupedSuggestions)) : null;
+            suggest = hasSuggestions ? new Suggest(Suggest.reduce(groupedSuggestions)) : null;
         }
 
         // merge addAggregation

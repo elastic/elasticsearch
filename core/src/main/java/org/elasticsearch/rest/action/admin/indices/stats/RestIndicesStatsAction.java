@@ -71,18 +71,17 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.docs(metrics.contains("docs"));
             indicesStatsRequest.store(metrics.contains("store"));
             indicesStatsRequest.indexing(metrics.contains("indexing"));
-            indicesStatsRequest.search(metrics.contains("search"));
+            indicesStatsRequest.search(metrics.contains("search") || metrics.contains("suggest"));
             indicesStatsRequest.get(metrics.contains("get"));
             indicesStatsRequest.merge(metrics.contains("merge"));
             indicesStatsRequest.refresh(metrics.contains("refresh"));
             indicesStatsRequest.flush(metrics.contains("flush"));
             indicesStatsRequest.warmer(metrics.contains("warmer"));
             indicesStatsRequest.queryCache(metrics.contains("query_cache"));
-            indicesStatsRequest.percolate(metrics.contains("percolate"));
+            indicesStatsRequest.percolate(metrics.contains("percolator_cache"));
             indicesStatsRequest.segments(metrics.contains("segments"));
             indicesStatsRequest.fieldData(metrics.contains("fielddata"));
             indicesStatsRequest.completion(metrics.contains("completion"));
-            indicesStatsRequest.suggest(metrics.contains("suggest"));
             indicesStatsRequest.requestCache(metrics.contains("request_cache"));
             indicesStatsRequest.recovery(metrics.contains("recovery"));
             indicesStatsRequest.translog(metrics.contains("translog"));
@@ -102,6 +101,10 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
         if (indicesStatsRequest.fieldData() && (request.hasParam("fields") || request.hasParam("fielddata_fields"))) {
             indicesStatsRequest.fieldDataFields(request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", Strings.EMPTY_ARRAY)));
+        }
+
+        if (indicesStatsRequest.segments() && request.hasParam("include_segment_file_sizes")) {
+            indicesStatsRequest.includeSegmentFileSizes(true);
         }
 
         client.admin().indices().stats(indicesStatsRequest, new RestBuilderListener<IndicesStatsResponse>(channel) {

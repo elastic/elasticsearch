@@ -40,16 +40,26 @@ public class Task {
 
     private final TaskId parentTask;
 
+    private final long startTime;
+
+    private final long startTimeNanos;
+
     public Task(long id, String type, String action, String description) {
         this(id, type, action, description, TaskId.EMPTY_TASK_ID);
     }
 
     public Task(long id, String type, String action, String description, TaskId parentTask) {
+        this(id, type, action, description, parentTask, System.currentTimeMillis(), System.nanoTime());
+    }
+
+    public Task(long id, String type, String action, String description, TaskId parentTask, long startTime, long startTimeNanos) {
         this.id = id;
         this.type = type;
         this.action = action;
         this.description = description;
         this.parentTask = parentTask;
+        this.startTime = startTime;
+        this.startTimeNanos = startTimeNanos;
     }
 
     /**
@@ -69,7 +79,8 @@ public class Task {
             description = getDescription();
             status = getStatus();
         }
-        return new TaskInfo(node, getId(), getType(), getAction(), description, status, parentTask);
+        return new TaskInfo(node, getId(), getType(), getAction(), description, status, startTime, System.nanoTime() - startTimeNanos,
+            this instanceof CancellableTask, parentTask);
     }
 
     /**
@@ -101,6 +112,13 @@ public class Task {
     }
 
     /**
+     * Returns the task start time
+     */
+    public long getStartTime() {
+        return startTime;
+    }
+
+    /**
      * Returns id of the parent task or NO_PARENT_ID if the task doesn't have any parent tasks
      */
     public TaskId getParentTaskId() {
@@ -117,5 +135,5 @@ public class Task {
         return null;
     }
 
-    public interface Status extends ToXContent, NamedWriteable<Status> {}
+    public interface Status extends ToXContent, NamedWriteable {}
 }

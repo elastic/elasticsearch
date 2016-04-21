@@ -160,8 +160,8 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         parser = YamlXContent.yamlXContent.createParser(
                 "search:\n" +
                 "    body:\n" +
-                "        _source: [ include.field1, include.field2 ]\n" +
-                "        query: { match_all: {} }"
+                "        \"_source\": [ include.field1, include.field2 ]\n" +
+                "        \"query\": { \"match_all\": {} }"
         );
         String body = "{ \"_source\": [ \"include.field1\", \"include.field2\" ], \"query\": { \"match_all\": {} }}";
 
@@ -281,7 +281,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
                 "    index:  test_1\n" +
                 "    type:   test\n" +
                 "    id:     1\n" +
-                "    body:   \"{ _source: true, query: { match_all: {} } }\""
+                "    body:   \"{ \\\"_source\\\": true, \\\"query\\\": { \\\"match_all\\\": {} } }\""
         );
 
         DoSectionParser doSectionParser = new DoSectionParser();
@@ -297,14 +297,14 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         assertThat(apiCallSection.hasBody(), equalTo(true));
         assertThat(apiCallSection.getBodies().size(), equalTo(1));
         //stringified body is taken as is
-        assertJsonEquals(apiCallSection.getBodies().get(0), "{ _source: true, query: { match_all: {} } }");
+        assertJsonEquals(apiCallSection.getBodies().get(0), "{ \"_source\": true, \"query\": { \"match_all\": {} } }");
     }
 
     public void testParseDoSectionWithBodiesStringifiedAndNot() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "index:\n" +
                 "    body:\n" +
-                "        - \"{ _source: true, query: { match_all: {} } }\"\n" +
+                "        - \"{ \\\"_source\\\": true, \\\"query\\\": { \\\"match_all\\\": {} } }\"\n" +
                 "        - { size: 100, query: { match_all: {} } }"
         );
 
@@ -319,7 +319,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         assertThat(apiCallSection.hasBody(), equalTo(true));
         assertThat(apiCallSection.getBodies().size(), equalTo(2));
         //stringified body is taken as is
-        assertJsonEquals(apiCallSection.getBodies().get(0), "{ _source: true, query: { match_all: {} } }");
+        assertJsonEquals(apiCallSection.getBodies().get(0), "{ \"_source\": true, \"query\": { \"match_all\": {} } }");
         assertJsonEquals(apiCallSection.getBodies().get(1), body);
     }
 

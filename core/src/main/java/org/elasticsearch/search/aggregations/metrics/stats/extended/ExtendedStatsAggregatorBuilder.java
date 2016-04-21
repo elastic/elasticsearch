@@ -19,31 +19,45 @@
 
 package org.elasticsearch.search.aggregations.metrics.stats.extended;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class ExtendedStatsAggregatorBuilder
         extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, ExtendedStatsAggregatorBuilder> {
-
-    static final ExtendedStatsAggregatorBuilder PROTOTYPE = new ExtendedStatsAggregatorBuilder("");
+    public static final String NAME = InternalExtendedStats.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private double sigma = 2.0;
 
     public ExtendedStatsAggregatorBuilder(String name) {
         super(name, InternalExtendedStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ExtendedStatsAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalExtendedStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        sigma = in.readDouble();
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeDouble(sigma);
     }
 
     public ExtendedStatsAggregatorBuilder sigma(double sigma) {
@@ -65,19 +79,6 @@ public class ExtendedStatsAggregatorBuilder
     }
 
     @Override
-    protected ExtendedStatsAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        ExtendedStatsAggregatorBuilder factory = new ExtendedStatsAggregatorBuilder(name);
-        factory.sigma = in.readDouble();
-        return factory;
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeDouble(sigma);
-    }
-
-    @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(ExtendedStatsAggregator.SIGMA_FIELD.getPreferredName(), sigma);
         return builder;
@@ -92,5 +93,10 @@ public class ExtendedStatsAggregatorBuilder
     protected boolean innerEquals(Object obj) {
         ExtendedStatsAggregatorBuilder other = (ExtendedStatsAggregatorBuilder) obj;
         return Objects.equals(sigma, other.sigma);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

@@ -59,7 +59,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     private DateTime date(String date) {
-        return DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date);
+        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date);
     }
 
     private static String format(DateTime date, String pattern) {

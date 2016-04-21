@@ -54,7 +54,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
         writer.addDocument(newDoc(0, "foo"));
-        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true),
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer),
             new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         AtomicBoolean indexShard = new AtomicBoolean(true);
@@ -107,7 +107,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
         writer.addDocument(newDoc(0, "foo"));
-        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true),
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer),
             new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         TestEntity entity = new TestEntity(requestCacheStats, reader, indexShard, 0);
@@ -144,12 +144,12 @@ public class IndicesRequestCacheTests extends ESTestCase {
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
         writer.addDocument(newDoc(0, "foo"));
-        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", "bar", 1));
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         TestEntity entity = new TestEntity(requestCacheStats, reader, indexShard, 0);
 
         writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
-        DirectoryReader secondReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", "bar", 1));
+        DirectoryReader secondReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "bar", 1));
         TestEntity secondEntity = new TestEntity(requestCacheStats, secondReader, indexShard, 0);
 
         // initial cache
@@ -237,13 +237,13 @@ public class IndicesRequestCacheTests extends ESTestCase {
             IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
             writer.addDocument(newDoc(0, "foo"));
-            DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true),
+            DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer),
                 new ShardId("foo", "bar", 1));
             TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
             TestEntity entity = new TestEntity(requestCacheStats, reader, indexShard, 0);
 
             writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
-            DirectoryReader secondReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true),
+            DirectoryReader secondReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer),
                 new ShardId("foo", "bar", 1));
             TestEntity secondEntity = new TestEntity(requestCacheStats, secondReader, indexShard, 0);
 
@@ -263,18 +263,18 @@ public class IndicesRequestCacheTests extends ESTestCase {
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
         writer.addDocument(newDoc(0, "foo"));
-        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true),
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer),
             new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         TestEntity entity = new TestEntity(requestCacheStats, reader, indexShard, 0);
 
         writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
-        DirectoryReader secondReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true),
+        DirectoryReader secondReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer),
             new ShardId("foo", "bar", 1));
         TestEntity secondEntity = new TestEntity(requestCacheStats, secondReader, indexShard, 0);
 
         writer.updateDocument(new Term("id", "0"), newDoc(0, "baz"));
-        DirectoryReader thirdReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true),
+        DirectoryReader thirdReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer),
             new ShardId("foo", "bar", 1));
         TestEntity thirddEntity = new TestEntity(requestCacheStats, thirdReader, indexShard, 0);
 
@@ -282,7 +282,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         assertEquals("foo", value1.toUtf8());
         BytesReference value2 = cache.getOrCompute(secondEntity, secondReader, termQuery.buildAsBytes());
         assertEquals("bar", value2.toUtf8());
-        logger.info(requestCacheStats.stats().getMemorySize().toString());
+        logger.info("Memory size: {}", requestCacheStats.stats().getMemorySize());
         BytesReference value3 = cache.getOrCompute(thirddEntity, thirdReader, termQuery.buildAsBytes());
         assertEquals("baz", value3.toUtf8());
         assertEquals(2, cache.count());
@@ -299,18 +299,18 @@ public class IndicesRequestCacheTests extends ESTestCase {
         IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
 
         writer.addDocument(newDoc(0, "foo"));
-        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true),
+        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer),
             new ShardId("foo", "bar", 1));
         TermQueryBuilder termQuery = new TermQueryBuilder("id", "0");
         TestEntity entity = new TestEntity(requestCacheStats, reader, indexShard, 0);
 
         writer.updateDocument(new Term("id", "0"), newDoc(0, "bar"));
-        DirectoryReader secondReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true),
+        DirectoryReader secondReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer),
             new ShardId("foo", "bar", 1));
         TestEntity secondEntity = new TestEntity(requestCacheStats, secondReader, indexShard, 0);
 
         writer.updateDocument(new Term("id", "0"), newDoc(0, "baz"));
-        DirectoryReader thirdReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true),
+        DirectoryReader thirdReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer),
             new ShardId("foo", "bar", 1));
         AtomicBoolean differentIdentity =  new AtomicBoolean(true);
         TestEntity thirddEntity = new TestEntity(requestCacheStats, thirdReader, differentIdentity, 0);
@@ -319,7 +319,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         assertEquals("foo", value1.toUtf8());
         BytesReference value2 = cache.getOrCompute(secondEntity, secondReader, termQuery.buildAsBytes());
         assertEquals("bar", value2.toUtf8());
-        logger.info(requestCacheStats.stats().getMemorySize().toString());
+        logger.info("Memory size: {}", requestCacheStats.stats().getMemorySize());
         BytesReference value3 = cache.getOrCompute(thirddEntity, thirdReader, termQuery.buildAsBytes());
         assertEquals("baz", value3.toUtf8());
         assertEquals(3, cache.count());

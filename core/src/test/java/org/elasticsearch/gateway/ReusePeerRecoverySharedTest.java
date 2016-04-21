@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -87,7 +86,7 @@ public class ReusePeerRecoverySharedTest {
             logger.info("--> disabling allocation while the cluster is shut down");
 
             // Disable allocations while we are closing nodes
-            client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                     .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE)).get();
             logger.info("--> full cluster restart");
             restartCluster.run();
@@ -100,10 +99,10 @@ public class ReusePeerRecoverySharedTest {
             assertSyncIdsNotNull();
         }
 
-        logger.info("--> disabling allocation while the cluster is shut down", useSyncIds ? "" : " a second time");
+        logger.info("--> disabling allocation while the cluster is shut down{}", useSyncIds ? "" : " a second time");
         // Disable allocations while we are closing nodes
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE))
+                Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE))
                 .get();
         logger.info("--> full cluster restart");
         restartCluster.run();
@@ -124,7 +123,7 @@ public class ReusePeerRecoverySharedTest {
             }
             if (!recoveryState.getPrimary() && (useSyncIds == false)) {
                 logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}", recoveryState.getShardId().getId(),
-                        recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
+                        recoveryState.getSourceNode().getName(), recoveryState.getTargetNode().getName(),
                         recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredBytes(), equalTo(recovered));
                 assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0L));
@@ -139,7 +138,7 @@ public class ReusePeerRecoverySharedTest {
             } else {
                 if (useSyncIds && !recoveryState.getPrimary()) {
                     logger.info("--> replica shard {} recovered from {} to {} using sync id, recovered {}, reuse {}",
-                            recoveryState.getShardId().getId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
+                            recoveryState.getShardId().getId(), recoveryState.getSourceNode().getName(), recoveryState.getTargetNode().getName(),
                             recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 }
                 assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0L));

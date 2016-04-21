@@ -57,7 +57,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     private boolean refresh = false;
 
-    Boolean realtime;
+    boolean realtime = true;
 
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
@@ -218,11 +218,11 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     public boolean realtime() {
-        return this.realtime == null ? true : this.realtime;
+        return this.realtime;
     }
 
     @Override
-    public GetRequest realtime(Boolean realtime) {
+    public GetRequest realtime(boolean realtime) {
         this.realtime = realtime;
         return this;
     }
@@ -277,18 +277,12 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
                 fields[i] = in.readString();
             }
         }
-        byte realtime = in.readByte();
-        if (realtime == 0) {
-            this.realtime = false;
-        } else if (realtime == 1) {
-            this.realtime = true;
-        }
+        realtime = in.readBoolean();
         this.ignoreErrorsOnGeneratedFields = in.readBoolean();
 
         this.versionType = VersionType.fromValue(in.readByte());
         this.version = in.readLong();
-
-        fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
+        fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
     }
 
     @Override
@@ -309,18 +303,11 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
                 out.writeString(field);
             }
         }
-        if (realtime == null) {
-            out.writeByte((byte) -1);
-        } else if (!realtime) {
-            out.writeByte((byte) 0);
-        } else {
-            out.writeByte((byte) 1);
-        }
+        out.writeBoolean(realtime);
         out.writeBoolean(ignoreErrorsOnGeneratedFields);
         out.writeByte(versionType.getValue());
         out.writeLong(version);
-
-        FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
+        out.writeOptionalStreamable(fetchSourceContext);
     }
 
     @Override

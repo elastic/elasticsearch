@@ -83,7 +83,7 @@ public class HttpRequestBuilder {
 
     public HttpRequestBuilder httpTransport(HttpServerTransport httpServerTransport) {
         InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress();
-        return host(NetworkAddress.formatAddress(transportAddress.address().getAddress())).port(transportAddress.address().getPort());
+        return host(NetworkAddress.format(transportAddress.address().getAddress())).port(transportAddress.address().getPort());
     }
 
     public HttpRequestBuilder port(int port) {
@@ -114,9 +114,10 @@ public class HttpRequestBuilder {
         for (String pathPart : path) {
             try {
                 finalPath.append('/');
-                URI uri = new URI(null, null, null, -1, pathPart, null, null);
+                // We append "/" to the path part to handle parts that start with - or other invalid characters
+                URI uri = new URI(null, null, null, -1, "/" + pathPart, null, null);
                 //manually escape any slash that each part may contain
-                finalPath.append(uri.getRawPath().replaceAll("/", "%2F"));
+                finalPath.append(uri.getRawPath().substring(1).replaceAll("/", "%2F"));
             } catch(URISyntaxException e) {
                 throw new RuntimeException("unable to build uri", e);
             }

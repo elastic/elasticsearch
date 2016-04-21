@@ -57,7 +57,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         createIndex("test");
 
         client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.settingsBuilder()
+            .setSettings(Settings.builder()
                 .put("index.refresh_interval", -1)
                 .put("index.translog.flush_threshold_size", "1024b")
             )
@@ -65,21 +65,21 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
         assertEquals(indexMetaData.getSettings().get("index.refresh_interval"), "-1");
         for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
-            IndexService indexService = service.indexService("test");
+            IndexService indexService = service.indexService(resolveIndex("test"));
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), -1);
                 assertEquals(indexService.getIndexSettings().getFlushThresholdSize().bytes(), 1024);
             }
         }
         client().admin().indices().prepareUpdateSettings("test")
-            .setSettings(Settings.settingsBuilder()
+            .setSettings(Settings.builder()
                 .putNull("index.refresh_interval")
             )
             .execute().actionGet();
         indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
         assertNull(indexMetaData.getSettings().get("index.refresh_interval"));
         for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
-            IndexService indexService = service.indexService("test");
+            IndexService indexService = service.indexService(resolveIndex("test"));
             if (indexService != null) {
                 assertEquals(indexService.getIndexSettings().getRefreshInterval().millis(), 1000);
                 assertEquals(indexService.getIndexSettings().getFlushThresholdSize().bytes(), 1024);
@@ -90,7 +90,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         createIndex("test");
         try {
             client().admin().indices().prepareUpdateSettings("test")
-                    .setSettings(Settings.settingsBuilder()
+                    .setSettings(Settings.builder()
                             .put("index.refresh_interval", -1) // this one can change
                             .put("index.fielddata.cache", "none") // this one can't
                     )
@@ -110,7 +110,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertThat(getSettingsResponse.getSetting("test", "index.fielddata.cache"), nullValue());
 
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.refresh_interval", -1) // this one can change
                 )
                 .execute().actionGet();
@@ -131,17 +131,18 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         try {
             client().admin().indices().prepareUpdateSettings("test")
-                    .setSettings(Settings.settingsBuilder()
+                    .setSettings(Settings.builder()
                                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                     )
                     .execute().actionGet();
             fail("can't change number of replicas on a closed index");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Can't update [index.number_of_replicas] on closed indices [[test]] - can leave index in an unopenable state");
+            assertTrue(ex.getMessage(), ex.getMessage().startsWith("Can't update [index.number_of_replicas] on closed indices [[test/"));
+            assertTrue(ex.getMessage(), ex.getMessage().endsWith("]] - can leave index in an unopenable state"));
             // expected
         }
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.refresh_interval", "1s") // this one can change
                         .put("index.fielddata.cache", "none") // this one can't
                 )
@@ -163,7 +164,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         client().prepareDelete("test", "type", "1").get(); // sets version to 2
         client().prepareIndex("test", "type", "1").setSource("f", 2).setVersion(2).get(); // delete is still in cache this should work & set version to 3
         client().admin().indices().prepareUpdateSettings("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.gc_deletes", 0)
                 ).get();
 

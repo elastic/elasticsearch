@@ -27,106 +27,80 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.fielddata.plain.PagedBytesAtomicFieldData;
-import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.core.ByteFieldMapper;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
-import org.elasticsearch.index.mapper.core.FloatFieldMapper;
-import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.ShortFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyByteFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyFloatFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyIntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyShortFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.Set;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
 
     public void testGetForFieldDefaults() {
         final IndexService indexService = createIndex("test");
         final IndexFieldDataService ifdService = indexService.fieldData();
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-        final MappedFieldType stringMapper = new StringFieldMapper.Builder("string").tokenized(false).build(ctx).fieldType();
+        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string").build(ctx).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper);
         assertTrue(fd instanceof SortedSetDVOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
-                new ByteFieldMapper.Builder("int").build(ctx).fieldType(),
-                new ShortFieldMapper.Builder("int").build(ctx).fieldType(),
-                new IntegerFieldMapper.Builder("int").build(ctx).fieldType(),
-                new LongFieldMapper.Builder("long").build(ctx).fieldType()
+                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.BYTE).build(ctx).fieldType(),
+                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.SHORT).build(ctx).fieldType(),
+                new NumberFieldMapper.Builder("int", NumberFieldMapper.NumberType.INTEGER).build(ctx).fieldType(),
+                new NumberFieldMapper.Builder("long", NumberFieldMapper.NumberType.LONG).build(ctx).fieldType()
                 )) {
             ifdService.clear();
             fd = ifdService.getForField(mapper);
             assertTrue(fd instanceof SortedNumericDVIndexFieldData);
         }
 
-        final MappedFieldType floatMapper = new FloatFieldMapper.Builder("float").build(ctx).fieldType();
+        final MappedFieldType floatMapper = new NumberFieldMapper.Builder("float", NumberFieldMapper.NumberType.FLOAT)
+                .build(ctx).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper);
         assertTrue(fd instanceof SortedNumericDVIndexFieldData);
 
-        final MappedFieldType doubleMapper = new DoubleFieldMapper.Builder("double").build(ctx).fieldType();
+        final MappedFieldType doubleMapper = new NumberFieldMapper.Builder("double", NumberFieldMapper.NumberType.DOUBLE)
+                .build(ctx).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper);
         assertTrue(fd instanceof SortedNumericDVIndexFieldData);
-    }
-
-    public void testChangeFieldDataFormat() throws Exception {
-        final IndexService indexService = createIndex("test");
-        final IndexFieldDataService ifdService = indexService.fieldData();
-        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-        final MappedFieldType mapper1 = new StringFieldMapper.Builder("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx).fieldType();
-        final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
-        Document doc = new Document();
-        doc.add(new StringField("s", "thisisastring", Store.NO));
-        writer.addDocument(doc);
-        final IndexReader reader1 = DirectoryReader.open(writer, true);
-        IndexFieldData<?> ifd = ifdService.getForField(mapper1);
-        assertThat(ifd, instanceOf(PagedBytesIndexFieldData.class));
-        Set<LeafReader> oldSegments = Collections.newSetFromMap(new IdentityHashMap<LeafReader, Boolean>());
-        for (LeafReaderContext arc : reader1.leaves()) {
-            oldSegments.add(arc.reader());
-            AtomicFieldData afd = ifd.load(arc);
-            assertThat(afd, instanceOf(PagedBytesAtomicFieldData.class));
-        }
-        // write new segment
-        writer.addDocument(doc);
-        final IndexReader reader2 = DirectoryReader.open(writer, true);
-        final MappedFieldType mapper2 = new StringFieldMapper.Builder("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "doc_values").build()).build(ctx).fieldType();
-        ifd = ifdService.getForField(mapper2);
-        assertThat(ifd, instanceOf(SortedSetDVOrdinalsIndexFieldData.class));
-        reader1.close();
-        reader2.close();
-        writer.close();
-        writer.getDirectory().close();
     }
 
     public void testFieldDataCacheListener() throws Exception {
@@ -137,19 +111,19 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 indicesService.getIndicesFieldDataCache(), indicesService.getCircuitBreakerService(), indexService.mapperService());
 
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-        final MappedFieldType mapper1 = new StringFieldMapper.Builder("s").tokenized(false).docValues(true).fieldDataSettings(Settings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx).fieldType();
+        final MappedFieldType mapper1 = new TextFieldMapper.Builder("s").fielddata(true).build(ctx).fieldType();
         final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
         writer.addDocument(doc);
-        DirectoryReader open = DirectoryReader.open(writer, true);
+        DirectoryReader open = DirectoryReader.open(writer);
         final boolean wrap = randomBoolean();
         final IndexReader reader = wrap ? ElasticsearchDirectoryReader.wrap(open, new ShardId("test", "_na_", 1)) : open;
         final AtomicInteger onCacheCalled = new AtomicInteger();
         final AtomicInteger onRemovalCalled = new AtomicInteger();
         ifdService.setListener(new IndexFieldDataCache.Listener() {
             @Override
-            public void onCache(ShardId shardId, String fieldName, FieldDataType fieldDataType, Accountable ramUsage) {
+            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
                 if (wrap) {
                     assertEquals(new ShardId("test", "_na_", 1), shardId);
                 } else {
@@ -159,7 +133,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
                 if (wrap) {
                     assertEquals(new ShardId("test", "_na_", 1), shardId);
                 } else {
@@ -187,12 +161,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         try {
             shardPrivateService.setListener(new IndexFieldDataCache.Listener() {
                 @Override
-                public void onCache(ShardId shardId, String fieldName, FieldDataType fieldDataType, Accountable ramUsage) {
+                public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
 
                 }
 
                 @Override
-                public void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+                public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
 
                 }
             });
@@ -223,33 +197,15 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRequireDocValuesOnLongs() {
-        doTestRequireDocValues(new LongFieldMapper.LongFieldType());
+        doTestRequireDocValues(new LegacyLongFieldMapper.LongFieldType());
     }
 
     public void testRequireDocValuesOnDoubles() {
-        doTestRequireDocValues(new DoubleFieldMapper.DoubleFieldType());
+        doTestRequireDocValues(new LegacyDoubleFieldMapper.DoubleFieldType());
     }
 
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType());
     }
 
-    public void testDisabled() {
-        ThreadPool threadPool = new ThreadPool("random_threadpool_name");
-        StringFieldMapper.StringFieldType ft = new StringFieldMapper.StringFieldType();
-        try {
-            IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
-            IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), cache, null, null);
-            ft.setName("some_str");
-            ft.setFieldDataType(new FieldDataType("string", Settings.builder().put(FieldDataType.FORMAT_KEY, "disabled").build()));
-            try {
-                ifds.getForField(ft);
-                fail();
-            } catch (IllegalStateException e) {
-                assertThat(e.getMessage(), containsString("Field data loading is forbidden on [some_str]"));
-            }
-        } finally {
-            threadPool.shutdown();
-        }
-    }
 }

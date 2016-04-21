@@ -2101,7 +2101,7 @@ class Definition {
         } else {
             sort = Sort.OBJECT;
 
-            for (Sort value : Sort.values()) {
+            for (final Sort value : Sort.values()) {
                 if (value.clazz == null) {
                     continue;
                 }

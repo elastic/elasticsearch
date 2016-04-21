@@ -20,12 +20,12 @@
 package org.elasticsearch.test.geo;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import com.spatial4j.core.context.jts.JtsSpatialContext;
-import com.spatial4j.core.distance.DistanceUtils;
-import com.spatial4j.core.exception.InvalidShapeException;
-import com.spatial4j.core.shape.Point;
-import com.spatial4j.core.shape.Rectangle;
-import com.spatial4j.core.shape.impl.Range;
+import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
+import org.locationtech.spatial4j.distance.DistanceUtils;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Point;
+import org.locationtech.spatial4j.shape.Rectangle;
+import org.locationtech.spatial4j.shape.impl.Range;
 import com.vividsolutions.jts.algorithm.ConvexHull;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
@@ -45,7 +45,7 @@ import org.junit.Assert;
 
 import java.util.Random;
 
-import static com.spatial4j.core.shape.SpatialRelation.CONTAINS;
+import static org.locationtech.spatial4j.shape.SpatialRelation.CONTAINS;
 
 /**
  * Random geoshape generation utilities for randomized {@code geo_shape} type testing
@@ -293,8 +293,9 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                 xDivisible(yRange.getMax()*10e3)/10e3);
     }
 
+    /** creates a small random rectangle by default to keep shape test performance at bay */
     public static Rectangle xRandomRectangle(Random r, Point nearP) {
-        return xRandomRectangle(r, nearP, ctx.getWorldBounds(), false);
+        return xRandomRectangle(r, nearP, ctx.getWorldBounds(), true);
     }
 
     public static Rectangle xRandomRectangle(Random r, Point nearP, boolean small) {

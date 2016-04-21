@@ -28,6 +28,7 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
 import com.amazonaws.auth.InstanceProfileCredentialsProvider;
 import com.amazonaws.auth.SystemPropertiesCredentialsProvider;
+import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
@@ -76,8 +77,8 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
         String key = CLOUD_EC2.KEY_SETTING.get(settings);
         String secret = CLOUD_EC2.SECRET_SETTING.get(settings);
 
-        String proxyHost = CLOUD_EC2.PROXY_HOST_SETTING.get(settings);
-        if (proxyHost != null) {
+        if (CLOUD_EC2.PROXY_HOST_SETTING.exists(settings)) {
+            String proxyHost = CLOUD_EC2.PROXY_HOST_SETTING.get(settings);
             Integer proxyPort = CLOUD_EC2.PROXY_PORT_SETTING.get(settings);
             String proxyUsername = CLOUD_EC2.PROXY_USERNAME_SETTING.get(settings);
             String proxyPassword = CLOUD_EC2.PROXY_PASSWORD_SETTING.get(settings);
@@ -130,12 +131,13 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
 
         this.client = new AmazonEC2Client(credentials, clientConfiguration);
 
-        String endpoint = CLOUD_EC2.ENDPOINT_SETTING.get(settings);
-        if (endpoint != null) {
+        if (CLOUD_EC2.ENDPOINT_SETTING.exists(settings)) {
+            final String endpoint = CLOUD_EC2.ENDPOINT_SETTING.get(settings);
             logger.debug("using explicit ec2 endpoint [{}]", endpoint);
             client.setEndpoint(endpoint);
         } else if (CLOUD_EC2.REGION_SETTING.exists(settings)) {
-            String region = CLOUD_EC2.REGION_SETTING.get(settings);
+            final String region = CLOUD_EC2.REGION_SETTING.get(settings);
+            final String endpoint;
             if (region.equals("us-east-1") || region.equals("us-east")) {
                 endpoint = "ec2.us-east-1.amazonaws.com";
             } else if (region.equals("us-west") || region.equals("us-west-1")) {
@@ -183,5 +185,8 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
         if (client != null) {
             client.shutdown();
         }
+
+        // Ensure that IdleConnectionReaper is shutdown
+        IdleConnectionReaper.shutdown();
     }
 }

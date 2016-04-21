@@ -19,17 +19,13 @@
 
 package org.elasticsearch.common.lucene.all;
 
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
-import org.apache.lucene.analysis.payloads.PayloadHelper;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.document.TextField;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
@@ -41,7 +37,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
 
@@ -53,73 +48,12 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class SimpleAllTests extends ESTestCase {
-    public void testBoostOnEagerTokenizer() throws Exception {
-        AllEntries allEntries = new AllEntries();
-        allEntries.addText("field1", "all", 2.0f);
-        allEntries.addText("field2", "your", 1.0f);
-        allEntries.addText("field1", "boosts", 0.5f);
-        allEntries.reset();
-        // whitespace analyzer's tokenizer reads characters eagerly on the contrary to the standard tokenizer
-        final TokenStream ts = AllTokenStream.allTokenStream("any", allEntries, new WhitespaceAnalyzer());
-        final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
-        final PayloadAttribute payloadAtt = ts.addAttribute(PayloadAttribute.class);
-        ts.reset();
-        for (int i = 0; i < 3; ++i) {
-            assertTrue(ts.incrementToken());
-            final String term;
-            final float boost;
-            switch (i) {
-            case 0:
-                term = "all";
-                boost = 2;
-                break;
-            case 1:
-                term = "your";
-                boost = 1;
-                break;
-            case 2:
-                term = "boosts";
-                boost = 0.5f;
-                break;
-            default:
-                throw new AssertionError();
-            }
-            assertEquals(term, termAtt.toString());
-            final BytesRef payload = payloadAtt.getPayload();
-            if (payload == null || payload.length == 0) {
-                assertEquals(boost, 1f, 0.001f);
-            } else {
-                assertEquals(4, payload.length);
-                final float b = PayloadHelper.decodeFloat(payload.bytes, payload.offset);
-                assertEquals(boost, b, 0.001f);
-            }
-        }
-        assertFalse(ts.incrementToken());
-    }
-
-    public void testAllEntriesRead() throws Exception {
-        AllEntries allEntries = new AllEntries();
-        allEntries.addText("field1", "something", 1.0f);
-        allEntries.addText("field2", "else", 1.0f);
-
-        for (int i = 1; i < 30; i++) {
-            allEntries.reset();
-            char[] data = new char[i];
-            String value = slurpToString(allEntries, data);
-            assertThat("failed for " + i, value, equalTo("something else"));
-        }
-    }
-
-    private String slurpToString(AllEntries allEntries, char[] data) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        while (true) {
-            int read = allEntries.read(data, 0, data.length);
-            if (read == -1) {
-                break;
-            }
-            sb.append(data, 0, read);
-        }
-        return sb.toString();
+    private FieldType getAllFieldType() {
+        FieldType ft = new FieldType();
+        ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+        ft.setTokenized(true);
+        ft.freeze();
+        return ft;
     }
 
     private void assertExplanationScore(IndexSearcher searcher, Query query, ScoreDoc scoreDoc) throws IOException {
@@ -128,30 +62,24 @@ public class SimpleAllTests extends ESTestCase {
     }
 
     public void testSimpleAllNoBoost() throws Exception {
+        FieldType allFt = getAllFieldType();
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
         Document doc = new Document();
         doc.add(new Field("_id", "1", StoredField.TYPE));
-        AllEntries allEntries = new AllEntries();
-        allEntries.addText("field1", "something", 1.0f);
-        allEntries.addText("field2", "else", 1.0f);
-        allEntries.reset();
-        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new AllField("_all", "something", 1.0f, allFt));
+        doc.add(new AllField("_all", "else", 1.0f, allFt));
 
         indexWriter.addDocument(doc);
 
         doc = new Document();
         doc.add(new Field("_id", "2", StoredField.TYPE));
-        allEntries = new AllEntries();
-        allEntries.addText("field1", "else", 1.0f);
-        allEntries.addText("field2", "something", 1.0f);
-        allEntries.reset();
-        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
-
+        doc.add(new AllField("_all", "else", 1.0f, allFt));
+        doc.add(new AllField("_all", "something", 1.0f, allFt));
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         Query query = new AllTermQuery(new Term("_all", "else"));
@@ -177,27 +105,22 @@ public class SimpleAllTests extends ESTestCase {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
+        FieldType allFt = getAllFieldType();
         Document doc = new Document();
         doc.add(new Field("_id", "1", StoredField.TYPE));
-        AllEntries allEntries = new AllEntries();
-        allEntries.addText("field1", "something", 1.0f);
-        allEntries.addText("field2", "else", 1.0f);
-        allEntries.reset();
-        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new AllField("_all", "something", 1.0f, allFt));
+        doc.add(new AllField("_all", "else", 1.0f, allFt));
 
         indexWriter.addDocument(doc);
 
         doc = new Document();
         doc.add(new Field("_id", "2", StoredField.TYPE));
-        allEntries = new AllEntries();
-        allEntries.addText("field1", "else", 2.0f);
-        allEntries.addText("field2", "something", 1.0f);
-        allEntries.reset();
-        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new AllField("_all", "else", 2.0f, allFt));
+        doc.add(new AllField("_all", "something", 1.0f, allFt));
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         // this one is boosted. so the second doc is more relevant
@@ -220,30 +143,24 @@ public class SimpleAllTests extends ESTestCase {
         indexWriter.close();
     }
 
-    public void testTermMissingFromOneSegment() throws Exception {
+   public void testTermMissingFromOneSegment() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
+        FieldType allFt = getAllFieldType();
         Document doc = new Document();
         doc.add(new Field("_id", "1", StoredField.TYPE));
-        AllEntries allEntries = new AllEntries();
-        allEntries.addText("field", "something", 2.0f);
-        allEntries.reset();
-        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new AllField("_all", "something", 2.0f, allFt));
 
         indexWriter.addDocument(doc);
         indexWriter.commit();
 
         doc = new Document();
         doc.add(new Field("_id", "2", StoredField.TYPE));
-        allEntries = new AllEntries();
-        allEntries.addText("field", "else", 1.0f);
-        allEntries.reset();
-        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
-
+        doc.add(new AllField("_all", "else", 1.0f, allFt));
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         assertEquals(2, reader.leaves().size());
         IndexSearcher searcher = new IndexSearcher(reader);
 
@@ -259,27 +176,22 @@ public class SimpleAllTests extends ESTestCase {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
+        FieldType allFt = getAllFieldType();
         Document doc = new Document();
         doc.add(new Field("_id", "1", StoredField.TYPE));
-        AllEntries allEntries = new AllEntries();
-        allEntries.addText("field1", "something moo", 1.0f);
-        allEntries.addText("field2", "else koo", 1.0f);
-        allEntries.reset();
-        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new AllField("_all", "something moo", 1.0f, allFt));
+        doc.add(new AllField("_all", "else koo", 1.0f, allFt));
 
         indexWriter.addDocument(doc);
 
         doc = new Document();
         doc.add(new Field("_id", "2", StoredField.TYPE));
-        allEntries = new AllEntries();
-        allEntries.addText("field1", "else koo", 1.0f);
-        allEntries.addText("field2", "something moo", 1.0f);
-        allEntries.reset();
-        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new AllField("_all", "else koo", 1.0f, allFt));
+        doc.add(new AllField("_all", "something moo", 1.0f, allFt));
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);
@@ -309,27 +221,22 @@ public class SimpleAllTests extends ESTestCase {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 
+        FieldType allFt = getAllFieldType();
         Document doc = new Document();
         doc.add(new Field("_id", "1", StoredField.TYPE));
-        AllEntries allEntries = new AllEntries();
-        allEntries.addText("field1", "something moo", 1.0f);
-        allEntries.addText("field2", "else koo", 1.0f);
-        allEntries.reset();
-        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new AllField("_all", "something moo", 1.0f, allFt));
+        doc.add(new AllField("_all", "else koo", 1.0f, allFt));
 
         indexWriter.addDocument(doc);
 
         doc = new Document();
         doc.add(new Field("_id", "2", StoredField.TYPE));
-        allEntries = new AllEntries();
-        allEntries.addText("field1", "else koo", 2.0f);
-        allEntries.addText("field2", "something moo", 1.0f);
-        allEntries.reset();
-        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.STANDARD_ANALYZER)));
+        doc.add(new AllField("_all", "else koo", 2.0f, allFt));
+        doc.add(new AllField("_all", "something moo", 1.0f, allFt));
 
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);
@@ -355,19 +262,17 @@ public class SimpleAllTests extends ESTestCase {
         indexWriter.close();
     }
 
-    public void testNoTokensWithKeywordAnalyzer() throws Exception {
+    public void testNoTokens() throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.KEYWORD_ANALYZER));
 
+        FieldType allFt = getAllFieldType();
         Document doc = new Document();
         doc.add(new Field("_id", "1", StoredField.TYPE));
-        AllEntries allEntries = new AllEntries();
-        allEntries.reset();
-        doc.add(new TextField("_all", AllTokenStream.allTokenStream("_all", allEntries, Lucene.KEYWORD_ANALYZER)));
-
+        doc.add(new AllField("_all", "", 2.0f, allFt));
         indexWriter.addDocument(doc);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new MatchAllDocsQuery(), 10);

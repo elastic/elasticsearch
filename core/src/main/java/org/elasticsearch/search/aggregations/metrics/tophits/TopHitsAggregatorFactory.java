@@ -19,12 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.apache.lucene.search.Sort;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -35,36 +30,37 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
+import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SubSearchContext;
-import org.elasticsearch.search.sort.SortParseElement;
+import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregatorFactory> {
 
-    private static final SortParseElement sortParseElement = new SortParseElement();
     private final int from;
     private final int size;
     private final boolean explain;
     private final boolean version;
     private final boolean trackScores;
-    private final List<BytesReference> sorts;
+    private final List<SortBuilder<?>> sorts;
     private final HighlightBuilder highlightBuilder;
     private final List<String> fieldNames;
     private final List<String> fieldDataFields;
-    private final List<ScriptField> scriptFields;
+    private final Set<ScriptField> scriptFields;
     private final FetchSourceContext fetchSourceContext;
 
     public TopHitsAggregatorFactory(String name, Type type, int from, int size, boolean explain, boolean version, boolean trackScores,
-            List<BytesReference> sorts, HighlightBuilder highlightBuilder, List<String> fieldNames, List<String> fieldDataFields,
-            List<ScriptField> scriptFields, FetchSourceContext fetchSourceContext, AggregationContext context, AggregatorFactory<?> parent,
+            List<SortBuilder<?>> sorts, HighlightBuilder highlightBuilder, List<String> fieldNames, List<String> fieldDataFields,
+            Set<ScriptField> scriptFields, FetchSourceContext fetchSourceContext, AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactories, metaData);
         this.from = from;
@@ -84,33 +80,16 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
         SubSearchContext subSearchContext = new SubSearchContext(context.searchContext());
+        subSearchContext.parsedQuery(context.searchContext().parsedQuery());
         subSearchContext.explain(explain);
         subSearchContext.version(version);
         subSearchContext.trackScores(trackScores);
         subSearchContext.from(from);
         subSearchContext.size(size);
         if (sorts != null) {
-            XContentParser completeSortParser = null;
-            try {
-                XContentBuilder completeSortBuilder = XContentFactory.jsonBuilder();
-                completeSortBuilder.startObject();
-                completeSortBuilder.startArray("sort");
-                for (BytesReference sort : sorts) {
-                    XContentParser parser = XContentFactory.xContent(sort).createParser(sort);
-                    parser.nextToken();
-                    completeSortBuilder.copyCurrentStructure(parser);
-                }
-                completeSortBuilder.endArray();
-                completeSortBuilder.endObject();
-                BytesReference completeSortBytes = completeSortBuilder.bytes();
-                completeSortParser = XContentFactory.xContent(completeSortBytes).createParser(completeSortBytes);
-                completeSortParser.nextToken();
-                completeSortParser.nextToken();
-                completeSortParser.nextToken();
-                sortParseElement.parse(completeSortParser, subSearchContext);
-            } catch (Exception e) {
-                XContentLocation location = completeSortParser != null ? completeSortParser.getTokenLocation() : null;
-                throw new ParsingException(location, "failed to parse sort source in aggregation [" + name + "]", e);
+            Optional<Sort> optionalSort = SortBuilder.buildSort(sorts, subSearchContext.getQueryShardContext());
+            if (optionalSort.isPresent()) {
+                subSearchContext.sort(optionalSort.get());
             }
         }
         if (fieldNames != null) {

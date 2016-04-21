@@ -20,6 +20,7 @@
 package org.elasticsearch.common;
 
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -59,9 +60,6 @@ public class Strings {
     private static final String TOP_PATH = "src/test";
 
     private static final String CURRENT_PATH = ".";
-
-    private static final RandomBasedUUIDGenerator RANDOM_UUID_GENERATOR = new RandomBasedUUIDGenerator();
-    private static final UUIDGenerator TIME_UUID_GENERATOR = new TimeBasedUUIDGenerator();
 
     public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
         try (BufferedReader reader = new BufferedReader(new FastStringReader(from))) {
@@ -1060,35 +1058,32 @@ public class Strings {
                data.length == 1 && ("_all".equals(data[0]) || "*".equals(data[0]));
     }
 
-    /** Returns a Base64 encoded version of a Version 4.0 compatible UUID as defined here: http://www.ietf.org/rfc/rfc4122.txt, using a
-     *  private {@code SecureRandom} instance */
-    public static String randomBase64UUID() {
-        return RANDOM_UUID_GENERATOR.getBase64UUID();
-    }
-
-    /** Returns a Base64 encoded version of a Version 4.0 compatible UUID as defined here: http://www.ietf.org/rfc/rfc4122.txt, using the
-     *  provided {@code Random} instance */
-    public static String randomBase64UUID(Random random) {
-        return RANDOM_UUID_GENERATOR.getBase64UUID(random);
-    }
-
-    /** Generates a time-based UUID (similar to Flake IDs), which is preferred when generating an ID to be indexed into a Lucene index as
-     *  primary key.  The id is opaque and the implementation is free to change at any time! */
-    public static String base64UUID() {
-        return TIME_UUID_GENERATOR.getBase64UUID();
-    }
-
     /**
      * Return a {@link String} that is the json representation of the provided
      * {@link ToXContent}.
      */
     public static String toString(ToXContent toXContent) {
+        return toString(toXContent, false);
+    }
+
+    /**
+     * Return a {@link String} that is the json representation of the provided
+     * {@link ToXContent}.
+     * @param wrapInObject set this to true if the ToXContent instance expects to be inside an object
+     */
+    public static String toString(ToXContent toXContent, boolean wrapInObject) {
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
+            if (wrapInObject) {
+                builder.startObject();
+            }
             toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            if (wrapInObject) {
+                builder.endObject();
+            }
             return builder.string();
         } catch (IOException e) {
-            throw new AssertionError("Cannot happen", e);
+            return "Error building toString out of XContent: " + ExceptionsHelper.stackTrace(e);
         }
     }
 

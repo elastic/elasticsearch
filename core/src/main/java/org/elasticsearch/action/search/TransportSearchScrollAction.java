@@ -20,51 +20,60 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.type.ParsedScrollId;
-import org.elasticsearch.action.search.type.TransportSearchScrollQueryAndFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchScrollQueryThenFetchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.action.SearchTransportService;
+import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import static org.elasticsearch.action.search.type.ParsedScrollId.QUERY_AND_FETCH_TYPE;
-import static org.elasticsearch.action.search.type.ParsedScrollId.QUERY_THEN_FETCH_TYPE;
-import static org.elasticsearch.action.search.type.TransportSearchHelper.parseScrollId;
+import static org.elasticsearch.action.search.ParsedScrollId.QUERY_AND_FETCH_TYPE;
+import static org.elasticsearch.action.search.ParsedScrollId.QUERY_THEN_FETCH_TYPE;
+import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollId;
 
 /**
  *
  */
 public class TransportSearchScrollAction extends HandledTransportAction<SearchScrollRequest, SearchResponse> {
 
-    private final TransportSearchScrollQueryThenFetchAction queryThenFetchAction;
-    private final TransportSearchScrollQueryAndFetchAction queryAndFetchAction;
+    private final ClusterService clusterService;
+    private final SearchTransportService searchTransportService;
+    private final SearchPhaseController searchPhaseController;
 
     @Inject
     public TransportSearchScrollAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                       TransportSearchScrollQueryThenFetchAction queryThenFetchAction,
-                                       TransportSearchScrollQueryAndFetchAction queryAndFetchAction,
-                                       ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchScrollRequest::new);
-        this.queryThenFetchAction = queryThenFetchAction;
-        this.queryAndFetchAction = queryAndFetchAction;
+                                       ClusterService clusterService, SearchTransportService searchTransportService,
+                                       SearchPhaseController searchPhaseController,
+                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, SearchScrollAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+                SearchScrollRequest::new);
+        this.clusterService = clusterService;
+        this.searchTransportService = searchTransportService;
+        this.searchPhaseController = searchPhaseController;
     }
 
     @Override
     protected void doExecute(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
-            if (scrollId.getType().equals(QUERY_THEN_FETCH_TYPE)) {
-                queryThenFetchAction.execute(request, scrollId, listener);
-            } else if (scrollId.getType().equals(QUERY_AND_FETCH_TYPE)) {
-                queryAndFetchAction.execute(request, scrollId, listener);
-            } else {
-                throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
+            AbstractAsyncAction action;
+            switch (scrollId.getType()) {
+                case QUERY_THEN_FETCH_TYPE:
+                    action = new SearchScrollQueryThenFetchAsyncAction(logger, clusterService, searchTransportService,
+                            searchPhaseController, request, scrollId, listener);
+                    break;
+                case QUERY_AND_FETCH_TYPE:
+                    action = new SearchScrollQueryAndFetchAsyncAction(logger, clusterService, searchTransportService,
+                            searchPhaseController, request, scrollId, listener);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             }
+            action.start();
         } catch (Throwable e) {
             listener.onFailure(e);
         }

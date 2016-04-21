@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -157,6 +158,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "5")
                         .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
         ));
+
         indexRandomData(index);
         ensureGreen(index);
 
@@ -165,9 +167,10 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
 
         logger.info("--> corrupt random shard copies");
         Map<Integer, Set<String>> corruptedShardIDMap = new HashMap<>();
+        Index idx = resolveIndex(index);
         for (String node : internalCluster().nodesInclude(index)) {
             IndicesService indexServices = internalCluster().getInstance(IndicesService.class, node);
-            IndexService indexShards = indexServices.indexServiceSafe(index);
+            IndexService indexShards = indexServices.indexServiceSafe(idx);
             for (Integer shardId : indexShards.shardIds()) {
                 IndexShard shard = indexShards.getShard(shardId);
                 if (randomBoolean()) {
@@ -189,7 +192,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStatus : shardStatuses) {
             for (IndicesShardStoresResponse.StoreStatus status : shardStatus.value) {
                 if (corruptedShardIDMap.containsKey(shardStatus.key)
-                        && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().name())) {
+                        && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().getName())) {
                     assertThat(status.getLegacyVersion(), greaterThanOrEqualTo(0L));
                     assertThat(status.getStoreException(), notNullValue());
                 } else {

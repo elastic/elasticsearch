@@ -17,7 +17,7 @@ setup:
 "Tokenizer and filter":
     - do:
         indices.analyze:
-          filters:      lowercase
+          filter:      lowercase
           text:         Foo Bar
           tokenizer:    keyword
     - length: { tokens: 1 }
@@ -52,7 +52,7 @@ setup:
 "JSON in Body":
     - do:
         indices.analyze:
-          body: { "text": "Foo Bar", "filters": ["lowercase"], "tokenizer": keyword }
+          body: { "text": "Foo Bar", "filter": ["lowercase"], "tokenizer": keyword }
     - length: {tokens: 1 }
     - match:     { tokens.0.token: foo bar }
 ---
@@ -60,14 +60,14 @@ setup:
     - do:
         indices.analyze:
           text: Foo Bar
-          body: { "text": "Bar Foo", "filters": ["lowercase"], "tokenizer": keyword }
+          body: { "text": "Bar Foo", "filter": ["lowercase"], "tokenizer": keyword }
     - length: {tokens: 1 }
     - match:     { tokens.0.token: bar foo }
 ---
 "Array text":
     - do:
         indices.analyze:
-          body: { "text": ["Foo Bar", "Baz"], "filters": ["lowercase"], "tokenizer": keyword }
+          body: { "text": ["Foo Bar", "Baz"], "filter": ["lowercase"], "tokenizer": keyword }
     - length: {tokens: 2 }
     - match:     { tokens.0.token: foo bar }
     - match:     { tokens.1.token: baz }
@@ -75,7 +75,7 @@ setup:
 "Detail response with Analyzer":
     - do:
         indices.analyze:
-          body: {"text": "This is troubled", "analyzer": standard, "explain": true}
+          body: {"text": "This is troubled", "analyzer": standard, "explain": "true"}
     - length: { detail.analyzer.tokens: 3 }
     - match:     { detail.analyzer.name: standard }
     - match:     { detail.analyzer.tokens.0.token: this }
@@ -85,7 +85,7 @@ setup:
 "Detail output spcified attribute":
     - do:
         indices.analyze:
-          body: {"text": "<text>This is troubled</text>", "char_filters": ["html_strip"], "filters": ["snowball"], "tokenizer": standard, "explain": true, "attributes": ["keyword"]}
+          body: {"text": "<text>This is troubled</text>", "char_filter": ["html_strip"], "filter": ["snowball"], "tokenizer": standard, "explain": true, "attributes": ["keyword"]}
     - length: { detail.charfilters: 1 }
     - length: { detail.tokenizer.tokens: 3 }
     - length: { detail.tokenfilters.0.tokens: 3 }

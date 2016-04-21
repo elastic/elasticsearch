@@ -33,7 +33,6 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -41,6 +40,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -51,7 +51,6 @@ import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -241,7 +240,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 throw globalBlockException;
             }
 
-            String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, request);
+            String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
             ClusterBlockException requestBlockException = checkRequestBlock(clusterState, request, concreteIndices);
             if (requestBlockException != null) {
                 throw requestBlockException;
@@ -300,7 +299,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             try {
                 NodeRequest nodeRequest = new NodeRequest(node.getId(), request, shards);
                 if (task != null) {
-                    nodeRequest.setParentTask(clusterService.localNode().id(), task.getId());
+                    nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                     taskManager.registerChildTask(task, node.getId());
                 }
                 transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, new BaseTransportResponseHandler<NodeResponse>() {
@@ -331,7 +330,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         protected void onNodeResponse(DiscoveryNode node, int nodeIndex, NodeResponse response) {
             if (logger.isTraceEnabled()) {
-                logger.trace("received response for [{}] from node [{}]", actionName, node.id());
+                logger.trace("received response for [{}] from node [{}]", actionName, node.getId());
             }
 
             // this is defensive to protect against the possibility of double invocation
@@ -345,7 +344,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
 
         protected void onNodeFailure(DiscoveryNode node, int nodeIndex, Throwable t) {
-            String nodeId = node.id();
+            String nodeId = node.getId();
             if (logger.isDebugEnabled() && !(t instanceof NodeShouldNotConnectException)) {
                 logger.debug("failed to execute [{}] on node [{}]", t, actionName, nodeId);
             }

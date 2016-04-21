@@ -19,8 +19,9 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.Laplace;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.SmoothingModel;
+import org.elasticsearch.index.query.QueryParseContext;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -28,6 +29,11 @@ public class LaplaceModelTests extends SmoothingModelTestCase {
 
     @Override
     protected SmoothingModel createTestModel() {
+        return createRandomModel();
+    }
+
+
+    static SmoothingModel createRandomModel() {
         return new Laplace(randomDoubleBetween(0.0, 10.0, false));
     }
 
@@ -45,5 +51,10 @@ public class LaplaceModelTests extends SmoothingModelTestCase {
         Laplace model = (Laplace) input;
         assertThat(wordScorer, instanceOf(LaplaceScorer.class));
         assertEquals(model.getAlpha(), ((LaplaceScorer) wordScorer).alpha(), Double.MIN_VALUE);
+    }
+
+    @Override
+    protected SmoothingModel fromXContent(QueryParseContext context) throws IOException {
+        return Laplace.innerFromXContent(context);
     }
 }

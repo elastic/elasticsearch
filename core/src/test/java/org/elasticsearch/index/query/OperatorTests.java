@@ -54,13 +54,13 @@ public class OperatorTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(Operator.readOperatorFrom(in), equalTo(Operator.OR));
+                assertThat(Operator.readFromStream(in), equalTo(Operator.OR));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(1);
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(Operator.readOperatorFrom(in), equalTo(Operator.AND));
+                assertThat(Operator.readFromStream(in), equalTo(Operator.AND));
             }
         }
     }

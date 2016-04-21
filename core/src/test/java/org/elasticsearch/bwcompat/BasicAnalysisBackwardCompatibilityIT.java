@@ -70,7 +70,7 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
                 // cause differences when the random string generated contains these complex characters. To mitigate
                 // the problem, we skip any strings containing these characters.
                 // TODO: only skip strings containing complex chars when comparing against ES <= 1.3.x
-                input = TestUtil.randomAnalysisString(getRandom(), 100, false);
+                input = TestUtil.randomAnalysisString(random(), 100, false);
                 matcher = complexUnicodeChars.matcher(input);
             } while (matcher.find());
 
@@ -104,17 +104,8 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
     }
 
     private String randomAnalyzer() {
-        while(true) {
-            PreBuiltAnalyzers preBuiltAnalyzers = RandomPicks.randomFrom(getRandom(), PreBuiltAnalyzers.values());
-            if (preBuiltAnalyzers == PreBuiltAnalyzers.SORANI && compatibilityVersion().before(Version.V_1_3_0)) {
-                continue; // SORANI was added in 1.3.0
-            }
-            if (preBuiltAnalyzers == PreBuiltAnalyzers.LITHUANIAN && compatibilityVersion().before(Version.V_2_1_0)) {
-                continue; // LITHUANIAN was added in 2.1.0
-            }
-            return preBuiltAnalyzers.name().toLowerCase(Locale.ROOT);
-        }
-
+        PreBuiltAnalyzers preBuiltAnalyzers = RandomPicks.randomFrom(random(), PreBuiltAnalyzers.values());
+        return preBuiltAnalyzers.name().toLowerCase(Locale.ROOT);
     }
 
     private static final class InputOutput {
@@ -127,7 +118,5 @@ public class BasicAnalysisBackwardCompatibilityIT extends ESBackcompatTestCase {
             this.input = input;
             this.field = field;
         }
-
-
     }
 }

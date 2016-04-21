@@ -36,8 +36,7 @@ import java.util.Objects;
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
-public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extends ToXContentToBytes
-        implements NamedWriteable<AB>, ToXContent {
+public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extends ToXContentToBytes implements NamedWriteable, ToXContent {
 
     protected String name;
     protected Type type;
@@ -60,6 +59,26 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
         this.name = name;
         this.type = type;
     }
+
+    /**
+     * Read from a stream.
+     */
+    protected AggregatorBuilder(StreamInput in, Type type) throws IOException {
+        name = in.readString();
+        this.type = type;
+        factoriesBuilder = new AggregatorFactories.Builder(in);
+        metaData = in.readMap();
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        factoriesBuilder.writeTo(out);
+        out.writeMap(metaData);
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     /**
      * Add a sub aggregation to this aggregation.
@@ -125,27 +144,6 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
             AggregatorFactories.Builder subfactoriesBuilder) throws IOException;
 
     @Override
-    public final AB readFrom(StreamInput in) throws IOException {
-        String name = in.readString();
-        AB factory = doReadFrom(name, in);
-        factory.factoriesBuilder = AggregatorFactories.Builder.PROTOTYPE.readFrom(in);
-        factory.metaData = in.readMap();
-        return factory;
-    }
-
-    protected abstract AB doReadFrom(String name, StreamInput in) throws IOException;
-
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        doWriteTo(out);
-        factoriesBuilder.writeTo(out);
-        out.writeMap(metaData);
-    }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
-
-    @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
 
@@ -165,11 +163,6 @@ public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extend
     }
 
     protected abstract XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException;
-
-    @Override
-    public String getWriteableName() {
-        return type.stream().toUtf8();
-    }
 
     @Override
     public int hashCode() {

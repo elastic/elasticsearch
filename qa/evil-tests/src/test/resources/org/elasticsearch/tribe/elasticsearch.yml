@@ -1,5 +1,5 @@
 cluster.name: tribe_node_cluster
 tribe.t1.cluster.name: tribe1
 tribe.t2.cluster.name: tribe2
-tribe.t1.discovery.id.seed: 1
-tribe.t2.discovery.id.seed: 2
+tribe.t1.node_id.seed: 1
+tribe.t2.node_id.seed: 2

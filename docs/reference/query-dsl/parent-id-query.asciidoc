@@ -1,13 +1,9 @@
 [[query-dsl-parent-id-query]]
 === Parent Id Query
 
-added[3.0.0]
+added[5.0.0]
 
-The `parent_id` query can be used to find a child document pointing to a particular parent id.
-
-The actual underlying Lucene field that is used to store to what parent id a child document is referring to
-is determined by the child type's `_parent` field. This query helps by selecting the right field based
-on the specified child type. Example:
+The `parent_id` query can be used to find child documents which belong to a particular parent:
 
 [source,js]
 --------------------------------------------------
@@ -19,13 +15,34 @@ on the specified child type. Example:
 }
 --------------------------------------------------
 
+The above is functionally equivalent to using the following
+<<query-dsl-has-parent-query, `has_parent`>> query, but performs
+better as it does not need to do a join:
+
+[source,js]
+--------------------------------------------------
+{
+  "has_parent": {
+    "type": "blog",
+    "query": {
+      "term": {
+        "_id": "1"
+      }
+    }
+  }
+}
+--------------------------------------------------
+
 ==== Parameters
 
 This query has two required parameters:
 
 [horizontal]
-`type`::
-The child type. This must be a type with `_parent` field.
+`type`::  The **child** type. This must be a type with `_parent` field.
 
-`id`::
-The required parent id select documents must referrer to.
+`id`::    The required parent id select documents must referrer to.
+
+`ignore_unmapped`::  When set to `true` this will ignore an unmapped `type` and will not match any 
+documents for this query. This can be useful when querying multiple indexes
+which might have different mappings. When set to `false` (the default value)
+the query will throw an exception if the `type` is not mapped.

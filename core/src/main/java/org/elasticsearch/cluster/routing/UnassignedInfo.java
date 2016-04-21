@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -39,12 +40,14 @@ import java.io.IOException;
 /**
  * Holds additional information as to why the shard is in unassigned state.
  */
-public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
+public class UnassignedInfo implements ToXContent, Writeable {
 
     public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
     private static final TimeValue DEFAULT_DELAYED_NODE_LEFT_TIMEOUT = TimeValue.timeValueMinutes(1);
 
-    public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING = Setting.timeSetting("index.unassigned.node_left.delayed_timeout", DEFAULT_DELAYED_NODE_LEFT_TIMEOUT, true, Setting.Scope.INDEX);
+    public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING =
+        Setting.timeSetting("index.unassigned.node_left.delayed_timeout", DEFAULT_DELAYED_NODE_LEFT_TIMEOUT, Property.Dynamic,
+            Property.IndexScope);
 
     /**
      * Reason why the shard is in unassigned state.
@@ -136,7 +139,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
         assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
     }
 
-    UnassignedInfo(StreamInput in) throws IOException {
+    public UnassignedInfo(StreamInput in) throws IOException {
         this.reason = Reason.values()[(int) in.readByte()];
         this.unassignedTimeMillis = in.readLong();
         // As System.nanoTime() cannot be compared across different JVMs, reset it to now.
@@ -229,19 +232,27 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     }
 
     /**
+     * Calculates the delay left based on current time (in nanoseconds) and index/node settings.
+     *
+     * @return calculated delay in nanoseconds
+     */
+    public long getRemainingDelay(final long nanoTimeNow, final Settings settings, final Settings indexSettings) {
+        final long delayTimeoutNanos = getAllocationDelayTimeoutSettingNanos(settings, indexSettings);
+        if (delayTimeoutNanos == 0L) {
+            return 0L;
+        } else {
+            assert nanoTimeNow >= unassignedTimeNanos;
+            return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
+        }
+    }
+
+    /**
      * Updates delay left based on current time (in nanoseconds) and index/node settings.
      *
      * @return updated delay in nanoseconds
      */
-    public long updateDelay(long nanoTimeNow, Settings settings, Settings indexSettings) {
-        long delayTimeoutNanos = getAllocationDelayTimeoutSettingNanos(settings, indexSettings);
-        final long newComputedLeftDelayNanos;
-        if (delayTimeoutNanos == 0L) {
-            newComputedLeftDelayNanos = 0L;
-        } else {
-            assert nanoTimeNow >= unassignedTimeNanos;
-            newComputedLeftDelayNanos = Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
-        }
+    public long updateDelay(final long nanoTimeNow, final Settings settings, final Settings indexSettings) {
+        final long newComputedLeftDelayNanos = getRemainingDelay(nanoTimeNow, settings, indexSettings);
         lastComputedLeftDelayNanos = newComputedLeftDelayNanos;
         return newComputedLeftDelayNanos;
     }

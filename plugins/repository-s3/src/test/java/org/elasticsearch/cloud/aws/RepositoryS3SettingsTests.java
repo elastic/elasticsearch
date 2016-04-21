@@ -21,12 +21,20 @@ package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.Protocol;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
+import org.elasticsearch.repositories.s3.S3Repository;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
 
 import static org.elasticsearch.repositories.s3.S3Repository.Repositories;
 import static org.elasticsearch.repositories.s3.S3Repository.Repository;
 import static org.elasticsearch.repositories.s3.S3Repository.getValue;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isEmptyString;
 
@@ -110,9 +118,9 @@ public class RepositoryS3SettingsTests extends ESTestCase {
         assertThat(AwsS3Service.CLOUD_S3.SIGNER_SETTING.get(nodeSettings), is("global-signer"));
         assertThat(getValue(repositorySettings, Repository.SERVER_SIDE_ENCRYPTION_SETTING, Repositories.SERVER_SIDE_ENCRYPTION_SETTING),
             is(false));
-        assertThat(getValue(repositorySettings, Repository.BUFFER_SIZE_SETTING, Repositories.BUFFER_SIZE_SETTING).getMb(), is(5L));
+        assertThat(getValue(repositorySettings, Repository.BUFFER_SIZE_SETTING, Repositories.BUFFER_SIZE_SETTING).getMb(), is(100L));
         assertThat(getValue(repositorySettings, Repository.MAX_RETRIES_SETTING, Repositories.MAX_RETRIES_SETTING), is(3));
-        assertThat(getValue(repositorySettings, Repository.CHUNK_SIZE_SETTING, Repositories.CHUNK_SIZE_SETTING).getMb(), is(100L));
+        assertThat(getValue(repositorySettings, Repository.CHUNK_SIZE_SETTING, Repositories.CHUNK_SIZE_SETTING).getGb(), is(1L));
         assertThat(getValue(repositorySettings, Repository.COMPRESS_SETTING, Repositories.COMPRESS_SETTING), is(false));
         assertThat(getValue(repositorySettings, Repository.STORAGE_CLASS_SETTING, Repositories.STORAGE_CLASS_SETTING), isEmptyString());
         assertThat(getValue(repositorySettings, Repository.CANNED_ACL_SETTING, Repositories.CANNED_ACL_SETTING), isEmptyString());
@@ -138,9 +146,9 @@ public class RepositoryS3SettingsTests extends ESTestCase {
         assertThat(AwsS3Service.CLOUD_S3.SIGNER_SETTING.get(nodeSettings), is("s3-signer"));
         assertThat(getValue(repositorySettings, Repository.SERVER_SIDE_ENCRYPTION_SETTING, Repositories.SERVER_SIDE_ENCRYPTION_SETTING),
             is(false));
-        assertThat(getValue(repositorySettings, Repository.BUFFER_SIZE_SETTING, Repositories.BUFFER_SIZE_SETTING).getMb(), is(5L));
+        assertThat(getValue(repositorySettings, Repository.BUFFER_SIZE_SETTING, Repositories.BUFFER_SIZE_SETTING).getMb(), is(100L));
         assertThat(getValue(repositorySettings, Repository.MAX_RETRIES_SETTING, Repositories.MAX_RETRIES_SETTING), is(3));
-        assertThat(getValue(repositorySettings, Repository.CHUNK_SIZE_SETTING, Repositories.CHUNK_SIZE_SETTING).getMb(), is(100L));
+        assertThat(getValue(repositorySettings, Repository.CHUNK_SIZE_SETTING, Repositories.CHUNK_SIZE_SETTING).getGb(), is(1L));
         assertThat(getValue(repositorySettings, Repository.COMPRESS_SETTING, Repositories.COMPRESS_SETTING), is(false));
         assertThat(getValue(repositorySettings, Repository.STORAGE_CLASS_SETTING, Repositories.STORAGE_CLASS_SETTING), isEmptyString());
         assertThat(getValue(repositorySettings, Repository.CANNED_ACL_SETTING, Repositories.CANNED_ACL_SETTING), isEmptyString());
@@ -292,11 +300,54 @@ public class RepositoryS3SettingsTests extends ESTestCase {
         assertThat(getValue(repositorySettings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING), is("repository-basepath"));
     }
 
+    /**
+     * We test wrong Chunk and Buffer settings
+     */
+    public void testInvalidChunkBufferSizeRepositorySettings() throws IOException {
+        // chunk < buffer should fail
+        internalTestInvalidChunkBufferSizeSettings(new ByteSizeValue(10, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.MB),
+            "chunk_size (5mb) can't be lower than buffer_size (10mb).");
+        // chunk > buffer should pass
+        internalTestInvalidChunkBufferSizeSettings(new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(10, ByteSizeUnit.MB), null);
+        // chunk = buffer should pass
+        internalTestInvalidChunkBufferSizeSettings(new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.MB), null);
+        // buffer < 5mb should fail
+        internalTestInvalidChunkBufferSizeSettings(new ByteSizeValue(4, ByteSizeUnit.MB), new ByteSizeValue(10, ByteSizeUnit.MB),
+            "Failed to parse value [4mb] for setting [buffer_size] must be >= 5mb");
+        // chunk > 5tb should fail
+        internalTestInvalidChunkBufferSizeSettings(new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(6, ByteSizeUnit.TB),
+            "Failed to parse value [6tb] for setting [chunk_size] must be =< 5tb");
+    }
+
     private Settings buildSettings(Settings... global) {
         Settings.Builder builder = Settings.builder();
         for (Settings settings : global) {
             builder.put(settings);
         }
         return builder.build();
+    }
+
+    private void internalTestInvalidChunkBufferSizeSettings(ByteSizeValue buffer, ByteSizeValue chunk, String expectedMessage)
+        throws IOException {
+        Settings nodeSettings = buildSettings(AWS, S3, REPOSITORIES);
+        RepositorySettings s3RepositorySettings =  new RepositorySettings(nodeSettings, Settings.builder()
+            .put(Repository.BUFFER_SIZE_SETTING.getKey(), buffer)
+            .put(Repository.CHUNK_SIZE_SETTING.getKey(), chunk)
+            .build());
+
+        try {
+            new S3Repository(new RepositoryName("s3", "s3repo"), s3RepositorySettings, null, null);
+            fail("We should either raise a NPE or a RepositoryException or a IllegalArgumentException");
+        } catch (RepositoryException e) {
+            assertThat(e.getDetailedMessage(), containsString(expectedMessage));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString(expectedMessage));
+        } catch (NullPointerException e) {
+            // Because we passed to the CTOR a Null AwsS3Service, we get a NPE which is expected
+            // in the context of this test
+            if (expectedMessage != null) {
+                fail("We should have raised a RepositoryException");
+            }
+        }
     }
 }

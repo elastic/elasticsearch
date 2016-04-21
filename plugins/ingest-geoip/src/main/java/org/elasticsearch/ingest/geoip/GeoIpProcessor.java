@@ -59,22 +59,22 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     public static final String TYPE = "geoip";
 
-    private final String sourceField;
+    private final String field;
     private final String targetField;
     private final DatabaseReader dbReader;
-    private final Set<Field> fields;
+    private final Set<Property> properties;
 
-    GeoIpProcessor(String tag, String sourceField, DatabaseReader dbReader, String targetField, Set<Field> fields) throws IOException {
+    GeoIpProcessor(String tag, String field, DatabaseReader dbReader, String targetField, Set<Property> properties) throws IOException {
         super(tag);
-        this.sourceField = sourceField;
+        this.field = field;
         this.targetField = targetField;
         this.dbReader = dbReader;
-        this.fields = fields;
+        this.properties = properties;
     }
 
     @Override
     public void execute(IngestDocument ingestDocument) {
-        String ip = ingestDocument.getFieldValue(sourceField, String.class);
+        String ip = ingestDocument.getFieldValue(field, String.class);
         final InetAddress ipAddress = InetAddresses.forString(ip);
 
         Map<String, Object> geoData;
@@ -104,8 +104,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    String getSourceField() {
-        return sourceField;
+    String getField() {
+        return field;
     }
 
     String getTargetField() {
@@ -116,8 +116,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return dbReader;
     }
 
-    Set<Field> getFields() {
-        return fields;
+    Set<Property> getProperties() {
+        return properties;
     }
 
     private Map<String, Object> retrieveCityGeoData(InetAddress ipAddress) {
@@ -142,10 +142,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Subdivision subdivision = response.getMostSpecificSubdivision();
 
         Map<String, Object> geoData = new HashMap<>();
-        for (Field field : fields) {
-            switch (field) {
+        for (Property property : this.properties) {
+            switch (property) {
                 case IP:
-                    geoData.put("ip", NetworkAddress.formatAddress(ipAddress));
+                    geoData.put("ip", NetworkAddress.format(ipAddress));
                     break;
                 case COUNTRY_ISO_CODE:
                     geoData.put("country_iso_code", country.getIsoCode());
@@ -195,10 +195,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Continent continent = response.getContinent();
 
         Map<String, Object> geoData = new HashMap<>();
-        for (Field field : fields) {
-            switch (field) {
+        for (Property property : this.properties) {
+            switch (property) {
                 case IP:
-                    geoData.put("ip", NetworkAddress.formatAddress(ipAddress));
+                    geoData.put("ip", NetworkAddress.format(ipAddress));
                     break;
                 case COUNTRY_ISO_CODE:
                     geoData.put("country_iso_code", country.getIsoCode());
@@ -216,8 +216,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     public static final class Factory extends AbstractProcessorFactory<GeoIpProcessor> implements Closeable {
 
-        static final Set<Field> DEFAULT_FIELDS = EnumSet.of(
-                Field.CONTINENT_NAME, Field.COUNTRY_ISO_CODE, Field.REGION_NAME, Field.CITY_NAME, Field.LOCATION
+        static final Set<Property> DEFAULT_PROPERTIES = EnumSet.of(
+                Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_NAME, Property.CITY_NAME, Property.LOCATION
         );
 
         private final Map<String, DatabaseReader> databaseReaders;
@@ -228,30 +228,30 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         @Override
         public GeoIpProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String ipField = readStringProperty(TYPE, processorTag, config, "source_field");
+            String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
             String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
-            List<String> fieldNames = readOptionalList(TYPE, processorTag, config, "fields");
+            List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
 
-            final Set<Field> fields;
-            if (fieldNames != null) {
-                fields = EnumSet.noneOf(Field.class);
-                for (String fieldName : fieldNames) {
+            final Set<Property> properties;
+            if (propertyNames != null) {
+                properties = EnumSet.noneOf(Property.class);
+                for (String fieldName : propertyNames) {
                     try {
-                        fields.add(Field.parse(fieldName));
+                        properties.add(Property.parse(fieldName));
                     } catch (Exception e) {
-                        throw newConfigurationException(TYPE, processorTag, "fields", "illegal field option [" + fieldName + "]. valid values are [" + Arrays.toString(Field.values()) + "]");
+                        throw newConfigurationException(TYPE, processorTag, "properties", "illegal field option [" + fieldName + "]. valid values are [" + Arrays.toString(Property.values()) + "]");
                     }
                 }
             } else {
-                fields = DEFAULT_FIELDS;
+                properties = DEFAULT_PROPERTIES;
             }
 
             DatabaseReader databaseReader = databaseReaders.get(databaseFile);
             if (databaseReader == null) {
                 throw newConfigurationException(TYPE, processorTag, "database_file", "database file [" + databaseFile + "] doesn't exist");
             }
-            return new GeoIpProcessor(processorTag, ipField, databaseReader, targetField, fields);
+            return new GeoIpProcessor(processorTag, ipField, databaseReader, targetField, properties);
         }
 
         @Override
@@ -270,7 +270,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
     }
 
-    public enum Field {
+    enum Property {
 
         IP,
         COUNTRY_ISO_CODE,
@@ -283,7 +283,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         LONGITUDE,
         LOCATION;
 
-        public static Field parse(String value) {
+        public static Property parse(String value) {
             return valueOf(value.toUpperCase(Locale.ROOT));
         }
     }

@@ -138,7 +138,7 @@ public class PendingClusterStatesQueue {
         if (findState(state.stateUUID()) == null) {
             throw new IllegalStateException("can't resolve processed cluster state with uuid [" + state.stateUUID() + "], version [" + state.version() + "]");
         }
-        final DiscoveryNode currentMaster = state.nodes().masterNode();
+        final DiscoveryNode currentMaster = state.nodes().getMasterNode();
         assert currentMaster != null : "processed cluster state mast have a master. " + state;
 
         // fail or remove any incoming state from a different master
@@ -147,7 +147,7 @@ public class PendingClusterStatesQueue {
         for (int index = 0; index < pendingStates.size(); index++) {
             final ClusterStateContext pendingContext = pendingStates.get(index);
             final ClusterState pendingState = pendingContext.state;
-            final DiscoveryNode pendingMasterNode = pendingState.nodes().masterNode();
+            final DiscoveryNode pendingMasterNode = pendingState.nodes().getMasterNode();
             if (Objects.equals(currentMaster, pendingMasterNode) == false) {
                 contextsToRemove.add(pendingContext);
                 if (pendingContext.committed()) {
@@ -164,16 +164,18 @@ public class PendingClusterStatesQueue {
                             currentMaster
                     );
                 }
-            } else if (state.supersedes(pendingState) && pendingContext.committed()) {
-                logger.trace("processing pending state uuid[{}]/v[{}] together with state uuid[{}]/v[{}]",
-                        pendingState.stateUUID(), pendingState.version(), state.stateUUID(), state.version()
-                );
-                contextsToRemove.add(pendingContext);
-                pendingContext.listener.onNewClusterStateProcessed();
             } else if (pendingState.stateUUID().equals(state.stateUUID())) {
                 assert pendingContext.committed() : "processed cluster state is not committed " + state;
                 contextsToRemove.add(pendingContext);
                 pendingContext.listener.onNewClusterStateProcessed();
+            } else if (state.version() >= pendingState.version()) {
+                logger.trace("processing pending state uuid[{}]/v[{}] together with state uuid[{}]/v[{}]",
+                        pendingState.stateUUID(), pendingState.version(), state.stateUUID(), state.version()
+                );
+                contextsToRemove.add(pendingContext);
+                if (pendingContext.committed()) {
+                    pendingContext.listener.onNewClusterStateProcessed();
+                }
             }
         }
         // now ack the processed state
@@ -278,7 +280,7 @@ public class PendingClusterStatesQueue {
                     "[uuid[%s], v[%d], m[%s]]",
                     stateUUID(),
                     state.version(),
-                    state.nodes().masterNodeId()
+                    state.nodes().getMasterNodeId()
             );
         }
     }

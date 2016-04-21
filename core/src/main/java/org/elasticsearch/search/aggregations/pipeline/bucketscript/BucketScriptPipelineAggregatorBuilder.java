@@ -76,7 +76,7 @@ public class BucketScriptPipelineAggregatorBuilder extends PipelineAggregatorBui
         for (int i = 0; i < mapSize; i++) {
             bucketsPathsMap.put(in.readString(), in.readString());
         }
-        script = Script.readScript(in);
+        script = new Script(in);
         format = in.readOptionalString();
         gapPolicy = GapPolicy.readFrom(in);
     }

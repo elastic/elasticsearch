@@ -147,7 +147,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
     @SuppressWarnings("unchecked")
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        script = Script.readScript(in);
+        script = new Script(in);
         formatter = in.readNamedWriteable(DocValueFormat.class);
         gapPolicy = GapPolicy.readFrom(in);
         bucketsPathsMap = (Map<String, String>) in.readGenericValue();

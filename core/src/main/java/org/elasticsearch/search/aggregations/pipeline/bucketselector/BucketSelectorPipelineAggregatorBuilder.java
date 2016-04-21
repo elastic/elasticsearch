@@ -73,7 +73,7 @@ public class BucketSelectorPipelineAggregatorBuilder extends PipelineAggregatorB
         for (int i = 0; i < mapSize; i++) {
             bucketsPathsMap.put(in.readString(), in.readString());
         }
-        script = Script.readScript(in);
+        script = new Script(in);
         gapPolicy = GapPolicy.readFrom(in);
     }
 

@@ -65,7 +65,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
      */
     public ScriptScoreFunctionBuilder(StreamInput in) throws IOException {
         super(in);
-        script = Script.readScript(in);
+        script = new Script(in);
     }
 
     @Override

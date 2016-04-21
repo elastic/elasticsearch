@@ -68,7 +68,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
      * Read from a stream.
      */
     public ScriptHeuristic(StreamInput in) throws IOException {
-        this(Script.readScript(in));
+        this(new Script(in));
     }
 
     @Override

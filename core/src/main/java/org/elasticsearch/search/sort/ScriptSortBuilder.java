@@ -113,7 +113,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      * Read from a stream.
      */
     public ScriptSortBuilder(StreamInput in) throws IOException {
-        script = Script.readScript(in);
+        script = new Script(in);
         type = ScriptSortType.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);

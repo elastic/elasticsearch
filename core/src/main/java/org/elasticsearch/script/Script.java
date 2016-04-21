@@ -25,7 +25,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,23 +34,12 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * Script holds all the parameters necessary to compile or find in cache and then execute a script.
  */
-public class Script implements ToXContent, Streamable {
+public class Script implements ToXContent, Writeable<Script> {
 
-    /**
-     * A {@link Supplier} implementation for use when reading a {@link Script}
-     * using {@link StreamInput#readOptionalStreamable(Supplier)}
-     */
-    public static final Supplier<Script> SUPPLIER = new Supplier<Script>() {
-        @Override
-        public Script get() {
-            return new Script();
-        }
-    };
     public static final ScriptType DEFAULT_TYPE = ScriptType.INLINE;
     private static final ScriptParser PARSER = new ScriptParser();
 
@@ -58,12 +47,6 @@ public class Script implements ToXContent, Streamable {
     private @Nullable ScriptType type;
     private @Nullable String lang;
     private @Nullable Map<String, Object> params;
-
-    /**
-     * For Serialization
-     */
-    Script() {
-    }
 
     /**
      * Constructor for simple inline script. The script will have no lang or
@@ -149,7 +132,11 @@ public class Script implements ToXContent, Streamable {
     }
 
     @Override
-    public final void readFrom(StreamInput in) throws IOException {
+    public final Script readFrom(StreamInput in) throws IOException {
+        return new Script(in);
+    }
+
+    public Script(StreamInput in) throws IOException {
         script = in.readString();
         if (in.readBoolean()) {
             type = ScriptType.readFrom(in);
@@ -158,11 +145,6 @@ public class Script implements ToXContent, Streamable {
         if (in.readBoolean()) {
             params = in.readMap();
         }
-        doReadFrom(in);
-    }
-
-    protected void doReadFrom(StreamInput in) throws IOException {
-        // For sub-classes to Override
     }
 
     @Override
@@ -181,10 +163,8 @@ public class Script implements ToXContent, Streamable {
         }
         doWriteTo(out);
     }
-
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        // For sub-classes to Override
-    }
+    
+    protected void doWriteTo(StreamOutput out) throws IOException {};
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
@@ -208,12 +188,6 @@ public class Script implements ToXContent, Streamable {
             throws IOException {
         builder.field(type.getParseField().getPreferredName(), script);
         return builder;
-    }
-
-    public static Script readScript(StreamInput in) throws IOException {
-        Script script = new Script();
-        script.readFrom(in);
-        return script;
     }
 
     public static Script parse(Map<String, Object> config, boolean removeMatchedEntries, ParseFieldMatcher parseFieldMatcher) {

@@ -40,9 +40,12 @@ public class Template extends Script {
     public static final String DEFAULT_LANG = "mustache";
 
     private XContentType contentType;
-
-    public Template() {
-        super();
+    
+    public Template(StreamInput in) throws IOException {
+        super(in);
+        if (in.readBoolean()) {
+            this.contentType = XContentType.readFrom(in);
+        }
     }
 
     /**
@@ -89,13 +92,6 @@ public class Template extends Script {
     }
 
     @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            this.contentType = XContentType.readFrom(in);
-        }
-    }
-
-    @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         boolean hasContentType = contentType != null;
         out.writeBoolean(hasContentType);
@@ -116,9 +112,7 @@ public class Template extends Script {
     }
 
     public static Template readTemplate(StreamInput in) throws IOException {
-        Template template = new Template();
-        template.readFrom(in);
-        return template;
+        return new Template(in);
     }
 
     public static Script parse(Map<String, Object> config, boolean removeMatchedEntries, ParseFieldMatcher parseFieldMatcher) {

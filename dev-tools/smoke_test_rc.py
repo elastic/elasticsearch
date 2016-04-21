@@ -178,7 +178,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
     plugin_names = {}
     for plugin  in plugins:
       print('     Install plugin [%s]' % (plugin))
-      run('%s; %s -Des.plugins.staging=true %s %s' % (java_exe(), es_plugin_path, 'install', plugin))
+      run('%s; %s -Des.plugins.staging=true %s -b %s' % (java_exe(), es_plugin_path, 'install', plugin))
       plugin_names[plugin] = True
     if 'shield' in plugin_names:
       headers = { 'Authorization' : 'Basic %s' % base64.b64encode(b"es_admin:foobar").decode("UTF-8") }

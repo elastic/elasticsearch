@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.elasticsearch.qa.backwards</groupId>
+        <artifactId>two-versions-parent</artifactId>
+        <version>2.4.0-SNAPSHOT</version>
+        <relativePath>../two-versions-parent</relativePath>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>2.2</artifactId>
+    <name>QA: BWC: 2.2</name>
+    <description>Backwards compatibility tests against 2.2</description>
+
+    <properties>
+        <tests.bwc.version>2.2.2</tests.bwc.version>
+        <skip.integ.tests>${skipTests}</skip.integ.tests>
+        <es.logger.level>DEBUG</es.logger.level>
+        <es.logger._root>DEBUG</es.logger._root>
+    </properties>
+    <build>
+        <!-- just added for debugging why this is skipped on jenkins. remove later -->
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>echo-setting</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <echo>Java version seems to be ${java.version}</echo>
+                                <echo>skip.integ.tests is set to ${skip.integ.tests}</echo>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+    <!-- disable backwards tests with 2.0.0 on java 9, because that
+         version will die instantly under jigsaw -->
+    <profiles>
+        <profile>
+            <id>skip-jdk-9</id>
+            <activation>
+                <jdk>1.9</jdk>
+            </activation>
+            <properties>
+                <skip.integ.tests>true</skip.integ.tests>
+            </properties>
+            <build>
+                <!-- just added for debugging why this is skipped on jenkins. remove later -->
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>echo-profile-active</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <echo>jdk 9 profile is active. Test will be skipped</echo>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

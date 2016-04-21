@@ -28,6 +28,7 @@
         <module>current</module>
         <module>2.0</module>
         <module>2.1</module>
+        <module>2.2</module>
     </modules>
 
     <build>

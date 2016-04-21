@@ -378,7 +378,19 @@ public class SimpleSearchIT extends ESIntegTestCase {
         indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
 
         assertHitCount(
-                client().prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow)).get(), 1);
+                client().prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow + 1)).get(),
+                1);
+    }
+
+    public void testTooLargeRescoreOkByResultWindowSetting() throws Exception {
+        int defaultMaxWindow = IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY);
+        prepareCreate("idx").setSettings(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), // Note that this is the RESULT window.
+                defaultMaxWindow * 2).get();
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
+
+        assertHitCount(
+                client().prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow + 1)).get(),
+                1);
     }
 
     public void testTooLargeRescoreOkByDynamicSetting() throws Exception {
@@ -386,16 +398,29 @@ public class SimpleSearchIT extends ESIntegTestCase {
         createIndex("idx");
         assertAcked(client().admin().indices().prepareUpdateSettings("idx")
                 .setSettings(
+                        Settings.builder().put(IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey(), defaultMaxWindow * 2))
+                .get());
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
+
+        assertHitCount(
+                client().prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow + 1)).get(),
+                1);
+    }
+
+    public void testTooLargeRescoreOkByDynamicResultWindowSetting() throws Exception {
+        int defaultMaxWindow = IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY);
+        createIndex("idx");
+        assertAcked(client().admin().indices().prepareUpdateSettings("idx")
+                .setSettings(
+                        // Note that this is the RESULT window
                         Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), defaultMaxWindow * 2))
                 .get());
         indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
 
         assertHitCount(
-                client().prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow)).get(), 1);
+                client().prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow + 1)).get(),
+                1);
     }
-
-    // DODO assertRescoreWindowFails
-
     public void testQueryNumericFieldWithRegex() throws Exception {
         assertAcked(prepareCreate("idx").addMapping("type", "num", "type=integer"));
         ensureGreen("idx");

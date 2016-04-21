@@ -113,23 +113,37 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testDefault() {
-        TimeValue defautlValue = TimeValue.timeValueMillis(randomIntBetween(0, 1000000));
+        TimeValue defaultValue = TimeValue.timeValueMillis(randomIntBetween(0, 1000000));
         Setting<TimeValue> setting =
-            Setting.positiveTimeSetting("my.time.value", defautlValue, Property.NodeScope);
+            Setting.positiveTimeSetting("my.time.value", defaultValue, Property.NodeScope);
         assertFalse(setting.isGroupSetting());
         String aDefault = setting.getDefaultRaw(Settings.EMPTY);
-        assertEquals(defautlValue.millis() + "ms", aDefault);
-        assertEquals(defautlValue.millis(), setting.get(Settings.EMPTY).millis());
-        assertEquals(defautlValue, setting.getDefault(Settings.EMPTY));
+        assertEquals(defaultValue.millis() + "ms", aDefault);
+        assertEquals(defaultValue.millis(), setting.get(Settings.EMPTY).millis());
+        assertEquals(defaultValue, setting.getDefault(Settings.EMPTY));
 
         Setting<String> secondaryDefault =
             new Setting<>("foo.bar", (s) -> s.get("old.foo.bar", "some_default"), Function.identity(), Property.NodeScope);
         assertEquals("some_default", secondaryDefault.get(Settings.EMPTY));
         assertEquals("42", secondaryDefault.get(Settings.builder().put("old.foo.bar", 42).build()));
+
         Setting<String> secondaryDefaultViaSettings =
             new Setting<>("foo.bar", secondaryDefault, Function.identity(), Property.NodeScope);
         assertEquals("some_default", secondaryDefaultViaSettings.get(Settings.EMPTY));
         assertEquals("42", secondaryDefaultViaSettings.get(Settings.builder().put("old.foo.bar", 42).build()));
+
+        // It gets more complicated when there are two settings objects....
+        Settings hasFallback = Settings.builder().put("foo.bar", "o").build();
+        Setting<String> fallsback =
+                new Setting<>("foo.baz", secondaryDefault, Function.identity(), Property.NodeScope);
+        assertEquals("o", fallsback.get(hasFallback));
+        assertEquals("some_default", fallsback.get(Settings.EMPTY));
+        assertEquals("some_default", fallsback.get(Settings.EMPTY, Settings.EMPTY));
+        assertEquals("o", fallsback.get(Settings.EMPTY, hasFallback));
+        assertEquals("o", fallsback.get(hasFallback, Settings.EMPTY));
+        assertEquals("a", fallsback.get(
+                Settings.builder().put("foo.bar", "a").build(),
+                Settings.builder().put("foo.bar", "b").build()));
     }
 
     public void testComplexType() {

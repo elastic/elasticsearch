@@ -18,11 +18,24 @@
  */
 package org.elasticsearch.common.settings;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -36,22 +49,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.Enumeration;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * A setting. Encapsulates typical stuff like default value, parsing, and scope.
@@ -110,21 +107,18 @@ public class Setting<T> extends ToXContentToBytes {
 
     private final Key key;
     protected final Function<Settings, String> defaultValue;
+    @Nullable
+    private final Setting<T> fallbackSetting;
     private final Function<String, T> parser;
     private final EnumSet<Property> properties;
 
     private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
 
-    /**
-     * Creates a new Setting instance. When no scope is provided, we default to {@link Property#NodeScope}.
-     * @param key the settings key for this setting.
-     * @param defaultValue a default value function that returns the default values string representation.
-     * @param parser a parser that parses the string rep into a complex datatype.
-     * @param properties properties for this setting like scope, filtering...
-     */
-    public Setting(Key key, Function<Settings, String> defaultValue, Function<String, T> parser, Property... properties) {
+    private Setting(Key key, @Nullable Setting<T> fallbackSetting, Function<Settings, String> defaultValue, Function<String, T> parser,
+            Property... properties) {
         assert parser.apply(defaultValue.apply(Settings.EMPTY)) != null || this.isGroupSetting(): "parser returned null";
         this.key = key;
+        this.fallbackSetting = fallbackSetting;
         this.defaultValue = defaultValue;
         this.parser = parser;
         if (properties == null) {
@@ -135,6 +129,17 @@ public class Setting<T> extends ToXContentToBytes {
         } else {
             this.properties = EnumSet.copyOf(Arrays.asList(properties));
         }
+    }
+
+    /**
+     * Creates a new Setting instance. When no scope is provided, we default to {@link Property#NodeScope}.
+     * @param key the settings key for this setting.
+     * @param defaultValue a default value function that returns the default values string representation.
+     * @param parser a parser that parses the string rep into a complex datatype.
+     * @param properties properties for this setting like scope, filtering...
+     */
+    public Setting(Key key, Function<Settings, String> defaultValue, Function<String, T> parser, Property... properties) {
+        this(key, null, defaultValue, parser, properties);
     }
 
     /**
@@ -160,6 +165,17 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
+     * Creates a new Setting instance. When no scope is provided, we default to {@link Property#NodeScope}.
+     * @param key the settings key for this setting.
+     * @param fallbackSetting a setting who's value to fallback on if this setting is not defined
+     * @param parser a parser that parses the string rep into a complex datatype.
+     * @param properties properties for this setting like scope, filtering...
+     */
+    public Setting(Key key, Setting<T> fallbackSetting, Function<String, T> parser, Property... properties) {
+        this(key, fallbackSetting, fallbackSetting::getRaw, parser, properties);
+    }
+
+    /**
      * Creates a new Setting instance
      * @param key the settings key for this setting.
      * @param fallBackSetting a setting to fall back to if the current setting is not set.
@@ -167,7 +183,7 @@ public class Setting<T> extends ToXContentToBytes {
      * @param properties properties for this setting like scope, filtering...
      */
     public Setting(String key, Setting<T> fallBackSetting, Function<String, T> parser, Property... properties) {
-        this(key, fallBackSetting::getRaw, parser, properties);
+        this(new SimpleKey(key), fallBackSetting, parser, properties);
     }
 
     /**
@@ -327,7 +343,16 @@ public class Setting<T> extends ToXContentToBytes {
         if (exists(primary)) {
             return get(primary);
         }
-        return get(secondary);
+        if (fallbackSetting == null) {
+            return get(secondary); 
+        }
+        if (exists(secondary)) {
+            return get(secondary);
+        }
+        if (fallbackSetting.exists(primary)) {
+            return fallbackSetting.get(primary);
+        }
+        return fallbackSetting.get(secondary);
     }
 
     public Setting<T> getConcreteSetting(String key) {
@@ -517,9 +542,9 @@ public class Setting<T> extends ToXContentToBytes {
         return byteSizeSetting(key, (s) -> value.toString(), properties);
     }
 
-    public static Setting<ByteSizeValue> byteSizeSetting(String key, Setting<ByteSizeValue> fallbackSettings,
+    public static Setting<ByteSizeValue> byteSizeSetting(String key, Setting<ByteSizeValue> fallbackSetting,
                                                          Property... properties) {
-        return byteSizeSetting(key, fallbackSettings::getRaw, properties);
+        return new Setting<>(key, fallbackSetting, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Function<Settings, String> defaultValue,
@@ -558,6 +583,7 @@ public class Setting<T> extends ToXContentToBytes {
         return listSetting(key, (s) -> defaultStringValue, singleValueParser, properties);
     }
 
+    // TODO this one's two argument get is still broken
     public static <T> Setting<List<T>> listSetting(String key, Setting<List<T>> fallbackSetting, Function<String, T> singleValueParser,
                                                    Property... properties) {
         return listSetting(key, (s) -> parseableStringToList(fallbackSetting.getRaw(s)), singleValueParser, properties);
@@ -720,7 +746,7 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting::getRaw, (s) -> TimeValue.parseTimeValue(s, key), properties);
+        return new Setting<>(key, fallbackSetting, (s) -> TimeValue.parseTimeValue(s, key), properties);
     }
 
     public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, Property... properties) {

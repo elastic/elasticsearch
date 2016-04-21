@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -49,17 +48,6 @@ import java.util.stream.Collectors;
  *
  */
 public class MetaDataDeleteIndexService extends AbstractComponent {
-
-    /**
-     * Setting for the maximum tombstones allowed in the cluster state;
-     * prevents the cluster state size from exploding too large, but it opens the
-     * very unlikely risk that if there are greater than MAX_TOMBSTONES index
-     * deletions while a node was offline, when it comes back online, it will have
-     * missed index deletions that it may need to process.
-     */
-    public static final Setting<Integer> SETTING_MAX_TOMBSTONES = Setting.intSetting("cluster.indices.tombstones.size",
-                                                                                     500, // the default maximum number of tombstones
-                                                                                     Setting.Property.NodeScope);
 
     private final ThreadPool threadPool;
 
@@ -115,12 +103,10 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                     metaDataBuilder.remove(indexName);
                     graveyardBuilder.addTombstone(index); // add the index tombstone to the cluster state
                 }
-                final int numPurged = graveyardBuilder.purge(SETTING_MAX_TOMBSTONES.get(settings)); // purge tombstone entries if needed
-                final IndexGraveyard currentGraveyard = graveyardBuilder.build();
-                final int currentGraveyardSize = currentGraveyard.getTombstones().size();
+                final IndexGraveyard currentGraveyard = graveyardBuilder.build(settings);
                 metaDataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
                 logger.trace("{} tombstones purged from the cluster state. Previous tombstone size: {}. Current tombstone size: {}.",
-                             numPurged, previousGraveyardSize, currentGraveyardSize);
+                    graveyardBuilder.getNumPurged(), previousGraveyardSize, currentGraveyard.getTombstones().size());
 
                 // wait for events from all nodes that it has been removed from their respective metadata...
                 int count = currentState.nodes().getSize();

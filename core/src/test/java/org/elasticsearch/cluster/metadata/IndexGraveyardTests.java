@@ -96,7 +96,7 @@ public class IndexGraveyardTests extends ESTestCase {
         // try with max tombstones as some positive integer
         executePurgeTestWithMaxTombstones(randomIntBetween(1, 20));
         // try with max tombstones as the default
-        executePurgeTestWithMaxTombstones(MetaDataDeleteIndexService.SETTING_MAX_TOMBSTONES.getDefault(Settings.EMPTY));
+        executePurgeTestWithMaxTombstones(IndexGraveyard.SETTING_MAX_TOMBSTONES.getDefault(Settings.EMPTY));
     }
 
     public void testDiffs() {
@@ -114,8 +114,6 @@ public class IndexGraveyardTests extends ESTestCase {
         }
         final IndexGraveyard graveyard1 = graveyardBuilder.build();
         graveyardBuilder = IndexGraveyard.builder(graveyard1);
-        final int numPurged = graveyardBuilder.purge(numTombstones);
-        assertThat(numPurged, equalTo(numToPurge));
         final int numToAdd = randomIntBetween(0, 4);
         final List<Index> additions = new ArrayList<>();
         for (int i = 0; i < numToAdd; i++) {
@@ -123,7 +121,10 @@ public class IndexGraveyardTests extends ESTestCase {
             graveyardBuilder.addTombstone(indexToAdd);
             additions.add(indexToAdd);
         }
-        final IndexGraveyard.IndexGraveyardDiff diff = new IndexGraveyard.IndexGraveyardDiff(graveyard1, graveyardBuilder.build());
+        final IndexGraveyard graveyard2 = graveyardBuilder.build(settingsWithMaxTombstones(numTombstones + numToAdd));
+        final int numPurged = graveyardBuilder.getNumPurged();
+        assertThat(numPurged, equalTo(numToPurge));
+        final IndexGraveyard.IndexGraveyardDiff diff = new IndexGraveyard.IndexGraveyardDiff(graveyard1, graveyard2);
         final List<Index> actualAdded = diff.getAdded().stream().map(t -> t.getIndex()).collect(Collectors.toList());
         assertThat(new HashSet<>(actualAdded), equalTo(new HashSet<>(additions)));
         assertThat(diff.getRemovedCount(), equalTo(removals.size()));
@@ -141,9 +142,10 @@ public class IndexGraveyardTests extends ESTestCase {
     private void executePurgeTestWithMaxTombstones(final int maxTombstones) {
         final int numExtra = randomIntBetween(1, 10);
         final IndexGraveyard.Builder graveyardBuilder = createWithDeletions(maxTombstones + numExtra);
-        final int numPurged = graveyardBuilder.purge(maxTombstones);
+        final IndexGraveyard graveyard = graveyardBuilder.build(settingsWithMaxTombstones(maxTombstones));
+        final int numPurged = graveyardBuilder.getNumPurged();
         assertThat(numPurged, equalTo(numExtra));
-        assertThat(graveyardBuilder.tombstones().size(), equalTo(maxTombstones));
+        assertThat(graveyard.getTombstones().size(), equalTo(maxTombstones));
     }
 
     private static IndexGraveyard.Builder createWithDeletions(final int numAdd) {
@@ -152,6 +154,10 @@ public class IndexGraveyardTests extends ESTestCase {
             graveyard.addTombstone(new Index("idx-" + i, Strings.randomBase64UUID()));
         }
         return graveyard;
+    }
+
+    private static Settings settingsWithMaxTombstones(final int maxTombstones) {
+        return Settings.builder().put(IndexGraveyard.SETTING_MAX_TOMBSTONES.getKey(), maxTombstones).build();
     }
 
 }

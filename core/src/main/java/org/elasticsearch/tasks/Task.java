@@ -135,5 +135,5 @@ public class Task {
         return null;
     }
 
-    public interface Status extends ToXContent, NamedWriteable<Status> {}
+    public interface Status extends ToXContent, NamedWriteable {}
 }

@@ -729,7 +729,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @see StoreFileMetaData
      */
-    public final static class MetadataSnapshot implements Iterable<StoreFileMetaData>, Writeable<MetadataSnapshot> {
+    public final static class MetadataSnapshot implements Iterable<StoreFileMetaData>, Writeable {
         private final Map<String, StoreFileMetaData> metadata;
 
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot();

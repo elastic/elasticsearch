@@ -431,11 +431,11 @@ public class BytesStreamsTests extends ESTestCase {
                 endsWith(" claims to have a different name [intentionally-broken] than it was read from [test-named-writeable]."));
     }
 
-    private static abstract class BaseNamedWriteable<T> implements NamedWriteable<T> {
+    private static abstract class BaseNamedWriteable implements NamedWriteable {
 
     }
 
-    private static class TestNamedWriteable extends BaseNamedWriteable<TestNamedWriteable> {
+    private static class TestNamedWriteable extends BaseNamedWriteable {
 
         private static final String NAME = "test-named-writeable";
 

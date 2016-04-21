@@ -122,7 +122,7 @@ public class AggregatorFactories {
         }
     }
 
-    public static class Builder extends ToXContentToBytes implements Writeable<Builder> {
+    public static class Builder extends ToXContentToBytes implements Writeable {
         private final Set<String> names = new HashSet<>();
         private final List<AggregatorBuilder<?>> aggregatorBuilders = new ArrayList<>();
         private final List<PipelineAggregatorBuilder<?>> pipelineAggregatorBuilders = new ArrayList<>();

@@ -187,7 +187,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
     }
 
-    static class TestTaskResponse implements Writeable<TestTaskResponse> {
+    static class TestTaskResponse implements Writeable {
 
         private final String status;
 

@@ -40,7 +40,7 @@ import java.util.Map;
  * A {@code ClusterAllocationExplanation} is an explanation of why a shard may or may not be allocated to nodes. It also includes weights
  * for where the shard is likely to be assigned. It is an immutable class
  */
-public final class ClusterAllocationExplanation implements ToXContent, Writeable<ClusterAllocationExplanation> {
+public final class ClusterAllocationExplanation implements ToXContent, Writeable {
 
     private final ShardId shard;
     private final boolean primary;

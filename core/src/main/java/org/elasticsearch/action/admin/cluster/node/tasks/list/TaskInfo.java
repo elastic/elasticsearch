@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
  * and use in APIs. Instead, immutable and streamable TaskInfo objects are used to represent
  * snapshot information about currently running tasks.
  */
-public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
+public class TaskInfo implements Writeable, ToXContent {
 
     private final DiscoveryNode node;
 

@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * An enum representing the methods for calculating percentiles
  */
-public enum PercentilesMethod implements Writeable<PercentilesMethod> {
+public enum PercentilesMethod implements Writeable {
     /**
      * The TDigest method for calculating percentiles
      */

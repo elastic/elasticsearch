@@ -34,7 +34,7 @@ import java.util.List;
  * A container class to hold the profile results for a single shard in the request.
  * Contains a list of query profiles, a collector tree and a total rewrite tree.
  */
-public final class ProfileShardResult implements Writeable<ProfileShardResult>, ToXContent {
+public final class ProfileShardResult implements Writeable, ToXContent {
 
     private final List<ProfileResult> profileResults;
 

@@ -30,7 +30,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-public class IngestStats implements Writeable<IngestStats>, ToXContent {
+public class IngestStats implements Writeable, ToXContent {
     private final Stats totalStats;
     private final Map<String, Stats> statsPerPipeline;
 
@@ -93,7 +93,7 @@ public class IngestStats implements Writeable<IngestStats>, ToXContent {
         return builder;
     }
 
-    public static class Stats implements Writeable<Stats>, ToXContent {
+    public static class Stats implements Writeable, ToXContent {
 
         private final long ingestCount;
         private final long ingestTimeInMillis;

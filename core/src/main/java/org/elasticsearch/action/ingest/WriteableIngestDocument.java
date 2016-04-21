@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-final class WriteableIngestDocument implements Writeable<WriteableIngestDocument>, ToXContent {
+final class WriteableIngestDocument implements Writeable, ToXContent {
 
     private final IngestDocument ingestDocument;
 

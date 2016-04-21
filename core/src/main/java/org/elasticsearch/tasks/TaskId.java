@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * Task id that consists of node id and id of the task on the node
  */
-public final class TaskId implements Writeable<TaskId> {
+public final class TaskId implements Writeable {
 
     public final static TaskId EMPTY_TASK_ID = new TaskId();
 

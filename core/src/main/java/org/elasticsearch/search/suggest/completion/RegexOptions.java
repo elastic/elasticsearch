@@ -38,7 +38,7 @@ import java.io.IOException;
 /**
  * Regular expression options for completion suggester
  */
-public class RegexOptions implements ToXContent, Writeable<RegexOptions> {
+public class RegexOptions implements ToXContent, Writeable {
     static final ParseField REGEX_OPTIONS = new ParseField("regex");
     private static final ParseField FLAGS_VALUE = new ParseField("flags", "flags_value");
     private static final ParseField MAX_DETERMINIZED_STATES = new ParseField("max_determinized_states");

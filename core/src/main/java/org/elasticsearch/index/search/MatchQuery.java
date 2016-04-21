@@ -48,7 +48,7 @@ import java.io.IOException;
 
 public class MatchQuery {
 
-    public static enum Type implements Writeable<Type> {
+    public static enum Type implements Writeable {
         /**
          * The text is analyzed and terms are added to a boolean query.
          */
@@ -84,7 +84,7 @@ public class MatchQuery {
         }
     }
 
-    public static enum ZeroTermsQuery implements Writeable<ZeroTermsQuery> {
+    public static enum ZeroTermsQuery implements Writeable {
         NONE(0),
         ALL(1);
 

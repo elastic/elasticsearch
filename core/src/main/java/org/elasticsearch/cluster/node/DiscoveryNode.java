@@ -44,7 +44,7 @@ import static org.elasticsearch.common.transport.TransportAddressSerializers.add
 /**
  * A discovery node represents a node that is part of the cluster.
  */
-public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
+public class DiscoveryNode implements Writeable, ToXContent {
 
     public static boolean isLocalNode(Settings settings) {
         if (Node.NODE_LOCAL_SETTING.exists(settings)) {

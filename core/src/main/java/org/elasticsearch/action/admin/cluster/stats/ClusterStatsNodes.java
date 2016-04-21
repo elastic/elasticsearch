@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class ClusterStatsNodes implements ToXContent, Writeable<ClusterStatsNodes> {
+public class ClusterStatsNodes implements ToXContent, Writeable {
 
     private final Counts counts;
     private final Set<Version> versions;
@@ -200,7 +200,7 @@ public class ClusterStatsNodes implements ToXContent, Writeable<ClusterStatsNode
         return builder;
     }
 
-    public static class Counts implements Writeable<Counts>, ToXContent {
+    public static class Counts implements Writeable, ToXContent {
         static final String COORDINATING_ONLY = "coordinating_only";
 
         private final int total;
@@ -263,7 +263,7 @@ public class ClusterStatsNodes implements ToXContent, Writeable<ClusterStatsNode
         }
     }
 
-    public static class OsStats implements ToXContent, Writeable<OsStats> {
+    public static class OsStats implements ToXContent, Writeable {
         final int availableProcessors;
         final int allocatedProcessors;
         final ObjectIntHashMap<String> names;
@@ -343,7 +343,7 @@ public class ClusterStatsNodes implements ToXContent, Writeable<ClusterStatsNode
         }
     }
 
-    public static class ProcessStats implements ToXContent, Writeable<ProcessStats> {
+    public static class ProcessStats implements ToXContent, Writeable {
 
         final int count;
         final int cpuPercent;
@@ -456,7 +456,7 @@ public class ClusterStatsNodes implements ToXContent, Writeable<ClusterStatsNode
         }
     }
 
-    public static class JvmStats implements Writeable<JvmStats>, ToXContent {
+    public static class JvmStats implements Writeable, ToXContent {
 
         private final ObjectIntHashMap<JvmVersion> versions;
         private final long threads;

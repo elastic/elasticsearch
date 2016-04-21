@@ -46,7 +46,7 @@ import java.util.Objects;
 import java.util.concurrent.Callable;
 
 /** A formatter for values as returned by the fielddata/doc-values APIs. */
-public interface DocValueFormat extends NamedWriteable<DocValueFormat> {
+public interface DocValueFormat extends NamedWriteable {
 
     String format(long value);
 

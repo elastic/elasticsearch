@@ -37,7 +37,7 @@ import static org.elasticsearch.ExceptionsHelper.detailedMessage;
  *
  * The class is final due to serialization limitations
  */
-public final class TaskOperationFailure implements Writeable<TaskOperationFailure>, ToXContent {
+public final class TaskOperationFailure implements Writeable, ToXContent {
 
     private final String nodeId;
 

@@ -29,7 +29,7 @@ import java.util.Objects;
 /**
  * The interval the date histogram is based on.
  */
-public class DateHistogramInterval implements Writeable<DateHistogramInterval> {
+public class DateHistogramInterval implements Writeable {
 
     public static final DateHistogramInterval SECOND = new DateHistogramInterval("1s");
     public static final DateHistogramInterval MINUTE = new DateHistogramInterval("1m");

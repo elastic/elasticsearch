@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  * The target that the search request was executed on.
  */
-public class SearchShardTarget implements Writeable<SearchShardTarget>, Comparable<SearchShardTarget> {
+public class SearchShardTarget implements Writeable, Comparable<SearchShardTarget> {
 
     private Text nodeId;
     private Text index;

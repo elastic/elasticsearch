@@ -396,7 +396,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return NAME;
     }
 
-    public enum ScriptSortType implements Writeable<ScriptSortType> {
+    public enum ScriptSortType implements Writeable {
         /** script sort for a string value **/
         STRING,
         /** script sort for a numeric value **/

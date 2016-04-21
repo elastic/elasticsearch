@@ -38,7 +38,7 @@ import java.util.Locale;
 /**
  * Geo distance calculation.
  */
-public enum GeoDistance implements Writeable<GeoDistance> {
+public enum GeoDistance implements Writeable {
     /**
      * Calculates distance as points on a plane. Faster, but less accurate than {@link #ARC}.
      */

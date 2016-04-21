@@ -102,7 +102,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     public abstract InternalAggregation buildEmptyAggregation();
 
     /** Aggregation mode for sub aggregations. */
-    public enum SubAggCollectionMode implements Writeable<SubAggCollectionMode> {
+    public enum SubAggCollectionMode implements Writeable {
 
         /**
          * Creates buckets and delegates to child aggregators in a single pass over

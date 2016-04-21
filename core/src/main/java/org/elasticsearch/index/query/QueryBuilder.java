@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 
 import java.io.IOException;
 
-public interface QueryBuilder<QB extends QueryBuilder<QB>> extends NamedWriteable<QB>, ToXContent {
+public interface QueryBuilder<QB extends QueryBuilder<QB>> extends NamedWriteable, ToXContent {
 
     /**
      * Converts this QueryBuilder to a lucene {@link Query}.

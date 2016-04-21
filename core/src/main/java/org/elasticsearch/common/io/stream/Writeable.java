@@ -32,7 +32,7 @@ import java.io.IOException;
  * Prefer implementing this interface over implementing {@link Streamable} where possible. Lots of code depends on {@linkplain Streamable}
  * so this isn't always possible.
  */
-public interface Writeable<T> { // TODO remove <T>
+public interface Writeable {
     /**
      * Write this into the {@linkplain StreamOutput}.
      */

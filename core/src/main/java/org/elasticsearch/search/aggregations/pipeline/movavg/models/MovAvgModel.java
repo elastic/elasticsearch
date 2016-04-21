@@ -31,7 +31,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
-public abstract class MovAvgModel implements NamedWriteable<MovAvgModel>, ToXContent {
+public abstract class MovAvgModel implements NamedWriteable, ToXContent {
 
     /**
      * Should this model be fit to the data via a cost minimizing algorithm by default?

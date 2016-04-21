@@ -322,7 +322,7 @@ public class TestTaskPlugin extends Plugin {
     }
 
 
-    public static class UnblockTestTaskResponse implements Writeable<UnblockTestTaskResponse> {
+    public static class UnblockTestTaskResponse implements Writeable {
 
         public UnblockTestTaskResponse() {
 

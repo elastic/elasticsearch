@@ -27,7 +27,7 @@ import java.io.IOException;
 /**
  *
  */
-public enum SpatialStrategy implements Writeable<SpatialStrategy> {
+public enum SpatialStrategy implements Writeable {
 
     TERM("term"),
     RECURSIVE("recursive");

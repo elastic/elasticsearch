@@ -93,7 +93,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private Float cutoffFrequency = null;
     private MatchQuery.ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
 
-    public enum Type implements Writeable<Type> {
+    public enum Type implements Writeable {
 
         /**
          * Uses the best matching boolean field as main score and uses

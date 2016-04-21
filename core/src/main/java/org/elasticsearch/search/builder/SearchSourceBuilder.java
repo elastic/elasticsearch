@@ -71,7 +71,7 @@ import java.util.Objects;
  *
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
-public final class SearchSourceBuilder extends ToXContentToBytes implements Writeable<SearchSourceBuilder> {
+public final class SearchSourceBuilder extends ToXContentToBytes implements Writeable {
 
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField SIZE_FIELD = new ParseField("size");
@@ -1264,7 +1264,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
     }
 
-    public static class ScriptField implements Writeable<ScriptField>, ToXContent {
+    public static class ScriptField implements Writeable, ToXContent {
 
         private final boolean ignoreFailure;
         private final String fieldName;

@@ -46,20 +46,14 @@ final class WriteableIngestDocument implements Writeable<WriteableIngestDocument
         this.ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
     }
 
-    IngestDocument getIngestDocument() {
-        return ingestDocument;
-    }
-
-
-    @Override
-    public WriteableIngestDocument readFrom(StreamInput in) throws IOException {
-       return new WriteableIngestDocument(in);
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(ingestDocument.getSourceAndMetadata());
         out.writeGenericValue(ingestDocument.getIngestMetadata());
+    }
+
+    IngestDocument getIngestDocument() {
+        return ingestDocument;
     }
 
     @Override

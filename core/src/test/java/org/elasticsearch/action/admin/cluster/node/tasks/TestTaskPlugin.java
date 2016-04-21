@@ -329,17 +329,10 @@ public class TestTaskPlugin extends Plugin {
         }
 
         public UnblockTestTaskResponse(StreamInput in) {
-
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-
-        }
-
-        @Override
-        public UnblockTestTaskResponse readFrom(StreamInput in) throws IOException {
-            return new UnblockTestTaskResponse(in);
         }
     }
 

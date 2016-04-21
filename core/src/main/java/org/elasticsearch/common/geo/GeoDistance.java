@@ -126,18 +126,12 @@ public enum GeoDistance implements Writeable<GeoDistance> {
         }
     };
 
-    /** Returns a GeoDistance object as read from the StreamInput. */
-    @Override
-    public GeoDistance readFrom(StreamInput in) throws IOException {
+    public static GeoDistance readFromStream(StreamInput in) throws IOException {
         int ord = in.readVInt();
         if (ord < 0 || ord >= values().length) {
             throw new IOException("Unknown GeoDistance ordinal [" + ord + "]");
         }
         return GeoDistance.values()[ord];
-    }
-
-    public static GeoDistance readFromStream(StreamInput in) throws IOException {
-        return DEFAULT.readFrom(in);
     }
 
     @Override

@@ -39,16 +39,6 @@ public interface Writeable<T> { // TODO remove <T>
     void writeTo(StreamOutput out) throws IOException;
 
     /**
-     * Read this object from a stream. Use a {@link Writeable.Reader} instead. This lives on for backwards compatibility but should be
-     * removed before 5.0.0GA. It is not deprecated because Diffable extends this interface and it shouldn't be deprecated there.
-     */
-    default T readFrom(StreamInput in) throws IOException {
-        // NORELEASE remove before 5.0.0GA
-        throw new UnsupportedOperationException(
-                "Prefer calling a constructor or static method that takes a StreamInput to calling readFrom.");
-    }
-
-    /**
      * Reference to a method that can read some object from a stream. By convention this is a constructor that takes
      * {@linkplain StreamInput} as an argument for most classes and a static method for things like enums. Returning null from one of these
      * is always wrong - for that we use methods like {@link StreamInput#readOptionalWriteable(Reader)}.

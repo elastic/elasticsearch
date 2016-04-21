@@ -195,6 +195,11 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             status = in.readString();
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(status);
+        }
+
         public TestTaskResponse(String status) {
             this.status = status;
         }
@@ -202,18 +207,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         public String getStatus() {
             return status;
         }
-
-        @Override
-        public TestTaskResponse readFrom(StreamInput in) throws IOException {
-            return new TestTaskResponse(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(status);
-        }
     }
-
 
     static class TestTasksRequest extends BaseTasksRequest<TestTasksRequest> {
 

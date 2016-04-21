@@ -42,8 +42,7 @@ public enum SpatialStrategy implements Writeable<SpatialStrategy> {
         return strategyName;
     }
 
-    @Override
-    public SpatialStrategy readFrom(StreamInput in) throws IOException {
+    public static SpatialStrategy readFromStream(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
             throw new IOException("Unknown SpatialStrategy ordinal [" + ordinal + "]");

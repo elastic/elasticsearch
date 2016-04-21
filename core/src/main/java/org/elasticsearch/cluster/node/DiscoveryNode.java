@@ -89,34 +89,6 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     private final Set<Role> roles;
 
     /**
-     * Creates a new {@link DiscoveryNode} by reading from the stream provided as argument
-     * @param in the stream
-     * @throws IOException if there is an error while reading from the stream
-     */
-    public DiscoveryNode(StreamInput in) throws IOException {
-        this.nodeName = in.readString().intern();
-        this.nodeId = in.readString().intern();
-        this.hostName = in.readString().intern();
-        this.hostAddress = in.readString().intern();
-        this.address = TransportAddressSerializers.addressFromStream(in);
-        int size = in.readVInt();
-        this.attributes = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            this.attributes.put(in.readString(), in.readString());
-        }
-        int rolesSize = in.readVInt();
-        this.roles = EnumSet.noneOf(Role.class);
-        for (int i = 0; i < rolesSize; i++) {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= Role.values().length) {
-                throw new IOException("Unknown Role ordinal [" + ordinal + "]");
-            }
-            this.roles.add(Role.values()[ordinal]);
-        }
-        this.version = Version.readVersion(in);
-    }
-
-    /**
      * Creates a new {@link DiscoveryNode}
      * <p>
      * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
@@ -205,6 +177,53 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
     }
 
     /**
+     * Creates a new {@link DiscoveryNode} by reading from the stream provided as argument
+     * @param in the stream
+     * @throws IOException if there is an error while reading from the stream
+     */
+    public DiscoveryNode(StreamInput in) throws IOException {
+        this.nodeName = in.readString().intern();
+        this.nodeId = in.readString().intern();
+        this.hostName = in.readString().intern();
+        this.hostAddress = in.readString().intern();
+        this.address = TransportAddressSerializers.addressFromStream(in);
+        int size = in.readVInt();
+        this.attributes = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            this.attributes.put(in.readString(), in.readString());
+        }
+        int rolesSize = in.readVInt();
+        this.roles = EnumSet.noneOf(Role.class);
+        for (int i = 0; i < rolesSize; i++) {
+            int ordinal = in.readVInt();
+            if (ordinal < 0 || ordinal >= Role.values().length) {
+                throw new IOException("Unknown Role ordinal [" + ordinal + "]");
+            }
+            this.roles.add(Role.values()[ordinal]);
+        }
+        this.version = Version.readVersion(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(nodeName);
+        out.writeString(nodeId);
+        out.writeString(hostName);
+        out.writeString(hostAddress);
+        addressToStream(out, address);
+        out.writeVInt(attributes.size());
+        for (Map.Entry<String, String> entry : attributes.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeString(entry.getValue());
+        }
+        out.writeVInt(roles.size());
+        for (Role role : roles) {
+            out.writeVInt(role.ordinal());
+        }
+        Version.writeVersion(version, out);
+    }
+
+    /**
      * The address that the node can be communicated with.
      */
     public TransportAddress getAddress() {
@@ -271,30 +290,6 @@ public class DiscoveryNode implements Writeable<DiscoveryNode>, ToXContent {
 
     public String getHostAddress() {
         return this.hostAddress;
-    }
-
-    @Override
-    public DiscoveryNode readFrom(StreamInput in) throws IOException {
-        return new DiscoveryNode(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(nodeName);
-        out.writeString(nodeId);
-        out.writeString(hostName);
-        out.writeString(hostAddress);
-        addressToStream(out, address);
-        out.writeVInt(attributes.size());
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
-        }
-        out.writeVInt(roles.size());
-        for (Role role : roles) {
-            out.writeVInt(role.ordinal());
-        }
-        Version.writeVersion(version, out);
     }
 
     @Override

@@ -2,7 +2,7 @@ h1. Elasticsearch
 
 h2. What to Use Elasticsearch For and When to Use It.
 
-Have extremely large amounts of data to churn through? Want to return searches quickly and accurately? Elasticsearch can easily index massive amounts of data and return results faster with less resource consumption when compared to other search technologies (e.g. conventional SQL database search).
+Have extremely large amounts of data to churn through? Want to return searches quickly and accurately? Elasticsearch can easily index massive amounts of data and return results extremely fast.
 
 Elasticsearch has many use cases including:
 * Search (e.g. simple search, fuzzy search, aggregating and so on)

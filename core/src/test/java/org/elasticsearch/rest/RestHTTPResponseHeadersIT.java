@@ -43,42 +43,42 @@ import static org.hamcrest.Matchers.is;
 @ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class RestHTTPResponseHeadersIT extends ESIntegTestCase {
 
-	@Override
-	protected Settings nodeSettings(int nodeOrdinal) {
-		return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), true).put(super.nodeSettings(nodeOrdinal)).build();
-	}
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), true).put(super.nodeSettings(nodeOrdinal)).build();
+    }
 
-	/**
-	 * For an OPTIONS request to a valid REST endpoint, verify that a 200 HTTP
-	 * response code is returned, and that the response 'Allow' header includes
-	 * a list of valid HTTP methods for the endpoint (see
-	 * <a href="https://tools.ietf.org/html/rfc2616#section-9.2">HTTP/1.1 - 9.2
-	 * - Options</a>).
-	 */
-	public void testValidEndpointOptionsResponseHTTPHeader() throws Exception {
-		createIndex("test");
-		HttpResponse httpResponse = httpClient().method("OPTIONS").path("/test").execute();
-		assertThat(httpResponse.getStatusCode(), is(200));
-		assertThat(httpResponse.getHeaders().get("Allow"), notNullValue());
-		List<String> allowHeader = Arrays.asList(httpResponse.getHeaders().get("Allow").split(","));
-		assertThat(allowHeader, containsInAnyOrder("HEAD", "GET", "PUT", "POST", "DELETE"));
-	}
+    /**
+     * For an OPTIONS request to a valid REST endpoint, verify that a 200 HTTP
+     * response code is returned, and that the response 'Allow' header includes
+     * a list of valid HTTP methods for the endpoint (see
+     * <a href="https://tools.ietf.org/html/rfc2616#section-9.2">HTTP/1.1 - 9.2
+     * - Options</a>).
+     */
+    public void testValidEndpointOptionsResponseHTTPHeader() throws Exception {
+        createIndex("test");
+        HttpResponse httpResponse = httpClient().method("OPTIONS").path("/test").execute();
+        assertThat(httpResponse.getStatusCode(), is(200));
+        assertThat(httpResponse.getHeaders().get("Allow"), notNullValue());
+        List<String> allowHeader = Arrays.asList(httpResponse.getHeaders().get("Allow").split(","));
+        assertThat(allowHeader, containsInAnyOrder("HEAD", "GET", "PUT", "POST", "DELETE"));
+    }
 
-	/**
-	 * For requests to a valid REST endpoint using an unsupported HTTP method,
-	 * verify that a 405 HTTP response code is returned, and that the response
-	 * 'Allow' header includes a list of valid HTTP methods for the endpoint
-	 * (see
-	 * <a href="https://tools.ietf.org/html/rfc2616#section-10.4.6">HTTP/1.1 -
-	 * 10.4.6 - 405 Method Not Allowed</a>).
-	 */
-	public void testUnsupportedMethodResponseHTTPHeader() throws Exception {
-		createIndex("test");
-		HttpResponse httpResponse = httpClient().method("DELETE").path("/test/_analyze").execute();
-		assertThat(httpResponse.getStatusCode(), is(405));
-		assertThat(httpResponse.getHeaders().get("Allow"), notNullValue());
-		List<String> allowHeader = Arrays.asList(httpResponse.getHeaders().get("Allow").split(","));
-		assertThat(allowHeader, containsInAnyOrder("HEAD", "GET", "POST"));
-	}
+    /**
+     * For requests to a valid REST endpoint using an unsupported HTTP method,
+     * verify that a 405 HTTP response code is returned, and that the response
+     * 'Allow' header includes a list of valid HTTP methods for the endpoint
+     * (see
+     * <a href="https://tools.ietf.org/html/rfc2616#section-10.4.6">HTTP/1.1 -
+     * 10.4.6 - 405 Method Not Allowed</a>).
+     */
+    public void testUnsupportedMethodResponseHTTPHeader() throws Exception {
+        createIndex("test");
+        HttpResponse httpResponse = httpClient().method("DELETE").path("/test/_analyze").execute();
+        assertThat(httpResponse.getStatusCode(), is(405));
+        assertThat(httpResponse.getHeaders().get("Allow"), notNullValue());
+        List<String> allowHeader = Arrays.asList(httpResponse.getHeaders().get("Allow").split(","));
+        assertThat(allowHeader, containsInAnyOrder("HEAD", "GET", "POST"));
+    }
 
 }

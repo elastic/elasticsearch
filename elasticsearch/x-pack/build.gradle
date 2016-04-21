@@ -187,13 +187,17 @@ modifyPom { MavenPom pom ->
 
     // find the 'base' dependency and replace it with the correct name because the project name is
     // always used even when the pom of the other project is correct
-    for (Node depNode : depsNodes.get(0).children()) {
+    Iterator<Node> childNodeIter = depsNodes.get(0).children().iterator()
+    while (childNodeIter.hasNext()) {
+      Node depNode = childNodeIter.next()
       String groupId = depNode.get('groupId').get(0).text()
       Node artifactIdNode = depNode.get('artifactId').get(0)
       String artifactId = artifactIdNode.text()
+      String scope = depNode.get("scope").get(0).text()
       if (groupId.equals('org.elasticsearch') && artifactId.equals('base')) {
         artifactIdNode.replaceNode(new Node(null, 'artifactId', 'license-core'))
-        return
+      } else if ('test'.equals(scope)) {
+        childNodeIter.remove()
       }
     }
   }

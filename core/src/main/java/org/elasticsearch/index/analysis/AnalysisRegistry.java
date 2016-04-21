@@ -259,6 +259,7 @@ public final class AnalysisRegistry implements Closeable {
         tokenFilters.put("classic", ClassicFilterFactory::new);
         tokenFilters.put("decimal_digit", DecimalDigitFilterFactory::new);
         tokenFilters.put("fingerprint", FingerprintTokenFilterFactory::new);
+        tokenFilters.put("minhash", MinHashTokenFilterFactory::new);
     }
 
     private void registerBuiltInAnalyzer(Map<String, AnalysisModule.AnalysisProvider<AnalyzerProvider>> analyzers) {

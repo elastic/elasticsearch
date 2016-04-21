@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.messy.tests;
 
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
@@ -388,8 +389,12 @@ public class SearchTransformIT extends ESIntegTestCase {
                 "{\"from\":\"{{ctx.trigger.scheduled_time}}||-{{seconds_param}}\",\"to\":\"{{ctx.trigger.scheduled_time}}\"," +
                 "\"include_lower\":true,\"include_upper\":true}}}]}}}";
 
-        PutIndexedScriptRequest indexedScriptRequest = client().preparePutIndexedScript("mustache", "test-script", templateQuery).request();
-        assertThat(client().putIndexedScript(indexedScriptRequest).actionGet().isCreated(), is(true));
+        PutStoredScriptRequest indexedScriptRequest = client().admin().cluster().preparePutStoredScript()
+                .setId("mustache")
+                .setScriptLang("test-script")
+                .setSource(new BytesArray(templateQuery))
+                .request();
+        assertThat(client().admin().cluster().putStoredScript(indexedScriptRequest).actionGet().isAcknowledged(), is(true));
 
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
@@ -397,7 +402,7 @@ public class SearchTransformIT extends ESIntegTestCase {
         BytesReference templateSource = jsonBuilder()
                 .value(TextTemplate.indexed("test-script").params(params).build())
                 .bytes();
-        Template template = new Template("test-script", ScriptType.INDEXED, null, null, null);
+        Template template = new Template("test-script", ScriptType.STORED, null, null, null);
 
         SearchRequest request = client()
                 .prepareSearch()
@@ -411,7 +416,7 @@ public class SearchTransformIT extends ESIntegTestCase {
         Template resultTemplate = result.executedRequest().template();
         assertThat(resultTemplate, notNullValue());
         assertThat(resultTemplate.getScript(), equalTo("test-script"));
-        assertThat(resultTemplate.getType(), equalTo(ScriptType.INDEXED));
+        assertThat(resultTemplate.getType(), equalTo(ScriptType.STORED));
     }
 
     public void testSearchOnDiskTemplate() throws Exception {
@@ -466,7 +471,7 @@ public class SearchTransformIT extends ESIntegTestCase {
                         new ExecutableAlwaysCondition(logger),
                         null,
                         null,
-                        new ExecutableActions(new ArrayList<ActionWrapper>()),
+                        new ExecutableActions(new ArrayList<>()),
                         null,
                         new WatchStatus( new DateTime(40000, UTC), emptyMap())),
                 new DateTime(60000, UTC),

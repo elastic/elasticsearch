@@ -125,7 +125,7 @@ public class WatcherUtilsTests extends ESTestCase {
             Template template = randomFrom(
                     new Template(text, ScriptType.INLINE, null, null, params),
                     new Template(text, ScriptType.FILE, null, null, params),
-                    new Template(text, ScriptType.INDEXED, null, null, params)
+                    new Template(text, ScriptType.STORED, null, null, params)
             );
             expectedRequest.template(template);
         }

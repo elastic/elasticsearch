@@ -5,9 +5,10 @@
  */
 package org.elasticsearch.messy.tests;
 
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -192,14 +193,17 @@ public class SearchInputIT extends ESIntegTestCase {
     public void testSearchIndexedTemplate() throws Exception {
         WatchExecutionContext ctx = createContext();
 
-        PutIndexedScriptRequest indexedScriptRequest = client().preparePutIndexedScript("mustache","test-template",
-                TEMPLATE_QUERY).request();
-        assertThat(client().putIndexedScript(indexedScriptRequest).actionGet().isCreated(), is(true));
+        PutStoredScriptRequest indexedScriptRequest = client().admin().cluster().preparePutStoredScript()
+                .setId("test-template")
+                .setScriptLang("mustache")
+                .setSource(new BytesArray(TEMPLATE_QUERY))
+                .request();
+        assertThat(client().admin().cluster().putStoredScript(indexedScriptRequest).actionGet().isAcknowledged(), is(true));
 
         Map<String, Object> params = new HashMap<>();
         params.put("seconds_param", "30s");
 
-        Template template = new Template("test-template", ScriptType.INDEXED, null, null, params);
+        Template template = new Template("test-template", ScriptType.STORED, null, null, params);
 
         jsonBuilder().value(TextTemplate.indexed("test-template").params(params).build()).bytes();
         SearchRequest request = client().prepareSearch().setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
@@ -209,7 +213,7 @@ public class SearchInputIT extends ESIntegTestCase {
         Template resultTemplate = executedResult.executedRequest().template();
         assertThat(resultTemplate, notNullValue());
         assertThat(resultTemplate.getScript(), equalTo("test-template"));
-        assertThat(resultTemplate.getType(), equalTo(ScriptType.INDEXED));
+        assertThat(resultTemplate.getType(), equalTo(ScriptType.STORED));
     }
 
     public void testSearchOnDiskTemplate() throws Exception {

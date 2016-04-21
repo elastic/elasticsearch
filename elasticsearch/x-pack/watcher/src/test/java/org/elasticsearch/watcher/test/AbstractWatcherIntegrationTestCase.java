@@ -668,7 +668,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 "test:\n" + // a user for the test infra.
                 "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/state', 'cluster:monitor/health', 'cluster:monitor/stats'," +
                         " 'cluster:admin/settings/update', 'cluster:admin/repository/delete', 'cluster:monitor/nodes/liveness'," +
-                        " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete' ]\n" +
+                        " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete'," +
+                        " 'cluster:admin/script/put' ]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +
                 "      privileges: [ all ]\n" +

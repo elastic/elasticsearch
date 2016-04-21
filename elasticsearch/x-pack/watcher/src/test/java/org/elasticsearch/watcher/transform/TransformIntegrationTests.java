@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.transform;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
@@ -68,7 +69,10 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
             script = Script.inline("return [key3 : ctx.payload.key1 + ctx.payload.key2]").lang("groovy").build();
         } else if (randomBoolean()) {
             logger.info("testing script transform with an indexed script");
-            client().preparePutIndexedScript("groovy", "_id", "{\"script\" : \"return [key3 : ctx.payload.key1 + ctx.payload.key2]\"}")
+            client().admin().cluster().preparePutStoredScript()
+                    .setId("id")
+                    .setScriptLang("groovy")
+                    .setSource(new BytesArray("{\"script\" : \"return [key3 : ctx.payload.key1 + ctx.payload.key2]\"}"))
                     .get();
             script = Script.indexed("_id").lang("groovy").build();
         } else {

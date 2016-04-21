@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.support.init.proxy;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -27,14 +28,16 @@ public class ScriptServiceProxy implements LazyInitializable {
 
     private ScriptService service;
     private SecurityContext securityContext;
+    private ClusterService clusterService;
 
     /**
      * Creates a proxy to the given script service (can be used for testing)
      */
-    public static ScriptServiceProxy of(ScriptService service) {
+    public static ScriptServiceProxy of(ScriptService service, ClusterService clusterService) {
         ScriptServiceProxy proxy = new ScriptServiceProxy();
         proxy.service = service;
         proxy.securityContext = SecurityContext.Insecure.INSTANCE;
+        proxy.clusterService = clusterService;
         return proxy;
     }
 
@@ -42,27 +45,21 @@ public class ScriptServiceProxy implements LazyInitializable {
     public void init(Injector injector) {
         this.service = injector.getInstance(ScriptService.class);
         this.securityContext = injector.getInstance(SecurityContext.class);
+        this.clusterService = injector.getInstance(ClusterService.class);
     }
 
     public CompiledScript compile(Script script) {
-        return securityContext.executeAs(XPackUser.INSTANCE, () ->
-            compile(new org.elasticsearch.script.Script(script.script(), script.type(), script.lang(), script.params()), emptyMap()));
+        return compile(new org.elasticsearch.script.Script(script.script(), script.type(), script.lang(), script.params()), emptyMap());
     }
 
     public CompiledScript compile(org.elasticsearch.script.Script script, Map<String, String> compileParams) {
         return securityContext.executeAs(XPackUser.INSTANCE, () ->
-                service.compile(script, WatcherScriptContext.CTX, compileParams));
+                service.compile(script, WatcherScriptContext.CTX, compileParams, clusterService.state()));
     }
 
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
         return securityContext.executeAs(XPackUser.INSTANCE, () ->
                 service.executable(compiledScript, vars));
-    }
-
-
-    public ExecutableScript executable(org.elasticsearch.script.Script script) {
-        return securityContext.executeAs(XPackUser.INSTANCE, () ->
-                service.executable(script, WatcherScriptContext.CTX, emptyMap()));
     }
 
     public static final ScriptContext.Plugin INSTANCE = new ScriptContext.Plugin("xpack", "watch");

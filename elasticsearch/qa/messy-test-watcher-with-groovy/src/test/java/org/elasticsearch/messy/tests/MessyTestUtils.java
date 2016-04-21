@@ -6,6 +6,9 @@
 package org.elasticsearch.messy.tests;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -19,6 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.junit.Ignore;
+import org.mockito.Mockito;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -43,8 +47,11 @@ public final class MessyTestUtils {
         );
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Arrays.asList(ScriptServiceProxy.INSTANCE));
 
+        ClusterService clusterService = Mockito.mock(ClusterService.class);
+        Mockito.when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name")).build());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), engineServiceSet,
-                new ResourceWatcherService(settings, tp), scriptEngineRegistry, scriptContextRegistry, scriptSettings));
+                new ResourceWatcherService(settings, tp), scriptEngineRegistry, scriptContextRegistry, scriptSettings),
+                clusterService);
     }
 }

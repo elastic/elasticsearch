@@ -124,7 +124,7 @@ public class ScriptConditionTests extends ESTestCase {
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
         switch (scriptType) {
-            case INDEXED:
+            case STORED:
             case FILE:
                 script = "nonExisting_script";
                 break;
@@ -212,7 +212,7 @@ public class ScriptConditionTests extends ESTestCase {
             case FILE:
                 builder.field("file", script);
                 break;
-            case INDEXED:
+            case STORED:
                 builder.field("id", script);
                 break;
             default:

@@ -257,14 +257,13 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     public void testConditionSearchWithIndexedTemplate() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
-        client().preparePutIndexedScript()
+        client().admin().cluster().preparePutStoredScript()
                 .setScriptLang("mustache")
                 .setId("my-template")
-                .setSource(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject())
+                .setSource(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject().bytes())
                 .get();
-        refresh();
 
-        Template template = new Template("my-template", ScriptType.INDEXED, null, null, null);
+        Template template = new Template("my-template", ScriptType.STORED, null, null, null);
         SearchRequest searchRequest = newInputSearchRequest("events");
         // TODO (2.0 upgrade): move back to BytesReference instead of coverting to a string
         searchRequest.template(template);

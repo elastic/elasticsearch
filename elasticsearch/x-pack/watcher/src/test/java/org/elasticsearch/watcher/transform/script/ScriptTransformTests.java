@@ -174,7 +174,7 @@ public class ScriptTransformTests extends ESTestCase {
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
         switch (scriptType) {
-            case INDEXED:
+            case STORED:
             case FILE:
                 script = "nonExisting_script";
                 break;
@@ -227,7 +227,7 @@ public class ScriptTransformTests extends ESTestCase {
         switch (type) {
             case INLINE:    return Script.inline(script);
             case FILE:      return Script.file(script);
-            case INDEXED:   return Script.indexed(script);
+            case STORED:   return Script.indexed(script);
             default:
                 throw illegalArgument("unsupported script type [{}]", type);
         }
@@ -237,7 +237,7 @@ public class ScriptTransformTests extends ESTestCase {
         switch (type) {
             case INLINE: return "inline";
             case FILE: return "file";
-            case INDEXED: return "id";
+            case STORED: return "id";
             default:
                 throw illegalArgument("unsupported script type [{}]", type);
         }

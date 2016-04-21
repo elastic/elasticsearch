@@ -9,6 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.plugins.Plugin;
@@ -72,7 +73,7 @@ public class ShieldCachePermissionIT extends ShieldIntegTestCase {
     public void loadData() {
         index("data", "a", "1", "{ \"name\": \"John\", \"token\": \"token1\" }");
         index("tokens", "tokens", "1", "{ \"group\": \"1\", \"tokens\": [\"token1\", \"token2\"] }");
-        client().preparePutIndexedScript().setOpType(IndexRequest.OpType.CREATE).setSource("{\n" +
+        client().admin().cluster().preparePutStoredScript().setSource(new BytesArray("{\n" +
                 "\"template\": {\n" +
                 "  \"query\": {\n" +
                 "    \"exists\": {\n" +
@@ -80,7 +81,7 @@ public class ShieldCachePermissionIT extends ShieldIntegTestCase {
                 "     }\n" +
                 "   }\n" +
                 " }\n" +
-                "}")
+                "}"))
                 .setScriptLang("mustache")
                 .setId("testTemplate")
                 .execute().actionGet();
@@ -110,7 +111,7 @@ public class ShieldCachePermissionIT extends ShieldIntegTestCase {
 
     public void testThatScriptServiceDoesntLeakData() {
         SearchResponse response = client().prepareSearch("data").setTypes("a")
-                .setTemplate(new Template("testTemplate", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null,
+                .setTemplate(new Template("testTemplate", ScriptService.ScriptType.STORED, MustacheScriptEngineService.NAME, null,
                         Collections.<String, Object>singletonMap("name", "token")))
                 .execute().actionGet();
         assertThat(response.isTimedOut(), is(false));
@@ -121,7 +122,7 @@ public class ShieldCachePermissionIT extends ShieldIntegTestCase {
             response = client().filterWithHeader(Collections.singletonMap("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER,
                     new SecuredString("changeme".toCharArray()))))
                     .prepareSearch("data").setTypes("a")
-                    .setTemplate(new Template("testTemplate", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null,
+                    .setTemplate(new Template("testTemplate", ScriptService.ScriptType.STORED, MustacheScriptEngineService.NAME, null,
                             Collections.<String, Object>singletonMap("name", "token")))
                     .execute().actionGet();
             fail("search phase exception should have been thrown! response was:\n" + response.toString());

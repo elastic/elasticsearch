@@ -56,24 +56,6 @@
 
   - do:
       xpack.info: {}
-  - is_false:    tagline
-  - is_false:    build
-  - is_false:    features
-  - is_false:    license
-
-  - do:
-      xpack.info:
-        categories: "build"
-  - is_true:   build
-  - is_true:    build.hash
-  - is_true:    build.timestamp
-  - is_false:   tagline
-  - is_false:   features
-  - is_false:   license
-
-  - do:
-      xpack.info:
-        categories: "build,license"
   - is_true:    build.hash
   - is_true:    build.timestamp
   - is_true:    license
@@ -82,12 +64,71 @@
   - match: { license.mode: "platinum" }
   - match: { license.status: "active" }
   - match: { license.expiry_date_in_millis: 1914278399999 }
-  - is_false:   tagline
+  - is_true:    features
+  - is_true:    features.watcher
+  - is_true:    features.watcher.enabled
+  - is_true:    features.watcher.available
+  - is_true:    features.watcher.description
+  - is_true:    features.security
+  - is_true:    features.security.enabled
+  - is_true:    features.security.available
+  - is_true:    features.security.description
+  - is_true:    features.graph
+  - is_true:    features.graph.enabled
+  - is_true:    features.graph.available
+  - is_true:    features.graph.description
+  - is_true:    features.monitoring
+  - is_true:    features.monitoring.enabled
+  - is_true:    features.monitoring.available
+  - is_true:    features.monitoring.description
+  - is_true:    tagline
+
+  - do:
+    xpack.info:
+      categories: "_none"
+  - is_false:    build
+  - is_false:    features
+  - is_false:    license
+  - match: { tagline: "You know, for X" }
+
+  - do:
+    xpack.info:
+      categories: "_none"
+      human: false
+  - is_false:    build
+  - is_false:    features
+  - is_false:    license
+  - is_false:    tagline
+
+  - do:
+      xpack.info:
+        categories: "build"
+  - is_true:   build
+  - is_true:    build.hash
+  - is_true:    build.timestamp
+  - is_true:    tagline
   - is_false:   features
+  - is_false:   license
+
+  - do:
+      xpack.info:
+        categories: "build,license"
+  - is_true:    build.hash
+  - is_true:    build.timestamp
+  - is_true:    tagline
+  - is_false:   features
+  - is_true:    license
+  - match: { license.uid: "893361dc-9749-4997-93cb-802e3dofh7aa" }
+  - match: { license.type: "internal" }
+  - match: { license.mode: "platinum" }
+  - match: { license.status: "active" }
+  - match: { license.expiry_date_in_millis: 1914278399999 }
+
 
   - do:
       xpack.info:
         categories: "build,license,features"
+        human: false
   - is_true:    build.hash
   - is_true:    build.timestamp
   - is_true:    license
@@ -115,33 +156,4 @@
   - is_false:   features.monitoring.description
   - is_false:   tagline
 
-  - do:
-      xpack.info:
-        categories: "build,license,features"
-        human: "true"
-  - is_true:    build.hash
-  - is_true:    build.timestamp
-  - is_true:    license
-  - match: { license.uid: "893361dc-9749-4997-93cb-802e3dofh7aa" }
-  - match: { license.type: "internal" }
-  - match: { license.mode: "platinum" }
-  - match: { license.status: "active" }
-  - match: { license.expiry_date_in_millis: 1914278399999 }
-  - is_true:    features
-  - is_true:    features.watcher
-  - is_true:    features.watcher.enabled
-  - is_true:    features.watcher.available
-  - is_true:    features.watcher.description
-  - is_true:    features.security
-  - is_true:    features.security.enabled
-  - is_true:    features.security.available
-  - is_true:    features.security.description
-  - is_true:    features.graph
-  - is_true:    features.graph.enabled
-  - is_true:    features.graph.available
-  - is_true:    features.graph.description
-  - is_true:    features.monitoring
-  - is_true:    features.monitoring.enabled
-  - is_true:    features.monitoring.available
-  - is_true:    features.monitoring.description
-  - is_true:    tagline
+

@@ -25,7 +25,14 @@ public class XPackInfoRequest extends ActionRequest<XPackInfoRequest> {
         public static EnumSet<Category> toSet(String... categories) {
             EnumSet<Category> set = EnumSet.noneOf(Category.class);
             for (String category : categories) {
-                set.add(Category.valueOf(category.toUpperCase(Locale.ROOT)));
+                switch (category) {
+                    case "_all":
+                        return EnumSet.allOf(Category.class);
+                    case "_none":
+                        return EnumSet.noneOf(Category.class);
+                    default:
+                        set.add(Category.valueOf(category.toUpperCase(Locale.ROOT)));
+                }
             }
             return set;
         }

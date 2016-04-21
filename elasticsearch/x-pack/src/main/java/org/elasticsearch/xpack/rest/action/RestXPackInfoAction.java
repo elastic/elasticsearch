@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.rest.action;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,10 +39,10 @@ public class RestXPackInfoAction extends XPackRestHandler {
     protected void handleRequest(RestRequest request, RestChannel restChannel, XPackClient client) throws Exception {
 
         // we piggyback verbosity on "human" output
-        boolean verbose = request.paramAsBoolean("human", false);
+        boolean verbose = request.paramAsBoolean("human", true);
 
         EnumSet<XPackInfoRequest.Category> categories = XPackInfoRequest.Category
-                .toSet(request.paramAsStringArray("categories", Strings.EMPTY_ARRAY));
+                .toSet(request.paramAsStringArray("categories", new String[] { "_all" }));
         client.prepareInfo().setVerbose(verbose).setCategories(categories).execute(new RestBuilderListener<XPackInfoResponse>(restChannel) {
             @Override
             public RestResponse buildResponse(XPackInfoResponse infoResponse, XContentBuilder builder) throws Exception {

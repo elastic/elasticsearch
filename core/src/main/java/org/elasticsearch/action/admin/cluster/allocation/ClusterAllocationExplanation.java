@@ -40,7 +40,7 @@ import java.util.Map;
  * A {@code ClusterAllocationExplanation} is an explanation of why a shard may or may not be allocated to nodes. It also includes weights
  * for where the shard is likely to be assigned. It is an immutable class
  */
-public final class ClusterAllocationExplanation implements ToXContent, Writeable<ClusterAllocationExplanation> {
+public final class ClusterAllocationExplanation implements ToXContent, Writeable {
 
     private final ShardId shard;
     private final boolean primary;
@@ -49,6 +49,18 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     private final Map<DiscoveryNode, Float> nodeWeights;
     private final UnassignedInfo unassignedInfo;
     private final long remainingDelayNanos;
+
+    public ClusterAllocationExplanation(ShardId shard, boolean primary, @Nullable String assignedNodeId,
+            UnassignedInfo unassignedInfo, Map<DiscoveryNode, Decision> nodeToDecision,
+            Map<DiscoveryNode, Float> nodeWeights, long remainingDelayNanos) {
+        this.shard = shard;
+        this.primary = primary;
+        this.assignedNodeId = assignedNodeId;
+        this.unassignedInfo = unassignedInfo;
+        this.nodeToDecision = nodeToDecision == null ? Collections.emptyMap() : nodeToDecision;
+        this.nodeWeights = nodeWeights == null ? Collections.emptyMap() : nodeWeights;
+        this.remainingDelayNanos = remainingDelayNanos;
+    }
 
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
         this.shard = ShardId.readShardId(in);
@@ -78,17 +90,28 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         remainingDelayNanos = in.readVLong();
     }
 
-    public ClusterAllocationExplanation(ShardId shard, boolean primary, @Nullable String assignedNodeId,
-                                        UnassignedInfo unassignedInfo, Map<DiscoveryNode, Decision> nodeToDecision,
-                                        Map<DiscoveryNode, Float> nodeWeights, long remainingDelayNanos) {
-        this.shard = shard;
-        this.primary = primary;
-        this.assignedNodeId = assignedNodeId;
-        this.unassignedInfo = unassignedInfo;
-        this.nodeToDecision = nodeToDecision == null ? Collections.emptyMap() : nodeToDecision;
-        this.nodeWeights = nodeWeights == null ? Collections.emptyMap() : nodeWeights;
-        this.remainingDelayNanos = remainingDelayNanos;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        this.getShard().writeTo(out);
+        out.writeBoolean(this.isPrimary());
+        out.writeOptionalString(this.getAssignedNodeId());
+        out.writeOptionalWriteable(this.getUnassignedInfo());
+
+        Map<DiscoveryNode, Decision> ntd = this.getNodeDecisions();
+        out.writeVInt(ntd.size());
+        for (Map.Entry<DiscoveryNode, Decision> entry : ntd.entrySet()) {
+            entry.getKey().writeTo(out);
+            Decision.writeTo(entry.getValue(), out);
+        }
+        Map<DiscoveryNode, Float> ntw = this.getNodeWeights();
+        out.writeVInt(ntw.size());
+        for (Map.Entry<DiscoveryNode, Float> entry : ntw.entrySet()) {
+            entry.getKey().writeTo(out);
+            out.writeFloat(entry.getValue());
+        }
+        out.writeVLong(remainingDelayNanos);
     }
+
 
     public ShardId getShard() {
         return this.shard;
@@ -182,32 +205,5 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         }
         builder.endObject(); // end wrapping object
         return builder;
-    }
-
-    @Override
-    public ClusterAllocationExplanation readFrom(StreamInput in) throws IOException {
-        return new ClusterAllocationExplanation(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        this.getShard().writeTo(out);
-        out.writeBoolean(this.isPrimary());
-        out.writeOptionalString(this.getAssignedNodeId());
-        out.writeOptionalWriteable(this.getUnassignedInfo());
-
-        Map<DiscoveryNode, Decision> ntd = this.getNodeDecisions();
-        out.writeVInt(ntd.size());
-        for (Map.Entry<DiscoveryNode, Decision> entry : ntd.entrySet()) {
-            entry.getKey().writeTo(out);
-            Decision.writeTo(entry.getValue(), out);
-        }
-        Map<DiscoveryNode, Float> ntw = this.getNodeWeights();
-        out.writeVInt(ntw.size());
-        for (Map.Entry<DiscoveryNode, Float> entry : ntw.entrySet()) {
-            entry.getKey().writeTo(out);
-            out.writeFloat(entry.getValue());
-        }
-        out.writeVLong(remainingDelayNanos);
     }
 }

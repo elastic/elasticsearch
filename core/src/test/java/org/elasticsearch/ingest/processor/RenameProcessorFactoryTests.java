@@ -21,7 +21,6 @@ package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -35,19 +34,19 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         RenameProcessor.Factory factory = new RenameProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "old_field");
-        config.put("to", "new_field");
+        config.put("target_field", "new_field");
         String processorTag = randomAsciiOfLength(10);
         config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
         RenameProcessor renameProcessor = factory.create(config);
         assertThat(renameProcessor.getTag(), equalTo(processorTag));
-        assertThat(renameProcessor.getOldFieldName(), equalTo("old_field"));
-        assertThat(renameProcessor.getNewFieldName(), equalTo("new_field"));
+        assertThat(renameProcessor.getField(), equalTo("old_field"));
+        assertThat(renameProcessor.getTargetField(), equalTo("new_field"));
     }
 
     public void testCreateNoFieldPresent() throws Exception {
         RenameProcessor.Factory factory = new RenameProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        config.put("to", "new_field");
+        config.put("target_field", "new_field");
         try {
             factory.create(config);
             fail("factory create should have failed");
@@ -64,7 +63,7 @@ public class RenameProcessorFactoryTests extends ESTestCase {
             factory.create(config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[to] required property is missing"));
+            assertThat(e.getMessage(), equalTo("[target_field] required property is missing"));
         }
     }
 }

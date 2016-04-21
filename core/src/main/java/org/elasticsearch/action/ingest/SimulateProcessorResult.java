@@ -29,7 +29,7 @@ import org.elasticsearch.ingest.core.IngestDocument;
 
 import java.io.IOException;
 
-public class SimulateProcessorResult implements Writeable<SimulateProcessorResult>, ToXContent {
+public class SimulateProcessorResult implements Writeable, ToXContent {
     private final String processorTag;
     private final WriteableIngestDocument ingestDocument;
     private final Exception failure;

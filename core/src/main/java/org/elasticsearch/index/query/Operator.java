@@ -28,7 +28,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import java.io.IOException;
 import java.util.Locale;
 
-public enum Operator implements Writeable<Operator> {
+public enum Operator implements Writeable {
     OR, AND;
 
     public BooleanClause.Occur toBooleanClauseOccur() {

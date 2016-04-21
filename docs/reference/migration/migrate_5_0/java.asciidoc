@@ -102,12 +102,6 @@ Removed setters for mandatory big/little inner span queries. Both arguments now 
 to be supplied at construction time already and have to be non-null. Updated
 static factory methods in QueryBuilders accordingly.
 
-===== QueryFilterBuilder
-
-Removed the setter `queryName(String queryName)` since this field is not supported
-in this type of query. Use `FQueryFilterBuilder.queryName(String queryName)` instead
-when in need to wrap a named query as a filter.
-
 ===== WrapperQueryBuilder
 
 Removed `wrapperQueryBuilder(byte[] source, int offset, int length)`. Instead simply

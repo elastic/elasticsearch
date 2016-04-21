@@ -39,7 +39,7 @@ import java.util.Objects;
 /**
  * Fuzzy options for completion suggester
  */
-public class FuzzyOptions implements ToXContent, Writeable<FuzzyOptions> {
+public class FuzzyOptions implements ToXContent, Writeable {
     static final ParseField FUZZY_OPTIONS = new ParseField("fuzzy");
     private static final ParseField TRANSPOSITION_FIELD = new ParseField("transpositions");
     private static final ParseField MIN_LENGTH_FIELD = new ParseField("min_length");

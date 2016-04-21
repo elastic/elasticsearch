@@ -34,7 +34,7 @@ import java.util.Objects;
 /**
  * Encapsulates the parameters needed to fetch terms.
  */
-public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
+public class TermsLookup implements Writeable, ToXContent {
     private String index;
     private final String type;
     private final String id;

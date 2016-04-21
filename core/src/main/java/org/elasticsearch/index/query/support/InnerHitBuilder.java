@@ -59,7 +59,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.XContentParser.Token.END_OBJECT;
 
-public final class InnerHitBuilder extends ToXContentToBytes implements Writeable<InnerHitBuilder> {
+public final class InnerHitBuilder extends ToXContentToBytes implements Writeable {
 
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField NESTED_PATH_FIELD = new ParseField("path");

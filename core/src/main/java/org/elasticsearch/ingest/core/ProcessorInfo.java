@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class ProcessorInfo implements Writeable<ProcessorInfo>, ToXContent, Comparable<ProcessorInfo> {
+public class ProcessorInfo implements Writeable, ToXContent, Comparable<ProcessorInfo> {
 
     private final String type;
 

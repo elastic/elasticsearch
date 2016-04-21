@@ -60,7 +60,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * </pre>
  *
  */
-public final class ThreadContext implements Closeable, Writeable<ThreadContext> {
+public final class ThreadContext implements Closeable, Writeable {
 
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);

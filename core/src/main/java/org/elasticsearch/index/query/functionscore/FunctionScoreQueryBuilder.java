@@ -331,7 +331,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * Function to be associated with an optional filter, meaning it will be executed only for the documents
      * that match the given filter.
      */
-    public static class FilterFunctionBuilder implements ToXContent, Writeable<FilterFunctionBuilder> {
+    public static class FilterFunctionBuilder implements ToXContent, Writeable {
         private final QueryBuilder<?> filter;
         private final ScoreFunctionBuilder<?> scoreFunction;
 

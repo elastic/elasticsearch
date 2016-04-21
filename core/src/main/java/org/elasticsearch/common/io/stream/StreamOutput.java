@@ -544,7 +544,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeOptionalWriteable(@Nullable Writeable<?> writeable) throws IOException {
+    public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
         if (writeable != null) {
             writeBoolean(true);
             writeable.writeTo(this);
@@ -675,7 +675,7 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a {@link NamedWriteable} to the current stream, by first writing its name and then the object itself
      */
-    public void writeNamedWriteable(NamedWriteable<?> namedWriteable) throws IOException {
+    public void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
         writeString(namedWriteable.getWriteableName());
         namedWriteable.writeTo(this);
     }
@@ -683,7 +683,7 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Write an optional {@link NamedWriteable} to the stream.
      */
-    public void writeOptionalNamedWriteable(@Nullable NamedWriteable<?> namedWriteable) throws IOException {
+    public void writeOptionalNamedWriteable(@Nullable NamedWriteable namedWriteable) throws IOException {
         if (namedWriteable == null) {
             writeBoolean(false);
         } else {
@@ -722,7 +722,7 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a list of {@link Writeable} objects
      */
-    public <T extends Writeable<T>> void writeList(List<T> list) throws IOException {
+    public <T extends Writeable> void writeList(List<T> list) throws IOException {
         writeVInt(list.size());
         for (T obj: list) {
             obj.writeTo(this);

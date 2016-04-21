@@ -714,14 +714,14 @@ public abstract class StreamInput extends InputStream {
      * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
      */
     @Nullable
-    public <C extends NamedWriteable<?>> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
+    public <C extends NamedWriteable> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }
 
     /**
      * Reads an optional {@link NamedWriteable}.
      */
-    public <C extends NamedWriteable<?>> C readOptionalNamedWriteable(Class<C> categoryClass) throws IOException {
+    public <C extends NamedWriteable> C readOptionalNamedWriteable(Class<C> categoryClass) throws IOException {
         if (readBoolean()) {
             return readNamedWriteable(categoryClass);
         }

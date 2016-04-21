@@ -33,7 +33,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public final class InnerHitsBuilder extends ToXContentToBytes implements Writeable<InnerHitsBuilder> {
+public final class InnerHitsBuilder extends ToXContentToBytes implements Writeable {
     private final Map<String, InnerHitBuilder> innerHitsBuilders;
 
     public InnerHitsBuilder() {

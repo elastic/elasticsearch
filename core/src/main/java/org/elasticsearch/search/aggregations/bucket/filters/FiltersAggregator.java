@@ -57,7 +57,7 @@ public class FiltersAggregator extends BucketsAggregator {
     public static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
     public static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
 
-    public static class KeyedFilter implements Writeable<KeyedFilter>, ToXContent {
+    public static class KeyedFilter implements Writeable, ToXContent {
         private final String key;
         private final QueryBuilder<?> filter;
 

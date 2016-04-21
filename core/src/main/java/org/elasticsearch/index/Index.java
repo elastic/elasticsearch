@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  *
  */
-public class Index implements Writeable<Index> {
+public class Index implements Writeable {
 
     public static final Index[] EMPTY_ARRAY = new Index[0];
 

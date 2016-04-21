@@ -708,7 +708,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     /**
      * {@link CandidateGenerator} interface.
      */
-    public interface CandidateGenerator extends Writeable<CandidateGenerator>, ToXContent {
+    public interface CandidateGenerator extends Writeable, ToXContent {
         String getType();
 
         PhraseSuggestionContext.DirectCandidateGenerator build(MapperService mapperService) throws IOException;

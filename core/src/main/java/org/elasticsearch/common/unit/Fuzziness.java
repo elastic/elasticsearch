@@ -35,7 +35,7 @@ import java.util.Objects;
  * parsing and conversion from similarities to edit distances
  * etc.
  */
-public final class Fuzziness implements ToXContent, Writeable<Fuzziness> {
+public final class Fuzziness implements ToXContent, Writeable {
 
     public static final String X_FIELD_NAME = "fuzziness";
     public static final Fuzziness ZERO = new Fuzziness(0);

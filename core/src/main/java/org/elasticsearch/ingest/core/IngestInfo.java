@@ -31,7 +31,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
-public class IngestInfo implements Writeable<IngestInfo>, ToXContent {
+public class IngestInfo implements Writeable, ToXContent {
 
     private final Set<ProcessorInfo> processors;
 

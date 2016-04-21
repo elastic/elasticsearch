@@ -87,7 +87,7 @@ enabled=1
 
 To smoke-test the release please run:
 
- python3 -B ./dev-tools/smoke_test_rc.py --version %(version)s --hash %(hash)s --plugins license,shield,watcher
+ python3 -B ./dev-tools/smoke_test_rc.py --version %(version)s --hash %(hash)s --plugins license,shield,watcher,graph
 
 NOTE: this script requires JAVA_HOME to point to a Java 7 Runtime
 

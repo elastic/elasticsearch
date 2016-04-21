@@ -73,6 +73,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     private static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
+    private static final HandshakeRequest HANDSHAKE_REQUEST = new HandshakeRequest(Version.CURRENT);
 
     private final CountDownLatch blockIncomingRequestsLatch = new CountDownLatch(1);
     protected final Transport transport;
@@ -327,7 +328,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             response = this.submitRequest(
                 node,
                 HANDSHAKE_ACTION_NAME,
-                new HandshakeRequest(),
+                HANDSHAKE_REQUEST,
                 TransportRequestOptions.builder().withTimeout(handshakeTimeout).build(),
                 new FutureTransportResponseHandler<HandshakeResponse>() {
                     @Override
@@ -354,9 +355,31 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public static class HandshakeRequest extends TransportRequest {
+
+        private Version version;
+
+        private HandshakeRequest() {
+        }
+
+        private HandshakeRequest(Version version) {
+            this.version = version;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            version = Version.readVersion(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            Version.writeVersion(version, out);
+        }
     }
 
     public static class HandshakeResponse extends TransportResponse {
+
         private DiscoveryNode discoveryNode;
         private ClusterName clusterName;
         private Version version;
@@ -372,6 +395,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
             clusterName = ClusterName.readClusterName(in);
             version = Version.readVersion(in);
@@ -379,10 +403,12 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeOptionalWriteable(discoveryNode);
             clusterName.writeTo(out);
             Version.writeVersion(version, out);
         }
+
     }
 
     public void disconnectFromNode(DiscoveryNode node) {

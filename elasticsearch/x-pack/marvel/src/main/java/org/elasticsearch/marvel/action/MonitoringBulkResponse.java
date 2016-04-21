@@ -87,6 +87,11 @@ public class MonitoringBulkResponse extends ActionResponse {
             this(in.<Throwable>readThrowable());
         }
 
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeThrowable(getCause());
+        }
+
         /**
          * The failure message.
          */
@@ -106,16 +111,6 @@ public class MonitoringBulkResponse extends ActionResponse {
          */
         public Throwable getCause() {
             return cause;
-        }
-
-        @Override
-        public Error readFrom(StreamInput in) throws IOException {
-            return new Error(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeThrowable(getCause());
         }
 
         @Override

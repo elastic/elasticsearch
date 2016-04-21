@@ -101,9 +101,9 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                     routingTableBuilder.remove(indexName);
                     clusterBlocksBuilder.removeIndexBlocks(indexName);
                     metaDataBuilder.remove(indexName);
-                    graveyardBuilder.addTombstone(index); // add the index tombstone to the cluster state
                 }
-                final IndexGraveyard currentGraveyard = graveyardBuilder.build(settings);
+                // add tombstones to the cluster state for each deleted index
+                final IndexGraveyard currentGraveyard = graveyardBuilder.addTombstones(indices).build(settings);
                 metaDataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
                 logger.trace("{} tombstones purged from the cluster state. Previous tombstone size: {}. Current tombstone size: {}.",
                     graveyardBuilder.getNumPurged(), previousGraveyardSize, currentGraveyard.getTombstones().size());

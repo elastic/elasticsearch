@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
@@ -194,15 +195,22 @@ final public class IndexGraveyard implements MetaData.Custom {
          * Add a deleted index to the list of tombstones in the cluster state.
          */
         public Builder addTombstone(final Index index) {
-            final Tombstone tombstone = new Tombstone(index, System.currentTimeMillis());
-            tombstones.add(tombstone);
+            tombstones.add(new Tombstone(index, System.currentTimeMillis()));
+            return this;
+        }
+
+        /**
+         * Add a set of deleted indexes to the list of tombstones in the cluster state.
+         */
+        public Builder addTombstones(final Set<Index> indices) {
+            indices.stream().forEach(this::addTombstone);
             return this;
         }
 
         /**
          * Add a list of tombstones to the graveyard.
          */
-        Builder addTombstones(final List<Tombstone> tombstones) {
+        Builder addBuiltTombstones(final List<Tombstone> tombstones) {
             this.tombstones.addAll(tombstones);
             return this;
         }
@@ -224,12 +232,12 @@ final public class IndexGraveyard implements MetaData.Custom {
          * Tombstones are purged until the list is equal to the maximum allowed.
          */
         private int purge(final int maxTombstones) {
-            int numPurged = tombstones().size() - maxTombstones;
-            if (numPurged <= 0) {
+            int count = tombstones().size() - maxTombstones;
+            if (count <= 0) {
                 return 0;
             }
-            tombstones = tombstones.subList(numPurged, tombstones.size());
-            return numPurged;
+            tombstones = tombstones.subList(count, tombstones.size());
+            return count;
         }
 
         public IndexGraveyard build() {
@@ -238,8 +246,7 @@ final public class IndexGraveyard implements MetaData.Custom {
 
         public IndexGraveyard build(final Settings settings) {
             // first, purge the necessary amount of entries
-            final int purgedCount = purge(SETTING_MAX_TOMBSTONES.get(settings));
-            numPurged = purgedCount;
+            numPurged = purge(SETTING_MAX_TOMBSTONES.get(settings));
             return new IndexGraveyard(tombstones);
         }
     }
@@ -312,7 +319,7 @@ final public class IndexGraveyard implements MetaData.Custom {
             for (Tombstone tombstone : added) {
                 newTombstones.add(tombstone);
             }
-            return new IndexGraveyard.Builder().addTombstones(newTombstones).build();
+            return new IndexGraveyard.Builder().addBuiltTombstones(newTombstones).build();
         }
 
         /** The index tombstones that were added between two states */

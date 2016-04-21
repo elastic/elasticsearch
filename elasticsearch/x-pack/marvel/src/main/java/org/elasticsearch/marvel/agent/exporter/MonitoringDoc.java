@@ -20,7 +20,7 @@ import java.util.Map;
 /**
  * Base class for all monitoring documents.
  */
-public class MonitoringDoc implements Writeable<MonitoringDoc> {
+public class MonitoringDoc implements Writeable {
 
     private final String monitoringId;
     private final String monitoringVersion;
@@ -98,7 +98,7 @@ public class MonitoringDoc implements Writeable<MonitoringDoc> {
                 "]";
     }
 
-    public static class Node implements Writeable<Node>, ToXContent {
+    public static class Node implements Writeable, ToXContent {
 
         private String uuid;
         private String host;

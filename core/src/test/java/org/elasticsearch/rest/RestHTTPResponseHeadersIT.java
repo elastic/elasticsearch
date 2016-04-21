@@ -53,7 +53,7 @@ public class RestHTTPResponseHeadersIT extends ESIntegTestCase {
 	 * response code is returned, and that the response 'Allow' header includes
 	 * a list of valid HTTP methods for the endpoint (see
 	 * <a href="https://tools.ietf.org/html/rfc2616#section-9.2">HTTP/1.1 - 9.2
-	 * Options</a>).
+	 * - Options</a>).
 	 */
 	public void testValidEndpointOptionsResponseHTTPHeader() throws Exception {
 		createIndex("test");
@@ -70,7 +70,7 @@ public class RestHTTPResponseHeadersIT extends ESIntegTestCase {
 	 * 'Allow' header includes a list of valid HTTP methods for the endpoint
 	 * (see
 	 * <a href="https://tools.ietf.org/html/rfc2616#section-10.4.6">HTTP/1.1 -
-	 * 405 Method Not Allowed</a>).
+	 * 10.4.6 - 405 Method Not Allowed</a>).
 	 */
 	public void testUnsupportedMethodResponseHTTPHeader() throws Exception {
 		createIndex("test");

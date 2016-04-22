@@ -202,7 +202,8 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
                 throw new UnsupportedOperationException();
             }
         });
-        return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), externalNode);
+        return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), externalNode,
+            getTestClass().getSimpleName());
     }
 
     private Settings addLoggerSettings(Settings externalNodesSettings) {

@@ -904,7 +904,7 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
   "aggs": {
     "group_by_state": {
       "terms": {
-        "field": "state"
+        "field": "state.keyword"
       }
     }
   }
@@ -979,7 +979,7 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
   "aggs": {
     "group_by_state": {
       "terms": {
-        "field": "state"
+        "field": "state.keyword"
       },
       "aggs": {
         "average_balance": {
@@ -1005,7 +1005,7 @@ curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
   "aggs": {
     "group_by_state": {
       "terms": {
-        "field": "state",
+        "field": "state.keyword",
         "order": {
           "average_balance": "desc"
         }

@@ -111,12 +111,11 @@ public abstract class TransportReplicatedMutationAction<
             this.location = location;
         }
 
-        @SuppressWarnings("unchecked")
-        public <T extends ReplicationResponse> T response() {
+        public T response() {
             // this sets total, pending and failed to 0 and this is ok, because we will embed this into the replica
             // request and not use it
             response.setShardInfo(new ReplicationResponse.ShardInfo());
-            return (T) response;
+            return response;
         }
     }
 }

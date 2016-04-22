@@ -238,6 +238,7 @@ public class TransportShardBulkAction extends TransportReplicatedMutationAction<
                 switch (updateResult.result.operation()) {
                     case UPSERT:
                     case INDEX:
+                        @SuppressWarnings("unchecked")
                         WriteResult<IndexResponse> result = updateResult.writeResult;
                         IndexRequest indexRequest = updateResult.request();
                         BytesReference indexSourceAsBytes = indexRequest.source();
@@ -252,6 +253,7 @@ public class TransportShardBulkAction extends TransportReplicatedMutationAction<
                         setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE, updateResponse));
                         break;
                     case DELETE:
+                        @SuppressWarnings("unchecked")
                         WriteResult<DeleteResponse> writeResult = updateResult.writeResult;
                         DeleteResponse response = writeResult.response();
                         DeleteRequest deleteRequest = updateResult.request();

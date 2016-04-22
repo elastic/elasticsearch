@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugin.analysis.icu;
 
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.analysis.IcuCollationTokenFilterFactory;
 import org.elasticsearch.index.analysis.IcuFoldingTokenFilterFactory;
 import org.elasticsearch.index.analysis.IcuNormalizerCharFilterFactory;
@@ -53,5 +54,9 @@ public class AnalysisICUPlugin extends Plugin {
         module.registerTokenFilter("icu_folding", IcuFoldingTokenFilterFactory::new);
         module.registerTokenFilter("icu_collation", IcuCollationTokenFilterFactory::new);
         module.registerTokenFilter("icu_transform", IcuTransformTokenFilterFactory::new);
+    }
+
+    public void onModule(SettingsModule settingsModule) {
+        settingsModule.registerSetting(IcuTokenizerFactory.SETTING_RULE_FILES);
     }
 }

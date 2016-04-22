@@ -34,9 +34,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -50,7 +50,7 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Performs the delete operation.
  */
-public class TransportDeleteAction extends TransportReplicatedMutationAction<DeleteRequest, DeleteRequest, DeleteResponse> {
+public class TransportDeleteAction extends TransportReplicatedMutationAction<DeleteRequest, DeleteResponse> {
 
     private final AutoCreateIndex autoCreateIndex;
     private final TransportCreateIndexAction createIndexAction;
@@ -61,9 +61,8 @@ public class TransportDeleteAction extends TransportReplicatedMutationAction<Del
                                  TransportCreateIndexAction createIndexAction, ActionFilters actionFilters,
                                  IndexNameExpressionResolver indexNameExpressionResolver,
                                  AutoCreateIndex autoCreateIndex) {
-        super(settings, DeleteAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
-            actionFilters, indexNameExpressionResolver,
-            DeleteRequest::new, DeleteRequest::new, ThreadPool.Names.INDEX);
+        super(settings, DeleteAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
+                indexNameExpressionResolver, DeleteRequest::new, ThreadPool.Names.INDEX);
         this.createIndexAction = createIndexAction;
         this.autoCreateIndex = autoCreateIndex;
     }
@@ -120,11 +119,13 @@ public class TransportDeleteAction extends TransportReplicatedMutationAction<Del
     }
 
     @Override
-    protected Tuple<DeleteResponse, DeleteRequest> shardOperationOnPrimary(DeleteRequest request) {
-        IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
-        final WriteResult<DeleteResponse> result = executeDeleteRequestOnPrimary(request, indexShard);
-        processAfterWrite(request.refresh(), indexShard, result.location);
-        return new Tuple<>(result.response, request);
+    protected WriteResult<DeleteResponse> onPrimaryShard(IndexService indexService, IndexShard indexShard, DeleteRequest request) {
+        return executeDeleteRequestOnPrimary(request, indexShard);
+    }
+
+    @Override
+    protected Location onReplicaShard(DeleteRequest request, IndexShard indexShard) {
+        return executeDeleteRequestOnReplica(request, indexShard).getTranslogLocation();
     }
 
     public static WriteResult<DeleteResponse> executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard indexShard) {
@@ -145,10 +146,4 @@ public class TransportDeleteAction extends TransportReplicatedMutationAction<Del
         indexShard.delete(delete);
         return delete;
     }
-
-    @Override
-    protected Location onReplicaShard(DeleteRequest request, IndexShard indexShard) {
-        return executeDeleteRequestOnReplica(request, indexShard).getTranslogLocation();
-    }
-
 }

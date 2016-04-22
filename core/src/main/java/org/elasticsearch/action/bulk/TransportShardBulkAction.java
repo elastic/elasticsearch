@@ -68,7 +68,7 @@ import static org.elasticsearch.action.support.replication.ReplicationOperation.
 /**
  * Performs the index operation.
  */
-public class TransportShardBulkAction extends TransportReplicatedMutationAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
+public class TransportShardBulkAction extends TransportReplicatedMutationAction<BulkShardRequest, BulkShardResponse> {
 
     private final static String OP_TYPE_UPDATE = "update";
     private final static String OP_TYPE_DELETE = "delete";
@@ -84,9 +84,8 @@ public class TransportShardBulkAction extends TransportReplicatedMutationAction<
                                     IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                     MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
-            actionFilters, indexNameExpressionResolver,
-                BulkShardRequest::new, BulkShardRequest::new, ThreadPool.Names.BULK);
+        super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
+                indexNameExpressionResolver, BulkShardRequest::new, ThreadPool.Names.BULK);
         this.updateHelper = updateHelper;
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
         this.mappingUpdatedAction = mappingUpdatedAction;
@@ -108,10 +107,7 @@ public class TransportShardBulkAction extends TransportReplicatedMutationAction<
     }
 
     @Override
-    protected Tuple<BulkShardResponse, BulkShardRequest> shardOperationOnPrimary(BulkShardRequest request) {
-        ShardId shardId = request.shardId();
-        final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        final IndexShard indexShard = indexService.getShard(shardId.getId());
+    protected WriteResult<BulkShardResponse> onPrimaryShard(IndexService indexService, IndexShard indexShard, BulkShardRequest request) {
         final IndexMetaData metaData = indexService.getIndexSettings().getIndexMetaData();
 
         long[] preVersions = new long[request.items().length];
@@ -122,13 +118,12 @@ public class TransportShardBulkAction extends TransportReplicatedMutationAction<
             location = handleItem(metaData, request, indexShard, preVersions, preVersionTypes, location, requestIndex, item);
         }
 
-        processAfterWrite(request.refresh(), indexShard, location);
         BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
         BulkItemRequest[] items = request.items();
         for (int i = 0; i < items.length; i++) {
             responses[i] = items[i].getPrimaryResponse();
         }
-        return new Tuple<>(new BulkShardResponse(request.shardId(), responses), request);
+        return new WriteResult<>(new BulkShardResponse(request.shardId(), responses), location);
     }
 
     private Translog.Location handleItem(IndexMetaData metaData, BulkShardRequest request, IndexShard indexShard, long[] preVersions, VersionType[] preVersionTypes, Translog.Location location, int requestIndex, BulkItemRequest item) {

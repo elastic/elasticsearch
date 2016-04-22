@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -40,27 +41,44 @@ import java.util.function.Supplier;
  */
 public abstract class TransportReplicatedMutationAction<
             Request extends ReplicatedMutationRequest<Request>,
-            ReplicaRequest extends ReplicatedMutationRequest<ReplicaRequest>,
             Response extends ReplicationResponse
-        > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
+        > extends TransportReplicationAction<Request, Request, Response> {
 
     protected TransportReplicatedMutationAction(Settings settings, String actionName, TransportService transportService,
             ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
-            Supplier<ReplicaRequest> replicaRequest, String executor) {
+            String executor) {
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                indexNameExpressionResolver, request, replicaRequest, executor);
+                indexNameExpressionResolver, request, request, executor);
     }
 
     /**
-     * Called on each replica node with a reference to the shard to modify.
+     * Called with a reference to the primary shard.
      *
-     * @return the translog location after the modification
+     * @return the result of the write - basically just the response to send back and the translog location of the {@linkplain IndexShard}
+     *         after the write was completed
      */
-    protected abstract Translog.Location onReplicaShard(ReplicaRequest request, IndexShard indexShard);
+    protected abstract WriteResult<Response> onPrimaryShard(IndexService indexService, IndexShard indexShard, Request request)
+            throws Exception;
+
+    /**
+     * Called once per replica with a reference to the {@linkplain IndexShard} to modify.
+     *
+     * @return the translog location of the {@linkplain IndexShard} after the write was completed
+     */
+    protected abstract Translog.Location onReplicaShard(Request request, IndexShard indexShard);
 
     @Override
-    protected final void shardOperationOnReplica(ReplicaRequest request) {
+    protected Tuple<Response, Request> shardOperationOnPrimary(Request request) throws Exception {
+        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        IndexShard indexShard = indexService.getShard(request.shardId().id());
+        WriteResult<Response> response = onPrimaryShard(indexService, indexShard, request);
+        processAfterWrite(request.refresh(), indexShard, response.location);
+        return new Tuple<>(response.response, request);
+    }
+
+    @Override
+    protected final void shardOperationOnReplica(Request request) {
         final ShardId shardId = request.shardId();
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());

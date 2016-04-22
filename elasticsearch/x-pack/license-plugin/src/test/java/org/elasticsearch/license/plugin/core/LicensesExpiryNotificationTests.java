@@ -11,7 +11,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.plugin.TestUtils.AssertingLicensee;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.license.plugin.TestUtils.awaitNoBlock;
 import static org.elasticsearch.license.plugin.TestUtils.awaitNoPendingTasks;
@@ -41,10 +43,10 @@ public class LicensesExpiryNotificationTests extends ESSingleNodeTestCase {
         awaitNoBlock(client());
         licensesService.register(licensee);
         awaitNoPendingTasks(client());
-        boolean success = awaitBusy(() -> licensee.licenseStates.size() == 3);
+        boolean success = awaitBusy(() -> licensee.statuses.size() == 3);
         // trail license: enable, grace, disabled
         assertLicenseStates(licensee, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED);
-        assertTrue(dumpLicensingStates(licensee.licenseStates), success);
+        assertTrue(dumpLicensingStates(licensee.statuses), success);
         licensesService.stop();
     }
 
@@ -61,10 +63,10 @@ public class LicensesExpiryNotificationTests extends ESSingleNodeTestCase {
         licensesService.register(licensee1);
         licensesService.register(licensee2);
         awaitNoPendingTasks(client());
-        boolean success = awaitBusy(() -> licensee1.licenseStates.size() == 3);
-        assertTrue(dumpLicensingStates(licensee1.licenseStates), success);
-        success = awaitBusy(() -> licensee2.licenseStates.size() == 3);
-        assertTrue(dumpLicensingStates(licensee2.licenseStates), success);
+        boolean success = awaitBusy(() -> licensee1.statuses.size() == 3);
+        assertTrue(dumpLicensingStates(licensee1.statuses), success);
+        success = awaitBusy(() -> licensee2.statuses.size() == 3);
+        assertTrue(dumpLicensingStates(licensee2.statuses), success);
         // trail license: enable, grace, disabled
         assertLicenseStates(licensee1, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED);
         assertLicenseStates(licensee2, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED);
@@ -81,13 +83,13 @@ public class LicensesExpiryNotificationTests extends ESSingleNodeTestCase {
         awaitNoBlock(client());
         licensesService.register(licensee);
         awaitNoPendingTasks(client());
-        boolean success = awaitBusy(() -> licensee.licenseStates.size() == 1);
-        assertTrue(dumpLicensingStates(licensee.licenseStates), success);
+        boolean success = awaitBusy(() -> licensee.statuses.size() == 1);
+        assertTrue(dumpLicensingStates(licensee.statuses), success);
         registerAndAckSignedLicenses(licensesService, generateSignedLicense(TimeValue.timeValueSeconds(4)), LicensesStatus.VALID);
-        success = awaitBusy(() -> licensee.licenseStates.size() == 4);
+        success = awaitBusy(() -> licensee.statuses.size() == 4);
         // trial: enable, signed: enable, signed: grace, signed: disabled
         assertLicenseStates(licensee, LicenseState.ENABLED, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED);
-        assertTrue(dumpLicensingStates(licensee.licenseStates), success);
+        assertTrue(dumpLicensingStates(licensee.statuses), success);
         licensesService.stop();
     }
 
@@ -102,10 +104,10 @@ public class LicensesExpiryNotificationTests extends ESSingleNodeTestCase {
         registerAndAckSignedLicenses(licensesService, generateSignedLicense(TimeValue.timeValueSeconds(2)), LicensesStatus.VALID);
         licensesService.register(licensee);
         awaitNoPendingTasks(client());
-        boolean success = awaitBusy(() -> licensee.licenseStates.size() == 3);
+        boolean success = awaitBusy(() -> licensee.statuses.size() == 3);
         // signed: enable, signed: grace, signed: disabled
         assertLicenseStates(licensee, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED);
-        assertTrue(dumpLicensingStates(licensee.licenseStates), success);
+        assertTrue(dumpLicensingStates(licensee.statuses), success);
         licensesService.stop();
     }
 
@@ -123,10 +125,10 @@ public class LicensesExpiryNotificationTests extends ESSingleNodeTestCase {
         licensesService.register(licensee1);
         licensesService.register(licensee2);
         awaitNoPendingTasks(client());
-        boolean success = awaitBusy(() -> licensee1.licenseStates.size() == 3);
-        assertTrue(dumpLicensingStates(licensee1.licenseStates), success);
-        success = awaitBusy(() -> licensee2.licenseStates.size() == 3);
-        assertTrue(dumpLicensingStates(licensee2.licenseStates), success);
+        boolean success = awaitBusy(() -> licensee1.statuses.size() == 3);
+        assertTrue(dumpLicensingStates(licensee1.statuses), success);
+        success = awaitBusy(() -> licensee2.statuses.size() == 3);
+        assertTrue(dumpLicensingStates(licensee2.statuses), success);
         // signed license: enable, grace, disabled
         assertLicenseStates(licensee1, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED);
         assertLicenseStates(licensee2, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED);
@@ -145,18 +147,18 @@ public class LicensesExpiryNotificationTests extends ESSingleNodeTestCase {
         licensesService.register(licensee);
         awaitNoPendingTasks(client());
         // trial license enabled
-        boolean success = awaitBusy(() -> licensee.licenseStates.size() == 1);
-        assertTrue(dumpLicensingStates(licensee.licenseStates), success);
+        boolean success = awaitBusy(() -> licensee.statuses.size() == 1);
+        assertTrue(dumpLicensingStates(licensee.statuses), success);
         registerAndAckSignedLicenses(licensesService, generateSignedLicense("basic", TimeValue.timeValueSeconds(3)), LicensesStatus.VALID);
         // signed license enabled
-        success = awaitBusy(() -> licensee.licenseStates.size() == 2);
-        assertTrue(dumpLicensingStates(licensee.licenseStates), success);
+        success = awaitBusy(() -> licensee.statuses.size() == 2);
+        assertTrue(dumpLicensingStates(licensee.statuses), success);
         registerAndAckSignedLicenses(licensesService, generateSignedLicense("gold", TimeValue.timeValueSeconds(2)), LicensesStatus.VALID);
         // second signed license enabled, grace and expired
-        success = awaitBusy(() ->licensee.licenseStates.size() == 5);
+        success = awaitBusy(() ->licensee.statuses.size() == 5);
         assertLicenseStates(licensee, LicenseState.ENABLED, LicenseState.ENABLED, LicenseState.ENABLED, LicenseState.GRACE_PERIOD,
                 LicenseState.DISABLED);
-        assertTrue(dumpLicensingStates(licensee.licenseStates), success);
+        assertTrue(dumpLicensingStates(licensee.statuses), success);
         licensesService.stop();
     }
 
@@ -171,33 +173,39 @@ public class LicensesExpiryNotificationTests extends ESSingleNodeTestCase {
         awaitNoBlock(client());
         licensesService.register(licensee);
         // trial license: enabled, grace, disabled
-        boolean success = awaitBusy(() -> licensee.licenseStates.size() == 3);
+        boolean success = awaitBusy(() -> licensee.statuses.size() == 3);
 
-        assertTrue(dumpLicensingStates(licensee.licenseStates), success);
+        assertTrue(dumpLicensingStates(licensee.statuses), success);
         // install license
         registerAndAckSignedLicenses(licensesService, generateSignedLicense("basic", TimeValue.timeValueSeconds(2)), LicensesStatus.VALID);
         // trial license: enabled, grace, disabled, signed license: enabled, grace, disabled
-        success = awaitBusy(() -> licensee.licenseStates.size() == 6);
+        success = awaitBusy(() -> licensee.statuses.size() == 6);
         assertLicenseStates(licensee, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED, LicenseState.ENABLED,
                 LicenseState.GRACE_PERIOD, LicenseState.DISABLED);
-        assertTrue(dumpLicensingStates(licensee.licenseStates), success);
+        assertTrue(dumpLicensingStates(licensee.statuses), success);
         licensesService.stop();
     }
 
     private void assertLicenseStates(AssertingLicensee licensee, LicenseState... states) {
         StringBuilder msg = new StringBuilder();
         msg.append("Actual: ");
-        msg.append(dumpLicensingStates(licensee.licenseStates));
+        msg.append(dumpLicensingStates(licensee.statuses));
         msg.append(" Expected: ");
         msg.append(dumpLicensingStates(states));
-        assertThat(msg.toString(), licensee.licenseStates.size(), equalTo(states.length));
+        assertThat(msg.toString(), licensee.statuses.size(), equalTo(states.length));
         for (int i = 0; i < states.length; i++) {
-            assertThat(msg.toString(), licensee.licenseStates.get(i), equalTo(states[i]));
+            assertThat(msg.toString(), licensee.statuses.get(i), equalTo(states[i]));
         }
     }
 
-    private String dumpLicensingStates(List<LicenseState> states) {
-        return dumpLicensingStates(states.toArray(new LicenseState[states.size()]));
+    private String dumpLicensingStates(List<Licensee.Status> statuses) {
+        return dumpLicensingStates(statuses.toArray(new Licensee.Status[statuses.size()]));
+    }
+
+
+    private String dumpLicensingStates(Licensee.Status... statuses) {
+        return dumpLicensingStates((LicenseState[]) Arrays.asList(statuses).stream()
+                .map(Licensee.Status::getLicenseState).collect(Collectors.toList()).toArray());
     }
 
     private String dumpLicensingStates(LicenseState... states) {

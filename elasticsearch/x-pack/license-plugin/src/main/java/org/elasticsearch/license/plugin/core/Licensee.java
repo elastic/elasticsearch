@@ -53,6 +53,7 @@ public interface Licensee {
     class Status {
 
         public static Status ENABLED = new Status(OperationMode.TRIAL, LicenseState.ENABLED);
+        public static Status MISSING = new Status(OperationMode.MISSING, LicenseState.DISABLED);
 
         private final OperationMode mode;
         private final LicenseState licenseState;

@@ -511,72 +511,77 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
      */
     private void notifyAndSchedule(final LicensesMetaData currentLicensesMetaData) {
         final License license = getLicense(currentLicensesMetaData);
-        if (license != null) {
-            logger.debug("notifying [{}] listeners", registeredLicensees.size());
-            long now = System.currentTimeMillis();
-            if (license.issueDate() > now) {
-                logger.info("license [{}] - invalid", license.uid());
-                return;
+        if (license == null) {
+            for (InternalLicensee licensee : registeredLicensees) {
+                licensee.onRemove();
             }
-            long expiryDuration = license.expiryDate() - now;
-            if (license.expiryDate() > now) {
-                for (InternalLicensee licensee : registeredLicensees) {
-                    licensee.onChange(license, LicenseState.ENABLED);
-                }
-                logger.info("license [{}] - valid", license.uid());
-                final TimeValue delay = TimeValue.timeValueMillis(expiryDuration);
-                // cancel any previous notifications
-                cancelNotifications(expiryNotifications);
-                try {
-                    logger.debug("schedule grace notification after [{}] for license [{}]", delay.toString(), license.uid());
-                    expiryNotifications.add(threadPool.schedule(delay, executorName(), new LicensingClientNotificationJob()));
-                } catch (EsRejectedExecutionException ex) {
-                    logger.debug("couldn't schedule grace notification", ex);
-                }
-            } else if ((license.expiryDate() + gracePeriodDuration.getMillis()) > now) {
-                for (InternalLicensee licensee : registeredLicensees) {
-                    licensee.onChange(license, LicenseState.GRACE_PERIOD);
-                }
-                logger.info("license [{}] - grace", license.uid());
-                final TimeValue delay = TimeValue.timeValueMillis(expiryDuration + gracePeriodDuration.getMillis());
-                // cancel any previous notifications
-                cancelNotifications(expiryNotifications);
-                try {
-                    logger.debug("schedule expiry notification after [{}] for license [{}]", delay.toString(), license.uid());
-                    expiryNotifications.add(threadPool.schedule(delay, executorName(), new LicensingClientNotificationJob()));
-                } catch (EsRejectedExecutionException ex) {
-                    logger.debug("couldn't schedule expiry notification", ex);
-                }
-            } else {
-                for (InternalLicensee licensee : registeredLicensees) {
-                    licensee.onChange(license, LicenseState.DISABLED);
-                }
-                logger.info("license [{}] - expired", license.uid());
+            return;
+        }
+
+        logger.debug("notifying [{}] listeners", registeredLicensees.size());
+        long now = System.currentTimeMillis();
+        if (license.issueDate() > now) {
+            logger.info("license [{}] - invalid", license.uid());
+            return;
+        }
+        long expiryDuration = license.expiryDate() - now;
+        if (license.expiryDate() > now) {
+            for (InternalLicensee licensee : registeredLicensees) {
+                licensee.onChange(license, LicenseState.ENABLED);
             }
-            if (!license.equals(currentLicense.get())) {
-                currentLicense.set(license);
-                // cancel all scheduled event notifications
-                cancelNotifications(eventNotifications);
-                // schedule expiry callbacks
-                for (ExpirationCallback expirationCallback : this.expirationCallbacks) {
-                    final TimeValue delay;
-                    if (expirationCallback.matches(license.expiryDate(), now)) {
-                        expirationCallback.on(license);
-                        TimeValue frequency = expirationCallback.frequency();
-                        delay = frequency != null ? frequency : expirationCallback.delay(expiryDuration);
-                    } else {
-                        delay = expirationCallback.delay(expiryDuration);
-                    }
-                    if (delay != null) {
-                        eventNotifications.add(threadPool.schedule(delay, executorName(), new EventNotificationJob(expirationCallback)));
-                    }
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("schedule [{}] after [{}]", expirationCallback, delay);
-                    }
-                }
-                logger.debug("scheduled expiry callbacks for [{}] expiring after [{}]", license.uid(),
-                        TimeValue.timeValueMillis(expiryDuration));
+            logger.info("license [{}] - valid", license.uid());
+            final TimeValue delay = TimeValue.timeValueMillis(expiryDuration);
+            // cancel any previous notifications
+            cancelNotifications(expiryNotifications);
+            try {
+                logger.debug("schedule grace notification after [{}] for license [{}]", delay.toString(), license.uid());
+                expiryNotifications.add(threadPool.schedule(delay, executorName(), new LicensingClientNotificationJob()));
+            } catch (EsRejectedExecutionException ex) {
+                logger.debug("couldn't schedule grace notification", ex);
             }
+        } else if ((license.expiryDate() + gracePeriodDuration.getMillis()) > now) {
+            for (InternalLicensee licensee : registeredLicensees) {
+                licensee.onChange(license, LicenseState.GRACE_PERIOD);
+            }
+            logger.info("license [{}] - grace", license.uid());
+            final TimeValue delay = TimeValue.timeValueMillis(expiryDuration + gracePeriodDuration.getMillis());
+            // cancel any previous notifications
+            cancelNotifications(expiryNotifications);
+            try {
+                logger.debug("schedule expiry notification after [{}] for license [{}]", delay.toString(), license.uid());
+                expiryNotifications.add(threadPool.schedule(delay, executorName(), new LicensingClientNotificationJob()));
+            } catch (EsRejectedExecutionException ex) {
+                logger.debug("couldn't schedule expiry notification", ex);
+            }
+        } else {
+            for (InternalLicensee licensee : registeredLicensees) {
+                licensee.onChange(license, LicenseState.DISABLED);
+            }
+            logger.info("license [{}] - expired", license.uid());
+        }
+        if (!license.equals(currentLicense.get())) {
+            currentLicense.set(license);
+            // cancel all scheduled event notifications
+            cancelNotifications(eventNotifications);
+            // schedule expiry callbacks
+            for (ExpirationCallback expirationCallback : this.expirationCallbacks) {
+                final TimeValue delay;
+                if (expirationCallback.matches(license.expiryDate(), now)) {
+                    expirationCallback.on(license);
+                    TimeValue frequency = expirationCallback.frequency();
+                    delay = frequency != null ? frequency : expirationCallback.delay(expiryDuration);
+                } else {
+                    delay = expirationCallback.delay(expiryDuration);
+                }
+                if (delay != null) {
+                    eventNotifications.add(threadPool.schedule(delay, executorName(), new EventNotificationJob(expirationCallback)));
+                }
+                if (logger.isDebugEnabled()) {
+                    logger.debug("schedule [{}] after [{}]", expirationCallback, delay);
+                }
+            }
+            logger.debug("scheduled expiry callbacks for [{}] expiring after [{}]", license.uid(),
+                    TimeValue.timeValueMillis(expiryDuration));
         }
     }
 
@@ -843,6 +848,14 @@ public class LicensesService extends AbstractLifecycleComponent<LicensesService>
                     currentLicense = license;
                     currentLicenseState = state;
                 }
+            }
+        }
+
+        public void onRemove() {
+            synchronized (this) {
+                currentLicense = null;
+                currentLicenseState = null;
+                licensee.onChange(Licensee.Status.MISSING);
             }
         }
     }

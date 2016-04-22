@@ -77,6 +77,7 @@ public class License implements ToXContent {
      * Note: The mode indicates features that should be made available, but it does not indicate whether the license is active!
      */
     public enum OperationMode {
+        MISSING,
         TRIAL,
         BASIC,
         STANDARD,
@@ -85,6 +86,8 @@ public class License implements ToXContent {
 
         public static OperationMode resolve(String type) {
             switch (type.toLowerCase(Locale.ROOT)) {
+                case "missing":
+                    return MISSING;
                 case "trial":
                 case "none": // bwc for 1.x subscription_type field
                 case "dev": // bwc for 1.x subscription_type field

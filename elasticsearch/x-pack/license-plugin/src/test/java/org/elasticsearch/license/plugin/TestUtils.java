@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
-import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
@@ -162,7 +161,7 @@ public class TestUtils {
     public static class AssertingLicensee implements Licensee {
         public final ESLogger logger;
         public final String id;
-        public final List<LicenseState> licenseStates = new CopyOnWriteArrayList<>();
+        public final List<Licensee.Status> statuses = new CopyOnWriteArrayList<>();
         public final AtomicInteger expirationMessagesCalled = new AtomicInteger(0);
         public final List<Tuple<License, License>> acknowledgementRequested = new CopyOnWriteArrayList<>();
 
@@ -196,7 +195,7 @@ public class TestUtils {
         @Override
         public void onChange(Status status) {
             assertNotNull(status);
-            licenseStates.add(status.getLicenseState());
+            statuses.add(status);
         }
     }
 }

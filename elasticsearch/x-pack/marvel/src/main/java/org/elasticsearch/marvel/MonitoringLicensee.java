@@ -75,12 +75,12 @@ public class MonitoringLicensee extends AbstractLicenseeComponent<MonitoringLice
     }
 
     /**
-     * Monitoring is always available regardless of the license type (operation mode)
+     * Monitoring is always available as long as there is a valid license
      *
      * @return true
      */
-    public boolean available() {
-        return true;
+    public boolean isAvailable() {
+        return status.getMode() != OperationMode.MISSING && status.getLicenseState() != LicenseState.DISABLED;
     }
 
     /**

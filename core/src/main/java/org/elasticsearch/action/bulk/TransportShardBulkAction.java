@@ -53,6 +53,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -431,12 +432,8 @@ public class TransportShardBulkAction extends TransportReplicatedMutationAction<
         }
     }
 
-
     @Override
-    protected void shardOperationOnReplica(BulkShardRequest request) {
-        final ShardId shardId = request.shardId();
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
+    protected Location onReplicaShard(BulkShardRequest request, IndexShard indexShard) {
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
@@ -472,8 +469,7 @@ public class TransportShardBulkAction extends TransportReplicatedMutationAction<
                 throw new IllegalStateException("Unexpected index operation: " + item.request());
             }
         }
-
-        processAfterWrite(request.refresh(), indexShard, location);
+        return location;
     }
 
     private void applyVersion(BulkItemRequest item, long version, VersionType versionType) {

@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
@@ -146,11 +147,8 @@ public class TransportDeleteAction extends TransportReplicatedMutationAction<Del
     }
 
     @Override
-    protected void shardOperationOnReplica(DeleteRequest request) {
-        final ShardId shardId = request.shardId();
-        IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-        Engine.Delete delete = executeDeleteRequestOnReplica(request, indexShard);
-        processAfterWrite(request.refresh(), indexShard, delete.getTranslogLocation());
+    protected Location onReplicaShard(DeleteRequest request, IndexShard indexShard) {
+        return executeDeleteRequestOnReplica(request, indexShard).getTranslogLocation();
     }
 
 }

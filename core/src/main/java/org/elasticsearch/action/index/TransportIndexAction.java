@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
@@ -155,12 +156,8 @@ public class TransportIndexAction extends TransportReplicatedMutationAction<Inde
     }
 
     @Override
-    protected void shardOperationOnReplica(IndexRequest request) {
-        final ShardId shardId = request.shardId();
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
-        final Engine.Index operation = executeIndexRequestOnReplica(request, indexShard);
-        processAfterWrite(request.refresh(), indexShard, operation.getTranslogLocation());
+    protected Location onReplicaShard(IndexRequest request, IndexShard indexShard) {
+        return executeIndexRequestOnReplica(request, indexShard).getTranslogLocation();
     }
 
     /**

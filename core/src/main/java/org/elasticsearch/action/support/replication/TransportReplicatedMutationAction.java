@@ -25,7 +25,9 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,8 +39,8 @@ import java.util.function.Supplier;
  * Base class for transport actions that modify data in some shard like index, delete, and shardBulk.
  */
 public abstract class TransportReplicatedMutationAction<
-            Request extends ReplicationRequest<Request>,
-            ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+            Request extends ReplicatedMutationRequest<Request>,
+            ReplicaRequest extends ReplicatedMutationRequest<ReplicaRequest>,
             Response extends ReplicationResponse
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
@@ -48,6 +50,22 @@ public abstract class TransportReplicatedMutationAction<
             Supplier<ReplicaRequest> replicaRequest, String executor) {
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
                 indexNameExpressionResolver, request, replicaRequest, executor);
+    }
+
+    /**
+     * Called on each replica node with a reference to the shard to modify.
+     *
+     * @return the translog location after the modification
+     */
+    protected abstract Translog.Location onReplicaShard(ReplicaRequest request, IndexShard indexShard);
+
+    @Override
+    protected final void shardOperationOnReplica(ReplicaRequest request) {
+        final ShardId shardId = request.shardId();
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.getShard(shardId.id());
+        Translog.Location location = onReplicaShard(request, indexShard);
+        processAfterWrite(request.refresh(), indexShard, location);
     }
 
     protected final void processAfterWrite(boolean refresh, IndexShard indexShard, Translog.Location location) {

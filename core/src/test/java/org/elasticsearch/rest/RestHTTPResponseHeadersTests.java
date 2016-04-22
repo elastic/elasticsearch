@@ -19,19 +19,24 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
+import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -40,12 +45,11 @@ import static org.hamcrest.Matchers.is;
  * methods on REST endpoints should respond with status code 405</a> for more
  * information.
  */
-@ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
-public class RestHTTPResponseHeadersIT extends ESIntegTestCase {
+public class RestHTTPResponseHeadersTests extends ESSingleNodeTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), true).put(super.nodeSettings(nodeOrdinal)).build();
+    protected Settings nodeSettings() {
+        return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), true).put(super.nodeSettings()).build();
     }
 
     /**
@@ -79,6 +83,17 @@ public class RestHTTPResponseHeadersIT extends ESIntegTestCase {
         assertThat(httpResponse.getHeaders().get("Allow"), notNullValue());
         List<String> allowHeader = Arrays.asList(httpResponse.getHeaders().get("Allow").split(","));
         assertThat(allowHeader, containsInAnyOrder("HEAD", "GET", "POST"));
+    }
+
+    private HttpRequestBuilder httpClient() {
+        final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
+        final NodeInfo[] nodes = nodeInfos.getNodes();
+        assertTrue(nodes.length > 0);
+        TransportAddress publishAddress = nodes[0].getHttp().address().publishAddress();
+        assertEquals(1, publishAddress.uniqueAddressTypeId());
+        InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
+        return new HttpRequestBuilder(HttpClients.createDefault()).host(NetworkAddress.format(address.getAddress()))
+                .port(address.getPort());
     }
 
 }

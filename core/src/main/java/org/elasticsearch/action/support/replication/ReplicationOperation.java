@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -54,6 +53,16 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
     final private Supplier<ClusterState> clusterStateSupplier;
     final private String opType;
     final private AtomicInteger totalShards = new AtomicInteger();
+    /**
+     * The number of pending sub-operations in this operation. This is incremented when the following operations start and decremented when
+     * they complete:
+     * <ul>
+     * <li>The operation on the primary</li>
+     * <li>The operation on each replica</li>
+     * <li>Coordination of the operation as a whole. This prevents the operation from terminating early if we haven't started any replica
+     * operations and the primary finishes.</li>
+     * </ul>
+     */
     final private AtomicInteger pendingShards = new AtomicInteger();
     final private AtomicInteger successfulShards = new AtomicInteger();
     final private boolean executeOnReplicas;

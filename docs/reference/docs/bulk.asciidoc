@@ -91,10 +91,6 @@ Client libraries using this protocol should try and strive to do
 something similar on the client side, and reduce buffering as much as
 possible.
 
-The response to a bulk action is a large JSON structure with the
-individual results of each action that was performed. The failure of a
-single action does not affect the remaining actions.
-
 There is no "correct" number of actions to perform in a single bulk
 call. You should experiment with different settings to find the optimum
 size for your particular workload.
@@ -206,3 +202,133 @@ the options. Curl example with update actions:
 === Security
 
 See <<url-access-control>>
+
+[float]
+[[bulk-response]]
+=== Response
+
+The response to a bulk action is a large JSON structure with the
+individual results of each action that was performed. The failure of a
+single action does not affect the remaining actions.
+
+This bulk request:
+
+[source,js]
+--------------------------------------------------
+curl -XDELETE localhost:9200/test
+cat << REQUESTS > requests
+{ "index" : { "_index" : "test", "_type" : "type1", "_id" : "1" } }
+{ "foo": "bar" }
+{ "index" : { "_index" : "test", "_type" : "type1", "_id" : "2" } }
+{ "foo": "bar" }
+{ "update" : { "_index" : "test", "_type" : "type1", "_id" : "doesn't exist" } }
+{ "doc": { "foo": "bar" } }
+REQUESTS
+curl -s -XPOST 'localhost:9200/_bulk?pretty' --data-binary "@requests"
+--------------------------------------------------
+
+Will return this response:
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 116,
+  "errors" : true,
+  "items" : [ {
+    "index" : {
+      "_index" : "test",
+      "_type" : "type1",
+      "_id" : "1",
+      "_version" : 1,
+      "_shards" : {
+        "total" : 2,
+        "successful" : 1,
+        "failed" : 0
+      },
+      "created" : true,
+      "status" : 201
+    }
+  }, {
+    "index" : {
+      "_index" : "test",
+      "_type" : "type1",
+      "_id" : "2",
+      "_version" : 1,
+      "_shards" : {
+        "total" : 2,
+        "successful" : 1,
+        "failed" : 0
+      },
+      "created" : true,
+      "status" : 201
+    }
+  }, {
+    "update" : {
+      "_index" : "test",
+      "_type" : "type1",
+      "_id" : "doesn't exist",
+      "status" : 404,
+      "error" : {
+        "type" : "document_missing_exception",
+        "reason" : "[type1][doesn't exist]: document missing",
+        "index_uuid" : "JcT7yX2CRai8pirh_q_6yQ",
+        "shard" : "4",
+        "index" : "test"
+      }
+    }
+  } ],
+  "successes" : 2
+}
+--------------------------------------------------
+
+Notice that every action comes back as an object in the `items` array.
+The order is preserved *and* the objects contain `_index`, `_type`, and
+`_id`, both of which let you line up each bulk request item with the
+bulk response item.
+
+If you add `response_format=short` to the request then it'll drop the
+successful items. In that case you'll need to use the `_index`, _type`,
+and `_id` to pair up any returned failures with the bulk request item.
+For example, this bulk request:
+
+[source,js]
+--------------------------------------------------
+curl -XDELETE localhost:9200/test
+cat << REQUESTS > requests
+{ "index" : { "_index" : "test", "_type" : "type1", "_id" : "1" } }
+{ "foo": "bar" }
+{ "index" : { "_index" : "test", "_type" : "type1", "_id" : "2" } }
+{ "foo": "bar" }
+{ "update" : { "_index" : "test", "_type" : "type1", "_id" : "doesn't exist" } }
+{ "doc": { "foo": "bar" } }
+REQUESTS
+curl -s -XPOST 'localhost:9200/_bulk?pretty' --data-binary "@requests"
+--------------------------------------------------
+
+Returns this response:
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 111,
+  "errors" : true,
+  "items" : [ {
+    "update" : {
+      "_index" : "test",
+      "_type" : "type1",
+      "_id" : "doesn't exist",
+      "status" : 404,
+      "error" : {
+        "type" : "document_missing_exception",
+        "reason" : "[type1][doesn't exist]: document missing",
+        "index_uuid" : "TKcle9ylREOqiCUwEWFrOg",
+        "shard" : "4",
+        "index" : "test"
+      }
+    }
+  } ],
+  "successes" : 2
+}
+--------------------------------------------------
+
+Note that either way the number of successes is counted.

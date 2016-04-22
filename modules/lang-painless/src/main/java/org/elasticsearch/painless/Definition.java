@@ -33,8 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-class Definition {
-    enum Sort {
+public final class Definition {
+    public enum Sort {
         VOID(       void.class      , 0 , true  , false , false , false ),
         BOOL(       boolean.class   , 1 , true  , true  , false , true  ),
         BYTE(       byte.class      , 1 , true  , false , true  , true  ),
@@ -62,12 +62,12 @@ class Definition {
         DEF(        null            , 1 , false , false , false , false ),
         ARRAY(      null            , 1 , false , false , false , false );
 
-        final Class<?> clazz;
-        final int size;
-        final boolean primitive;
-        final boolean bool;
-        final boolean numeric;
-        final boolean constant;
+        public final Class<?> clazz;
+        public final int size;
+        public final boolean primitive;
+        public final boolean bool;
+        public final boolean numeric;
+        public final boolean constant;
 
         Sort(final Class<?> clazz, final int size, final boolean primitive,
              final boolean bool, final boolean numeric, final boolean constant) {
@@ -80,12 +80,12 @@ class Definition {
         }
     }
 
-    static class Type {
-        final String name;
-        final Struct struct;
-        final Class<?> clazz;
-        final org.objectweb.asm.Type type;
-        final Sort sort;
+    public static final class Type {
+        public final String name;
+        public final Struct struct;
+        public final Class<?> clazz;
+        public final org.objectweb.asm.Type type;
+        public final Sort sort;
 
         private Type(final String name, final Struct struct, final Class<?> clazz,
                      final org.objectweb.asm.Type type, final Sort sort) {
@@ -120,12 +120,12 @@ class Definition {
         }
     }
 
-    static class Constructor {
-        final String name;
-        final Struct owner;
-        final List<Type> arguments;
-        final org.objectweb.asm.commons.Method method;
-        final java.lang.reflect.Constructor<?> reflect;
+    public static final class Constructor {
+        public final String name;
+        public final Struct owner;
+        public final List<Type> arguments;
+        public final org.objectweb.asm.commons.Method method;
+        public final java.lang.reflect.Constructor<?> reflect;
 
         private Constructor(final String name, final Struct owner, final List<Type> arguments,
                             final org.objectweb.asm.commons.Method method, final java.lang.reflect.Constructor<?> reflect) {
@@ -137,14 +137,14 @@ class Definition {
         }
     }
 
-    static class Method {
-        final String name;
-        final Struct owner;
-        final Type rtn;
-        final List<Type> arguments;
-        final org.objectweb.asm.commons.Method method;
-        final java.lang.reflect.Method reflect;
-        final MethodHandle handle;
+    public static class Method {
+        public final String name;
+        public final Struct owner;
+        public final Type rtn;
+        public final List<Type> arguments;
+        public final org.objectweb.asm.commons.Method method;
+        public final java.lang.reflect.Method reflect;
+        public final MethodHandle handle;
 
         private Method(final String name, final Struct owner, final Type rtn, final List<Type> arguments,
                        final org.objectweb.asm.commons.Method method, final java.lang.reflect.Method reflect,
@@ -159,14 +159,14 @@ class Definition {
         }
     }
 
-    static class Field {
-        final String name;
-        final Struct owner;
-        final Type generic;
-        final Type type;
-        final java.lang.reflect.Field reflect;
-        final MethodHandle getter;
-        final MethodHandle setter;
+    public static final class Field {
+        public final String name;
+        public final Struct owner;
+        public final Type generic;
+        public final Type type;
+        public final java.lang.reflect.Field reflect;
+        public final MethodHandle getter;
+        public final MethodHandle setter;
 
         private Field(final String name, final Struct owner, final Type generic, final Type type,
                       final java.lang.reflect.Field reflect, final MethodHandle getter, final MethodHandle setter) {
@@ -180,17 +180,17 @@ class Definition {
         }
     }
 
-    static class Struct {
-        final String name;
-        final Class<?> clazz;
-        final org.objectweb.asm.Type type;
+    public static final class Struct {
+        public final String name;
+        public final Class<?> clazz;
+        public final org.objectweb.asm.Type type;
 
-        final Map<String, Constructor> constructors;
-        final Map<String, Method> functions;
-        final Map<String, Method> methods;
+        public final Map<String, Constructor> constructors;
+        public final Map<String, Method> functions;
+        public final Map<String, Method> methods;
 
-        final Map<String, Field> statics;
-        final Map<String, Field> members;
+        public final Map<String, Field> statics;
+        public final Map<String, Field> members;
 
         private Struct(final String name, final Class<?> clazz, final org.objectweb.asm.Type type) {
             this.name = name;
@@ -239,11 +239,11 @@ class Definition {
         }
     }
 
-    static class Pair {
-        final Type type0;
-        final Type type1;
+    public static final class Pair {
+        public final Type type0;
+        public final Type type1;
 
-        Pair(final Type type0, final Type type1) {
+        public Pair(final Type type0, final Type type1) {
             this.type0 = type0;
             this.type1 = type1;
         }
@@ -272,11 +272,11 @@ class Definition {
         }
     }
 
-    static class Cast {
-        final Type from;
-        final Type to;
+    public static class Cast {
+        public final Type from;
+        public final Type to;
 
-        Cast(final Type from, final Type to) {
+        public Cast(final Type from, final Type to) {
             this.from = from;
             this.to = to;
         }
@@ -305,13 +305,13 @@ class Definition {
         }
     }
 
-    static class Transform extends Cast {
-        final Cast cast;
-        final Method method;
-        final Type upcast;
-        final Type downcast;
+    public static class Transform extends Cast {
+        public final Cast cast;
+        public final Method method;
+        public final Type upcast;
+        public final Type downcast;
 
-        private Transform(final Cast cast, Method method, final Type upcast, final Type downcast) {
+        public Transform(final Cast cast, Method method, final Type upcast, final Type downcast) {
             super(cast.from, cast.to);
 
             this.cast = cast;
@@ -321,78 +321,78 @@ class Definition {
         }
     }
 
-    final Map<String, Struct> structs;
-    final Map<Class<?>, Struct> classes;
-    final Map<Cast, Transform> transforms;
-    final Map<Pair, Type> bounds;
+    public final Map<String, Struct> structs;
+    public final Map<Class<?>, Struct> classes;
+    public final Map<Cast, Transform> transforms;
+    public final Map<Pair, Type> bounds;
 
-    final Type voidType;
-    final Type booleanType;
-    final Type byteType;
-    final Type shortType;
-    final Type charType;
-    final Type intType;
-    final Type longType;
-    final Type floatType;
-    final Type doubleType;
+    public final Type voidType;
+    public final Type booleanType;
+    public final Type byteType;
+    public final Type shortType;
+    public final Type charType;
+    public final Type intType;
+    public final Type longType;
+    public final Type floatType;
+    public final Type doubleType;
 
-    final Type voidobjType;
-    final Type booleanobjType;
-    final Type byteobjType;
-    final Type shortobjType;
-    final Type charobjType;
-    final Type intobjType;
-    final Type longobjType;
-    final Type floatobjType;
-    final Type doubleobjType;
+    public final Type voidobjType;
+    public final Type booleanobjType;
+    public final Type byteobjType;
+    public final Type shortobjType;
+    public final Type charobjType;
+    public final Type intobjType;
+    public final Type longobjType;
+    public final Type floatobjType;
+    public final Type doubleobjType;
 
-    final Type objectType;
-    final Type defType;
-    final Type numberType;
-    final Type charseqType;
-    final Type stringType;
-    final Type mathType;
-    final Type utilityType;
-    final Type defobjType;
+    public final Type objectType;
+    public final Type defType;
+    public final Type numberType;
+    public final Type charseqType;
+    public final Type stringType;
+    public final Type mathType;
+    public final Type utilityType;
+    public final Type defobjType;
 
-    final Type itrType;
-    final Type oitrType;
-    final Type sitrType;
+    public final Type itrType;
+    public final Type oitrType;
+    public final Type sitrType;
 
-    final Type collectionType;
-    final Type ocollectionType;
-    final Type scollectionType;
+    public final Type collectionType;
+    public final Type ocollectionType;
+    public final Type scollectionType;
 
-    final Type listType;
-    final Type arraylistType;
-    final Type olistType;
-    final Type oarraylistType;
-    final Type slistType;
-    final Type sarraylistType;
+    public final Type listType;
+    public final Type arraylistType;
+    public final Type olistType;
+    public final Type oarraylistType;
+    public final Type slistType;
+    public final Type sarraylistType;
 
-    final Type setType;
-    final Type hashsetType;
-    final Type osetType;
-    final Type ohashsetType;
-    final Type ssetType;
-    final Type shashsetType;
+    public final Type setType;
+    public final Type hashsetType;
+    public final Type osetType;
+    public final Type ohashsetType;
+    public final Type ssetType;
+    public final Type shashsetType;
 
-    final Type mapType;
-    final Type hashmapType;
-    final Type oomapType;
-    final Type oohashmapType;
-    final Type smapType;
-    final Type shashmapType;
-    final Type somapType;
-    final Type sohashmapType;
+    public final Type mapType;
+    public final Type hashmapType;
+    public final Type oomapType;
+    public final Type oohashmapType;
+    public final Type smapType;
+    public final Type shashmapType;
+    public final Type somapType;
+    public final Type sohashmapType;
 
-    final Type execType;
+    public final Type execType;
 
-    final Type exceptionType;
-    final Type arithexcepType;
-    final Type iargexcepType;
-    final Type istateexceptType;
-    final Type nfexcepType;
+    public final Type exceptionType;
+    public final Type arithexcepType;
+    public final Type iargexcepType;
+    public final Type istateexceptType;
+    public final Type nfexcepType;
 
     public Definition() {
         structs = new HashMap<>();
@@ -2056,7 +2056,7 @@ class Definition {
         bounds.put(pair1, bound);
     }
 
-    Type getType(final String name) {
+    public final Type getType(final String name) {
         final int dimensions = getDimensions(name);
         final String structstr = dimensions == 0 ? name : name.substring(0, name.indexOf('['));
         final Struct struct = structs.get(structstr);
@@ -2068,7 +2068,7 @@ class Definition {
         return getType(struct, dimensions);
     }
 
-    Type getType(final Struct struct, final int dimensions) {
+    public final Type getType(final Struct struct, final int dimensions) {
         String name = struct.name;
         org.objectweb.asm.Type type = struct.type;
         Class<?> clazz = struct.clazz;

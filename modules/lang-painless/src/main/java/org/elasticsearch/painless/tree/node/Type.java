@@ -55,7 +55,11 @@ public enum Type {
     FIELD ( "field" ),
     NEWOBJ ( "newobj" ),
     NEWARRAY ( "newarray" ),
-    STRING ( "string" );
+    STRING ( "string" ),
+
+    ACAST ( "acast" ),
+    ATRANSFORM ( "atranform" ),
+    ACONSTANT ( "aconstant" );
 
     public final String symbol;
 

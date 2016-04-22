@@ -17,26 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.tree.node;
+package org.elasticsearch.painless.tree.walker.analyzer;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+final class MetadataStatement {
+    boolean lastSource = false;
 
-public class Node {
-    public final String location;
-    public final Type type;
+    boolean beginLoop = false;
+    boolean inLoop = false;
+    boolean lastLoop = false;
 
-    public final List<Node> children = new ArrayList<>();
-    public final Map<String, Object> data = new HashMap<>();
+    boolean methodEscape = false;
+    boolean loopEscape = false;
+    boolean allEscape = false;
 
-    public Node(final String location, final Type type) {
-        this.location = location;
-        this.type = type;
-    }
+    boolean anyContinue = false;
+    boolean anyBreak = false;
 
-    public String error(final String message) {
-        return "Error " + location  + ": " + message;
-    }
+    int statementCount = 0;
 }

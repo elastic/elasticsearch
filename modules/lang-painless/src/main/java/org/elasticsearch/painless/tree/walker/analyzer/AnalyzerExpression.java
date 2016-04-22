@@ -17,26 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.tree.node;
+package org.elasticsearch.painless.tree.walker.analyzer;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-public class Node {
-    public final String location;
-    public final Type type;
-
-    public final List<Node> children = new ArrayList<>();
-    public final Map<String, Object> data = new HashMap<>();
-
-    public Node(final String location, final Type type) {
-        this.location = location;
-        this.type = type;
-    }
-
-    public String error(final String message) {
-        return "Error " + location  + ": " + message;
-    }
+public class AnalyzerExpression {
 }

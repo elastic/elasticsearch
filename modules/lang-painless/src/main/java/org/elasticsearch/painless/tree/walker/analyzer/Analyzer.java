@@ -19,18 +19,68 @@
 
 package org.elasticsearch.painless.tree.walker.analyzer;
 
+import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.node.Node;
+import org.elasticsearch.painless.tree.utility.Variables;
 
-public class Analyzer {
-    public static void analyze(final Node source) {
+import static org.elasticsearch.painless.tree.node.Type.IF;
+import static org.elasticsearch.painless.tree.node.Type.SOURCE;
 
+public final class Analyzer {
+    public static void analyze(final CompilerSettings settings, final Definition definition, final Variables variables, final Node source) {
+        new Analyzer(settings, definition, variables, source);
     }
 
-    private Analyzer(final Node source) {
+    private final AnalyzerStatement statement;
 
+    private Analyzer(final CompilerSettings settings, final Definition definition, final Variables variables, final Node source) {
+        final AnalyzerCaster caster = new AnalyzerCaster(definition);
+
+        statement = new AnalyzerStatement(definition, variables, this);
+
+        if (source.type != SOURCE) {
+            throw new IllegalStateException(source.error("Illegal tree structure."));
+        }
+
+        visitSource(source, variables);
     }
 
-    private void visit() {
+    private void visitSource(final Node source, final Variables variables) {
+        final Node last = source.children.get(source.children.size() - 1);
 
+        boolean methodEscape = false;
+        boolean allEscape = false;
+
+        variables.incrementScope();
+
+        for (final Node child : source.children) {
+            if (allEscape) {
+                throw new IllegalArgumentException(source.error("Unreachable statement."));
+            }
+
+            final MetadataStatement childms = new MetadataStatement();
+            childms.lastSource = child == last;
+            visit(child, childms);
+
+            methodEscape = childms.methodEscape;
+            allEscape = childms.allEscape;
+        }
+
+        variables.decrementScope();
+
+        source.data.put("escape", methodEscape);
+    }
+
+    void visit(final Node node, final MetadataStatement ms) {
+        if (node.type == IF) {
+            statement.visitIf(node, ms);
+        } else {
+            throw new IllegalStateException(node.error("Illegal tree structure."));
+        }
+    }
+
+    void visit(final Node node, final MetadataExpression me) {
+        throw new IllegalStateException(node.error("Illegal tree structure."));
     }
 }

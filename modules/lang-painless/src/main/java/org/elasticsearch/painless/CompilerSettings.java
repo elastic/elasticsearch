@@ -22,7 +22,7 @@ package org.elasticsearch.painless;
 /**
  * Settings to use when compiling a script.
  */
-final class CompilerSettings {
+public final class CompilerSettings {
     /**
      * Constant to be used when specifying numeric overflow when compiling a script.
      */
@@ -52,7 +52,7 @@ final class CompilerSettings {
      * signs, and overflow for floating point types can result in infinite or
      * {@code NaN} values.
      */
-    public boolean getNumericOverflow() {
+    public final boolean getNumericOverflow() {
         return numericOverflow;
     }
 
@@ -60,7 +60,7 @@ final class CompilerSettings {
      * Set {@code true} for numerics to overflow, false to deliver exceptions.
      * @see #getNumericOverflow
      */
-    public void setNumericOverflow(boolean allow) {
+    public final void setNumericOverflow(boolean allow) {
         this.numericOverflow = allow;
     }
 
@@ -68,7 +68,7 @@ final class CompilerSettings {
      * Returns the value for the cumulative total number of statements that can be made in all loops
      * in a script before an exception is thrown.  This attempts to prevent infinite loops.
      */
-    public int getMaxLoopCounter() {
+    public final int getMaxLoopCounter() {
         return maxLoopCounter;
     }
 
@@ -76,7 +76,7 @@ final class CompilerSettings {
      * Set the cumulative total number of statements that can be made in all loops.
      * @see #getMaxLoopCounter
      */
-    public void setMaxLoopCounter(int max) {
+    public final void setMaxLoopCounter(int max) {
         this.maxLoopCounter = max;
     }
 }

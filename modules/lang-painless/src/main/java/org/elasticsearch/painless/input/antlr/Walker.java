@@ -115,6 +115,7 @@ import static org.elasticsearch.painless.tree.node.Type.DO;
 import static org.elasticsearch.painless.tree.node.Type.EXPRESSION;
 import static org.elasticsearch.painless.tree.node.Type.EXTERNAL;
 import static org.elasticsearch.painless.tree.node.Type.FALSE;
+import static org.elasticsearch.painless.tree.node.Type.FIELD;
 import static org.elasticsearch.painless.tree.node.Type.FOR;
 import static org.elasticsearch.painless.tree.node.Type.IF;
 import static org.elasticsearch.painless.tree.node.Type.NEWARRAY;
@@ -750,7 +751,7 @@ public class Walker extends PainlessParserBaseVisitor<Node> {
     }
 
     private void visitExtfield(final ExtfieldContext ctx, final Node parent) {
-        final Node node = new Node(location(ctx), VAR);
+        final Node node = new Node(location(ctx), FIELD);
 
         if (ctx.EXTID() != null) {
             node.data.put("symbol", ctx.EXTID());

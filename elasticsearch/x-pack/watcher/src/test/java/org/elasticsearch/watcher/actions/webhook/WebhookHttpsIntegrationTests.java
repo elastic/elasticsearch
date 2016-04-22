@@ -60,6 +60,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         for (webPort = 9200; webPort < 9300; webPort++) {
             try {
                 webServer = new MockWebServer();
+                webServer.setProtocolNegotiationEnabled(false);
                 QueueDispatcher dispatcher = new QueueDispatcher();
                 dispatcher.setFailFast(true);
                 webServer.setDispatcher(dispatcher);

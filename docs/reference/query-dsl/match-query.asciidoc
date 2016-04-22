@@ -186,53 +186,49 @@ allows for prefix matches on the last term in the text. For example:
 --------------------------------------------------
 {
     "match_phrase_prefix" : {
-        "message" : "this is a test"
-    }
-}
---------------------------------------------------
-
-Or:
-
-[source,js]
---------------------------------------------------
-{
-    "match" : {
-        "message" : {
-            "query" : "this is a test",
-            "type" : "phrase_prefix"
-        }
+        "message" : "quick brown f"
     }
 }
 --------------------------------------------------
 
 It accepts the same parameters as the phrase type. In addition, it also
-accepts a `max_expansions` parameter that can control to how many
-prefixes the last term will be expanded. It is highly recommended to set
-it to an acceptable value to control the execution time of the query.
-For example:
+accepts a `max_expansions` parameter (default `50`) that can control to how
+many prefixes the last term will be expanded. It is highly recommended to set
+it to an acceptable value to control the execution time of the query. For
+example:
 
 [source,js]
 --------------------------------------------------
 {
     "match_phrase_prefix" : {
         "message" : {
-            "query" : "this is a test",
+            "query" : "quick brown f",
             "max_expansions" : 10
         }
     }
 }
 --------------------------------------------------
 
-.Comparison to query_string / field
-**************************************************
+[IMPORTANT]
+===================================================
 
-The match family of queries does not go through a "query parsing"
-process. It does not support field name prefixes, wildcard characters,
-or other "advanced" features. For this reason, chances of it failing are
-very small / non existent, and it provides an excellent behavior when it
-comes to just analyze and run that text as a query behavior (which is
-usually what a text search box does). Also, the `phrase_prefix` type can
-provide a great "as you type" behavior to automatically load search
-results.
+The `match_phrase_prefix` query is a poor-man's autocomplete.  It is very easy
+to use, which let's you get started quickly with _search-as-you-type_ but it's
+results, which usually are good enough,  can sometimes be confusing.
 
-**************************************************
+Consider the query string `quick brown f`.  This query works by creating a
+phrase query out of `quick` and `brown` (i.e. the term `quick` must exist and
+must be followed by the term `brown`).  Then it looks at the sorted term
+dictionary to find the first 50 terms that begin with `f`, and
+adds these terms to the phrase query.
+
+The problem is that the first 50 terms may not include the term `fox` so the
+phase `quick brown fox` will not be found.  This usually isn't a problem as
+the user will continue to type more letters until the word they are looking
+for appears.
+
+For better solutions for _search-as-you-type_ see the
+<<search-suggesters-completion,completion suggester>> and
+{guide}/_index_time_search_as_you_type.html[Index-Time Search-as-You-Type].
+
+===================================================

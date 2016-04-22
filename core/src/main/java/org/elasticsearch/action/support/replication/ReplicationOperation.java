@@ -85,28 +85,26 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
 
     void execute() throws Exception {
         final String writeConsistencyFailure = checkWriteConsistency ? checkWriteConsistency() : null;
-        final ShardId shardId = primary.routingEntry().shardId();
+        ShardRouting primaryRouting = primary.routingEntry();
+        ShardId primaryId = primaryRouting.shardId();
         if (writeConsistencyFailure != null) {
-            finishAsFailed(new UnavailableShardsException(shardId,
+            finishAsFailed(new UnavailableShardsException(primaryId,
                 "{} Timeout: [{}], request: [{}]", writeConsistencyFailure, request.timeout(), request));
             return;
         }
 
         totalShards.incrementAndGet();
         pendingShards.incrementAndGet(); // increase by 1 until we finish all primary coordination
-        Tuple<Response, ReplicaRequest> primaryResponse = primary.perform(request);
-        successfulShards.incrementAndGet(); // mark primary as successful
-        finalResponse = primaryResponse.v1();
-        ReplicaRequest replicaRequest = primaryResponse.v2();
+        ReplicaRequest replicaRequest = performOnPrimary(primary.routingEntry(), request);
         assert replicaRequest.primaryTerm() > 0 : "replicaRequest doesn't have a primary term";
         if (logger.isTraceEnabled()) {
-            logger.trace("[{}] op [{}] completed on primary for request [{}]", shardId, opType, request);
+            logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
         }
         // we have to get a new state after successfully indexing into the primary in order to honour recovery semantics.
         // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
         // to the recovery target. If we use an old cluster state, we may miss a relocation that has started since then.
         // If the index gets deleted after primary operation, we skip replication
-        List<ShardRouting> shards = getShards(shardId, clusterStateSupplier.get());
+        List<ShardRouting> shards = getShards(primaryId, clusterStateSupplier.get());
         final String localNodeId = primary.routingEntry().currentNodeId();
         for (final ShardRouting shard : shards) {
             if (executeOnReplicas == false || shard.unassigned()) {
@@ -124,9 +122,28 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
                 performOnReplica(shard.buildTargetRelocatingShard(), replicaRequest);
             }
         }
+    }
 
-        // decrement pending and finish (if there are no replicas, or those are done)
-        decPendingAndFinishIfNeeded(); // incremented in the beginning of this method
+    private ReplicaRequest performOnPrimary(final ShardRouting primaryRouting, Request request) throws Exception {
+        return primary.perform(request, new ActionListener<Response>() {
+            @Override
+            public void onResponse(Response response) {
+                finalResponse = response;
+                successfulShards.incrementAndGet();
+                // decrement pending and finish (if there are no replicas, or those are done)
+                decPendingAndFinishIfNeeded();
+            }
+
+            @Override
+            public void onFailure(Throwable primaryException) {
+                RestStatus restStatus = ExceptionsHelper.status(primaryException);
+                shardReplicaFailures.add(new ReplicationResponse.ShardInfo.Failure(primaryRouting.shardId(), primaryRouting.currentNodeId(),
+                        primaryException, restStatus, false));
+                String message = String.format(Locale.ROOT, "failed to perform %s on primary %s", opType, primaryRouting);
+                logger.warn("[{}] {}", primaryException, primaryRouting.shardId(), message);
+                decPendingAndFinishIfNeeded();
+            }
+        });
     }
 
     private void performOnReplica(final ShardRouting shard, final ReplicaRequest replicaRequest) {
@@ -294,13 +311,15 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
         void failShard(String message, Throwable throwable);
 
         /**
-         * Performs the given request on this primary
+         * Performs the given request on this primary. Yes, this returns as soon as it can with the request for the replicas and calls a
+         * listener when the primary request is completed. Yes, the primary request might complete before the method returns. Yes, it might
+         * also complete after. Deal with it.
          *
-         * @return A tuple containing not null values, as first value the result of the primary operation and as second value
-         * the request to be executed on the replica shards.
+         * @param request the request to perform
+         * @param listener for the request to be completed.
+         * @return the request to send to the repicas
          */
-        Tuple<Response, ReplicaRequest> perform(Request request) throws Exception;
-
+        ReplicaRequest perform(Request request, ActionListener<Response> listener) throws Exception;
     }
 
     interface Replicas<ReplicaRequest extends ReplicationRequest<ReplicaRequest>> {

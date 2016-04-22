@@ -750,10 +750,11 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
 
         @Override
-        public Tuple<Response, ReplicaRequest> perform(Request request) throws Exception {
+        public ReplicaRequest perform(Request request, ActionListener<Response> listener) throws Exception {
             Tuple<Response, ReplicaRequest> result = shardOperationOnPrimary(request);
             result.v2().primaryTerm(indexShard.getPrimaryTerm());
-            return result;
+            listener.onResponse(result.v1());
+            return result.v2();
         }
 
         @Override

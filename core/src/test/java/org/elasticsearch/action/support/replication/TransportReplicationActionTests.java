@@ -63,6 +63,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
@@ -478,9 +479,20 @@ public class TransportReplicationActionTests extends ESTestCase {
         };
         Action.PrimaryShardReference primary = action.new PrimaryShardReference(shard, releasable);
         final Request request = new Request();
-        Tuple<Response, Request> result = primary.perform(request);
+        Request replicaRequest = primary.perform(request, new ActionListener<Response>() {
+            @Override
+            public void onResponse(Response response) {
+                // Ok, nothing to do
+            }
 
-        assertThat(result.v2().primaryTerm(), equalTo(primaryTerm));
+            @Override
+            public void onFailure(Throwable e) {
+                // Currently can't even be called.
+                throw new RuntimeException(e);
+            }
+        });
+
+        assertThat(replicaRequest.primaryTerm(), equalTo(primaryTerm));
 
         final ElasticsearchException exception = new ElasticsearchException("testing");
         primary.failShard("test", exception);

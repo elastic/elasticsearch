@@ -233,11 +233,11 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardRouting primaryShard = state.get().routingTable().shardRoutingTable(shardId).primaryShard();
         final TestPrimary primary = new TestPrimary(primaryShard, primaryTerm) {
             @Override
-            public Tuple<Response, Request> perform(Request request) throws Exception {
-                final Tuple<Response, Request> tuple = super.perform(request);
+            public Request perform(Request request, ActionListener<Response> listener) throws Exception {
+                Request replicaRequest = super.perform(request, listener);
                 state.set(changedState);
                 logger.debug("--> state after primary operation:\n{}", state.get().prettyPrint());
-                return tuple;
+                return replicaRequest;
             }
         };
 
@@ -385,12 +385,13 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         @Override
-        public Tuple<Response, Request> perform(Request request) throws Exception {
+        public Request perform(Request request, ActionListener<Response> listener) throws Exception {
             if (request.processedOnPrimary.compareAndSet(false, true) == false) {
                 fail("processed [" + request + "] twice");
             }
             request.primaryTerm(term);
-            return new Tuple<>(new Response(), request);
+            listener.onResponse(new Response());
+            return request;
         }
     }
 

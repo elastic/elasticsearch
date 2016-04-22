@@ -163,7 +163,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
             Builder builder = new Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (Names.TREE.equals(fieldName)) {
                     builder.fieldType().setTree(fieldNode.toString());

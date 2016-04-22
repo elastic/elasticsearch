@@ -387,9 +387,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     public void testLegacyFuzzyMatchQuery() throws IOException {
         MatchQueryBuilder expectedQB = new MatchQueryBuilder("message", "to be or not to be");
         String type = randomFrom("fuzzy_match", "match_fuzzy");
-        if (randomBoolean()) {
-            type = Strings.toCamelCase(type);
-        }
         String json = "{\n" +
                 "  \"" + type + "\" : {\n" +
                 "    \"message\" : {\n" +

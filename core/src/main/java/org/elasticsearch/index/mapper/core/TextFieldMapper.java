@@ -146,7 +146,7 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
             parseTextField(builder, fieldName, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String propName = Strings.toUnderscoreCase(entry.getKey());
+                String propName = entry.getKey();
                 Object propNode = entry.getValue();
                 if (propName.equals("position_increment_gap")) {
                     int newPositionIncrementGap = XContentMapValues.nodeIntegerValue(propNode, -1);

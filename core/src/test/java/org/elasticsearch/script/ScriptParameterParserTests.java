@@ -76,16 +76,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.FILE);
         assertThat(paramParser.lang(), nullValue());
-
-        parser = XContentHelper.createParser(new BytesArray("{ \"scriptFile\" : \"scriptValue\" }"));
-        token = parser.nextToken();
-        while (token != Token.VALUE_STRING) {
-            token = parser.nextToken();
-        }
-        paramParser = new ScriptParameterParser();
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
-        assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.FILE);
-        assertThat(paramParser.lang(), nullValue());
     }
 
     public void testTokenDefaultIndexed() throws IOException {
@@ -95,16 +85,6 @@ public class ScriptParameterParserTests extends ESTestCase {
             token = parser.nextToken();
         }
         ScriptParameterParser paramParser = new ScriptParameterParser();
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
-        assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.STORED);
-        assertThat(paramParser.lang(), nullValue());
-
-        parser = XContentHelper.createParser(new BytesArray("{ \"scriptId\" : \"scriptValue\" }"));
-        token = parser.nextToken();
-        while (token != Token.VALUE_STRING) {
-            token = parser.nextToken();
-        }
-        paramParser = new ScriptParameterParser();
         assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT), equalTo(true));
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.STORED);
         assertThat(paramParser.lang(), nullValue());
@@ -562,28 +542,12 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.FILE);
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.isEmpty(), equalTo(true));
-
-        config = new HashMap<>();
-        config.put("scriptFile", "scriptValue");
-        paramParser = new ScriptParameterParser();
-        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
-        assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.FILE);
-        assertThat(paramParser.lang(), nullValue());
-        assertThat(config.isEmpty(), equalTo(true));
     }
 
     public void testConfigDefaultIndexed() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("script_id", "scriptValue");
         ScriptParameterParser paramParser = new ScriptParameterParser();
-        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
-        assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.STORED);
-        assertThat(paramParser.lang(), nullValue());
-        assertThat(config.isEmpty(), equalTo(true));
-
-        config = new HashMap<>();
-        config.put("scriptId", "scriptValue");
-        paramParser = new ScriptParameterParser();
         paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.STORED);
         assertThat(paramParser.lang(), nullValue());
@@ -599,15 +563,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
         assertThat(config.size(), equalTo(1));
         assertThat((String) config.get("script_id"), equalTo("scriptValue"));
-
-        config = new HashMap<>();
-        config.put("scriptId", "scriptValue");
-        paramParser = new ScriptParameterParser();
-        paramParser.parseConfig(config, false, ParseFieldMatcher.STRICT);
-        assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.STORED);
-        assertThat(paramParser.lang(), nullValue());
-        assertThat(config.size(), equalTo(1));
-        assertThat((String) config.get("scriptId"), equalTo("scriptValue"));
     }
 
     public void testConfigDefaultNotFound() throws IOException {

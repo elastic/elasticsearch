@@ -158,27 +158,6 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
         HasParentQueryBuilder queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string(), ParseFieldMatcher.EMPTY);
         assertEquals("foo", queryBuilder.type());
-
-        boolean score = randomBoolean();
-        String key = RandomPicks.randomFrom(random(), Arrays.asList("score_mode", "scoreMode"));
-        builder = XContentFactory.jsonBuilder().prettyPrint();
-        builder.startObject();
-        builder.startObject("has_parent");
-        builder.field("query");
-        new TermQueryBuilder("a", "a").toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.field(key, score ? "score": "none");
-        builder.field("parent_type", "foo");
-        builder.endObject();
-        builder.endObject();
-        try {
-            parseQuery(builder.string());
-            fail(key + " is deprecated");
-        } catch (IllegalArgumentException ex) {
-            assertEquals("Deprecated field [" + key + "] used, replaced by [score]", ex.getMessage());
-        }
-
-        queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string(), ParseFieldMatcher.EMPTY);
-        assertEquals(score, queryBuilder.score());
     }
 
     public void testToQueryInnerQueryType() throws IOException {

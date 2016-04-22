@@ -64,7 +64,6 @@ import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.Strings.toCamelCase;
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
@@ -77,23 +76,11 @@ public final class Settings implements ToXContent {
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
 
-    private final Map<String, String> forcedUnderscoreSettings;
     private SortedMap<String, String> settings;
 
     Settings(Map<String, String> settings) {
         // we use a sorted map for consistent serialization when using getAsMap()
         this.settings = Collections.unmodifiableSortedMap(new TreeMap<>(settings));
-        Map<String, String> forcedUnderscoreSettings = null;
-        for (Map.Entry<String, String> entry : settings.entrySet()) {
-            String toUnderscoreCase = Strings.toUnderscoreCase(entry.getKey());
-            if (!toUnderscoreCase.equals(entry.getKey())) {
-                if (forcedUnderscoreSettings == null) {
-                    forcedUnderscoreSettings = new HashMap<>();
-                }
-                forcedUnderscoreSettings.put(toUnderscoreCase, entry.getValue());
-            }
-        }
-        this.forcedUnderscoreSettings = forcedUnderscoreSettings == null ? emptyMap() : unmodifiableMap(forcedUnderscoreSettings);
     }
 
     /**
@@ -240,11 +227,7 @@ public final class Settings implements ToXContent {
      * @return The setting value, <tt>null</tt> if it does not exists.
      */
     public String get(String setting) {
-        String retVal = settings.get(setting);
-        if (retVal != null) {
-            return retVal;
-        }
-        return forcedUnderscoreSettings.get(setting);
+        return settings.get(setting);
     }
 
     /**
@@ -637,12 +620,7 @@ public final class Settings implements ToXContent {
          * Returns a setting value based on the setting key.
          */
         public String get(String key) {
-            String retVal = map.get(key);
-            if (retVal != null) {
-                return retVal;
-            }
-            // try camel case version
-            return map.get(toCamelCase(key));
+            return map.get(key);
         }
 
         /**

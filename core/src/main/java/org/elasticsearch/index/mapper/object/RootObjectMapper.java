@@ -138,7 +138,7 @@ public class RootObjectMapper extends ObjectMapper {
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
                         || processField(builder, fieldName, fieldNode, parserContext.indexVersionCreated())) {

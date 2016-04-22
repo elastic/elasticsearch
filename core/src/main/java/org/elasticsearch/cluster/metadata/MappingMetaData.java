@@ -224,7 +224,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
             boolean required = false;
             Map<String, Object> routingNode = (Map<String, Object>) withoutType.get("_routing");
             for (Map.Entry<String, Object> entry : routingNode.entrySet()) {
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("required")) {
                     required = lenientNodeBooleanValue(fieldNode);
@@ -241,7 +241,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
             Boolean ignoreMissing = null;
             Map<String, Object> timestampNode = (Map<String, Object>) withoutType.get("_timestamp");
             for (Map.Entry<String, Object> entry : timestampNode.entrySet()) {
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     enabled = lenientNodeBooleanValue(fieldNode);

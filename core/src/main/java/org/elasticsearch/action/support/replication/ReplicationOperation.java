@@ -104,7 +104,7 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
 
         totalShards.incrementAndGet();
         pendingShards.addAndGet(2); // increase by 2 - one for the primary shard and one for the coordination of replicas
-        ReplicaRequest replicaRequest = performOnPrimary(primary.routingEntry(), request);
+        ReplicaRequest replicaRequest = performOnPrimary(primaryRouting, request);
         assert replicaRequest.primaryTerm() > 0 : "replicaRequest doesn't have a primary term";
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);

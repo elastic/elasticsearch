@@ -157,7 +157,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     protected abstract ReplicaRequest shardOperationOnPrimary(Request shardRequest, ActionListener<Response> listener) throws Exception;
 
     /**
-     * Replica operation on nodes with replica copies
+     * Replica operation on nodes with replica copies. While this does take a listener it should not return until it has completed any operations
+     * that it must take under the shard lock. The listener is for waiting for things like index to become visible in search.
      */
     protected abstract void shardOperationOnReplica(ReplicaRequest shardRequest, ActionListener<TransportResponse.Empty> listener);
 
@@ -410,6 +411,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 shardOperationOnReplica(request, new ActionListener<TransportResponse.Empty>() {
                     @Override
                     public void onResponse(Empty response) {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(),
+                                request);
+                        }
                         setPhase(task, "finished");
                         try {
                             channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -423,10 +428,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         AsyncReplicaAction.this.onFailure(e);
                     }
                 });
-                if (logger.isTraceEnabled()) {
-                    logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(),
-                        request);
-                }
             }
         }
     }

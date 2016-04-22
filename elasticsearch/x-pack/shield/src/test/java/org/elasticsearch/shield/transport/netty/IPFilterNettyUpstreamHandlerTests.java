@@ -14,7 +14,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.shield.audit.AuditTrail;
-import org.elasticsearch.shield.license.ShieldLicenseState;
+import org.elasticsearch.shield.SecurityLicenseState;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
@@ -68,7 +68,7 @@ public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
                 IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
                 IPFilter.TRANSPORT_FILTER_DENY_SETTING,
                 TransportSettings.TRANSPORT_PROFILES_SETTING)));
-        ShieldLicenseState licenseState = mock(ShieldLicenseState.class);
+        SecurityLicenseState licenseState = mock(SecurityLicenseState.class);
         when(licenseState.securityEnabled()).thenReturn(true);
         IPFilter ipFilter = new IPFilter(settings, AuditTrail.NOOP, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());

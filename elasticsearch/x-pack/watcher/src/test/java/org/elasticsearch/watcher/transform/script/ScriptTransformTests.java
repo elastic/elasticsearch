@@ -19,7 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.Variables;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.watch.Payload;
 import org.junit.After;
@@ -174,7 +174,7 @@ public class ScriptTransformTests extends ESTestCase {
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
         switch (scriptType) {
-            case INDEXED:
+            case STORED:
             case FILE:
                 script = "nonExisting_script";
                 break;
@@ -227,7 +227,7 @@ public class ScriptTransformTests extends ESTestCase {
         switch (type) {
             case INLINE:    return Script.inline(script);
             case FILE:      return Script.file(script);
-            case INDEXED:   return Script.indexed(script);
+            case STORED:   return Script.indexed(script);
             default:
                 throw illegalArgument("unsupported script type [{}]", type);
         }
@@ -237,7 +237,7 @@ public class ScriptTransformTests extends ESTestCase {
         switch (type) {
             case INLINE: return "inline";
             case FILE: return "file";
-            case INDEXED: return "id";
+            case STORED: return "id";
             default:
                 throw illegalArgument("unsupported script type [{}]", type);
         }

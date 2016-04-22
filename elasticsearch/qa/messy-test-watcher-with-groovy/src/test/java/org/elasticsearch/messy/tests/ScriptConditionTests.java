@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
@@ -25,7 +24,7 @@ import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.condition.script.ScriptConditionFactory;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.elasticsearch.watcher.watch.Payload;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -124,7 +123,7 @@ public class ScriptConditionTests extends ESTestCase {
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
         switch (scriptType) {
-            case INDEXED:
+            case STORED:
             case FILE:
                 script = "nonExisting_script";
                 break;
@@ -212,7 +211,7 @@ public class ScriptConditionTests extends ESTestCase {
             case FILE:
                 builder.field("file", script);
                 break;
-            case INDEXED:
+            case STORED:
                 builder.field("id", script);
                 break;
             default:

@@ -62,7 +62,7 @@ indices:data/read/mpercolate
 indices:data/read/msearch
 indices:data/read/mtv
 indices:data/read/percolate
-indices:data/read/script/get
+cluster:admin/script/get
 indices:data/read/scroll
 indices:data/read/scroll/clear
 indices:data/read/search
@@ -70,8 +70,8 @@ indices:data/read/tv
 indices:data/write/bulk
 indices:data/write/delete
 indices:data/write/index
-indices:data/write/script/delete
-indices:data/write/script/put
+cluster:admin/script/delete
+cluster:admin/script/put
 indices:data/write/update
 cluster:monitor/xpack/info
 cluster:monitor/xpack/license/get

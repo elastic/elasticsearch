@@ -9,8 +9,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
-import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
+import org.elasticsearch.xpack.notification.email.EmailTemplate;
+import org.elasticsearch.xpack.notification.email.support.EmailServer;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
@@ -62,11 +62,11 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
                 .put(super.nodeSettings(nodeOrdinal))
 
                 // email
-                .put("xpack.watcher.actions.email.service.account.test.smtp.auth", true)
-                .put("xpack.watcher.actions.email.service.account.test.smtp.user", USERNAME)
-                .put("xpack.watcher.actions.email.service.account.test.smtp.password", PASSWORD)
-                .put("xpack.watcher.actions.email.service.account.test.smtp.port", server.port())
-                .put("xpack.watcher.actions.email.service.account.test.smtp.host", "localhost")
+                .put("xpack.notification.email.service.account.test.smtp.auth", true)
+                .put("xpack.notification.email.service.account.test.smtp.user", USERNAME)
+                .put("xpack.notification.email.service.account.test.smtp.password", PASSWORD)
+                .put("xpack.notification.email.service.account.test.smtp.port", server.port())
+                .put("xpack.notification.email.service.account.test.smtp.host", "localhost")
 
                 .build();
     }

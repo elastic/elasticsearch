@@ -156,7 +156,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         client().prepareIndex("test", "type1", "3").setSource("field3", "value3").get();
 
         // test documents users can see
-        Boolean realtime = randomFrom(true, false, null);
+        boolean realtime = randomBoolean();
         GetResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareGet("test", "type1", "1")
@@ -220,7 +220,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         client().prepareIndex("test", "type1", "2").setSource("field2", "value2").get();
         client().prepareIndex("test", "type1", "3").setSource("field3", "value3").get();
 
-        Boolean realtime = randomFrom(true, false, null);
+        boolean realtime = randomBoolean();
         MultiGetResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiGet()
@@ -300,7 +300,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 .setRefresh(true)
                 .get();
 
-        Boolean realtime = randomFrom(true, false, null);
+        boolean realtime = randomBoolean();
         TermVectorsResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareTermVectors("test", "type1", "1")
@@ -365,7 +365,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 .setRefresh(true)
                 .get();
 
-        Boolean realtime = randomFrom(true, false, null);
+        boolean realtime = randomBoolean();
         MultiTermVectorsResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiTermVectors()
@@ -607,9 +607,9 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testPercolateApi() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping(".percolator", "field1", "type=text", "field2", "type=text", "field3", "type=text")
+            .addMapping("query", "query", "type=percolator", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
-        client().prepareIndex("test", ".percolator", "1")
+        client().prepareIndex("test", "query", "1")
                 .setSource("{\"query\" : { \"match_all\" : {} }, \"field1\" : \"value1\"}")
                 .setRefresh(true)
                 .get();
@@ -618,7 +618,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         PercolateResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .preparePercolate()
-                .setDocumentType("type")
+                .setDocumentType("query")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
         assertThat(response.getCount(), equalTo(1L));
@@ -627,7 +627,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .preparePercolate()
-                .setDocumentType("type")
+                .setDocumentType("query")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
         assertThat(response.getCount(), equalTo(0L));
@@ -635,7 +635,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .preparePercolate()
-                .setDocumentType("type")
+                .setDocumentType("query")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
         assertThat(response.getCount(), equalTo(1L));
@@ -645,7 +645,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         // match:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .preparePercolate()
-                .setDocumentType("type")
+                .setDocumentType("query")
                 .setPercolateQuery(termQuery("field1", "value1"))
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
@@ -656,7 +656,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         // is no match:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .preparePercolate()
-                .setDocumentType("type")
+                .setDocumentType("query")
                 .setPercolateQuery(termQuery("field1", "value1"))
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
@@ -664,7 +664,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .preparePercolate()
-                .setDocumentType("type")
+                .setDocumentType("query")
                 .setPercolateQuery(termQuery("field1", "value1"))
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
@@ -678,7 +678,7 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
         // Ensure that the query loading that happens at startup has permissions to load the percolator queries:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .preparePercolate()
-                .setDocumentType("type")
+                .setDocumentType("query")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
         assertThat(response.getCount(), equalTo(1L));

@@ -8,8 +8,8 @@ package org.elasticsearch.marvel.agent.exporter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.marvel.MarvelSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.agent.collector.Collector;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
@@ -25,13 +25,11 @@ import static org.hamcrest.Matchers.notNullValue;
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCase {
 
-    private final Integer currentVersion = MarvelTemplateUtils.TEMPLATE_VERSION;
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL.getKey(), "-1");
+                .put(MonitoringSettings.INTERVAL.getKey(), "-1");
 
         for (Map.Entry<String, String> setting : exporterSettings().getAsMap().entrySet()) {
             settings.put("xpack.monitoring.agent.exporters._exporter." + setting.getKey(), setting.getValue());
@@ -43,7 +41,7 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
 
     protected abstract void deleteTemplates() throws Exception;
 
-    protected abstract void putTemplate(String name, int version) throws Exception;
+    protected abstract void putTemplate(String name) throws Exception;
 
     protected abstract void assertTemplateExist(String name) throws Exception;
 
@@ -70,15 +68,14 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
     public void testCreateWhenExistingTemplatesAreOld() throws Exception {
         internalCluster().startNode();
 
-        final Integer version = randomIntBetween(0, currentVersion - 1);
-        putTemplate(indexTemplateName(version), version);
-        putTemplate(dataTemplateName(version), version);
+        putTemplate(indexTemplateName());
+        putTemplate(dataTemplateName());
 
         doExporting();
 
         logger.debug("--> existing templates are old");
-        assertTemplateExist(dataTemplateName(version));
-        assertTemplateExist(indexTemplateName(version));
+        assertTemplateExist(dataTemplateName());
+        assertTemplateExist(indexTemplateName());
 
         logger.debug("--> existing templates are old: new templates should be created");
         for (String template : monitoringTemplates().keySet()) {
@@ -95,8 +92,8 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
     public void testCreateWhenExistingTemplateAreUpToDate() throws Exception {
         internalCluster().startNode();
 
-        putTemplate(indexTemplateName(currentVersion), currentVersion);
-        putTemplate(dataTemplateName(currentVersion), currentVersion);
+        putTemplate(indexTemplateName());
+        putTemplate(dataTemplateName());
 
         doExporting();
 
@@ -106,53 +103,12 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
         }
 
         logger.debug("--> existing templates has the same version: they should not be changed");
-        assertTemplateNotUpdated(indexTemplateName(currentVersion));
-        assertTemplateNotUpdated(dataTemplateName(currentVersion));
+        assertTemplateNotUpdated(indexTemplateName());
+        assertTemplateNotUpdated(dataTemplateName());
 
         doExporting();
 
         logger.debug("--> indices should have been created");
-        awaitIndexExists(currentDataIndexName());
-        awaitIndexExists(currentTimestampedIndexName());
-    }
-
-    public void testRandomTemplates() throws Exception {
-        internalCluster().startNode();
-
-        int previousIndexTemplateVersion = rarely() ? currentVersion : randomIntBetween(0, currentVersion - 1);
-        boolean previousIndexTemplateExist = randomBoolean();
-        if (previousIndexTemplateExist) {
-            logger.debug("--> creating index template in version [{}]", previousIndexTemplateVersion);
-            putTemplate(indexTemplateName(previousIndexTemplateVersion), previousIndexTemplateVersion);
-        }
-
-        int previousDataTemplateVersion = rarely() ? currentVersion : randomIntBetween(0, currentVersion - 1);
-        boolean previousDataTemplateExist = randomBoolean();
-        if (previousDataTemplateExist) {
-            logger.debug("--> creating data template in version [{}]", previousDataTemplateVersion);
-            putTemplate(dataTemplateName(previousDataTemplateVersion), previousDataTemplateVersion);
-        }
-
-        doExporting();
-
-        logger.debug("--> templates should exist in current version");
-        for (String template : monitoringTemplates().keySet()) {
-            assertTemplateExist(template);
-        }
-
-        if (previousIndexTemplateExist) {
-            logger.debug("--> index template should exist in version [{}]", previousIndexTemplateVersion);
-            assertTemplateExist(indexTemplateName(previousIndexTemplateVersion));
-        }
-
-        if (previousDataTemplateExist) {
-            logger.debug("--> data template should exist in version [{}]", previousDataTemplateVersion);
-            assertTemplateExist(dataTemplateName(previousDataTemplateVersion));
-        }
-
-        doExporting();
-
-        logger.debug("--> indices should exist in current version");
         awaitIndexExists(currentDataIndexName());
         awaitIndexExists(currentTimestampedIndexName());
     }
@@ -169,18 +125,18 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
         exporters.export(collector.collect());
     }
 
-    private String dataTemplateName(Integer version) {
-        MockDataIndexNameResolver resolver = new MockDataIndexNameResolver(version);
+    private String dataTemplateName() {
+        MockDataIndexNameResolver resolver = new MockDataIndexNameResolver();
         return resolver.templateName();
     }
 
-    private String indexTemplateName(Integer version) {
-        MockTimestampedIndexNameResolver resolver = new MockTimestampedIndexNameResolver(MonitoredSystem.ES, version, exporterSettings());
+    private String indexTemplateName() {
+        MockTimestampedIndexNameResolver resolver = new MockTimestampedIndexNameResolver(MonitoredSystem.ES, exporterSettings());
         return resolver.templateName();
     }
 
     private String currentDataIndexName() {
-        MockDataIndexNameResolver resolver = new MockDataIndexNameResolver(currentVersion);
+        MockDataIndexNameResolver resolver = new MockDataIndexNameResolver();
         return resolver.index(null);
     }
 
@@ -188,13 +144,12 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
         MonitoringDoc doc = new MonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
         doc.setTimestamp(System.currentTimeMillis());
 
-        MockTimestampedIndexNameResolver resolver = new MockTimestampedIndexNameResolver(MonitoredSystem.ES, currentVersion,
-                exporterSettings());
+        MockTimestampedIndexNameResolver resolver = new MockTimestampedIndexNameResolver(MonitoredSystem.ES, exporterSettings());
         return resolver.index(doc);
     }
 
     /** Generates a basic template **/
-    protected static BytesReference generateTemplateSource(String name, Integer version) throws IOException {
+    protected static BytesReference generateTemplateSource(String name) throws IOException {
         return jsonBuilder().startObject()
                                 .field("template", name)
                                 .startObject("settings")

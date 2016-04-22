@@ -8,6 +8,9 @@ package org.elasticsearch.watcher.test;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,11 +36,6 @@ import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.ExecutableActions;
 import org.elasticsearch.watcher.actions.email.EmailAction;
 import org.elasticsearch.watcher.actions.email.ExecutableEmailAction;
-import org.elasticsearch.watcher.actions.email.service.Authentication;
-import org.elasticsearch.watcher.actions.email.service.EmailService;
-import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
-import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
-import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.actions.webhook.ExecutableWebhookAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
@@ -51,7 +49,7 @@ import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpMethod;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.secret.Secret;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
@@ -65,8 +63,14 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStatus;
+import org.elasticsearch.xpack.notification.email.Authentication;
+import org.elasticsearch.xpack.notification.email.EmailService;
+import org.elasticsearch.xpack.notification.email.EmailTemplate;
+import org.elasticsearch.xpack.notification.email.HtmlSanitizer;
+import org.elasticsearch.xpack.notification.email.Profile;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
+import org.mockito.Mockito;
 
 import javax.mail.internet.AddressException;
 import java.io.IOException;
@@ -248,8 +252,11 @@ public final class WatcherTestUtils {
         ScriptEngineRegistry scriptEngineRegistry =
                 new ScriptEngineRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        ClusterService clusterService = Mockito.mock(ClusterService.class);
+        Mockito.when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name")).build());
         return  ScriptServiceProxy.of(new ScriptService(settings, new Environment(settings), Collections.emptySet(),
-                new ResourceWatcherService(settings, tp), scriptEngineRegistry, scriptContextRegistry, scriptSettings));
+                new ResourceWatcherService(settings, tp), scriptEngineRegistry, scriptContextRegistry, scriptSettings),
+                clusterService);
     }
 
     public static SearchType getRandomSupportedSearchType() {

@@ -6,6 +6,7 @@
 package org.elasticsearch.graph.license;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.graph.GraphLicensee;
 import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeTestCase;
 
@@ -95,10 +96,10 @@ public class LicenseTests extends AbstractLicenseeTestCase {
     }
 
     private void assertLicensePlatinumTrialBehaviour(GraphLicensee graphLicensee) {
-        assertThat("Expected graph exploration to be allowed", graphLicensee.isGraphExploreEnabled(), is(true));
+        assertThat("Expected graph exploration to be allowed", graphLicensee.isAvailable(), is(true));
     }
 
     private void assertLicenseBasicOrGoldOrNoneOrExpiredBehaviour(GraphLicensee graphLicensee) {
-        assertThat("Expected graph exploration not to be allowed", graphLicensee.isGraphExploreEnabled(), is(false));
+        assertThat("Expected graph exploration not to be allowed", graphLicensee.isAvailable(), is(false));
     }
 }

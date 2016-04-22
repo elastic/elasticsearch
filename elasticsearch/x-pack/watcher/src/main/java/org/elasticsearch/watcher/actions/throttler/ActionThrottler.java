@@ -8,7 +8,7 @@ package org.elasticsearch.watcher.actions.throttler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.license.WatcherLicensee;
+import org.elasticsearch.watcher.WatcherLicensee;
 import org.elasticsearch.watcher.support.clock.Clock;
 
 /**

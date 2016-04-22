@@ -9,7 +9,7 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryCollector;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
@@ -35,9 +35,9 @@ public class IndexRecoveryTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL.getKey(), "-1")
-                .put(MarvelSettings.INDICES.getKey(), INDEX_PREFIX + "*")
-                .put(MarvelSettings.COLLECTORS.getKey(), IndexRecoveryCollector.NAME)
+                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
+                .put(MonitoringSettings.INDICES.getKey(), INDEX_PREFIX + "*")
+                .put(MonitoringSettings.COLLECTORS.getKey(), IndexRecoveryCollector.NAME)
                 .put("xpack.monitoring.agent.exporters.default_local.type", "local")
                 .build();
     }
@@ -80,12 +80,12 @@ public class IndexRecoveryTests extends MarvelIntegTestCase {
 
         logger.debug("--> checking that every document contains the expected fields");
         String[] filters = {
-                MonitoringIndexNameResolver.Fields.CLUSTER_UUID.underscore().toString(),
-                MonitoringIndexNameResolver.Fields.TIMESTAMP.underscore().toString(),
-                MonitoringIndexNameResolver.Fields.SOURCE_NODE.underscore().toString(),
-                IndexRecoveryResolver.Fields.INDEX_RECOVERY.underscore().toString(),
-                IndexRecoveryResolver.Fields.INDEX_RECOVERY.underscore().toString() + "."
-                        + IndexRecoveryResolver.Fields.SHARDS.underscore().toString(),
+                MonitoringIndexNameResolver.Fields.CLUSTER_UUID,
+                MonitoringIndexNameResolver.Fields.TIMESTAMP,
+                MonitoringIndexNameResolver.Fields.SOURCE_NODE,
+                IndexRecoveryResolver.Fields.INDEX_RECOVERY,
+                IndexRecoveryResolver.Fields.INDEX_RECOVERY + "."
+                        + IndexRecoveryResolver.Fields.SHARDS,
         };
 
         for (SearchHit searchHit : response.getHits().getHits()) {

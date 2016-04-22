@@ -17,8 +17,8 @@ import java.io.IOException;
 
 public class MonitoringBulkResolver extends MonitoringIndexNameResolver.Timestamped<MonitoringBulkDoc> {
 
-    public MonitoringBulkResolver(MonitoredSystem id, int version, Settings settings) {
-        super(id, version, settings);
+    public MonitoringBulkResolver(MonitoredSystem id, Settings settings) {
+        super(id, settings);
     }
 
     @Override

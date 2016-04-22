@@ -13,7 +13,7 @@ import org.elasticsearch.shield.authc.esnative.ReservedRealm;
 import org.elasticsearch.shield.authc.esnative.NativeRealm;
 import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
-import org.elasticsearch.shield.license.ShieldLicenseState;
+import org.elasticsearch.shield.SecurityLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
  */
 public class RealmsTests extends ESTestCase {
     private Map<String, Realm.Factory> factories;
-    private ShieldLicenseState shieldLicenseState;
+    private SecurityLicenseState shieldLicenseState;
     private ReservedRealm reservedRealm;
 
     @Before
@@ -49,7 +49,7 @@ public class RealmsTests extends ESTestCase {
             DummyRealm.Factory factory = new DummyRealm.Factory("type_" + i, rarely());
             factories.put("type_" + i, factory);
         }
-        shieldLicenseState = mock(ShieldLicenseState.class);
+        shieldLicenseState = mock(SecurityLicenseState.class);
         reservedRealm = mock(ReservedRealm.class);
         when(shieldLicenseState.customRealmsEnabled()).thenReturn(true);
     }

@@ -26,6 +26,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class ShieldPluginTests extends ShieldIntegTestCase {
+
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -53,9 +54,6 @@ public class ShieldPluginTests extends ShieldIntegTestCase {
                             new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())))
                     .execute();
             assertThat(response.getStatusCode(), is(OK.getStatus()));
-            assertThat(response.getBody(), allOf(containsString("status"), containsString("hash"),
-                    containsString("timestamp"),  containsString("uid"),
-                    containsString("type"),  containsString("status")));
         }
     }
 }

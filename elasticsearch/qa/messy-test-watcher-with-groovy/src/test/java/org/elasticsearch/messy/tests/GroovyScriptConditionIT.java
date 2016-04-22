@@ -16,7 +16,7 @@ import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.watch.Payload;
 import org.junit.AfterClass;

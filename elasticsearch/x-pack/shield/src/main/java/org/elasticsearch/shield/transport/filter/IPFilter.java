@@ -18,7 +18,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.shield.audit.AuditTrail;
-import org.elasticsearch.shield.license.ShieldLicenseState;
+import org.elasticsearch.shield.SecurityLicenseState;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.net.InetAddress;
@@ -89,7 +89,7 @@ public class IPFilter {
     };
 
     private final AuditTrail auditTrail;
-    private final ShieldLicenseState licenseState;
+    private final SecurityLicenseState licenseState;
     private final boolean alwaysAllowBoundAddresses;
 
     private final ESLogger logger;
@@ -107,7 +107,7 @@ public class IPFilter {
 
     @Inject
     public IPFilter(final Settings settings, AuditTrail auditTrail, ClusterSettings clusterSettings,
-                    ShieldLicenseState licenseState) {
+                    SecurityLicenseState licenseState) {
         this.logger = Loggers.getLogger(getClass(), settings);
         this.auditTrail = auditTrail;
         this.licenseState = licenseState;

@@ -15,13 +15,21 @@ import org.elasticsearch.shield.user.AnonymousUser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.action.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
@@ -50,8 +58,20 @@ public class TransportXPackInfoActionTests extends ESTestCase {
 
         LicensesService licensesService = mock(LicensesService.class);
 
+        final Set<XPackFeatureSet> featureSets = new HashSet<>();
+        int featureSetCount = randomIntBetween(0, 5);
+        for (int i = 0; i < featureSetCount; i++) {
+            XPackFeatureSet fs = mock(XPackFeatureSet.class);
+            when(fs.name()).thenReturn(randomAsciiOfLength(5));
+            when(fs.description()).thenReturn(randomAsciiOfLength(10));
+            when(fs.available()).thenReturn(randomBoolean());
+            when(fs.enabled()).thenReturn(randomBoolean());
+            featureSets.add(fs);
+        }
+
         TransportXPackInfoAction action = new TransportXPackInfoAction(Settings.EMPTY, mock(ThreadPool.class),
-                mock(TransportService.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), licensesService);
+                mock(TransportService.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
+                licensesService, featureSets);
 
         License license = mock(License.class);
         long expiryDate = randomLong();
@@ -65,6 +85,14 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         when(licensesService.getLicense()).thenReturn(license);
 
         XPackInfoRequest request = new XPackInfoRequest();
+        request.setVerbose(randomBoolean());
+
+        EnumSet<XPackInfoRequest.Category> categories = EnumSet.noneOf(XPackInfoRequest.Category.class);
+        int maxCategoryCount = randomIntBetween(0, XPackInfoRequest.Category.values().length);
+        for (int i = 0; i < maxCategoryCount; i++) {
+            categories.add(randomFrom(XPackInfoRequest.Category.values()));
+        }
+        request.setCategories(categories);
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<XPackInfoResponse> response = new AtomicReference<>();
@@ -90,12 +118,41 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         assertThat(error.get(), nullValue());
         assertThat(response.get(), notNullValue());
 
-        assertThat(response.get().getBuildInfo(), notNullValue());
-        assertThat(response.get().getLicenseInfo(), notNullValue());
-        assertThat(response.get().getLicenseInfo().getExpiryDate(), is(expiryDate));
-        assertThat(response.get().getLicenseInfo().getStatus(), is(status));
-        assertThat(response.get().getLicenseInfo().getType(), is(type));
-        assertThat(response.get().getLicenseInfo().getUid(), is(uid));
+        if (request.getCategories().contains(XPackInfoRequest.Category.BUILD)) {
+            assertThat(response.get().getBuildInfo(), notNullValue());
+        } else {
+            assertThat(response.get().getBuildInfo(), nullValue());
+        }
+
+        if (request.getCategories().contains(XPackInfoRequest.Category.LICENSE)) {
+            assertThat(response.get().getLicenseInfo(), notNullValue());
+            assertThat(response.get().getLicenseInfo().getExpiryDate(), is(expiryDate));
+            assertThat(response.get().getLicenseInfo().getStatus(), is(status));
+            assertThat(response.get().getLicenseInfo().getType(), is(type));
+            assertThat(response.get().getLicenseInfo().getUid(), is(uid));
+        } else {
+            assertThat(response.get().getLicenseInfo(), nullValue());
+        }
+
+        if (request.getCategories().contains(XPackInfoRequest.Category.FEATURES)) {
+            assertThat(response.get().getFeatureSetsInfo(), notNullValue());
+            Map<String, FeatureSet> features = response.get().getFeatureSetsInfo().getFeatureSets();
+            assertThat(features.size(), is(featureSets.size()));
+            for (XPackFeatureSet fs : featureSets) {
+                assertThat(features, hasKey(fs.name()));
+                assertThat(features.get(fs.name()).name(), equalTo(fs.name()));
+                if (!request.isVerbose()) {
+                    assertThat(features.get(fs.name()).description(), is(nullValue()));
+                } else {
+                    assertThat(features.get(fs.name()).description(), is(fs.description()));
+                }
+                assertThat(features.get(fs.name()).available(), equalTo(fs.available()));
+                assertThat(features.get(fs.name()).enabled(), equalTo(fs.enabled()));
+            }
+        } else {
+            assertThat(response.get().getFeatureSetsInfo(), nullValue());
+        }
+
     }
 
 }

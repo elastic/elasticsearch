@@ -13,8 +13,8 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.hipchat.service.HipChatMessage;
-import org.elasticsearch.watcher.actions.hipchat.service.SentMessages;
+import org.elasticsearch.xpack.notification.hipchat.HipChatMessage;
+import org.elasticsearch.xpack.notification.hipchat.SentMessages;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 
 import java.io.IOException;

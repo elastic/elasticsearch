@@ -13,8 +13,8 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.slack.service.SentMessages;
-import org.elasticsearch.watcher.actions.slack.service.message.SlackMessage;
+import org.elasticsearch.xpack.notification.slack.SentMessages;
+import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
 
 import java.io.IOException;
 

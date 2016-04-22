@@ -11,14 +11,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.actions.slack.service.SlackAccount;
-import org.elasticsearch.watcher.actions.slack.service.SlackService;
+import org.elasticsearch.xpack.notification.slack.SlackAccount;
+import org.elasticsearch.xpack.notification.slack.SlackService;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.junit.Before;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.actions.ActionBuilders.slackAction;
-import static org.elasticsearch.watcher.actions.slack.service.message.SlackMessageTests.createRandomTemplate;
+import static org.elasticsearch.xpack.notification.slack.message.SlackMessageTests.createRandomTemplate;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

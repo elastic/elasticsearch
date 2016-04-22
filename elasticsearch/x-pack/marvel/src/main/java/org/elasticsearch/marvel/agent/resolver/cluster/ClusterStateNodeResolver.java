@@ -8,7 +8,6 @@ package org.elasticsearch.marvel.agent.resolver.cluster;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateNodeMonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
@@ -19,8 +18,8 @@ public class ClusterStateNodeResolver extends MonitoringIndexNameResolver.Timest
 
     public static final String TYPE = "node";
 
-    public ClusterStateNodeResolver(MonitoredSystem id, int version, Settings settings) {
-        super(id, version, settings);
+    public ClusterStateNodeResolver(MonitoredSystem id, Settings settings) {
+        super(id, settings);
     }
 
     @Override
@@ -38,8 +37,8 @@ public class ClusterStateNodeResolver extends MonitoringIndexNameResolver.Timest
     }
 
     static final class Fields {
-        static final XContentBuilderString STATE_UUID = new XContentBuilderString("state_uuid");
-        static final XContentBuilderString NODE = new XContentBuilderString("node");
-        static final XContentBuilderString ID = new XContentBuilderString("id");
+        static final String STATE_UUID = "state_uuid";
+        static final String NODE = "node";
+        static final String ID = "id";
     }
 }

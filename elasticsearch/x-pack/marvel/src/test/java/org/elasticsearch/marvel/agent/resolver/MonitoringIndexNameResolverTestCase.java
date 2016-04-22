@@ -11,6 +11,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.marvel.MonitoredSystem;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.test.ESTestCase;
 
@@ -128,18 +129,17 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
     public void testResolver() {
         MonitoringIndexNameResolver resolver = newResolver();
         assertThat(resolver, notNullValue());
-        assertThat(resolver.getVersion(), greaterThanOrEqualTo(0));
 
         if (resolver instanceof MonitoringIndexNameResolver.Timestamped) {
             MonitoringIndexNameResolver.Timestamped timestamped = (MonitoringIndexNameResolver.Timestamped) resolver;
             assertThat(resolver.index(newMarvelDoc()),
-                    startsWith(PREFIX + DELIMITER + timestamped.getId() + DELIMITER + timestamped.getVersion() + DELIMITER));
+                    startsWith(PREFIX + DELIMITER + timestamped.getId() + DELIMITER + MarvelTemplateUtils.TEMPLATE_VERSION + DELIMITER));
         }
 
         if (resolver instanceof MonitoringIndexNameResolver.Data) {
             MonitoringIndexNameResolver.Data data = (MonitoringIndexNameResolver.Data) resolver;
             assertThat(resolver.index(newMarvelDoc()),
-                    equalTo(PREFIX + DELIMITER + MonitoringIndexNameResolver.Data.DATA + DELIMITER + String.valueOf(data.getVersion())));
+                    equalTo(PREFIX + DELIMITER + MonitoringIndexNameResolver.Data.DATA + DELIMITER + MarvelTemplateUtils.TEMPLATE_VERSION));
         }
     }
 
@@ -148,9 +148,9 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
         assertNotNull(sourceFields);
 
         String[] commons = new String[]{
-                CLUSTER_UUID.underscore().getValue(),
-                TIMESTAMP.underscore().getValue(),
-                SOURCE_NODE.underscore().getValue(),
+                CLUSTER_UUID,
+                TIMESTAMP,
+                SOURCE_NODE,
         };
         assertThat("source must contains default fields", sourceFields.keySet(), hasItems(commons));
 

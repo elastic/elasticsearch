@@ -5,54 +5,69 @@
  */
 package org.elasticsearch.watcher.support;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
-import org.elasticsearch.watcher.watch.WatchStore;
+import org.elasticsearch.xpack.template.TemplateUtils;
 
-import java.io.InputStream;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.unmodifiableMap;
-import static java.util.Collections.unmodifiableSet;
 
 /**
  */
 public class WatcherIndexTemplateRegistry extends AbstractComponent implements ClusterStateListener {
+
     private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";
+    public static final String INDEX_TEMPLATE_VERSION = "1";
+
+    public static final String HISTORY_TEMPLATE_NAME = "watch_history_" + INDEX_TEMPLATE_VERSION;
+    public static final String TRIGGERED_TEMPLATE_NAME = "triggered_watches";
+    public static final String WATCHES_TEMPLATE_NAME = "watches";
+
+    public static final Setting<Settings> HISTORY_TEMPLATE_SETTING = Setting.groupSetting("xpack.watcher.history.index.",
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Settings> TRIGGERED_TEMPLATE_SETTING = Setting.groupSetting("xpack.watcher.triggered_watches.index.",
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Settings> WATCHES_TEMPLATE_SETTING = Setting.groupSetting("xpack.watcher.watches.index.",
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final TemplateConfig[] TEMPLATE_CONFIGS = new TemplateConfig[]{
+            new TemplateConfig(TRIGGERED_TEMPLATE_NAME, TRIGGERED_TEMPLATE_SETTING),
+            new TemplateConfig(HISTORY_TEMPLATE_NAME, "watch_history", HISTORY_TEMPLATE_SETTING),
+            new TemplateConfig(WATCHES_TEMPLATE_NAME, WATCHES_TEMPLATE_SETTING)
+    };
 
     private final WatcherClientProxy client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private final Set<TemplateConfig> indexTemplates;
+    private final TemplateConfig[] indexTemplates;
 
     private volatile Map<String, Settings> customIndexSettings;
 
     @Inject
     public WatcherIndexTemplateRegistry(Settings settings, ClusterSettings clusterSettings, ClusterService clusterService,
-                                        ThreadPool threadPool, WatcherClientProxy client, Set<TemplateConfig> configs) {
+                                        ThreadPool threadPool, WatcherClientProxy client) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.indexTemplates = unmodifiableSet(new HashSet<>(configs));
+        this.indexTemplates = TEMPLATE_CONFIGS;
         clusterService.add(this);
 
         Map<String, Settings> customIndexSettings = new HashMap<>();
@@ -150,33 +165,23 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
         } else {
             executor = threadPool.generic();
         }
-        executor.execute(new Runnable() {
-            @Override
-            public void run() {
-                try (InputStream is = WatchStore.class.getResourceAsStream("/" + config.getFileName()+ ".json")) {
-                    if (is == null) {
-                        logger.error("Resource [/{}.json] not found in classpath", config.getFileName());
-                        return;
-                    }
-                    final byte[] template;
-                    try (BytesStreamOutput out = new BytesStreamOutput()) {
-                        Streams.copy(is, out);
-                        template = out.bytes().toBytes();
-                    }
+        executor.execute(() -> {
+            final byte[] template = TemplateUtils.loadTemplate("/" + config.getFileName()+ ".json", INDEX_TEMPLATE_VERSION,
+                    Pattern.quote("${xpack.watcher.template.version}")).getBytes(Charsets.UTF_8);
 
-                    PutIndexTemplateRequest request = new PutIndexTemplateRequest(config.getTemplateName()).source(template);
-                    Settings customSettings = customIndexSettings.get(config.getSetting().getKey());
-                    if (customSettings != null && customSettings.names().size() > 0) {
-                        Settings updatedSettings = Settings.builder()
-                                .put(request.settings())
-                                .put(customSettings)
-                                .build();
-                        request.settings(updatedSettings);
-                    }
-                    PutIndexTemplateResponse response = client.putTemplate(request);
-                } catch (Exception e) {
-                    logger.error("failed to load [{}.json]", e, config.getTemplateName());
-                }
+            PutIndexTemplateRequest request = new PutIndexTemplateRequest(config.getTemplateName()).source(template);
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+            Settings customSettings = customIndexSettings.get(config.getSetting().getKey());
+            if (customSettings != null && customSettings.names().size() > 0) {
+                Settings updatedSettings = Settings.builder()
+                        .put(request.settings())
+                        .put(customSettings)
+                        .build();
+                request.settings(updatedSettings);
+            }
+            PutIndexTemplateResponse response = client.putTemplate(request);
+            if (response.isAcknowledged() == false) {
+                logger.error("Error adding watcher template [{}], request was not acknowledged", config.getTemplateName());
             }
         });
     }

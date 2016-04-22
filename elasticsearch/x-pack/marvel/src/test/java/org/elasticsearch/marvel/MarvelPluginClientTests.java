@@ -16,16 +16,15 @@ import java.util.Collection;
 import static org.hamcrest.Matchers.is;
 
 public class MarvelPluginClientTests extends ESTestCase {
+
     public void testModulesWithClientSettings() {
         Settings settings = Settings.builder()
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), TransportClient.CLIENT_TYPE)
                 .build();
 
-        Marvel plugin = new Marvel(settings);
+        Monitoring plugin = new Monitoring(settings);
         assertThat(plugin.isEnabled(), is(true));
         assertThat(plugin.isTransportClient(), is(true));
-        Collection<Module> modules = plugin.nodeModules();
-        assertThat(modules.size(), is(0));
     }
 
     public void testModulesWithNodeSettings() {
@@ -33,10 +32,8 @@ public class MarvelPluginClientTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), "node")
                 .build();
-        Marvel plugin = new Marvel(settings);
+        Monitoring plugin = new Monitoring(settings);
         assertThat(plugin.isEnabled(), is(true));
         assertThat(plugin.isTransportClient(), is(false));
-        Collection<Module> modules = plugin.nodeModules();
-        assertThat(modules.size(), is(5));
     }
 }

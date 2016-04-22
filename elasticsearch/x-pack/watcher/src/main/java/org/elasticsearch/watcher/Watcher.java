@@ -22,15 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.watcher.actions.WatcherActionModule;
-import org.elasticsearch.watcher.actions.email.service.EmailService;
-import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
-import org.elasticsearch.watcher.actions.hipchat.service.HipChatService;
-import org.elasticsearch.watcher.actions.hipchat.service.InternalHipChatService;
-import org.elasticsearch.watcher.actions.pagerduty.service.InternalPagerDutyService;
-import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyAccount;
-import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyService;
-import org.elasticsearch.watcher.actions.slack.service.InternalSlackService;
-import org.elasticsearch.watcher.actions.slack.service.SlackService;
 import org.elasticsearch.watcher.client.WatcherClientModule;
 import org.elasticsearch.watcher.condition.ConditionModule;
 import org.elasticsearch.watcher.execution.ExecutionModule;
@@ -38,8 +29,6 @@ import org.elasticsearch.watcher.history.HistoryModule;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.input.InputModule;
 import org.elasticsearch.watcher.input.chain.ChainInputFactory;
-import org.elasticsearch.watcher.license.LicenseModule;
-import org.elasticsearch.watcher.license.WatcherLicensee;
 import org.elasticsearch.watcher.rest.action.RestAckWatchAction;
 import org.elasticsearch.watcher.rest.action.RestActivateWatchAction;
 import org.elasticsearch.watcher.rest.action.RestDeleteWatchAction;
@@ -49,11 +38,12 @@ import org.elasticsearch.watcher.rest.action.RestHijackOperationAction;
 import org.elasticsearch.watcher.rest.action.RestPutWatchAction;
 import org.elasticsearch.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.watcher.rest.action.RestWatcherStatsAction;
+import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
 import org.elasticsearch.watcher.support.clock.ClockModule;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpClientModule;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.support.secret.SecretModule;
 import org.elasticsearch.watcher.support.secret.SecretService;
@@ -82,6 +72,15 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.watch.WatchModule;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.common.init.LazyInitializationModule;
+import org.elasticsearch.xpack.notification.email.EmailService;
+import org.elasticsearch.xpack.notification.email.InternalEmailService;
+import org.elasticsearch.xpack.notification.hipchat.HipChatService;
+import org.elasticsearch.xpack.notification.hipchat.InternalHipChatService;
+import org.elasticsearch.xpack.notification.pagerduty.InternalPagerDutyService;
+import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
+import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
+import org.elasticsearch.xpack.notification.slack.InternalSlackService;
+import org.elasticsearch.xpack.notification.slack.SlackService;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -119,26 +118,25 @@ public class Watcher {
     }
 
     public Collection<Module> nodeModules() {
-        if (enabled == false|| transportClient) {
-            return Collections.emptyList();
+        List<Module> modules = new ArrayList<>();
+        modules.add(new WatcherModule(enabled, transportClient));
+        if (enabled && transportClient == false) {
+            modules.add(new WatchModule());
+            modules.add(new TextTemplateModule());
+            modules.add(new HttpClientModule());
+            modules.add(new ClockModule());
+            modules.add(new WatcherClientModule());
+            modules.add(new TransformModule());
+            modules.add(new TriggerModule(settings));
+            modules.add(new ScheduleModule());
+            modules.add(new ConditionModule());
+            modules.add(new InputModule());
+            modules.add(new WatcherActionModule());
+            modules.add(new HistoryModule());
+            modules.add(new ExecutionModule());
+            modules.add(new SecretModule(settings));
         }
-        return Arrays.<Module>asList(
-                new WatcherModule(settings),
-                new LicenseModule(),
-                new WatchModule(),
-                new TextTemplateModule(),
-                new HttpClientModule(),
-                new ClockModule(),
-                new WatcherClientModule(),
-                new TransformModule(),
-                new TriggerModule(settings),
-                new ScheduleModule(),
-                new ConditionModule(),
-                new InputModule(),
-                new WatcherActionModule(),
-                new HistoryModule(),
-                new ExecutionModule(),
-                new SecretModule(settings));
+        return modules;
     }
 
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
@@ -171,7 +169,7 @@ public class Watcher {
     }
 
     public void onModule(SettingsModule module) {
-        for (TemplateConfig templateConfig : WatcherModule.TEMPLATE_CONFIGS) {
+        for (TemplateConfig templateConfig : WatcherIndexTemplateRegistry.TEMPLATE_CONFIGS) {
             module.registerSetting(templateConfig.getSetting());
         }
         module.registerSetting(InternalSlackService.SLACK_ACCOUNT_SETTING);
@@ -203,13 +201,12 @@ public class Watcher {
         module.registerSetting(Setting.simpleString("xpack.watcher.start_immediately", Setting.Property.NodeScope));
         module.registerSetting(Setting.simpleString("xpack.watcher.http.default_connection_timeout", Setting.Property.NodeScope));
 
-        module.registerSettingsFilter("xpack.watcher.actions.email.service.account.*.smtp.password");
-        module.registerSettingsFilter("xpack.watcher.actions.slack.service.account.*.url");
-        module.registerSettingsFilter("xpack.watcher.actions.pagerduty.service.account.*.url");
-        module.registerSettingsFilter("xpack.watcher.actions.pagerduty.service." + PagerDutyAccount.SERVICE_KEY_SETTING);
-        module.registerSettingsFilter("xpack.watcher.actions.pagerduty.service.account.*." +
-                PagerDutyAccount.SERVICE_KEY_SETTING);
-        module.registerSettingsFilter("xpack.watcher.actions.hipchat.service.account.*.auth_token");
+        module.registerSettingsFilter("xpack.notification.email.service.account.*.smtp.password");
+        module.registerSettingsFilter("xpack.notification.slack.service.account.*.url");
+        module.registerSettingsFilter("xpack.notification.pagerduty.service.account.*.url");
+        module.registerSettingsFilter("xpack.notification.pagerduty.service." + PagerDutyAccount.SERVICE_KEY_SETTING);
+        module.registerSettingsFilter("xpack.notification.pagerduty.service.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);
+        module.registerSettingsFilter("xpack.notification.hipchat.service.account.*.auth_token");
     }
 
     public void onModule(NetworkModule module) {
@@ -242,7 +239,6 @@ public class Watcher {
     public void onModule(LazyInitializationModule module) {
         if (enabled) {
             module.registerLazyInitializable(WatcherClientProxy.class);
-            module.registerLazyInitializable(ScriptServiceProxy.class);
             module.registerLazyInitializable(ChainTransformFactory.class);
             module.registerLazyInitializable(ChainInputFactory.class);
         }

@@ -18,7 +18,7 @@ import org.elasticsearch.rest.RestFilterChain;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.pki.PkiRealm;
-import org.elasticsearch.shield.license.ShieldLicenseState;
+import org.elasticsearch.shield.SecurityLicenseState;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.handler.ssl.SslHandler;
@@ -34,13 +34,13 @@ public class ShieldRestFilter extends RestFilter {
 
     private final AuthenticationService service;
     private final ESLogger logger;
-    private final ShieldLicenseState licenseState;
+    private final SecurityLicenseState licenseState;
     private final ThreadContext threadContext;
     private final boolean extractClientCertificate;
 
     @Inject
     public ShieldRestFilter(AuthenticationService service, RestController controller, Settings settings,
-                            ThreadPool threadPool, ShieldLicenseState licenseState) {
+                            ThreadPool threadPool, SecurityLicenseState licenseState) {
         this.service = service;
         this.licenseState = licenseState;
         this.threadContext = threadPool.getThreadContext();

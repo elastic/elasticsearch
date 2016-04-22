@@ -10,7 +10,6 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoMonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
@@ -22,10 +21,6 @@ import java.util.Map;
 public class ClusterInfoResolver extends MonitoringIndexNameResolver.Data<ClusterInfoMonitoringDoc> {
 
     public static final String TYPE = "cluster_info";
-
-    public ClusterInfoResolver(int version) {
-        super(version);
-    }
 
     @Override
     public String type(ClusterInfoMonitoringDoc document) {
@@ -72,14 +67,14 @@ public class ClusterInfoResolver extends MonitoringIndexNameResolver.Data<Cluste
     }
 
     static final class Fields {
-        static final XContentBuilderString CLUSTER_NAME = new XContentBuilderString("cluster_name");
-        static final XContentBuilderString LICENSE = new XContentBuilderString("license");
-        static final XContentBuilderString VERSION = new XContentBuilderString("version");
-        static final XContentBuilderString CLUSTER_STATS = new XContentBuilderString("cluster_stats");
+        static final String CLUSTER_NAME = "cluster_name";
+        static final String LICENSE = "license";
+        static final String VERSION = "version";
+        static final String CLUSTER_STATS = "cluster_stats";
 
-        static final XContentBuilderString HKEY = new XContentBuilderString("hkey");
+        static final String HKEY = "hkey";
 
-        static final XContentBuilderString UID = new XContentBuilderString("uid");
-        static final XContentBuilderString TYPE = new XContentBuilderString("type");
+        static final String UID = "uid";
+        static final String TYPE = "type";
     }
 }

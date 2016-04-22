@@ -11,9 +11,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.agent.collector.shards.ShardsCollector;
-import org.elasticsearch.marvel.agent.resolver.shards.ShardsResolver;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -43,9 +42,9 @@ public class ShardsTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL.getKey(), "-1")
-                .put(MarvelSettings.COLLECTORS.getKey(), ShardsCollector.NAME)
-                .put(MarvelSettings.INDICES.getKey(), INDEX_PREFIX + "*")
+                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
+                .put(MonitoringSettings.COLLECTORS.getKey(), ShardsCollector.NAME)
+                .put(MonitoringSettings.INDICES.getKey(), INDEX_PREFIX + "*")
                 .put("xpack.monitoring.agent.exporters.default_local.type", "local")
                 .build();
     }

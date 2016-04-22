@@ -17,7 +17,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
@@ -25,8 +25,8 @@ import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
 import org.elasticsearch.marvel.client.MonitoringClient;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.Security;
+import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
@@ -435,14 +435,10 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
     protected void updateMarvelInterval(long value, TimeUnit timeUnit) {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                Settings.builder().put(MarvelSettings.INTERVAL.getKey(), value, timeUnit)));
+                Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), value, timeUnit)));
     }
 
-    protected class MockDataIndexNameResolver extends MonitoringIndexNameResolver.Data<MonitoringDoc> {
-
-        public MockDataIndexNameResolver(int version) {
-            super(version);
-        }
+    public class MockDataIndexNameResolver extends MonitoringIndexNameResolver.Data<MonitoringDoc> {
 
         @Override
         public String type(MonitoringDoc document) {
@@ -462,12 +458,12 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
     protected class MockTimestampedIndexNameResolver extends MonitoringIndexNameResolver.Timestamped<MonitoringDoc> {
 
-        public MockTimestampedIndexNameResolver(MonitoredSystem id, int version, Settings settings) {
-            super(id, version, settings);
+        public MockTimestampedIndexNameResolver(MonitoredSystem id, Settings settings) {
+            super(id, settings);
         }
 
-        public MockTimestampedIndexNameResolver(MonitoredSystem id, int version) {
-            this(id, version, Settings.EMPTY);
+        public MockTimestampedIndexNameResolver(MonitoredSystem id) {
+            this(id, Settings.EMPTY);
         }
 
         @Override

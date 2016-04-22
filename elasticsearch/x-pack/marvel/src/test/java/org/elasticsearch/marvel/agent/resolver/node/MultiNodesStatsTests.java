@@ -8,7 +8,7 @@ package org.elasticsearch.marvel.agent.resolver.node;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -34,7 +34,7 @@ public class MultiNodesStatsTests extends MarvelIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MarvelSettings.INTERVAL.getKey(), "-1")
+                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .put("xpack.monitoring.agent.exporters.default_local.type", "local")
                 .build();
     }

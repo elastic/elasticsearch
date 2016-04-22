@@ -9,7 +9,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.indices.IndicesStatsMonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
@@ -42,8 +41,8 @@ public class IndicesStatsResolver extends MonitoringIndexNameResolver.Timestampe
             "indices_stats._all.total.store.size_in_bytes",
     };
 
-    public IndicesStatsResolver(MonitoredSystem id, int version, Settings settings) {
-        super(id, version, settings);
+    public IndicesStatsResolver(MonitoredSystem id, Settings settings) {
+        super(id, settings);
     }
 
     @Override
@@ -67,6 +66,6 @@ public class IndicesStatsResolver extends MonitoringIndexNameResolver.Timestampe
     }
 
     static final class Fields {
-        static final XContentBuilderString INDICES_STATS = new XContentBuilderString(TYPE);
+        static final String INDICES_STATS = TYPE;
     }
 }

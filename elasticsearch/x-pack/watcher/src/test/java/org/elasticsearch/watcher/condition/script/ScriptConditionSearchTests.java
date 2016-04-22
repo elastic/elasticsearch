@@ -20,7 +20,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.watch.Payload;

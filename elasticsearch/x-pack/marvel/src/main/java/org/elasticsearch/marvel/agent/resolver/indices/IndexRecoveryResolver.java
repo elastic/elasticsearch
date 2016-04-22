@@ -9,7 +9,6 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMonitoringDoc;
@@ -23,8 +22,8 @@ public class IndexRecoveryResolver extends MonitoringIndexNameResolver.Timestamp
 
     public static final String TYPE = "index_recovery";
 
-    public IndexRecoveryResolver(MonitoredSystem id, int version, Settings settings) {
-        super(id, version, settings);
+    public IndexRecoveryResolver(MonitoredSystem id, Settings settings) {
+        super(id, settings);
     }
 
     @Override
@@ -62,8 +61,8 @@ public class IndexRecoveryResolver extends MonitoringIndexNameResolver.Timestamp
     }
 
     static final class Fields {
-        static final XContentBuilderString INDEX_RECOVERY = new XContentBuilderString(TYPE);
-        static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
-        static final XContentBuilderString INDEX_NAME = new XContentBuilderString("index_name");
+        static final String INDEX_RECOVERY = TYPE;
+        static final String SHARDS = "shards";
+        static final String INDEX_NAME = "index_name";
     }
 }

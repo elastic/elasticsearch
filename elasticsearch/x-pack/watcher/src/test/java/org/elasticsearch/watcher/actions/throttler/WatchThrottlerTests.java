@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.actions.throttler;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.license.WatcherLicensee;
+import org.elasticsearch.watcher.WatcherLicensee;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;

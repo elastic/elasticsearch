@@ -16,10 +16,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
-import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.MonitoringLicensee;
 import org.elasticsearch.shield.InternalClient;
 
 import java.util.ArrayList;
@@ -47,9 +47,9 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
 
     @Inject
     public ClusterStatsCollector(Settings settings, ClusterService clusterService,
-                                 MarvelSettings marvelSettings, MarvelLicensee marvelLicensee, InternalClient client,
+                                 MonitoringSettings monitoringSettings, MonitoringLicensee licensee, InternalClient client,
                                  LicensesManagerService licensesManagerService, ClusterName clusterName) {
-        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
+        super(settings, NAME, clusterService, monitoringSettings, licensee);
         this.client = client;
         this.clusterName = clusterName;
         this.licensesManagerService = licensesManagerService;
@@ -68,7 +68,7 @@ public class ClusterStatsCollector extends AbstractCollector<ClusterStatsCollect
         // Retrieves cluster stats
         ClusterStatsResponse clusterStats = null;
         try {
-            clusterStats = client.admin().cluster().prepareClusterStats().get(marvelSettings.clusterStatsTimeout());
+            clusterStats = client.admin().cluster().prepareClusterStats().get(monitoringSettings.clusterStatsTimeout());
         } catch (ElasticsearchSecurityException e) {
             if (LicenseUtils.isLicenseExpiredException(e)) {
                 logger.trace("collector [{}] - unable to collect data because of expired license", e, name());

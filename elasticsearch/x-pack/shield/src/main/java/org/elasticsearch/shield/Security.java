@@ -21,28 +21,28 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.shield.action.filter.ShieldActionFilter;
 import org.elasticsearch.shield.action.ShieldActionModule;
+import org.elasticsearch.shield.action.filter.ShieldActionFilter;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.shield.action.realm.TransportClearRealmCacheAction;
-import org.elasticsearch.shield.action.role.PutRoleAction;
 import org.elasticsearch.shield.action.role.ClearRolesCacheAction;
 import org.elasticsearch.shield.action.role.DeleteRoleAction;
 import org.elasticsearch.shield.action.role.GetRolesAction;
-import org.elasticsearch.shield.action.role.TransportPutRoleAction;
+import org.elasticsearch.shield.action.role.PutRoleAction;
 import org.elasticsearch.shield.action.role.TransportClearRolesCacheAction;
 import org.elasticsearch.shield.action.role.TransportDeleteRoleAction;
 import org.elasticsearch.shield.action.role.TransportGetRolesAction;
+import org.elasticsearch.shield.action.role.TransportPutRoleAction;
 import org.elasticsearch.shield.action.user.AuthenticateAction;
 import org.elasticsearch.shield.action.user.ChangePasswordAction;
-import org.elasticsearch.shield.action.user.PutUserAction;
 import org.elasticsearch.shield.action.user.DeleteUserAction;
 import org.elasticsearch.shield.action.user.GetUsersAction;
+import org.elasticsearch.shield.action.user.PutUserAction;
 import org.elasticsearch.shield.action.user.TransportAuthenticateAction;
 import org.elasticsearch.shield.action.user.TransportChangePasswordAction;
-import org.elasticsearch.shield.action.user.TransportPutUserAction;
 import org.elasticsearch.shield.action.user.TransportDeleteUserAction;
 import org.elasticsearch.shield.action.user.TransportGetUsersAction;
+import org.elasticsearch.shield.action.user.TransportPutUserAction;
 import org.elasticsearch.shield.audit.AuditTrailModule;
 import org.elasticsearch.shield.audit.index.IndexAuditTrail;
 import org.elasticsearch.shield.audit.index.IndexNameResolver;
@@ -62,20 +62,17 @@ import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.authz.store.NativeRolesStore;
 import org.elasticsearch.shield.crypto.CryptoModule;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
-import org.elasticsearch.shield.license.LicenseModule;
-import org.elasticsearch.shield.license.ShieldLicenseState;
-import org.elasticsearch.shield.license.ShieldLicensee;
 import org.elasticsearch.shield.rest.ShieldRestModule;
 import org.elasticsearch.shield.rest.action.RestAuthenticateAction;
 import org.elasticsearch.shield.rest.action.realm.RestClearRealmCacheAction;
-import org.elasticsearch.shield.rest.action.role.RestPutRoleAction;
 import org.elasticsearch.shield.rest.action.role.RestClearRolesCacheAction;
 import org.elasticsearch.shield.rest.action.role.RestDeleteRoleAction;
 import org.elasticsearch.shield.rest.action.role.RestGetRolesAction;
+import org.elasticsearch.shield.rest.action.role.RestPutRoleAction;
 import org.elasticsearch.shield.rest.action.user.RestChangePasswordAction;
-import org.elasticsearch.shield.rest.action.user.RestPutUserAction;
 import org.elasticsearch.shield.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.shield.rest.action.user.RestGetUsersAction;
+import org.elasticsearch.shield.rest.action.user.RestPutUserAction;
 import org.elasticsearch.shield.ssl.SSLModule;
 import org.elasticsearch.shield.ssl.SSLSettings;
 import org.elasticsearch.shield.support.OptionalStringSetting;
@@ -114,7 +111,7 @@ public class Security {
     private final Settings settings;
     private final boolean enabled;
     private final boolean transportClientMode;
-    private ShieldLicenseState shieldLicenseState;
+    private SecurityLicenseState securityLicenseState;
 
     public Security(Settings settings) {
         this.settings = settings;
@@ -126,32 +123,36 @@ public class Security {
     }
 
     public Collection<Module> nodeModules() {
-
-        if (enabled == false) {
-            return Collections.singletonList(new ShieldDisabledModule(settings));
-        }
-
-        if (transportClientMode == true) {
-            return Arrays.<Module>asList(
-                    new ShieldTransportModule(settings),
-                    new SSLModule(settings));
-        }
+        List<Module> modules = new ArrayList<>();
 
         // we can't load that at construction time since the license plugin might not have been loaded at that point
         // which might not be the case during Plugin class instantiation. Once nodeModules are pulled
         // everything should have been loaded
-        shieldLicenseState = new ShieldLicenseState();
-        return Arrays.<Module>asList(
-                new ShieldModule(settings),
-                new LicenseModule(settings, shieldLicenseState),
-                new CryptoModule(settings),
-                new AuthenticationModule(settings),
-                new AuthorizationModule(settings),
-                new AuditTrailModule(settings),
-                new ShieldRestModule(settings),
-                new ShieldActionModule(settings),
-                new ShieldTransportModule(settings),
-                new SSLModule(settings));
+        if (enabled && transportClientMode == false) {
+            securityLicenseState = new SecurityLicenseState();
+        }
+
+        modules.add(new SecurityModule(settings, securityLicenseState));
+
+        if (enabled == false) {
+            return modules;
+        }
+
+        if (transportClientMode == true) {
+            modules.add(new ShieldTransportModule(settings));
+            modules.add(new SSLModule(settings));
+            return modules;
+        }
+
+        modules.add(new CryptoModule(settings));
+        modules.add(new AuthenticationModule(settings));
+        modules.add(new AuthorizationModule(settings));
+        modules.add(new AuditTrailModule(settings));
+        modules.add(new ShieldRestModule(settings));
+        modules.add(new ShieldActionModule(settings));
+        modules.add(new ShieldTransportModule(settings));
+        modules.add(new SSLModule(settings));
+        return modules;
     }
 
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
@@ -164,7 +165,7 @@ public class Security {
         if (AuditTrailModule.fileAuditLoggingEnabled(settings) == true) {
             list.add(LoggingAuditTrail.class);
         }
-        list.add(ShieldLicensee.class);
+        list.add(SecurityLicensee.class);
         list.add(InternalCryptoService.class);
         list.add(FileRolesStore.class);
         list.add(Realms.class);
@@ -249,12 +250,12 @@ public class Security {
             return;
         }
 
-        assert shieldLicenseState != null;
+        assert securityLicenseState != null;
         if (flsDlsEnabled(settings)) {
             module.setSearcherWrapper((indexService) -> new ShieldIndexSearcherWrapper(indexService.getIndexSettings(),
                     indexService.newQueryShardContext(), indexService.mapperService(),
                     indexService.cache().bitsetFilterCache(), indexService.getIndexServices().getThreadPool().getThreadContext(),
-                    shieldLicenseState));
+                    securityLicenseState));
         }
         if (transportClientMode == false) {
             /*  We need to forcefully overwrite the query cache implementation to use Shield's opt out query cache implementation.

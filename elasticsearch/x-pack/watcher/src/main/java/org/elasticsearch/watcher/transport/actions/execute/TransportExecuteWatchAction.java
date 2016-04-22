@@ -26,7 +26,7 @@ import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.execution.ManualExecutionContext;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
-import org.elasticsearch.watcher.license.WatcherLicensee;
+import org.elasticsearch.watcher.WatcherLicensee;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;

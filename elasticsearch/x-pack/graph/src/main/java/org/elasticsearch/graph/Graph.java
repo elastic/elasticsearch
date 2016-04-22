@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.graph;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
@@ -18,11 +14,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.graph.action.GraphExploreAction;
 import org.elasticsearch.graph.action.TransportGraphExploreAction;
-import org.elasticsearch.graph.license.GraphLicensee;
-import org.elasticsearch.graph.license.GraphModule;
 import org.elasticsearch.graph.rest.action.RestGraphAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.XPackPlugin;
+
+import java.util.Collection;
+import java.util.Collections;
 
 public class Graph extends Plugin {
 
@@ -48,8 +45,20 @@ public class Graph extends Plugin {
     
     public static boolean enabled(Settings settings) {
         return XPackPlugin.featureEnabled(settings, NAME, true);
-    }    
-    
+    }
+
+    public Collection<Module> nodeModules() {
+        return Collections.singletonList(new GraphModule(enabled, transportClientMode));
+    }
+
+    @Override
+    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+        if (enabled == false|| transportClientMode) {
+            return Collections.emptyList();
+        }
+        return Collections.singletonList(GraphLicensee.class);
+    }
+
     public void onModule(ActionModule actionModule) {
         if (enabled) {
             actionModule.registerAction(GraphExploreAction.INSTANCE, TransportGraphExploreAction.class);
@@ -65,23 +74,5 @@ public class Graph extends Plugin {
     public void onModule(SettingsModule module) {
         module.registerSetting(Setting.boolSetting(XPackPlugin.featureEnabledSetting(NAME), true, Setting.Property.NodeScope));
     }    
-    
 
-    public Collection<Module> nodeModules() {
-        if (enabled == false|| transportClientMode) {
-            return Collections.emptyList();
-        }
-        return Arrays.<Module> asList(new GraphModule());
-    }
-    
-    @Override
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        if (enabled == false|| transportClientMode) {
-            return Collections.emptyList();
-        }
-        return Arrays.<Class<? extends LifecycleComponent>>asList(
-            GraphLicensee.class
-          );
-    }      
-    
 }

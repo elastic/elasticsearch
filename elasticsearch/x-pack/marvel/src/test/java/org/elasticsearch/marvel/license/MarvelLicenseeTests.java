@@ -11,6 +11,7 @@ import org.elasticsearch.license.plugin.core.AbstractLicenseeTestCase;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee.Status;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
+import org.elasticsearch.marvel.MonitoringLicensee;
 
 import java.util.function.Predicate;
 
@@ -21,13 +22,13 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests {@link MarvelLicensee}.
+ * Tests {@link MonitoringLicensee}.
  * <p>
  * If you change the behavior of these tests, then it means that licensing changes for Monitoring!
  */
 public class MarvelLicenseeTests extends AbstractLicenseeTestCase {
     private final LicenseeRegistry registry = mock(LicenseeRegistry.class);
-    private final MarvelLicensee licensee = new MarvelLicensee(Settings.EMPTY, registry);
+    private final MonitoringLicensee licensee = new MonitoringLicensee(Settings.EMPTY, registry);
 
     public void testAcknowledgementMessagesToAnyFromFreeIsNoOp() {
         assertEmptyAck(OperationMode.BASIC, randomMode(), licensee);
@@ -48,27 +49,27 @@ public class MarvelLicenseeTests extends AbstractLicenseeTestCase {
     }
 
     public void testCollectionEnabledIsTrueForActiveState() {
-        assertEnabled(randomEnabledOrGracePeriodState(), MarvelLicensee::collectionEnabled, true);
+        assertEnabled(randomEnabledOrGracePeriodState(), MonitoringLicensee::collectionEnabled, true);
     }
 
     public void testCollectionEnabledIsFalseForInactiveState() {
-        assertEnabled(LicenseState.DISABLED, MarvelLicensee::collectionEnabled, false);
+        assertEnabled(LicenseState.DISABLED, MonitoringLicensee::collectionEnabled, false);
     }
 
     public void testCleaningEnabledIsTrueForActiveState() {
-        assertEnabled(randomEnabledOrGracePeriodState(), MarvelLicensee::cleaningEnabled, true);
+        assertEnabled(randomEnabledOrGracePeriodState(), MonitoringLicensee::cleaningEnabled, true);
     }
 
     public void testCleaningEnabledIsFalseForInactiveState() {
-        assertEnabled(LicenseState.DISABLED, MarvelLicensee::cleaningEnabled, false);
+        assertEnabled(LicenseState.DISABLED, MonitoringLicensee::cleaningEnabled, false);
     }
 
     public void testAllowUpdateRetentionIsTrueForNotBasic() {
-        assertEnabled(randomModeExcept(OperationMode.BASIC), MarvelLicensee::allowUpdateRetention, true);
+        assertEnabled(randomModeExcept(OperationMode.BASIC), MonitoringLicensee::allowUpdateRetention, true);
     }
 
     public void testAllowUpdateRetentionIsFalseForBasic() {
-        assertEnabled(OperationMode.BASIC, MarvelLicensee::allowUpdateRetention, false);
+        assertEnabled(OperationMode.BASIC, MonitoringLicensee::allowUpdateRetention, false);
     }
 
     /**
@@ -78,7 +79,7 @@ public class MarvelLicenseeTests extends AbstractLicenseeTestCase {
      * @param predicate The method to invoke (expected to be an instance method).
      * @param expected The expected outcome given the {@code state} and {@code predicate}.
      */
-    private void assertEnabled(LicenseState state, Predicate<MarvelLicensee> predicate, boolean expected) {
+    private void assertEnabled(LicenseState state, Predicate<MonitoringLicensee> predicate, boolean expected) {
         Status status = mock(Status.class);
         when(status.getLicenseState()).thenReturn(state);
 
@@ -97,7 +98,7 @@ public class MarvelLicenseeTests extends AbstractLicenseeTestCase {
      * @param predicate The method to invoke (expected to be an instance method).
      * @param expected The expected outcome given the {@code mode} and {@code predicate}.
      */
-    private void assertEnabled(OperationMode mode, Predicate<MarvelLicensee> predicate, boolean expected) {
+    private void assertEnabled(OperationMode mode, Predicate<MonitoringLicensee> predicate, boolean expected) {
         Status status = mock(Status.class);
         when(status.getMode()).thenReturn(mode);
 

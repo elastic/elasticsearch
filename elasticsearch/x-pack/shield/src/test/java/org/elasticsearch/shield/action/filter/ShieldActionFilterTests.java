@@ -19,7 +19,7 @@ import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.crypto.CryptoService;
-import org.elasticsearch.shield.license.ShieldLicenseState;
+import org.elasticsearch.shield.SecurityLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +47,7 @@ public class ShieldActionFilterTests extends ESTestCase {
     private AuthorizationService authzService;
     private CryptoService cryptoService;
     private AuditTrail auditTrail;
-    private ShieldLicenseState shieldLicenseState;
+    private SecurityLicenseState shieldLicenseState;
     private ShieldActionFilter filter;
 
     @Before
@@ -56,7 +56,7 @@ public class ShieldActionFilterTests extends ESTestCase {
         authzService = mock(AuthorizationService.class);
         cryptoService = mock(CryptoService.class);
         auditTrail = mock(AuditTrail.class);
-        shieldLicenseState = mock(ShieldLicenseState.class);
+        shieldLicenseState = mock(SecurityLicenseState.class);
         when(shieldLicenseState.securityEnabled()).thenReturn(true);
         when(shieldLicenseState.statsAndHealthEnabled()).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);

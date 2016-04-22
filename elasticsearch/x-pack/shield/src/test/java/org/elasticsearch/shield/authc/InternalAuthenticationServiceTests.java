@@ -23,7 +23,7 @@ import org.elasticsearch.shield.authc.esnative.ReservedRealm;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.crypto.CryptoService;
-import org.elasticsearch.shield.license.ShieldLicenseState;
+import org.elasticsearch.shield.SecurityLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -87,7 +87,7 @@ public class InternalAuthenticationServiceTests extends ESTestCase {
         secondRealm = mock(Realm.class);
         when(secondRealm.type()).thenReturn("second");
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        ShieldLicenseState shieldLicenseState = mock(ShieldLicenseState.class);
+        SecurityLicenseState shieldLicenseState = mock(SecurityLicenseState.class);
         when(shieldLicenseState.customRealmsEnabled()).thenReturn(true);
         realms = new Realms(Settings.EMPTY, new Environment(settings), Collections.<String, Realm.Factory>emptyMap(), shieldLicenseState,
                 mock(ReservedRealm.class)) {

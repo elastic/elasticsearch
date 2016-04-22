@@ -9,7 +9,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
@@ -32,8 +31,8 @@ public class ClusterStateResolver extends MonitoringIndexNameResolver.Timestampe
             "cluster_state.nodes",
     };
 
-    public ClusterStateResolver(MonitoredSystem id, int version, Settings settings) {
-        super(id, version, settings);
+    public ClusterStateResolver(MonitoredSystem id, Settings settings) {
+        super(id, settings);
     }
 
     @Override
@@ -58,7 +57,7 @@ public class ClusterStateResolver extends MonitoringIndexNameResolver.Timestampe
     }
 
     static final class Fields {
-        static final XContentBuilderString CLUSTER_STATE = new XContentBuilderString(TYPE);
-        static final XContentBuilderString STATUS = new XContentBuilderString("status");
+        static final String CLUSTER_STATE = TYPE;
+        static final String STATUS = "status";
     }
 }

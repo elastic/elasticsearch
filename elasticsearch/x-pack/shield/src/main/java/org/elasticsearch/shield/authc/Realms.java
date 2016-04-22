@@ -16,7 +16,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.esnative.ReservedRealm;
 import org.elasticsearch.shield.authc.esnative.NativeRealm;
 import org.elasticsearch.shield.authc.file.FileRealm;
-import org.elasticsearch.shield.license.ShieldLicenseState;
+import org.elasticsearch.shield.SecurityLicenseState;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,7 +37,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
 
     private final Environment env;
     private final Map<String, Realm.Factory> factories;
-    private final ShieldLicenseState shieldLicenseState;
+    private final SecurityLicenseState shieldLicenseState;
     private final ReservedRealm reservedRealm;
 
     protected List<Realm> realms = Collections.emptyList();
@@ -45,7 +45,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
     protected List<Realm> internalRealmsOnly = Collections.emptyList();
 
     @Inject
-    public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, ShieldLicenseState shieldLicenseState,
+    public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, SecurityLicenseState shieldLicenseState,
                   ReservedRealm reservedRealm) {
         super(settings);
         this.env = env;

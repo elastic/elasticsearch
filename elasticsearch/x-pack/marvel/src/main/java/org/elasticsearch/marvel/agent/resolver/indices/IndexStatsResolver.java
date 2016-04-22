@@ -9,7 +9,6 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.indices.IndexStatsMonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
@@ -67,8 +66,8 @@ public class IndexStatsResolver extends MonitoringIndexNameResolver.Timestamped<
             "index_stats.total.refresh.total_time_in_millis",
     };
 
-    public IndexStatsResolver(MonitoredSystem id, int version, Settings settings) {
-        super(id, version, settings);
+    public IndexStatsResolver(MonitoredSystem id, Settings settings) {
+        super(id, settings);
     }
 
     @Override
@@ -106,9 +105,9 @@ public class IndexStatsResolver extends MonitoringIndexNameResolver.Timestamped<
     }
 
     static final class Fields {
-        static final XContentBuilderString INDEX_STATS = new XContentBuilderString(TYPE);
-        static final XContentBuilderString INDEX = new XContentBuilderString("index");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString PRIMARIES = new XContentBuilderString("primaries");
+        static final String INDEX_STATS = TYPE;
+        static final String INDEX = "index";
+        static final String TOTAL = "total";
+        static final String PRIMARIES = "primaries";
     }
 }

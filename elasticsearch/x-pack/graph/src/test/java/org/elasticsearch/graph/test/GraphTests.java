@@ -19,7 +19,7 @@ import org.elasticsearch.graph.action.Vertex;
 import org.elasticsearch.graph.action.VertexRequest;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
-import org.elasticsearch.marvel.Marvel;
+import org.elasticsearch.marvel.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -126,7 +126,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         // Disable Shield otherwise authentication failures happen creating indices. 
         Builder newSettings = Settings.builder();
         newSettings.put(XPackPlugin.featureEnabledSetting(Security.NAME), false);
-        newSettings.put(XPackPlugin.featureEnabledSetting(Marvel.NAME), false);
+        newSettings.put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), false);
         newSettings.put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false);          
         return newSettings.build();
     }

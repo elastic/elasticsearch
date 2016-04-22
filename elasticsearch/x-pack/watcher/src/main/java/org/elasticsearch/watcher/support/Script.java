@@ -94,7 +94,7 @@ public class Script implements ToXContent {
                 builder.field(Field.FILE.getPreferredName(), script);
                 break;
             default:
-                assert type == ScriptType.INDEXED : "script type [" + type + "] is not supported";
+                assert type == ScriptType.STORED : "script type [" + type + "] is not supported";
                 builder.field(Field.ID.getPreferredName(), script);
         }
         if (lang != null) {
@@ -141,7 +141,7 @@ public class Script implements ToXContent {
                             token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ID)) {
-                type = ScriptType.INDEXED;
+                type = ScriptType.STORED;
                 if (token == XContentParser.Token.VALUE_STRING) {
                     script = parser.text();
                 } else {
@@ -240,7 +240,7 @@ public class Script implements ToXContent {
         public static class Indexed extends Builder<Indexed> {
 
             public Indexed(String id) {
-                super(id, ScriptType.INDEXED);
+                super(id, ScriptType.STORED);
             }
 
             @Override

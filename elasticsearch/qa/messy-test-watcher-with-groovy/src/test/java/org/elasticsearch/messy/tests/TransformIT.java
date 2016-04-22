@@ -7,6 +7,7 @@ package org.elasticsearch.messy.tests;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
@@ -77,7 +78,10 @@ public class TransformIT extends AbstractWatcherIntegrationTestCase {
             script = Script.inline("return [key3 : ctx.payload.key1 + ctx.payload.key2]").lang("groovy").build();
         } else if (randomBoolean()) {
             logger.info("testing script transform with an indexed script");
-            client().preparePutIndexedScript("groovy", "_id", "{\"script\" : \"return [key3 : ctx.payload.key1 + ctx.payload.key2]\"}")
+            client().admin().cluster().preparePutStoredScript()
+                    .setId("_id")
+                    .setScriptLang("groovy")
+                    .setSource(new BytesArray("{\"script\" : \"return [key3 : ctx.payload.key1 + ctx.payload.key2]\"}"))
                     .get();
             script = Script.indexed("_id").lang("groovy").build();
         } else {

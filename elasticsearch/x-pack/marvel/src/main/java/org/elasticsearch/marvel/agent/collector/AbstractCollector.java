@@ -12,10 +12,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
-import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.MonitoringLicensee;
 
 import java.util.Collection;
 
@@ -24,16 +24,16 @@ public abstract class AbstractCollector<T> extends AbstractLifecycleComponent<T>
     private final String name;
 
     protected final ClusterService clusterService;
-    protected final MarvelSettings marvelSettings;
-    protected final MarvelLicensee licensee;
+    protected final MonitoringSettings monitoringSettings;
+    protected final MonitoringLicensee licensee;
 
     @Inject
     public AbstractCollector(Settings settings, String name, ClusterService clusterService,
-                             MarvelSettings marvelSettings, MarvelLicensee licensee) {
+                             MonitoringSettings monitoringSettings, MonitoringLicensee licensee) {
         super(settings);
         this.name = name;
         this.clusterService = clusterService;
-        this.marvelSettings = marvelSettings;
+        this.monitoringSettings = monitoringSettings;
         this.licensee = licensee;
     }
 

@@ -13,10 +13,10 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
-import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.MonitoringLicensee;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,8 +36,8 @@ public class ShardsCollector extends AbstractCollector<ShardsCollector> {
 
     @Inject
     public ShardsCollector(Settings settings, ClusterService clusterService,
-                           MarvelSettings marvelSettings, MarvelLicensee marvelLicensee) {
-        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
+                           MonitoringSettings monitoringSettings, MonitoringLicensee licensee) {
+        super(settings, NAME, clusterService, monitoringSettings, licensee);
     }
 
     @Override
@@ -82,7 +82,8 @@ public class ShardsCollector extends AbstractCollector<ShardsCollector> {
     }
 
     private boolean match(String indexName) {
-        String[] indices = marvelSettings.indices();
-        return IndexNameExpressionResolver.isAllIndices(Arrays.asList(marvelSettings.indices())) || Regex.simpleMatch(indices, indexName);
+        String[] indices = monitoringSettings.indices();
+        return IndexNameExpressionResolver
+                .isAllIndices(Arrays.asList(monitoringSettings.indices())) || Regex.simpleMatch(indices, indexName);
     }
 }

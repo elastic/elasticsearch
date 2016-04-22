@@ -8,8 +8,8 @@ package org.elasticsearch.marvel.cleaner;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.marvel.MarvelSettings;
-import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.MonitoringSettings;
+import org.elasticsearch.marvel.MonitoringLicensee;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.joda.time.DateTime;
@@ -33,13 +33,13 @@ public class CleanerServiceTests extends ESTestCase {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    private final MarvelLicensee licensee = mock(MarvelLicensee.class);
+    private final MonitoringLicensee licensee = mock(MonitoringLicensee.class);
     private ClusterSettings clusterSettings;
     private ThreadPool threadPool;
 
     @Before
     public void start() {
-        clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(MarvelSettings.HISTORY_DURATION));
+        clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(MonitoringSettings.HISTORY_DURATION));
         threadPool = new ThreadPool("CleanerServiceTests");
     }
 
@@ -53,14 +53,14 @@ public class CleanerServiceTests extends ESTestCase {
         expectedException.expect(IllegalArgumentException.class);
 
         TimeValue expected = TimeValue.timeValueHours(1);
-        Settings settings = Settings.builder().put(MarvelSettings.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
+        Settings settings = Settings.builder().put(MonitoringSettings.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
 
         new CleanerService(settings, clusterSettings, threadPool, licensee);
     }
 
     public void testGetRetentionWithSettingWithUpdatesAllowed() {
         TimeValue expected = TimeValue.timeValueHours(25);
-        Settings settings = Settings.builder().put(MarvelSettings.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
+        Settings settings = Settings.builder().put(MonitoringSettings.HISTORY_DURATION.getKey(), expected.getStringRep()).build();
 
         when(licensee.allowUpdateRetention()).thenReturn(true);
 
@@ -72,7 +72,7 @@ public class CleanerServiceTests extends ESTestCase {
     public void testGetRetentionDefaultValueWithNoSettings() {
         when(licensee.allowUpdateRetention()).thenReturn(true);
 
-        assertEquals(MarvelSettings.HISTORY_DURATION.get(Settings.EMPTY),
+        assertEquals(MonitoringSettings.HISTORY_DURATION.get(Settings.EMPTY),
                      new CleanerService(Settings.EMPTY, clusterSettings, threadPool, licensee).getRetention());
 
         verify(licensee).allowUpdateRetention();
@@ -80,11 +80,11 @@ public class CleanerServiceTests extends ESTestCase {
 
     public void testGetRetentionDefaultValueWithSettingsButUpdatesNotAllowed() {
         TimeValue notExpected = TimeValue.timeValueHours(25);
-        Settings settings = Settings.builder().put(MarvelSettings.HISTORY_DURATION.getKey(), notExpected.getStringRep()).build();
+        Settings settings = Settings.builder().put(MonitoringSettings.HISTORY_DURATION.getKey(), notExpected.getStringRep()).build();
 
         when(licensee.allowUpdateRetention()).thenReturn(false);
 
-        assertEquals(MarvelSettings.HISTORY_DURATION.get(Settings.EMPTY),
+        assertEquals(MonitoringSettings.HISTORY_DURATION.get(Settings.EMPTY),
                      new CleanerService(settings, clusterSettings, threadPool, licensee).getRetention());
 
         verify(licensee).allowUpdateRetention();
@@ -150,7 +150,7 @@ public class CleanerServiceTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(nbExecutions);
 
         logger.debug("--> creates a cleaner service that cleans every second");
-        MarvelLicensee licensee = mock(MarvelLicensee.class);
+        MonitoringLicensee licensee = mock(MonitoringLicensee.class);
         when(licensee.cleaningEnabled()).thenReturn(true);
         CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, licensee, threadPool,
                 new TestExecutionScheduler(1_000));

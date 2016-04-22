@@ -10,7 +10,9 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -19,11 +21,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.graph.Graph;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.plugin.Licensing;
-import org.elasticsearch.marvel.Marvel;
+import org.elasticsearch.marvel.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.Security;
+import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.watcher.Watcher;
 import org.elasticsearch.xpack.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.action.XPackInfoAction;
@@ -31,7 +33,7 @@ import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 import org.elasticsearch.xpack.common.init.LazyInitializationService;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
-import org.elasticsearch.xpack.rest.RestXPackInfoAction;
+import org.elasticsearch.xpack.rest.action.RestXPackInfoAction;
 
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -83,7 +85,7 @@ public class XPackPlugin extends Plugin {
 
     protected Licensing licensing;
     protected Security security;
-    protected Marvel marvel;
+    protected Monitoring monitoring;
     protected Watcher watcher;
     protected Graph graph;
 
@@ -92,7 +94,7 @@ public class XPackPlugin extends Plugin {
         transportClientMode = transportClientMode(settings);
         this.licensing = new Licensing(settings);
         this.security = new Security(settings);
-        this.marvel = new Marvel(settings);
+        this.monitoring = new Monitoring(settings);
         this.watcher = new Watcher(settings);
         this.graph = new Graph(settings);
         // Check if the node is a transport client.
@@ -125,7 +127,7 @@ public class XPackPlugin extends Plugin {
         modules.addAll(licensing.nodeModules());
         modules.addAll(security.nodeModules());
         modules.addAll(watcher.nodeModules());
-        modules.addAll(marvel.nodeModules());
+        modules.addAll(monitoring.nodeModules());
         modules.addAll(graph.nodeModules());
         return modules;
     }
@@ -140,7 +142,7 @@ public class XPackPlugin extends Plugin {
         services.addAll(licensing.nodeServices());
         services.addAll(security.nodeServices());
         services.addAll(watcher.nodeServices());
-        services.addAll(marvel.nodeServices());
+        services.addAll(monitoring.nodeServices());
         services.addAll(graph.nodeServices());
         return services;
     }
@@ -164,7 +166,7 @@ public class XPackPlugin extends Plugin {
         module.registerSetting(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
 
         security.onModule(module);
-        marvel.onModule(module);
+        monitoring.onModule(module);
         watcher.onModule(module);
         graph.onModule(module);
         licensing.onModule(module);
@@ -175,7 +177,7 @@ public class XPackPlugin extends Plugin {
             module.registerRestHandler(RestXPackInfoAction.class);
         }
         licensing.onModule(module);
-        marvel.onModule(module);
+        monitoring.onModule(module);
         security.onModule(module);
         watcher.onModule(module);
         graph.onModule(module);
@@ -186,7 +188,7 @@ public class XPackPlugin extends Plugin {
             module.registerAction(XPackInfoAction.INSTANCE, TransportXPackInfoAction.class);
         }
         licensing.onModule(module);
-        marvel.onModule(module);
+        monitoring.onModule(module);
         security.onModule(module);
         watcher.onModule(module);
         graph.onModule(module);
@@ -204,8 +206,14 @@ public class XPackPlugin extends Plugin {
     }
 
     public void onModule(LazyInitializationModule module) {
-        marvel.onModule(module);
+        monitoring.onModule(module);
         watcher.onModule(module);
+    }
+
+    public static void bindFeatureSet(Binder binder, Class<? extends XPackFeatureSet> featureSet) {
+        binder.bind(featureSet).asEagerSingleton();
+        Multibinder<XPackFeatureSet> featureSetBinder = Multibinder.newSetBinder(binder, XPackFeatureSet.class);
+        featureSetBinder.addBinding().to(featureSet);
     }
 
     public static boolean transportClientMode(Settings settings) {

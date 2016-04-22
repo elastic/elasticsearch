@@ -15,12 +15,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.pagerduty.service.IncidentEvent;
-import org.elasticsearch.watcher.actions.pagerduty.service.IncidentEventContext;
-import org.elasticsearch.watcher.actions.pagerduty.service.IncidentEventDefaults;
-import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyAccount;
-import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyService;
-import org.elasticsearch.watcher.actions.pagerduty.service.SentEvent;
+import org.elasticsearch.xpack.notification.pagerduty.IncidentEvent;
+import org.elasticsearch.xpack.notification.pagerduty.IncidentEventContext;
+import org.elasticsearch.xpack.notification.pagerduty.IncidentEventDefaults;
+import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
+import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
+import org.elasticsearch.xpack.notification.pagerduty.SentEvent;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.http.HttpRequest;
@@ -158,7 +158,7 @@ public class PagerDutyActionTests extends ESTestCase {
         TextTemplate eventType = null;
         if (randomBoolean()) {
             eventType = TextTemplate.inline(randomFrom("trigger", "resolve", "acknowledge")).build();
-            builder.field("eventType", eventType);
+            builder.field("event_type", eventType);
         }
 
         Boolean attachPayload = randomBoolean() ? null : randomBoolean();

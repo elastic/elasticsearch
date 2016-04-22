@@ -24,7 +24,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.graph.action.Connection.ConnectionId;
 import org.elasticsearch.graph.action.GraphExploreRequest.TermBoost;
 import org.elasticsearch.graph.action.Vertex.VertexId;
-import org.elasticsearch.graph.license.GraphLicensee;
+import org.elasticsearch.graph.GraphLicensee;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
@@ -85,7 +85,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
     @Override
     protected void doExecute(GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
-        if (licensee.isGraphExploreEnabled()) {
+        if (licensee.isAvailable()) {
             new AsyncGraphAction(request, listener).start();
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(GraphLicensee.ID));

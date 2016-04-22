@@ -9,26 +9,37 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.xpack.XPackBuild;
+import org.elasticsearch.xpack.XPackFeatureSet;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  */
 public class XPackInfoResponse extends ActionResponse {
 
-    private BuildInfo buildInfo;
+    private @Nullable BuildInfo buildInfo;
     private @Nullable LicenseInfo licenseInfo;
+    private @Nullable FeatureSetsInfo featureSetsInfo;
 
     public XPackInfoResponse() {}
 
-    public XPackInfoResponse(BuildInfo buildInfo, @Nullable LicenseInfo licenseInfo) {
+    public XPackInfoResponse(@Nullable BuildInfo buildInfo, @Nullable LicenseInfo licenseInfo, @Nullable FeatureSetsInfo featureSetsInfo) {
         this.buildInfo = buildInfo;
         this.licenseInfo = licenseInfo;
+        this.featureSetsInfo = featureSetsInfo;
     }
 
     /**
@@ -46,25 +57,29 @@ public class XPackInfoResponse extends ActionResponse {
         return licenseInfo;
     }
 
+    /**
+     * @return  The current status of the feature sets in X-Pack. Feature sets describe the features available/enabled in X-Pack.
+     */
+    public FeatureSetsInfo getFeatureSetsInfo() {
+        return featureSetsInfo;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        buildInfo.writeTo(out);
-        if (licenseInfo != null) {
-            out.writeBoolean(true);
-            licenseInfo.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalWriteable(buildInfo);
+        out.writeOptionalWriteable(licenseInfo);
+        out.writeOptionalWriteable(featureSetsInfo);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        this.buildInfo = new BuildInfo(in);
-        this.licenseInfo = in.readBoolean() ? new LicenseInfo(in) : null;
+        this.buildInfo = in.readOptionalWriteable(BuildInfo::new);
+        this.licenseInfo = in.readOptionalWriteable(LicenseInfo::new);
+        this.featureSetsInfo = in.readOptionalWriteable(FeatureSetsInfo::new);
     }
 
-    public static class LicenseInfo implements ToXContent {
+    public static class LicenseInfo implements ToXContent, Writeable {
 
         private final String uid;
         private final String type;
@@ -121,7 +136,7 @@ public class XPackInfoResponse extends ActionResponse {
         }
     }
 
-    public static class BuildInfo implements ToXContent {
+    public static class BuildInfo implements ToXContent, Writeable {
 
         private final String hash;
         private final String timestamp;
@@ -159,5 +174,107 @@ public class XPackInfoResponse extends ActionResponse {
             output.writeString(hash);
             output.writeString(timestamp);
         }
+    }
+
+    public static class FeatureSetsInfo implements ToXContent, Writeable {
+
+        private final Map<String, FeatureSet> featureSets;
+
+        public FeatureSetsInfo(StreamInput in) throws IOException {
+            int size = in.readVInt();
+            Map<String, FeatureSet> featureSets = new HashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                FeatureSet featureSet = new FeatureSet(in);
+                featureSets.put(featureSet.name, featureSet);
+            }
+            this.featureSets = Collections.unmodifiableMap(featureSets);
+        }
+
+        public FeatureSetsInfo(Set<FeatureSet> featureSets) {
+            Map<String, FeatureSet> map = new HashMap<>(featureSets.size());
+            for (FeatureSet featureSet : featureSets) {
+                map.put(featureSet.name, featureSet);
+            }
+            this.featureSets = Collections.unmodifiableMap(map);
+        }
+
+        public Map<String, FeatureSet> getFeatureSets() {
+            return featureSets;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            List<String> names = new ArrayList<>(this.featureSets.keySet()).stream().sorted().collect(Collectors.toList());
+            for (String name : names) {
+                builder.field(name, featureSets.get(name), params);
+            }
+            return builder.endObject();
+        }
+
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(featureSets.size());
+            for (FeatureSet featureSet : featureSets.values()) {
+                featureSet.writeTo(out);
+            }
+        }
+
+        public static class FeatureSet implements XPackFeatureSet, ToXContent, Writeable {
+
+            private final String name;
+            private final @Nullable String description;
+            private final boolean available;
+            private final boolean enabled;
+
+            public FeatureSet(StreamInput in) throws IOException {
+                this(in.readString(), in.readOptionalString(), in.readBoolean(), in.readBoolean());
+            }
+
+            public FeatureSet(String name, @Nullable String description, boolean available, boolean enabled) {
+                this.name = name;
+                this.description = description;
+                this.available = available;
+                this.enabled = enabled;
+            }
+
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            @Nullable
+            public String description() {
+                return description;
+            }
+
+            @Override
+            public boolean available() {
+                return available;
+            }
+
+            @Override
+            public boolean enabled() {
+                return enabled;
+            }
+
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                if (description != null) {
+                    builder.field("description", description);
+                }
+                builder.field("available", available);
+                builder.field("enabled", enabled);
+                return builder.endObject();
+            }
+
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeString(name);
+                out.writeOptionalString(description);
+                out.writeBoolean(available);
+                out.writeBoolean(enabled);
+            }
+        }
+
     }
 }

@@ -6,7 +6,16 @@
       "path": "/_xpack",
       "paths": [ "/_xpack" ],
       "parts": {},
-      "params": {}
+      "params": {
+        "human" : {
+          "type" : "boolean",
+          "description" : "Presents additional info for humans (feature descriptions and X-Pack tagline)"
+        },
+        "categories": {
+          "type": "list",
+          "description" : "Comma-separated list of info categories. Can be any of: build, license, features"
+        }
+      }
     },
     "body": null
   }

@@ -52,7 +52,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.shield.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
-import org.elasticsearch.shield.license.ShieldLicenseState;
+import org.elasticsearch.shield.SecurityLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.After;
@@ -82,7 +82,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
     private MapperService mapperService;
     private ShieldIndexSearcherWrapper shieldIndexSearcherWrapper;
     private ElasticsearchDirectoryReader esIn;
-    private ShieldLicenseState licenseState;
+    private SecurityLicenseState licenseState;
     private IndexSettings indexSettings;
 
     @Before
@@ -96,7 +96,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
                 new IndicesModule().getMapperRegistry(), () -> null);
 
         ShardId shardId = new ShardId(index, 0);
-        licenseState = mock(ShieldLicenseState.class);
+        licenseState = mock(SecurityLicenseState.class);
         when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(true);
         threadContext = new ThreadContext(Settings.EMPTY);
         IndexShard indexShard = mock(IndexShard.class);

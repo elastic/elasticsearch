@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.exporter.local.LocalExporter;
 import org.elasticsearch.marvel.cleaner.CleanerService;
@@ -71,8 +71,8 @@ public class ExportersTests extends ESTestCase {
         // we always need to have the local exporter as it serves as the default one
         factories.put(LocalExporter.TYPE, new LocalExporter.Factory(MonitoringClientProxy.of(client), clusterService,
                 mock(CleanerService.class)));
-        clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MarvelSettings.COLLECTORS,
-                MarvelSettings.INTERVAL, MarvelSettings.EXPORTERS_SETTINGS)));
+        clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MonitoringSettings.COLLECTORS,
+                MonitoringSettings.INTERVAL, MonitoringSettings.EXPORTERS_SETTINGS)));
         exporters = new Exporters(Settings.EMPTY, factories, clusterService, clusterSettings);
     }
 
@@ -179,7 +179,7 @@ public class ExportersTests extends ESTestCase {
                 .put("xpack.monitoring.agent.exporters._name0.type", "_type")
                 .put("xpack.monitoring.agent.exporters._name1.type", "_type")
                 .build();
-        clusterSettings = new ClusterSettings(nodeSettings, new HashSet<>(Arrays.asList(MarvelSettings.EXPORTERS_SETTINGS)));
+        clusterSettings = new ClusterSettings(nodeSettings, new HashSet<>(Arrays.asList(MonitoringSettings.EXPORTERS_SETTINGS)));
 
         exporters = new Exporters(nodeSettings, factories, clusterService, clusterSettings) {
             @Override

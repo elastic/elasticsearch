@@ -17,10 +17,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.watcher.support.text.DefaultTextTemplateEngine;
-import org.elasticsearch.watcher.support.text.TextTemplate;
-import org.elasticsearch.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -114,7 +111,7 @@ public class TextTemplateTests extends ESTestCase {
             case FILE:
                 builder.field("file", template.getTemplate());
                 break;
-            case INDEXED:
+            case STORED:
                 builder.field("id", template.getTemplate());
         }
         builder.field("params", template.getParams());
@@ -173,7 +170,7 @@ public class TextTemplateTests extends ESTestCase {
 
     public void testParserInvalidMissingText() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
-                .field("type", ScriptType.INDEXED)
+                .field("type", ScriptType.STORED)
                 .startObject("params").endObject()
                 .endObject();
         BytesReference bytes = builder.bytes();
@@ -195,7 +192,7 @@ public class TextTemplateTests extends ESTestCase {
         switch (type) {
             case INLINE:    return TextTemplate.inline(text);
             case FILE:      return TextTemplate.file(text);
-            case INDEXED:   return TextTemplate.indexed(text);
+            case STORED:   return TextTemplate.indexed(text);
             default:
                 throw illegalArgument("unsupported script type [{}]", type);
         }

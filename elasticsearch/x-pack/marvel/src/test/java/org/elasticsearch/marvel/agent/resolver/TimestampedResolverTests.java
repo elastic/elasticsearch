@@ -12,6 +12,7 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.marvel.MonitoredSystem;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.joda.time.format.DateTimeFormat;
 
@@ -28,11 +29,10 @@ import static org.hamcrest.Matchers.notNullValue;
 public class TimestampedResolverTests extends MonitoringIndexNameResolverTestCase {
 
     private MonitoredSystem randomId = randomFrom(MonitoredSystem.values());
-    private int randomVersion = randomIntBetween(0, 100);
 
     @Override
     protected MonitoringIndexNameResolver<MonitoringDoc> newResolver() {
-        return newTimestampedResolver(randomId, randomVersion, Settings.EMPTY);
+        return newTimestampedResolver(randomId, Settings.EMPTY);
     }
 
     @Override
@@ -72,19 +72,17 @@ public class TimestampedResolverTests extends MonitoringIndexNameResolverTestCas
                             .build();
             }
 
-            MonitoringIndexNameResolver.Timestamped resolver = newTimestampedResolver(randomId, randomVersion, settings);
+            MonitoringIndexNameResolver.Timestamped resolver = newTimestampedResolver(randomId, settings);
             assertThat(resolver, notNullValue());
             assertThat(resolver.getId(), equalTo(randomId.getSystem()));
-            assertThat(resolver.getVersion(), equalTo(randomVersion));
             assertThat(resolver.index(doc),
-                    equalTo(PREFIX + DELIMITER + resolver.getId() + DELIMITER + String.valueOf(resolver.getVersion())
+                    equalTo(PREFIX + DELIMITER + resolver.getId() + DELIMITER + String.valueOf(MarvelTemplateUtils.TEMPLATE_VERSION)
                             + DELIMITER + DateTimeFormat.forPattern(format).withZoneUTC().print(1437580442979L)));
         }
     }
 
-    private MonitoringIndexNameResolver.Timestamped<MonitoringDoc> newTimestampedResolver(MonitoredSystem id, int version,
-                                                                                          Settings settings) {
-        return new MonitoringIndexNameResolver.Timestamped<MonitoringDoc>(id, version, settings) {
+    private MonitoringIndexNameResolver.Timestamped<MonitoringDoc> newTimestampedResolver(MonitoredSystem id, Settings settings) {
+        return new MonitoringIndexNameResolver.Timestamped<MonitoringDoc>(id, settings) {
             @Override
             public String type(MonitoringDoc document) {
                 return null;

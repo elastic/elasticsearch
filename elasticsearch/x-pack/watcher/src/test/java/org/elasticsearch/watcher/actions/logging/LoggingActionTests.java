@@ -14,12 +14,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.email.service.Attachment;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.xpack.notification.email.Attachment;
 import org.joda.time.DateTime;
 import org.junit.Before;
 

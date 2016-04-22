@@ -14,12 +14,12 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
-import org.elasticsearch.watcher.actions.email.service.attachment.DataAttachment;
-import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachmentParser;
-import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachments;
-import org.elasticsearch.watcher.actions.email.service.attachment.HttpRequestAttachment;
-import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
+import org.elasticsearch.xpack.notification.email.DataAttachment;
+import org.elasticsearch.xpack.notification.email.EmailTemplate;
+import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentParser;
+import org.elasticsearch.xpack.notification.email.attachment.EmailAttachments;
+import org.elasticsearch.xpack.notification.email.attachment.HttpRequestAttachment;
+import org.elasticsearch.xpack.notification.email.support.EmailServer;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.condition.compare.CompareCondition;
@@ -46,8 +46,8 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.watcher.actions.ActionBuilders.emailAction;
-import static org.elasticsearch.watcher.actions.email.DataAttachment.JSON;
-import static org.elasticsearch.watcher.actions.email.DataAttachment.YAML;
+import static org.elasticsearch.xpack.notification.email.DataAttachment.JSON;
+import static org.elasticsearch.xpack.notification.email.DataAttachment.YAML;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
@@ -93,11 +93,11 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         }
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("xpack.watcher.actions.email.service.account.test.smtp.auth", true)
-                .put("xpack.watcher.actions.email.service.account.test.smtp.user", USERNAME)
-                .put("xpack.watcher.actions.email.service.account.test.smtp.password", PASSWORD)
-                .put("xpack.watcher.actions.email.service.account.test.smtp.port", server.port())
-                .put("xpack.watcher.actions.email.service.account.test.smtp.host", "localhost")
+                .put("xpack.notification.email.service.account.test.smtp.auth", true)
+                .put("xpack.notification.email.service.account.test.smtp.user", USERNAME)
+                .put("xpack.notification.email.service.account.test.smtp.password", PASSWORD)
+                .put("xpack.notification.email.service.account.test.smtp.port", server.port())
+                .put("xpack.notification.email.service.account.test.smtp.host", "localhost")
                 .build();
     }
 
@@ -142,7 +142,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testThatEmailAttachmentsAreSent() throws Exception {
-        org.elasticsearch.watcher.actions.email.DataAttachment dataFormat = randomFrom(JSON, YAML);
+        DataAttachment dataFormat = randomFrom(JSON, YAML);
         final CountDownLatch latch = new CountDownLatch(1);
         server.addListener(new EmailServer.Listener() {
             @Override
@@ -168,7 +168,8 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
 
         List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>();
 
-        DataAttachment dataAttachment = DataAttachment.builder("my-id").dataAttachment(dataFormat).build();
+        org.elasticsearch.xpack.notification.email.attachment.DataAttachment dataAttachment =
+                org.elasticsearch.xpack.notification.email.attachment.DataAttachment.builder("my-id").dataAttachment(dataFormat).build();
         attachments.add(dataAttachment);
 
         HttpRequestTemplate requestTemplate = HttpRequestTemplate.builder("localhost", webServer.getPort())

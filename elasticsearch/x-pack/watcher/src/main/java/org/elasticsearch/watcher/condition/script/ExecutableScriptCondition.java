@@ -11,7 +11,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.watcher.condition.ExecutableCondition;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Variables;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 
 import java.util.Map;
 

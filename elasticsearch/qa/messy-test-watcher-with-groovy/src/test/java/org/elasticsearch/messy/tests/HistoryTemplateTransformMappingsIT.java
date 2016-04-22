@@ -5,21 +5,17 @@
  */
 package org.elasticsearch.messy.tests;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
@@ -27,13 +23,9 @@ import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.transform.TransformBuilders.scriptTransform;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
-/**
- * This test makes sure that the http host and path fields in the watch_record action result are
- * not analyzed so they can be used in aggregations
- */
 public class HistoryTemplateTransformMappingsIT extends AbstractWatcherIntegrationTestCase {
 
     @Override
@@ -91,29 +83,16 @@ public class HistoryTemplateTransformMappingsIT extends AbstractWatcherIntegrati
 
         refresh();
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
-                assertThat(mappingsResponse, notNullValue());
-                assertThat(mappingsResponse.getMappings().isEmpty(), is(false));
-                for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> metadatas : mappingsResponse.getMappings()) {
-                    if (!metadatas.key.startsWith(".watcher-history")) {
-                        continue;
-                    }
-                    MappingMetaData metadata = metadatas.value.get("watch_record");
-                    assertThat(metadata, notNullValue());
-                    try {
-                        Map<String, Object> source = metadata.getSourceAsMap();
-                        logger.info("checking index [{}] with metadata:\n[{}]", metadatas.key, metadata.source().toString());
-                        assertThat(extractValue("properties.result.properties.transform.properties.payload.enabled", source),
-                                is((Object) false));
-                        String path = "properties.result.properties.actions.properties.transform.properties.payload.enabled";
-                        assertThat(extractValue(path, source), is((Object) false));
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
+        assertBusy(() -> {
+            GetFieldMappingsResponse getFieldMappingsResponse = client().admin().indices()
+                    .prepareGetFieldMappings(".watcher-history*").setFields("result.actions.transform.payload")
+                    .setTypes("watch_record").includeDefaults(true).get();
+
+            for (Map<String, Map<String, FieldMappingMetaData>> map : getFieldMappingsResponse.mappings().values()) {
+                Map<String, FieldMappingMetaData> watchRecord = map.get("watch_record");
+                assertThat(watchRecord, hasKey("result.actions.transform.payload"));
+                FieldMappingMetaData fieldMappingMetaData = watchRecord.get("result.actions.transform.payload");
+                assertThat(fieldMappingMetaData.isNull(), is(true));
             }
         });
     }

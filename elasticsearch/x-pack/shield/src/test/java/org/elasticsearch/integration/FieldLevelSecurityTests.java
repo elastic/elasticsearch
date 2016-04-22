@@ -97,7 +97,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 "  indices:\n" +
                 "      - names: '*'\n" +
                 "        privileges: [ ALL ]\n" +
-                "        fields: [ field2 ]\n" +
+                "        fields: [ field2, query* ]\n" +
                 "role4:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
@@ -281,7 +281,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3")
                 .get();
 
-        Boolean realtime = randomFrom(true, false, null);
+        boolean realtime = randomBoolean();
         // user1 is granted access to field1 only:
         GetResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
@@ -377,7 +377,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2", "field3", "value3").get();
 
-        Boolean realtime = randomFrom(true, false, null);
+        boolean realtime = randomBoolean();
         // user1 is granted access to field1 only:
         MultiGetResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
@@ -954,7 +954,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .setRefresh(true)
                 .get();
 
-        Boolean realtime = randomFrom(true, false, null);
+        boolean realtime = randomBoolean();
         TermVectorsResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareTermVectors("test", "type1", "1")
@@ -1038,7 +1038,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
                 .setRefresh(true)
                 .get();
 
-        Boolean realtime = randomFrom(true, false, null);
+        boolean realtime = randomBoolean();
         MultiTermVectorsResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiTermVectors()
@@ -1122,9 +1122,9 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testPercolateApi() {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping(".percolator", "field1", "type=text", "field2", "type=text")
+                        .addMapping("query", "query", "type=percolator", "field1", "type=text", "field2", "type=text")
         );
-        client().prepareIndex("test", ".percolator", "1")
+        client().prepareIndex("test", "query", "1")
                 .setSource("{\"query\" : { \"match_all\" : {} }, \"field1\" : \"value1\"}")
                 .setRefresh(true)
                 .get();
@@ -1133,7 +1133,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         PercolateResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .preparePercolate()
-                .setDocumentType("type")
+                .setDocumentType("query")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
         assertThat(response.getCount(), equalTo(1L));
@@ -1143,7 +1143,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         // no match:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .preparePercolate()
-                .setDocumentType("type")
+                .setDocumentType("query")
                 .setPercolateQuery(termQuery("field1", "value1"))
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
@@ -1156,7 +1156,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         // Ensure that the query loading that happens at startup has permissions to load the percolator queries:
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .preparePercolate()
-                .setDocumentType("type")
+                .setDocumentType("query")
                 .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
                 .get();
         assertThat(response.getCount(), equalTo(1L));

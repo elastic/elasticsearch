@@ -11,11 +11,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
-import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.MonitoringLicensee;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -96,8 +96,8 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
     private NodeStatsCollector newNodeStatsCollector(final String nodeId) {
         return new NodeStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
-                internalCluster().getInstance(MarvelSettings.class, nodeId),
-                internalCluster().getInstance(MarvelLicensee.class, nodeId),
+                internalCluster().getInstance(MonitoringSettings.class, nodeId),
+                internalCluster().getInstance(MonitoringLicensee.class, nodeId),
                 internalCluster().getInstance(InternalClient.class, nodeId),
                 internalCluster().getInstance(NodeEnvironment.class, nodeId),
                 internalCluster().getInstance(DiskThresholdDecider.class, nodeId));

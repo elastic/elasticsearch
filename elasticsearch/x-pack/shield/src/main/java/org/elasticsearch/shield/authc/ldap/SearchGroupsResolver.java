@@ -58,7 +58,8 @@ class SearchGroupsResolver implements GroupsResolver {
 
         String userId = userAttribute != null ? readUserAttribute(connection, userDn, timeout, logger) : userDn;
         try {
-            SearchRequest searchRequest = new SearchRequest(baseDn, scope.scope(), createFilter(filter, userId), Strings.EMPTY_ARRAY);
+            SearchRequest searchRequest = new SearchRequest(baseDn, scope.scope(), createFilter(filter, userId), 
+                    SearchRequest.NO_ATTRIBUTES);
             searchRequest.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
             SearchResult results = search(connection, searchRequest, logger);
             for (SearchResultEntry entry : results.getSearchEntries()) {

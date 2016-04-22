@@ -13,10 +13,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.marvel.MarvelSettings;
+import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
-import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.MonitoringLicensee;
 import org.elasticsearch.shield.InternalClient;
 import org.elasticsearch.shield.Security;
 
@@ -40,8 +40,8 @@ public class IndexRecoveryCollector extends AbstractCollector<IndexRecoveryColle
 
     @Inject
     public IndexRecoveryCollector(Settings settings, ClusterService clusterService,
-                                  MarvelSettings marvelSettings, MarvelLicensee marvelLicensee, InternalClient client) {
-        super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
+                                  MonitoringSettings monitoringSettings, MonitoringLicensee licensee, InternalClient client) {
+        super(settings, NAME, clusterService, monitoringSettings, licensee);
         this.client = client;
     }
 
@@ -55,10 +55,10 @@ public class IndexRecoveryCollector extends AbstractCollector<IndexRecoveryColle
         List<MonitoringDoc> results = new ArrayList<>(1);
         try {
             RecoveryResponse recoveryResponse = client.admin().indices().prepareRecoveries()
-                    .setIndices(marvelSettings.indices())
+                    .setIndices(monitoringSettings.indices())
                     .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                    .setActiveOnly(marvelSettings.recoveryActiveOnly())
-                    .get(marvelSettings.recoveryTimeout());
+                    .setActiveOnly(monitoringSettings.recoveryActiveOnly())
+                    .get(monitoringSettings.recoveryTimeout());
 
             if (recoveryResponse.hasRecoveries()) {
                 IndexRecoveryMonitoringDoc indexRecoveryDoc = new IndexRecoveryMonitoringDoc(monitoringId(), monitoringVersion());
@@ -69,7 +69,7 @@ public class IndexRecoveryCollector extends AbstractCollector<IndexRecoveryColle
                 results.add(indexRecoveryDoc);
             }
         } catch (IndexNotFoundException e) {
-            if (Security.enabled(settings) && IndexNameExpressionResolver.isAllIndices(Arrays.asList(marvelSettings.indices()))) {
+            if (Security.enabled(settings) && IndexNameExpressionResolver.isAllIndices(Arrays.asList(monitoringSettings.indices()))) {
                 logger.debug("collector [{}] - unable to collect data for missing index [{}]", name(), e.getIndex());
             } else {
                 throw e;

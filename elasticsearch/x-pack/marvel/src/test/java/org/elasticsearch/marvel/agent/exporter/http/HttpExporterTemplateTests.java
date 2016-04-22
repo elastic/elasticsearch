@@ -74,8 +74,8 @@ public class HttpExporterTemplateTests extends AbstractExporterTemplateTestCase 
     }
 
     @Override
-    protected void putTemplate(String name, int version) throws Exception {
-        dispatcher.templates.put(name, generateTemplateSource(name, version));
+    protected void putTemplate(String name) throws Exception {
+        dispatcher.templates.put(name, generateTemplateSource(name));
     }
 
     @Override

@@ -73,7 +73,7 @@ public class MonitoringBulkResponse extends ActionResponse {
         out.writeOptionalWriteable(error);
     }
 
-    public static class Error implements Writeable<Error>, ToXContent {
+    public static class Error implements Writeable, ToXContent {
 
         private final Throwable cause;
         private final RestStatus status;
@@ -85,6 +85,11 @@ public class MonitoringBulkResponse extends ActionResponse {
 
         Error(StreamInput in) throws IOException {
             this(in.<Throwable>readThrowable());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeThrowable(getCause());
         }
 
         /**
@@ -106,16 +111,6 @@ public class MonitoringBulkResponse extends ActionResponse {
          */
         public Throwable getCause() {
             return cause;
-        }
-
-        @Override
-        public Error readFrom(StreamInput in) throws IOException {
-            return new Error(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeThrowable(getCause());
         }
 
         @Override

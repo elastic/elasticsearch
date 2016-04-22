@@ -16,29 +16,55 @@ import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackBuild;
+import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.action.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.xpack.action.XPackInfoResponse.LicenseInfo;
+
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  */
 public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRequest, XPackInfoResponse> {
 
     private final LicensesService licensesService;
+    private final Set<XPackFeatureSet> featureSets;
 
     @Inject
     public TransportXPackInfoAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                    LicensesService licensesService) {
+                                    LicensesService licensesService, Set<XPackFeatureSet> featureSets) {
         super(settings, XPackInfoAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 XPackInfoRequest::new);
         this.licensesService = licensesService;
+        this.featureSets = featureSets;
     }
 
     @Override
     protected void doExecute(XPackInfoRequest request, ActionListener<XPackInfoResponse> listener) {
-        XPackInfoResponse.BuildInfo buildInfo = new XPackInfoResponse.BuildInfo(XPackBuild.CURRENT);
-        License license = licensesService.getLicense();
-        LicenseInfo licenseInfo = license != null ? new LicenseInfo(license) : null;
-        XPackInfoResponse response = new XPackInfoResponse(buildInfo, licenseInfo);
-        listener.onResponse(response);
+
+
+        XPackInfoResponse.BuildInfo buildInfo = null;
+        if (request.getCategories().contains(XPackInfoRequest.Category.BUILD)) {
+            buildInfo = new XPackInfoResponse.BuildInfo(XPackBuild.CURRENT);
+        }
+
+        LicenseInfo licenseInfo = null;
+        if (request.getCategories().contains(XPackInfoRequest.Category.LICENSE)) {
+            License license = licensesService.getLicense();
+            if (license != null) {
+                licenseInfo = new LicenseInfo(license);
+            }
+        }
+
+        XPackInfoResponse.FeatureSetsInfo featureSetsInfo = null;
+        if (request.getCategories().contains(XPackInfoRequest.Category.FEATURES)) {
+            Set<FeatureSet> featureSets = this.featureSets.stream().map(fs ->
+                    new FeatureSet(fs.name(), request.isVerbose() ? fs.description() : null, fs.available(), fs.enabled()))
+                    .collect(Collectors.toSet());
+            featureSetsInfo = new XPackInfoResponse.FeatureSetsInfo(featureSets);
+        }
+
+        listener.onResponse(new XPackInfoResponse(buildInfo, licenseInfo, featureSetsInfo));
     }
 }

@@ -6,6 +6,9 @@
 package org.elasticsearch.smoketest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -18,7 +21,7 @@ import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.text.DefaultTextTemplateEngine;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
@@ -59,7 +62,9 @@ public class WatcherTemplateTests extends ESTestCase {
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, registry);
         ScriptService scriptService = new ScriptService(setting, environment, engines, resourceWatcherService, scriptEngineRegistry,
                 registry, scriptSettings);
-        engine = new DefaultTextTemplateEngine(Settings.EMPTY, ScriptServiceProxy.of(scriptService));
+        ClusterService clusterService = Mockito.mock(ClusterService.class);
+        Mockito.when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name")).build());
+        engine = new DefaultTextTemplateEngine(Settings.EMPTY, ScriptServiceProxy.of(scriptService, clusterService));
     }
 
     public void testEscaping() throws Exception {

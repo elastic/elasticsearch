@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.bulk;
 
 import org.elasticsearch.action.WriteConsistencyLevel;
-import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
@@ -29,18 +28,14 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  * <pre>
@@ -87,34 +82,6 @@ public class RestBulkAction extends BaseRestHandler {
         bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));
         bulkRequest.add(request.content(), defaultIndex, defaultType, defaultRouting, defaultFields, defaultPipeline, null, allowExplicitIndex);
 
-        client.bulk(bulkRequest, new RestBuilderListener<BulkResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(BulkResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                builder.field(Fields.TOOK, response.getTookInMillis());
-                if (response.getIngestTookInMillis() != BulkResponse.NO_INGEST_TOOK) {
-                    builder.field(Fields.INGEST_TOOK, response.getIngestTookInMillis());
-                }
-                builder.field(Fields.ERRORS, response.hasFailures());
-                builder.startArray(Fields.ITEMS);
-                for (BulkItemResponse itemResponse : response) {
-                    builder.startObject();
-                    itemResponse.toXContent(builder, request);
-                    builder.endObject();
-                }
-                builder.endArray();
-
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
-            }
-        });
+        client.bulk(bulkRequest, new RestToXContentListener<BulkResponse>(channel));
     }
-
-    static final class Fields {
-        static final String ITEMS = "items";
-        static final String ERRORS = "errors";
-        static final String TOOK = "took";
-        static final String INGEST_TOOK = "ingest_took";
-    }
-
 }

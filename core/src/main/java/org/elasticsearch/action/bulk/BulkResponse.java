@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -33,9 +35,9 @@ import java.util.Iterator;
  * bulk requests. Each item holds the index/type/id is operated on, and if it failed or not (with the
  * failure message).
  */
-public class BulkResponse extends ActionResponse implements Iterable<BulkItemResponse> {
+public class BulkResponse extends ActionResponse implements Iterable<BulkItemResponse>, ToXContent {
 
-    public final static long NO_INGEST_TOOK = -1L;
+    private final static long NO_INGEST_TOOK = -1L;
 
     private BulkItemResponse[] responses;
     private long tookInMillis;
@@ -118,6 +120,26 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     @Override
     public Iterator<BulkItemResponse> iterator() {
         return Arrays.stream(responses).iterator();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(); {
+            builder.field("took", getTookInMillis());
+            if (getIngestTookInMillis() != NO_INGEST_TOOK) {
+                builder.field("ingest_took", getIngestTookInMillis());
+            }
+            builder.field("errors", hasFailures());
+            builder.startArray("items"); {
+                for (BulkItemResponse itemResponse : this) {
+                    builder.startObject();
+                    itemResponse.toXContent(builder, params);
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+        }
+        return builder.endObject();
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -43,7 +44,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -63,7 +63,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matcher;
@@ -681,13 +680,13 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ReplicationTask task = maybeTask();
         Action action = new Action(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool) {
             @Override
-            protected void shardOperationOnReplica(Request request) {
+            protected void shardOperationOnReplica(Request request, ActionListener<TransportResponse.Empty> listener) {
                 assertIndexShardCounter(1);
                 assertPhase(task, "replica");
                 if (throwException) {
                     throw new ElasticsearchException("simulated");
                 }
-                super.shardOperationOnReplica(request);
+                super.shardOperationOnReplica(request, listener);
             }
         };
         final Action.ReplicaOperationTransportHandler replicaOperationTransportHandler = action.new ReplicaOperationTransportHandler();
@@ -787,8 +786,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected void shardOperationOnReplica(Request request) {
+        protected void shardOperationOnReplica(Request request, ActionListener<TransportResponse.Empty> listener) {
             request.processedOnReplicas.incrementAndGet();
+            listener.onResponse(TransportResponse.Empty.INSTANCE);
         }
 
         @Override

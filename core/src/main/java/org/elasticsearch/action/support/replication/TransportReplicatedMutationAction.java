@@ -33,6 +33,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.function.Supplier;
@@ -80,12 +81,13 @@ public abstract class TransportReplicatedMutationAction<
     }
 
     @Override
-    protected final void shardOperationOnReplica(Request request) {
+    protected final void shardOperationOnReplica(Request request, ActionListener<TransportResponse.Empty> listener) {
         final ShardId shardId = request.shardId();
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         Translog.Location location = onReplicaShard(request, indexShard);
         processAfterWrite(request.refresh(), indexShard, location);
+        listener.onResponse(TransportResponse.Empty.INSTANCE);
     }
 
     protected final void processAfterWrite(boolean refresh, IndexShard indexShard, Translog.Location location) {

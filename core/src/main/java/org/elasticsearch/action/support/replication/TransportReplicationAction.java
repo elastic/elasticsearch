@@ -65,6 +65,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -158,7 +159,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     /**
      * Replica operation on nodes with replica copies
      */
-    protected abstract void shardOperationOnReplica(ReplicaRequest shardRequest);
+    protected abstract void shardOperationOnReplica(ReplicaRequest shardRequest, ActionListener<TransportResponse.Empty> listener);
 
     /**
      * True if write consistency should be checked for an implementation
@@ -406,14 +407,27 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             setPhase(task, "replica");
             assert request.shardId() != null : "request shardId must be set";
             try (Releasable ignored = acquireReplicaOperationLock(request.shardId(), request.primaryTerm())) {
-                shardOperationOnReplica(request);
+                shardOperationOnReplica(request, new ActionListener<TransportResponse.Empty>() {
+                    @Override
+                    public void onResponse(Empty response) {
+                        setPhase(task, "finished");
+                        try {
+                            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                        } catch (Exception e) {
+                            onFailure(e);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        AsyncReplicaAction.this.onFailure(e);
+                    }
+                });
                 if (logger.isTraceEnabled()) {
                     logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(),
                         request);
                 }
             }
-            setPhase(task, "finished");
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 

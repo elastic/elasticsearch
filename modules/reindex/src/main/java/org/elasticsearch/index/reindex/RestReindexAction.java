@@ -86,9 +86,9 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         destParser.declareString(IndexRequest::index, new ParseField("index"));
         destParser.declareString(IndexRequest::type, new ParseField("type"));
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));
-        destParser.declareString(IndexRequest::opType, new ParseField("opType"));
+        destParser.declareString(IndexRequest::opType, new ParseField("op_type"));
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
-        destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("versionType"));
+        destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));
 
         // These exist just so the user can get a nice validation error:
         destParser.declareString(IndexRequest::timestamp, new ParseField("timestamp"));

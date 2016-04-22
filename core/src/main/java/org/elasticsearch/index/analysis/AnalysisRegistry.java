@@ -366,23 +366,15 @@ public final class AnalysisRegistry implements Closeable {
                 instance = defaultProvider.get(settings, environment, name, defaultSettings);
             }
             factories.put(name, instance);
-            String camelCase = Strings.toCamelCase(name);
-            if (providerMap.containsKey(camelCase) == false && factories.containsKey(camelCase) == false) {
-                factories.put(camelCase, instance);
-            }
         }
 
         for (Map.Entry<String, AnalysisModule.AnalysisProvider<T>> entry : defaultInstance.entrySet()) {
             final String name = entry.getKey();
             final AnalysisModule.AnalysisProvider<T> provider = entry.getValue();
-            final String camelCase = Strings.toCamelCase(name);
-            if (factories.containsKey(name) == false || (defaultInstance.containsKey(camelCase) == false && factories.containsKey(camelCase) == false)) {
+            if (factories.containsKey(name) == false) {
                 final T instance = provider.get(settings, environment, name, defaultSettings);
                 if (factories.containsKey(name) == false) {
                     factories.put(name, instance);
-                }
-                if ((defaultInstance.containsKey(camelCase) == false && factories.containsKey(camelCase) == false)) {
-                    factories.put(camelCase, instance);
                 }
             }
         }

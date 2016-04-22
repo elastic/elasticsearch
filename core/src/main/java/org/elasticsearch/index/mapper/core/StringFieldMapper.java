@@ -269,7 +269,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             // the index property and still accepts no/not_analyzed/analyzed
             final Object index = node.remove("index");
             if (index != null) {
-                final String normalizedIndex = Strings.toUnderscoreCase(index.toString());
+                final String normalizedIndex = index.toString();
                 switch (normalizedIndex) {
                 case "analyzed":
                     builder.tokenized(true);
@@ -304,7 +304,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             parseTextField(builder, fieldName, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String propName = Strings.toUnderscoreCase(entry.getKey());
+                String propName = entry.getKey();
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
                     if (propNode == null) {

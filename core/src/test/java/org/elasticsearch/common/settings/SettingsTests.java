@@ -36,16 +36,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- */
 public class SettingsTests extends ESTestCase {
-    public void testCamelCaseSupport() {
-        Settings settings = Settings.builder()
-                .put("test.camelCase", "bar")
-                .build();
-        assertThat(settings.get("test.camelCase"), equalTo("bar"));
-        assertThat(settings.get("test.camel_case"), equalTo("bar"));
-    }
 
     public void testLoadFromDelimitedString() {
         Settings settings = Settings.builder()

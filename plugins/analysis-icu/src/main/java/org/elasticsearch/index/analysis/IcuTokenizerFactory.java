@@ -29,7 +29,6 @@ import org.apache.lucene.analysis.icu.segmentation.DefaultICUTokenizerConfig;
 import org.apache.lucene.analysis.icu.segmentation.ICUTokenizer;
 import org.apache.lucene.analysis.icu.segmentation.ICUTokenizerConfig;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -37,11 +36,8 @@ import org.elasticsearch.index.IndexSettings;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 
@@ -51,9 +47,6 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
 
     private final ICUTokenizerConfig config;
     private static final String RULE_FILES = "rule_files";
-
-    public static final Setting<List<String>> SETTING_RULE_FILES =
-        Setting.listSetting(RULE_FILES, Collections.emptyList(), Function.identity(), Setting.Property.IndexScope);
 
     public IcuTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -73,7 +66,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
         Map<Integer, String> tailored = new HashMap<>();
 
         try {
-            List<String> ruleFiles = SETTING_RULE_FILES.get(settings);
+            String[] ruleFiles = settings.getAsArray(RULE_FILES);
 
             for (String scriptAndResourcePath : ruleFiles) {
                 int colonPos = scriptAndResourcePath.indexOf(":");

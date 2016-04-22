@@ -54,6 +54,14 @@ public class PluginCli extends MultiCommand {
                 .build(), Terminal.DEFAULT);
         LogConfigurator.configure(loggingEnvironment.settings(), false);
         Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, Terminal.DEFAULT);
-        exit(new PluginCli(env).main(args, Terminal.DEFAULT));
+        final PluginCli pluginCli = new PluginCli(env);
+        exit(main(args, pluginCli, Terminal.DEFAULT));
+    }
+
+    static int main(String[] args, final PluginCli pluginCli, final Terminal terminal) throws Exception {
+        if (args == null || args.length == 0) {
+            args = new String[]{"-h"};
+        }
+        return pluginCli.main(args, terminal);
     }
 }

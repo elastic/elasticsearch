@@ -148,6 +148,8 @@ Now, `index.translog.sync_interval`  doesn't accept a value less than `100ms`
 which prevents fsyncing too often if async durability is enabled. The special
 value `0` is no longer supported.
 
+`index.translog.interval` has been removed.
+
 ==== Request Cache Settings
 
 The deprecated settings `index.cache.query.enable` and

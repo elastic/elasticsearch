@@ -52,7 +52,7 @@ import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TemplateCo
 import org.elasticsearch.watcher.support.clock.ClockModule;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpClientModule;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.support.secret.SecretModule;
 import org.elasticsearch.watcher.support.secret.SecretService;
@@ -240,7 +240,6 @@ public class Watcher {
     public void onModule(LazyInitializationModule module) {
         if (enabled) {
             module.registerLazyInitializable(WatcherClientProxy.class);
-            module.registerLazyInitializable(ScriptServiceProxy.class);
             module.registerLazyInitializable(ChainTransformFactory.class);
             module.registerLazyInitializable(ChainInputFactory.class);
         }

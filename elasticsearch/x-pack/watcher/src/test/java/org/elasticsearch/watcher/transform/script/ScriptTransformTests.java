@@ -19,7 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.Variables;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.watch.Payload;
 import org.junit.After;

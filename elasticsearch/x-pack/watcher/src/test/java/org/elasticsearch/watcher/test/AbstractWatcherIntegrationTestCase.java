@@ -54,7 +54,7 @@ import org.elasticsearch.watcher.WatcherLicensee;
 import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.http.HttpClient;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.watcher.trigger.TriggerService;

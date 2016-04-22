@@ -10,7 +10,7 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.elasticsearch.watcher.transform.ExecutableTransform;
 import org.elasticsearch.watcher.watch.Payload;
 

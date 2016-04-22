@@ -3,49 +3,35 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.support.init.proxy;
+package org.elasticsearch.watcher.support;
 
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.shield.SecurityContext;
 import org.elasticsearch.shield.user.XPackUser;
-import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.xpack.common.init.LazyInitializable;
 
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 
 /**
- *A lazily initialized proxy to the elasticsearch {@link ScriptService}. Inject this proxy whenever the script
- * service needs to be injected to avoid circular dependencies issues.
+ * Wraps {@link ScriptService} but ensure that all scripts are run or compiled as {@link XPackUser}.
  */
-public class ScriptServiceProxy implements LazyInitializable {
+public class ScriptServiceProxy {
 
-    private ScriptService service;
-    private SecurityContext securityContext;
-    private ClusterService clusterService;
+    private final ScriptService service;
+    private final SecurityContext securityContext;
+    private final ClusterService clusterService;
 
-    /**
-     * Creates a proxy to the given script service (can be used for testing)
-     */
-    public static ScriptServiceProxy of(ScriptService service, ClusterService clusterService) {
-        ScriptServiceProxy proxy = new ScriptServiceProxy();
-        proxy.service = service;
-        proxy.securityContext = SecurityContext.Insecure.INSTANCE;
-        proxy.clusterService = clusterService;
-        return proxy;
-    }
-
-    @Override
-    public void init(Injector injector) {
-        this.service = injector.getInstance(ScriptService.class);
-        this.securityContext = injector.getInstance(SecurityContext.class);
-        this.clusterService = injector.getInstance(ClusterService.class);
+    @Inject
+    public ScriptServiceProxy(ScriptService service, SecurityContext securityContext, ClusterService clusterService) {
+        this.service = service;
+        this.securityContext = securityContext;
+        this.clusterService = clusterService;
     }
 
     public CompiledScript compile(Script script) {
@@ -72,5 +58,12 @@ public class ScriptServiceProxy implements LazyInitializable {
         public String getKey() {
             return INSTANCE.getKey();
         }
+    }
+
+    /**
+     * Factory helper method for testing.
+     */
+    public static ScriptServiceProxy of(ScriptService service, ClusterService clusterService) {
+        return new ScriptServiceProxy(service, SecurityContext.Insecure.INSTANCE, clusterService);
     }
 }

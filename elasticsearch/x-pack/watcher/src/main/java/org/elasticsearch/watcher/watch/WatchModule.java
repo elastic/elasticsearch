@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.watch;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.watcher.WatcherService;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 
 /**
  *
@@ -19,5 +20,6 @@ public class WatchModule extends AbstractModule {
         bind(WatchLockService.class).asEagerSingleton();
         bind(WatcherService.class).asEagerSingleton();
         bind(WatchStore.class).asEagerSingleton();
+        bind(ScriptServiceProxy.class).asEagerSingleton();
     }
 }

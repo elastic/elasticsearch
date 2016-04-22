@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Template;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 
 import java.util.Collections;
 import java.util.HashMap;

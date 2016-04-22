@@ -54,7 +54,7 @@ import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpMethod;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.secret.Secret;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;

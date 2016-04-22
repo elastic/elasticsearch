@@ -21,7 +21,7 @@ import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.text.DefaultTextTemplateEngine;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;

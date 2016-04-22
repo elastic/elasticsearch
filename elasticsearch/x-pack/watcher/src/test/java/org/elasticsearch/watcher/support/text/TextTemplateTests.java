@@ -17,10 +17,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.watcher.support.text.DefaultTextTemplateEngine;
-import org.elasticsearch.watcher.support.text.TextTemplate;
-import org.elasticsearch.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.junit.Before;
 
 import java.util.Collections;

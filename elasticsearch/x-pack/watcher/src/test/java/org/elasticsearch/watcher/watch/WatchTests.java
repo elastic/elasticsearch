@@ -85,7 +85,7 @@ import org.elasticsearch.watcher.support.http.HttpMethod;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.support.secret.SecretService;
 import org.elasticsearch.watcher.support.text.TextTemplate;

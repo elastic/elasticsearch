@@ -44,6 +44,11 @@
         "pipeline" : {
           "type" : "string",
           "description" : "The pipeline id to preprocess incoming documents with"
+        },
+        "response_format": {
+          "type": "string",
+          "default": "long",
+          "description": "Controls what is included in the response. \"long\" will the result of all operations. \"short\" will only return errors."
         }
       }
     },

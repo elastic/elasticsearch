@@ -124,22 +124,30 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(); {
-            builder.field("took", getTookInMillis());
-            if (getIngestTookInMillis() != NO_INGEST_TOOK) {
-                builder.field("ingest_took", getIngestTookInMillis());
-            }
-            builder.field("errors", hasFailures());
-            builder.startArray("items"); {
-                for (BulkItemResponse itemResponse : this) {
-                    builder.startObject();
-                    itemResponse.toXContent(builder, params);
-                    builder.endObject();
-                }
-            }
-            builder.endArray();
+        boolean skipSuccesses = false;
+        if (params.param("response_format", "long").equals("short")) {
+            skipSuccesses = true;
         }
-        return builder.endObject();
+        builder.field("took", getTookInMillis());
+        if (getIngestTookInMillis() != NO_INGEST_TOOK) {
+            builder.field("ingest_took", getIngestTookInMillis());
+        }
+        builder.field("errors", hasFailures());
+        int successes = 0;
+        builder.startArray("items"); {
+            for (BulkItemResponse itemResponse : this) {
+                if (false == itemResponse.isFailed()) {
+                    successes += 1;
+                    if (skipSuccesses) continue;
+                }
+                builder.startObject();
+                itemResponse.toXContent(builder, params);
+                builder.endObject();
+            }
+        }
+        builder.endArray();
+        builder.field("successes", successes);
+        return builder;
     }
 
     @Override

@@ -1,0 +1,68 @@
+---
+"response_format=long is default":
+  - do:
+      bulk:
+        body: |
+          { "index": { "_index": "idx", "_type": "test", "_id": "1" } }
+          { "foo": "bar" }
+          { "index": { "_index": "idx", "_type": "test", "_id": "2" } }
+          { "foo": "baz" }
+          { "update": { "_index": "idx", "_type": "test", "_id": "doesn't exist" } }
+          { "doc": { "foo": "this should be an error" } }
+  # This is the same list as the test below
+  - match: { successes: 2 }
+  - length: { items: 3 }
+  - match: { items.0.index._index: idx }  # lots of stuff comes back but for brevity we just check a few things
+  - match: { items.0.index._id: "1" }
+  - match: { items.1.index._index: idx }
+  - match: { items.1.index._id: "2" }
+  - match: { items.2.update._index: idx }  # this one is an error so it'll come back regardless of response_format
+  - match: { items.2.update._id: "doesn't exist" }
+  - match: { items.2.update.status: 404 }
+  - match: { items.2.update.error.type: "document_missing_exception" }
+  - match: { items.2.update.error.reason: "[test][doesn't exist]: document missing" }
+
+---
+"response_format=long":
+  - do:
+      bulk:
+        response_format: long
+        body: |
+          { "index": { "_index": "idx", "_type": "test", "_id": "1" } }
+          { "foo": "bar" }
+          { "index": { "_index": "idx", "_type": "test", "_id": "2" } }
+          { "foo": "baz" }
+          { "update": { "_index": "idx", "_type": "test", "_id": "doesn't exist" } }
+          { "doc": { "foo": "this should be an error" } }
+  # This is the same list as the test above
+  - match: { successes: 2 }
+  - length: { items: 3 }
+  - match: { items.0.index._index: idx }  # lots of stuff comes back but for brevity we just check a few things
+  - match: { items.0.index._id: "1" }
+  - match: { items.1.index._index: idx }
+  - match: { items.1.index._id: "2" }
+  - match: { items.2.update._index: idx }  # this one is an error so it'll come back regardless of response_format
+  - match: { items.2.update._id: "doesn't exist" }
+  - match: { items.2.update.status: 404 }
+  - match: { items.2.update.error.type: "document_missing_exception" }
+  - match: { items.2.update.error.reason: "[test][doesn't exist]: document missing" }
+
+---
+"response_format=short":
+  - do:
+      bulk:
+        response_format: short
+        body: |
+          { "index": { "_index": "idx", "_type": "test", "_id": "1" } }
+          { "foo": "bar" }
+          { "index": { "_index": "idx", "_type": "test", "_id": "2" } }
+          { "foo": "baz" }
+          { "update": { "_index": "idx", "_type": "test", "_id": "doesn't exist" } }
+          { "doc": { "foo": "this should be an error" } }
+  - match: { successes: 2 }
+  - length: { items: 1 }
+  - match: { items.0.update._index: idx }  # this one is an error so it'll come back regardless of response_format
+  - match: { items.0.update._id: "doesn't exist" }
+  - match: { items.0.update.status: 404 }
+  - match: { items.0.update.error.type: "document_missing_exception" }
+  - match: { items.0.update.error.reason: "[test][doesn't exist]: document missing" }

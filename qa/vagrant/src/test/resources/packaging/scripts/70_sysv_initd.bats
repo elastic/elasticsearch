@@ -59,7 +59,7 @@ setup() {
 
 @test "[INIT.D] elasticsearch fails if startup script is not executable" {
     local INIT="/etc/init.d/elasticsearch"
-    local DAEMON="$ES_HOME/bin/elasticsearch"
+    local DAEMON="$ESHOME/bin/elasticsearch"
     
     sudo chmod -x "$DAEMON"
     run "$INIT"

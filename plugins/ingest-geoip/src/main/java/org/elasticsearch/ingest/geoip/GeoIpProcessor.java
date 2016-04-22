@@ -58,6 +58,8 @@ import static org.elasticsearch.ingest.core.ConfigurationUtils.readStringPropert
 public final class GeoIpProcessor extends AbstractProcessor {
 
     public static final String TYPE = "geoip";
+    private static final String CITY_DB_TYPE = "GeoLite2-City";
+    private static final String COUNTRY_DB_TYPE = "GeoLite2-Country";
 
     private final String field;
     private final String targetField;
@@ -79,14 +81,14 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         Map<String, Object> geoData;
         switch (dbReader.getMetadata().getDatabaseType()) {
-            case "GeoLite2-City":
+            case CITY_DB_TYPE:
                 try {
                     geoData = retrieveCityGeoData(ipAddress);
                 } catch (AddressNotFoundRuntimeException e) {
                     geoData = Collections.emptyMap();
                 }
                 break;
-            case "GeoLite2-Country":
+            case COUNTRY_DB_TYPE:
                 try {
                     geoData = retrieveCountryGeoData(ipAddress);
                 } catch (AddressNotFoundRuntimeException e) {
@@ -215,10 +217,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     public static final class Factory extends AbstractProcessorFactory<GeoIpProcessor> implements Closeable {
-
-        static final Set<Property> DEFAULT_PROPERTIES = EnumSet.of(
-                Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_NAME, Property.CITY_NAME, Property.LOCATION
+        static final Set<Property> DEFAULT_CITY_PROPERTIES = EnumSet.of(
+            Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_NAME,
+            Property.CITY_NAME, Property.LOCATION
         );
+        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = EnumSet.of(Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE);
 
         private final Map<String, DatabaseReader> databaseReaders;
 
@@ -233,24 +236,33 @@ public final class GeoIpProcessor extends AbstractProcessor {
             String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
 
+            DatabaseReader databaseReader = databaseReaders.get(databaseFile);
+            if (databaseReader == null) {
+                throw newConfigurationException(TYPE, processorTag, "database_file", "database file [" + databaseFile + "] doesn't exist");
+            }
+
+            String databaseType = databaseReader.getMetadata().getDatabaseType();
+
             final Set<Property> properties;
             if (propertyNames != null) {
                 properties = EnumSet.noneOf(Property.class);
                 for (String fieldName : propertyNames) {
                     try {
-                        properties.add(Property.parse(fieldName));
-                    } catch (Exception e) {
-                        throw newConfigurationException(TYPE, processorTag, "properties", "illegal field option [" + fieldName + "]. valid values are [" + Arrays.toString(Property.values()) + "]");
+                        properties.add(Property.parseProperty(databaseType, fieldName));
+                    } catch (IllegalArgumentException e) {
+                        throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
                     }
                 }
             } else {
-                properties = DEFAULT_PROPERTIES;
+                if (CITY_DB_TYPE.equals(databaseType)) {
+                    properties = DEFAULT_CITY_PROPERTIES;
+                } else if (COUNTRY_DB_TYPE.equals(databaseType)) {
+                    properties = DEFAULT_COUNTRY_PROPERTIES;
+                } else {
+                    throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type [" + databaseType + "]");
+                }
             }
 
-            DatabaseReader databaseReader = databaseReaders.get(databaseFile);
-            if (databaseReader == null) {
-                throw newConfigurationException(TYPE, processorTag, "database_file", "database file [" + databaseFile + "] doesn't exist");
-            }
             return new GeoIpProcessor(processorTag, ipField, databaseReader, targetField, properties);
         }
 
@@ -279,13 +291,29 @@ public final class GeoIpProcessor extends AbstractProcessor {
         REGION_NAME,
         CITY_NAME,
         TIMEZONE,
-        LATITUDE,
-        LONGITUDE,
         LOCATION;
 
-        public static Property parse(String value) {
-            return valueOf(value.toUpperCase(Locale.ROOT));
+        static final EnumSet<Property> ALL_CITY_PROPERTIES = EnumSet.allOf(Property.class);
+        static final EnumSet<Property> ALL_COUNTRY_PROPERTIES = EnumSet.of(Property.IP, Property.CONTINENT_NAME,
+            Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE);
+
+        public static Property parseProperty(String databaseType, String value) {
+            Set<Property> validProperties = EnumSet.noneOf(Property.class);
+            if (CITY_DB_TYPE.equals(databaseType)) {
+                validProperties = ALL_CITY_PROPERTIES;
+            } else if (COUNTRY_DB_TYPE.equals(databaseType)) {
+                validProperties = ALL_COUNTRY_PROPERTIES;
+            }
+
+            try {
+                Property property = valueOf(value.toUpperCase(Locale.ROOT));
+                if (validProperties.contains(property) == false) {
+                    throw new IllegalArgumentException("invalid");
+                }
+                return property;
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("illegal property value [" + value + "]. valid values are " + Arrays.toString(validProperties.toArray()));
+            }
         }
     }
-
 }

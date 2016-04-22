@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -69,12 +70,13 @@ public abstract class TransportReplicatedMutationAction<
     protected abstract Translog.Location onReplicaShard(Request request, IndexShard indexShard);
 
     @Override
-    protected Tuple<Response, Request> shardOperationOnPrimary(Request request) throws Exception {
+    protected Request shardOperationOnPrimary(Request request, ActionListener<Response> listener) throws Exception {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().id());
-        WriteResult<Response> response = onPrimaryShard(indexService, indexShard, request);
-        processAfterWrite(request.refresh(), indexShard, response.location);
-        return new Tuple<>(response.response, request);
+        WriteResult<Response> result = onPrimaryShard(indexService, indexShard, request);
+        processAfterWrite(request.refresh(), indexShard, result.location);
+        listener.onResponse(result.response);
+        return request;
     }
 
     @Override
@@ -98,5 +100,23 @@ public abstract class TransportReplicatedMutationAction<
             indexShard.sync(location);
         }
         indexShard.maybeFlush();
+    }
+
+    protected static class WriteResult<T extends ReplicationResponse> {
+        public final T response;
+        public final Translog.Location location;
+
+        public WriteResult(T response, Translog.Location location) {
+            this.response = response;
+            this.location = location;
+        }
+
+        @SuppressWarnings("unchecked")
+        public <T extends ReplicationResponse> T response() {
+            // this sets total, pending and failed to 0 and this is ok, because we will embed this into the replica
+            // request and not use it
+            response.setShardInfo(new ReplicationResponse.ShardInfo());
+            return (T) response;
+        }
     }
 }

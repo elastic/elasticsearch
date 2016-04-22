@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
@@ -150,10 +149,11 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     /**
      * Primary operation on node with primary copy
      *
-     * @return A tuple containing not null values, as first value the result of the primary operation and as second value
-     * the request to be executed on the replica shards.
+     * @param shardRequest the request to the primary shard
+     * @param listener called when the operation is complete with the result of the operation, assuming all the replicas succeed
+     * @return the request to the replicas.
      */
-    protected abstract Tuple<Response, ReplicaRequest> shardOperationOnPrimary(Request shardRequest) throws Exception;
+    protected abstract ReplicaRequest shardOperationOnPrimary(Request shardRequest, ActionListener<Response> listener) throws Exception;
 
     /**
      * Replica operation on nodes with replica copies
@@ -195,26 +195,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     protected boolean retryPrimaryException(Throwable e) {
         return e.getClass() == ReplicationOperation.RetryOnPrimaryException.class
             || TransportActions.isShardNotAvailableException(e);
-    }
-
-    protected static class WriteResult<T extends ReplicationResponse> {
-
-        public final T response;
-        public final Translog.Location location;
-
-        public WriteResult(T response, Translog.Location location) {
-            this.response = response;
-            this.location = location;
-        }
-
-        @SuppressWarnings("unchecked")
-        public <T extends ReplicationResponse> T response() {
-            // this sets total, pending and failed to 0 and this is ok, because we will embed this into the replica
-            // request and not use it
-            response.setShardInfo(new ReplicationResponse.ShardInfo());
-            return (T) response;
-        }
-
     }
 
     class OperationTransportHandler implements TransportRequestHandler<Request> {
@@ -751,10 +731,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         @Override
         public ReplicaRequest perform(Request request, ActionListener<Response> listener) throws Exception {
-            Tuple<Response, ReplicaRequest> result = shardOperationOnPrimary(request);
-            result.v2().primaryTerm(indexShard.getPrimaryTerm());
-            listener.onResponse(result.v1());
-            return result.v2();
+            ReplicaRequest replicaRequest = shardOperationOnPrimary(request, listener);
+            replicaRequest.primaryTerm(indexShard.getPrimaryTerm());
+            return replicaRequest;
         }
 
         @Override

@@ -779,10 +779,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected Tuple<Response, Request> shardOperationOnPrimary(Request shardRequest) throws Exception {
+        protected Request shardOperationOnPrimary(Request shardRequest, ActionListener<Response> listener) throws Exception {
             boolean executedBefore = shardRequest.processedOnPrimary.getAndSet(true);
             assert executedBefore == false : "request has already been executed on the primary";
-            return new Tuple<>(new Response(), shardRequest);
+            listener.onResponse(new Response());
+            return shardRequest;
         }
 
         @Override

@@ -6,14 +6,14 @@
 package org.elasticsearch.watcher.actions;
 
 import org.elasticsearch.watcher.actions.email.EmailAction;
-import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.watcher.actions.index.IndexAction;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.watcher.actions.pagerduty.PagerDutyAction;
-import org.elasticsearch.watcher.actions.pagerduty.service.IncidentEvent;
+import org.elasticsearch.xpack.notification.email.EmailTemplate;
+import org.elasticsearch.xpack.notification.pagerduty.IncidentEvent;
 import org.elasticsearch.watcher.actions.slack.SlackAction;
-import org.elasticsearch.watcher.actions.slack.service.message.SlackMessage;
+import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.text.TextTemplate;

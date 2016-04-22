@@ -11,8 +11,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyAccount;
-import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyService;
+import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
+import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 import org.junit.Before;
 

@@ -12,8 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.actions.hipchat.ExecutableHipChatAction;
-import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyAccount;
-import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyService;
+import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
+import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 
 import java.io.IOException;

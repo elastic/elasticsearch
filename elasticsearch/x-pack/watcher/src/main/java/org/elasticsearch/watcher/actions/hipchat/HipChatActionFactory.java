@@ -11,8 +11,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.ActionFactory;
-import org.elasticsearch.watcher.actions.hipchat.service.HipChatAccount;
-import org.elasticsearch.watcher.actions.hipchat.service.HipChatService;
+import org.elasticsearch.xpack.notification.hipchat.HipChatAccount;
+import org.elasticsearch.xpack.notification.hipchat.HipChatService;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 
 import java.io.IOException;

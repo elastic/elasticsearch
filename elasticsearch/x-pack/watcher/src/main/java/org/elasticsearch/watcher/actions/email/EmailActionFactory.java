@@ -10,10 +10,10 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.ActionFactory;
-import org.elasticsearch.watcher.actions.email.service.EmailService;
-import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
-import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachmentsParser;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.xpack.notification.email.EmailService;
+import org.elasticsearch.xpack.notification.email.HtmlSanitizer;
+import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsParser;
 
 import java.io.IOException;
 

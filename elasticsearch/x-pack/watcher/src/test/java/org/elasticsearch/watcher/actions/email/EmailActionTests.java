@@ -17,19 +17,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.email.service.Attachment;
-import org.elasticsearch.watcher.actions.email.service.Authentication;
-import org.elasticsearch.watcher.actions.email.service.Email;
-import org.elasticsearch.watcher.actions.email.service.EmailService;
-import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
-import org.elasticsearch.watcher.actions.email.service.HtmlSanitizer;
-import org.elasticsearch.watcher.actions.email.service.Profile;
-import org.elasticsearch.watcher.actions.email.service.attachment.DataAttachmentParser;
-import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachmentParser;
-import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachments;
-import org.elasticsearch.watcher.actions.email.service.attachment.EmailAttachmentsParser;
-import org.elasticsearch.watcher.actions.email.service.attachment.HttpEmailAttachementParser;
-import org.elasticsearch.watcher.actions.email.service.attachment.HttpRequestAttachment;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.http.HttpClient;
@@ -46,6 +33,20 @@ import org.elasticsearch.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.test.MockTextTemplateEngine;
 import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.xpack.notification.email.Attachment;
+import org.elasticsearch.xpack.notification.email.Authentication;
+import org.elasticsearch.xpack.notification.email.DataAttachment;
+import org.elasticsearch.xpack.notification.email.Email;
+import org.elasticsearch.xpack.notification.email.EmailService;
+import org.elasticsearch.xpack.notification.email.EmailTemplate;
+import org.elasticsearch.xpack.notification.email.HtmlSanitizer;
+import org.elasticsearch.xpack.notification.email.Profile;
+import org.elasticsearch.xpack.notification.email.attachment.DataAttachmentParser;
+import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentParser;
+import org.elasticsearch.xpack.notification.email.attachment.EmailAttachments;
+import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsParser;
+import org.elasticsearch.xpack.notification.email.attachment.HttpEmailAttachementParser;
+import org.elasticsearch.xpack.notification.email.attachment.HttpRequestAttachment;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -55,7 +56,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,13 +100,13 @@ public class EmailActionTests extends ESTestCase {
         final String account = "account1";
         EmailService service = new AbstractWatcherIntegrationTestCase.NoopEmailService() {
             @Override
-            public EmailSent send(Email email, Authentication auth, Profile profile) {
-                return new EmailSent(account, email);
+            public EmailService.EmailSent send(Email email, Authentication auth, Profile profile) {
+                return new EmailService.EmailSent(account, email);
             }
 
             @Override
-            public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
-                return new EmailSent(account, email);
+            public EmailService.EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
+                return new EmailService.EmailSent(account, email);
             }
         };
         TextTemplateEngine engine = mock(TextTemplateEngine.class);
@@ -610,7 +610,7 @@ public class EmailActionTests extends ESTestCase {
             HttpRequestTemplate template = HttpRequestTemplate.builder("localhost", 1234).build();
             attachments.add(new HttpRequestAttachment(randomAsciiOfLength(10), template, randomFrom("my/custom-type", null)));
         } else if ("data".equals(attachmentType)) {
-            attachments.add(new org.elasticsearch.watcher.actions.email.service.attachment.DataAttachment(randomAsciiOfLength(10),
+            attachments.add(new org.elasticsearch.xpack.notification.email.attachment.DataAttachment(randomAsciiOfLength(10),
                     randomFrom(DataAttachment.JSON, DataAttachment.YAML)));
         }
 

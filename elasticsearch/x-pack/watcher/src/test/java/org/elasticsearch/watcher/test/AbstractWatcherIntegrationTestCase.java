@@ -42,10 +42,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.watcher.WatcherLifeCycleService;
 import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.WatcherState;
-import org.elasticsearch.watcher.actions.email.service.Authentication;
-import org.elasticsearch.watcher.actions.email.service.Email;
-import org.elasticsearch.watcher.actions.email.service.EmailService;
-import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.execution.ExecutionState;
@@ -63,6 +59,10 @@ import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.xpack.TimeWarpedXPackPlugin;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.notification.email.Authentication;
+import org.elasticsearch.xpack.notification.email.Email;
+import org.elasticsearch.xpack.notification.email.EmailService;
+import org.elasticsearch.xpack.notification.email.Profile;
 import org.hamcrest.Matcher;
 import org.jboss.netty.util.internal.SystemPropertyUtil;
 import org.junit.After;
@@ -600,7 +600,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         }
 
         @Override
-        public EmailSent send(Email email, Authentication auth, Profile profile) {
+        public EmailService.EmailSent send(Email email, Authentication auth, Profile profile) {
             return new EmailSent(auth.user(), email);
         }
 

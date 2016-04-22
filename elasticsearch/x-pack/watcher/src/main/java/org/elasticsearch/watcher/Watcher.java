@@ -22,15 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.watcher.actions.WatcherActionModule;
-import org.elasticsearch.watcher.actions.email.service.EmailService;
-import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
-import org.elasticsearch.watcher.actions.hipchat.service.HipChatService;
-import org.elasticsearch.watcher.actions.hipchat.service.InternalHipChatService;
-import org.elasticsearch.watcher.actions.pagerduty.service.InternalPagerDutyService;
-import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyAccount;
-import org.elasticsearch.watcher.actions.pagerduty.service.PagerDutyService;
-import org.elasticsearch.watcher.actions.slack.service.InternalSlackService;
-import org.elasticsearch.watcher.actions.slack.service.SlackService;
 import org.elasticsearch.watcher.client.WatcherClientModule;
 import org.elasticsearch.watcher.condition.ConditionModule;
 import org.elasticsearch.watcher.execution.ExecutionModule;
@@ -81,6 +72,15 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.watch.WatchModule;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.common.init.LazyInitializationModule;
+import org.elasticsearch.xpack.notification.email.EmailService;
+import org.elasticsearch.xpack.notification.email.InternalEmailService;
+import org.elasticsearch.xpack.notification.hipchat.HipChatService;
+import org.elasticsearch.xpack.notification.hipchat.InternalHipChatService;
+import org.elasticsearch.xpack.notification.pagerduty.InternalPagerDutyService;
+import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
+import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
+import org.elasticsearch.xpack.notification.slack.InternalSlackService;
+import org.elasticsearch.xpack.notification.slack.SlackService;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -201,13 +201,12 @@ public class Watcher {
         module.registerSetting(Setting.simpleString("xpack.watcher.start_immediately", Setting.Property.NodeScope));
         module.registerSetting(Setting.simpleString("xpack.watcher.http.default_connection_timeout", Setting.Property.NodeScope));
 
-        module.registerSettingsFilter("xpack.watcher.actions.email.service.account.*.smtp.password");
-        module.registerSettingsFilter("xpack.watcher.actions.slack.service.account.*.url");
-        module.registerSettingsFilter("xpack.watcher.actions.pagerduty.service.account.*.url");
-        module.registerSettingsFilter("xpack.watcher.actions.pagerduty.service." + PagerDutyAccount.SERVICE_KEY_SETTING);
-        module.registerSettingsFilter("xpack.watcher.actions.pagerduty.service.account.*." +
-                PagerDutyAccount.SERVICE_KEY_SETTING);
-        module.registerSettingsFilter("xpack.watcher.actions.hipchat.service.account.*.auth_token");
+        module.registerSettingsFilter("xpack.notification.email.service.account.*.smtp.password");
+        module.registerSettingsFilter("xpack.notification.slack.service.account.*.url");
+        module.registerSettingsFilter("xpack.notification.pagerduty.service.account.*.url");
+        module.registerSettingsFilter("xpack.notification.pagerduty.service." + PagerDutyAccount.SERVICE_KEY_SETTING);
+        module.registerSettingsFilter("xpack.notification.pagerduty.service.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);
+        module.registerSettingsFilter("xpack.notification.hipchat.service.account.*.auth_token");
     }
 
     public void onModule(NetworkModule module) {

@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -45,10 +44,10 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put("xpack.watcher.actions.email.service.account._email.smtp.host", "host.domain")
-                .put("xpack.watcher.actions.email.service.account._email.smtp.port", 587)
-                .put("xpack.watcher.actions.email.service.account._email.smtp.user", "_user")
-                .put("xpack.watcher.actions.email.service.account._email.smtp.password", "_passwd")
+                .put("xpack.notification.email.service.account._email.smtp.host", "host.domain")
+                .put("xpack.notification.email.service.account._email.smtp.port", 587)
+                .put("xpack.notification.email.service.account._email.smtp.user", "_user")
+                .put("xpack.notification.email.service.account._email.smtp.password", "_passwd")
                 .build();
     }
 
@@ -58,9 +57,9 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
         Map<String, Object> nodes = (Map<String, Object>) response.get("nodes");
         for (Object node : nodes.values()) {
             Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
-            assertThat(XContentMapValues.extractValue("xpack.watcher.actions.email.service.account._email.smtp.user", settings),
+            assertThat(XContentMapValues.extractValue("xpack.notification.email.service.account._email.smtp.user", settings),
                     is((Object) "_user"));
-            assertThat(XContentMapValues.extractValue("xpack.watcher.actions.email.service.account._email.smtp.password", settings),
+            assertThat(XContentMapValues.extractValue("xpack.notification.email.service.account._email.smtp.password", settings),
                     nullValue());
         }
     }

@@ -804,20 +804,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
     }
 
-    protected final void processAfterWrite(boolean refresh, IndexShard indexShard, Translog.Location location) {
-        if (refresh) {
-            try {
-                indexShard.refresh("refresh_flag_index");
-            } catch (Throwable e) {
-                // ignore
-            }
-        }
-        if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null) {
-            indexShard.sync(location);
-        }
-        indexShard.maybeFlush();
-    }
-
     /**
      * Sets the current phase on the task if it isn't null. Pulled into its own
      * method because its more convenient that way.

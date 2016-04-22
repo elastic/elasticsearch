@@ -94,7 +94,7 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
         }
 
         totalShards.incrementAndGet();
-        pendingShards.incrementAndGet(); // increase by 1 until we finish all primary coordination
+        pendingShards.addAndGet(2); // increase by 2 - one for the primary shard and one for the coordination of replicas
         ReplicaRequest replicaRequest = performOnPrimary(primary.routingEntry(), request);
         assert replicaRequest.primaryTerm() > 0 : "replicaRequest doesn't have a primary term";
         if (logger.isTraceEnabled()) {
@@ -122,6 +122,8 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
                 performOnReplica(shard.buildTargetRelocatingShard(), replicaRequest);
             }
         }
+        // Decrement for the replica coordination
+        decPendingAndFinishIfNeeded();
     }
 
     private ReplicaRequest performOnPrimary(final ShardRouting primaryRouting, Request request) throws Exception {
@@ -130,7 +132,7 @@ public class ReplicationOperation<Request extends ReplicationRequest<Request>, R
             public void onResponse(Response response) {
                 finalResponse = response;
                 successfulShards.incrementAndGet();
-                // decrement pending and finish (if there are no replicas, or those are done)
+                // Decrement for the primary
                 decPendingAndFinishIfNeeded();
             }
 

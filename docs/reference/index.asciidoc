@@ -5,7 +5,7 @@
 :branch:        2.3
 :major-version: 2.x
 :jdk:           1.8.0_73
-:defguide:      https://www.elastic.co/guide/en/elasticsearch/guide/current
+:defguide:      https://www.elastic.co/guide/en/elasticsearch/guide/2.x
 :plugins:       https://www.elastic.co/guide/en/elasticsearch/plugins/2.3
 :javaclient:    https://www.elastic.co/guide/en/elasticsearch/client/java-api/2.3/
 :issue:         https://github.com/elastic/elasticsearch/issues/

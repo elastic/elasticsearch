@@ -18,8 +18,8 @@ public class ClusterStateNodeResolver extends MonitoringIndexNameResolver.Timest
 
     public static final String TYPE = "node";
 
-    public ClusterStateNodeResolver(MonitoredSystem id, int version, Settings settings) {
-        super(id, version, settings);
+    public ClusterStateNodeResolver(MonitoredSystem id, Settings settings) {
+        super(id, settings);
     }
 
     @Override

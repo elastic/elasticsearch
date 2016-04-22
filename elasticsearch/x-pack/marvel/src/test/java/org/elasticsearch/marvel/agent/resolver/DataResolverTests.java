@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 
 import java.io.IOException;
@@ -20,11 +21,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DataResolverTests extends MonitoringIndexNameResolverTestCase {
 
-    private int randomVersion = randomIntBetween(0, 100);
-
     @Override
     protected MonitoringIndexNameResolver<MonitoringDoc> newResolver() {
-        return newDataResolver(randomVersion);
+        return newDataResolver();
     }
 
     @Override
@@ -52,12 +51,11 @@ public class DataResolverTests extends MonitoringIndexNameResolverTestCase {
     }
 
     public void testDataResolver() {
-        assertThat(newDataResolver(randomVersion).index(newMarvelDoc()), equalTo(".monitoring-data-" + randomVersion));
-        assertThat(newDataResolver(42).index(newMarvelDoc()), equalTo(".monitoring-data-42"));
+        assertThat(newDataResolver().index(newMarvelDoc()), equalTo(".monitoring-data-" + MarvelTemplateUtils.TEMPLATE_VERSION));
     }
 
-    private MonitoringIndexNameResolver.Data<MonitoringDoc> newDataResolver(int randomVersion) {
-        return new MonitoringIndexNameResolver.Data<MonitoringDoc>(randomVersion) {
+    private MonitoringIndexNameResolver.Data<MonitoringDoc> newDataResolver() {
+        return new MonitoringIndexNameResolver.Data<MonitoringDoc>() {
             @Override
             public String type(MonitoringDoc document) {
                 return null;

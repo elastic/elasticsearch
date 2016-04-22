@@ -87,8 +87,8 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
             "node_stats.thread_pool.watcher.rejected",
     };
 
-    public NodeStatsResolver(MonitoredSystem id, int version, Settings settings) {
-        super(id, version, settings);
+    public NodeStatsResolver(MonitoredSystem id, Settings settings) {
+        super(id, settings);
     }
 
     @Override

@@ -107,7 +107,7 @@ public class ClusterStateTests extends MarvelIntegTestCase {
     public void testClusterStateNodes() throws Exception {
         final long nbNodes = internalCluster().size();
 
-        MonitoringIndexNameResolver.Timestamped timestampedResolver = new MockTimestampedIndexNameResolver(ES, TEMPLATE_VERSION);
+        MonitoringIndexNameResolver.Timestamped timestampedResolver = new MockTimestampedIndexNameResolver(ES);
         assertNotNull(timestampedResolver);
 
         String timestampedIndex = timestampedResolver.indexPattern();
@@ -152,7 +152,7 @@ public class ClusterStateTests extends MarvelIntegTestCase {
     public void testDiscoveryNodes() throws Exception {
         final long nbNodes = internalCluster().size();
 
-        MonitoringIndexNameResolver.Data dataResolver = new MockDataIndexNameResolver(TEMPLATE_VERSION);
+        MonitoringIndexNameResolver.Data dataResolver = new MockDataIndexNameResolver();
         assertNotNull(dataResolver);
 
         String dataIndex = dataResolver.indexPattern();

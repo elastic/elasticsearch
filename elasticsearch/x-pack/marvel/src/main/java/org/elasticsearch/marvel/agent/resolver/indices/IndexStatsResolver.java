@@ -66,8 +66,8 @@ public class IndexStatsResolver extends MonitoringIndexNameResolver.Timestamped<
             "index_stats.total.refresh.total_time_in_millis",
     };
 
-    public IndexStatsResolver(MonitoredSystem id, int version, Settings settings) {
-        super(id, version, settings);
+    public IndexStatsResolver(MonitoredSystem id, Settings settings) {
+        super(id, settings);
     }
 
     @Override

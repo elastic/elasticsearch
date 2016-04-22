@@ -38,8 +38,8 @@ public class ClusterStatsResolver extends MonitoringIndexNameResolver.Timestampe
             "cluster_stats.nodes.versions",
     };
 
-    public ClusterStatsResolver(MonitoredSystem id, int version, Settings settings) {
-        super(id, version, settings);
+    public ClusterStatsResolver(MonitoredSystem id, Settings settings) {
+        super(id, settings);
     }
 
     @Override

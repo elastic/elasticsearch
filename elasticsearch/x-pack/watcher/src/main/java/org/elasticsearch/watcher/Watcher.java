@@ -47,6 +47,7 @@ import org.elasticsearch.watcher.rest.action.RestHijackOperationAction;
 import org.elasticsearch.watcher.rest.action.RestPutWatchAction;
 import org.elasticsearch.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.watcher.rest.action.RestWatcherStatsAction;
+import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
 import org.elasticsearch.watcher.support.clock.ClockModule;
 import org.elasticsearch.watcher.support.http.HttpClient;
@@ -168,7 +169,7 @@ public class Watcher {
     }
 
     public void onModule(SettingsModule module) {
-        for (TemplateConfig templateConfig : WatcherModule.TEMPLATE_CONFIGS) {
+        for (TemplateConfig templateConfig : WatcherIndexTemplateRegistry.TEMPLATE_CONFIGS) {
             module.registerSetting(templateConfig.getSetting());
         }
         module.registerSetting(InternalSlackService.SLACK_ACCOUNT_SETTING);

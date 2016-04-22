@@ -32,8 +32,8 @@ public class ShardsResolver extends MonitoringIndexNameResolver.Timestamped<Shar
             "shard.index",
     };
 
-    public ShardsResolver(MonitoredSystem id, int version, Settings settings) {
-        super(id, version, settings);
+    public ShardsResolver(MonitoredSystem id, Settings settings) {
+        super(id, settings);
     }
 
     @Override

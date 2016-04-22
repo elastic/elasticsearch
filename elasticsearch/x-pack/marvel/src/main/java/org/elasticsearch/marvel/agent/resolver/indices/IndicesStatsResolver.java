@@ -41,8 +41,8 @@ public class IndicesStatsResolver extends MonitoringIndexNameResolver.Timestampe
             "indices_stats._all.total.store.size_in_bytes",
     };
 
-    public IndicesStatsResolver(MonitoredSystem id, int version, Settings settings) {
-        super(id, version, settings);
+    public IndicesStatsResolver(MonitoredSystem id, Settings settings) {
+        super(id, settings);
     }
 
     @Override

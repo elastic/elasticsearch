@@ -27,8 +27,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.Security;
+import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
@@ -40,7 +40,6 @@ import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.watcher.WatcherLifeCycleService;
-import org.elasticsearch.watcher.WatcherModule;
 import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.actions.email.service.Authentication;
@@ -91,9 +90,9 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.elasticsearch.watcher.WatcherModule.HISTORY_TEMPLATE_NAME;
-import static org.elasticsearch.watcher.WatcherModule.TRIGGERED_TEMPLATE_NAME;
-import static org.elasticsearch.watcher.WatcherModule.WATCHES_TEMPLATE_NAME;
+import static org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME;
+import static org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME;
+import static org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -143,7 +142,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     @Override
     protected Set<String> excludeTemplates() {
         Set<String> excludes = new HashSet<>();
-        for (WatcherIndexTemplateRegistry.TemplateConfig templateConfig : WatcherModule.TEMPLATE_CONFIGS) {
+        for (WatcherIndexTemplateRegistry.TemplateConfig templateConfig : WatcherIndexTemplateRegistry.TEMPLATE_CONFIGS) {
             excludes.add(templateConfig.getTemplateName());
         }
         return excludes;

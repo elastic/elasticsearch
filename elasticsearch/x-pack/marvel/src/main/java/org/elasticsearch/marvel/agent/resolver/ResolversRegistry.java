@@ -19,7 +19,6 @@ import org.elasticsearch.marvel.agent.collector.indices.IndexStatsMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.indices.IndicesStatsMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.node.NodeStatsMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.shards.ShardMonitoringDoc;
-import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
 import org.elasticsearch.marvel.agent.resolver.bulk.MonitoringBulkResolver;
 import org.elasticsearch.marvel.agent.resolver.cluster.ClusterInfoResolver;
@@ -43,40 +42,37 @@ import static org.elasticsearch.marvel.MonitoredSystem.ES;
 
 public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> {
 
-    private static final int ES_TEMPLATE_VERSION = MarvelTemplateUtils.TEMPLATE_VERSION;
-    private static final int KIBANA_TEMPLATE_VERSION = MarvelTemplateUtils.TEMPLATE_VERSION;
-
     private final List<Registration> registrations = new ArrayList<>();
 
     public ResolversRegistry(Settings settings) {
         // register built-in defaults resolvers
-        registerBuiltIn(ES, ES_TEMPLATE_VERSION, settings);
+        registerBuiltIn(ES, settings);
 
         // register resolvers for monitored systems
-        registerMonitoredSystem(MonitoredSystem.KIBANA, KIBANA_TEMPLATE_VERSION, settings);
+        registerMonitoredSystem(MonitoredSystem.KIBANA, settings);
     }
 
     /**
      * Registers resolvers for elasticsearch documents collected by the monitoring plugin
      */
-    private void registerBuiltIn(MonitoredSystem id, int version, Settings settings) {
-        registrations.add(resolveByClass(ClusterInfoMonitoringDoc.class, new ClusterInfoResolver(version)));
-        registrations.add(resolveByClass(ClusterStateNodeMonitoringDoc.class, new ClusterStateNodeResolver(id, version, settings)));
-        registrations.add(resolveByClass(ClusterStateMonitoringDoc.class, new ClusterStateResolver(id, version, settings)));
-        registrations.add(resolveByClass(ClusterStatsMonitoringDoc.class, new ClusterStatsResolver(id, version, settings)));
-        registrations.add(resolveByClass(DiscoveryNodeMonitoringDoc.class, new DiscoveryNodeResolver(version)));
-        registrations.add(resolveByClass(IndexRecoveryMonitoringDoc.class, new IndexRecoveryResolver(id, version, settings)));
-        registrations.add(resolveByClass(IndexStatsMonitoringDoc.class, new IndexStatsResolver(id, version, settings)));
-        registrations.add(resolveByClass(IndicesStatsMonitoringDoc.class, new IndicesStatsResolver(id, version, settings)));
-        registrations.add(resolveByClass(NodeStatsMonitoringDoc.class, new NodeStatsResolver(id, version, settings)));
-        registrations.add(resolveByClass(ShardMonitoringDoc.class, new ShardsResolver(id, version, settings)));
+    private void registerBuiltIn(MonitoredSystem id, Settings settings) {
+        registrations.add(resolveByClass(ClusterInfoMonitoringDoc.class, new ClusterInfoResolver()));
+        registrations.add(resolveByClass(ClusterStateNodeMonitoringDoc.class, new ClusterStateNodeResolver(id, settings)));
+        registrations.add(resolveByClass(ClusterStateMonitoringDoc.class, new ClusterStateResolver(id, settings)));
+        registrations.add(resolveByClass(ClusterStatsMonitoringDoc.class, new ClusterStatsResolver(id, settings)));
+        registrations.add(resolveByClass(DiscoveryNodeMonitoringDoc.class, new DiscoveryNodeResolver()));
+        registrations.add(resolveByClass(IndexRecoveryMonitoringDoc.class, new IndexRecoveryResolver(id, settings)));
+        registrations.add(resolveByClass(IndexStatsMonitoringDoc.class, new IndexStatsResolver(id, settings)));
+        registrations.add(resolveByClass(IndicesStatsMonitoringDoc.class, new IndicesStatsResolver(id, settings)));
+        registrations.add(resolveByClass(NodeStatsMonitoringDoc.class, new NodeStatsResolver(id, settings)));
+        registrations.add(resolveByClass(ShardMonitoringDoc.class, new ShardsResolver(id, settings)));
     }
 
     /**
      * Registers resolvers for monitored systems
      */
-    private void registerMonitoredSystem(MonitoredSystem id, int version, Settings settings) {
-        final MonitoringBulkResolver resolver =  new MonitoringBulkResolver(id, version, settings);
+    private void registerMonitoredSystem(MonitoredSystem id, Settings settings) {
+        final MonitoringBulkResolver resolver =  new MonitoringBulkResolver(id, settings);
         registrations.add(resolveByClassSystemVersion(MonitoringBulkDoc.class, id, Version.CURRENT, resolver));
     }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.WatcherModule;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.execution.Wid;
+import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.joda.time.DateTime;
@@ -70,7 +71,7 @@ public class HistoryStoreTests extends ESTestCase {
     }
 
     public void testIndexNameGeneration() {
-        Integer indexTemplateVersion = WatcherModule.getHistoryIndexTemplateVersion();
+        String indexTemplateVersion = WatcherIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
         assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(0, UTC)),
                 equalTo(".watcher-history-"+ indexTemplateVersion +"-1970.01.01"));
         assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(100000000000L, UTC)),

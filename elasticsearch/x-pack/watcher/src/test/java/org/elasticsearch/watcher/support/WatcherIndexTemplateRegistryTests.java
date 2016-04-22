@@ -47,7 +47,7 @@ public class WatcherIndexTemplateRegistryTests extends AbstractWatcherIntegratio
             @Override
             public void run() {
                 GetIndexTemplatesResponse response = client().admin().indices()
-                        .prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
+                        .prepareGetTemplates(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME).get();
                 assertThat(response.getIndexTemplates().size(), equalTo(1));
                 // setting from the file on the classpath:
                 assertThat(response.getIndexTemplates().get(0).getSettings().getAsBoolean("index.mapper.dynamic", null), is(false));
@@ -57,13 +57,13 @@ public class WatcherIndexTemplateRegistryTests extends AbstractWatcherIntegratio
         });
 
         // Now delete the index template and verify the index template gets added back:
-        assertAcked(client().admin().indices().prepareDeleteTemplate(WatcherModule.HISTORY_TEMPLATE_NAME).get());
+        assertAcked(client().admin().indices().prepareDeleteTemplate(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME).get());
 
         assertBusy(new Runnable() {
             @Override
             public void run() {
                 GetIndexTemplatesResponse response = client().admin().indices()
-                        .prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
+                        .prepareGetTemplates(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME).get();
                 assertThat(response.getIndexTemplates().size(), equalTo(1));
                 // setting from the file on the classpath:
                 assertThat(response.getIndexTemplates().get(0).getSettings().getAsBoolean("index.mapper.dynamic", null), is(false));

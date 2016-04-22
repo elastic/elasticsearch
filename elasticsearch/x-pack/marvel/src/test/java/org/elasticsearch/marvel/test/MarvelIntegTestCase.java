@@ -25,8 +25,8 @@ import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.agent.resolver.ResolversRegistry;
 import org.elasticsearch.marvel.client.MonitoringClient;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.Security;
+import org.elasticsearch.shield.authc.file.FileRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
@@ -438,11 +438,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                 Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), value, timeUnit)));
     }
 
-    protected class MockDataIndexNameResolver extends MonitoringIndexNameResolver.Data<MonitoringDoc> {
-
-        public MockDataIndexNameResolver(int version) {
-            super(version);
-        }
+    public class MockDataIndexNameResolver extends MonitoringIndexNameResolver.Data<MonitoringDoc> {
 
         @Override
         public String type(MonitoringDoc document) {
@@ -462,12 +458,12 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
     protected class MockTimestampedIndexNameResolver extends MonitoringIndexNameResolver.Timestamped<MonitoringDoc> {
 
-        public MockTimestampedIndexNameResolver(MonitoredSystem id, int version, Settings settings) {
-            super(id, version, settings);
+        public MockTimestampedIndexNameResolver(MonitoredSystem id, Settings settings) {
+            super(id, settings);
         }
 
-        public MockTimestampedIndexNameResolver(MonitoredSystem id, int version) {
-            this(id, version, Settings.EMPTY);
+        public MockTimestampedIndexNameResolver(MonitoredSystem id) {
+            this(id, Settings.EMPTY);
         }
 
         @Override

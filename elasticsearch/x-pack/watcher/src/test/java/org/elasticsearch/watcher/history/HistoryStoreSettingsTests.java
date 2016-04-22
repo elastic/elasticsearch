@@ -9,7 +9,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.watcher.WatcherModule;
+import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -23,8 +23,10 @@ import static org.hamcrest.core.Is.is;
 @TestLogging("cluster:DEBUG,action.admin.cluster.settings:DEBUG,watcher:DEBUG")
 @ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
 public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCase {
+
     public void testChangeSettings() throws Exception {
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
+        GetIndexTemplatesResponse response = client().admin().indices()
+                .prepareGetTemplates(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME).get();
         assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_shards"), equalTo("1"));
         // this isn't defined in the template, so we rely on ES's default, which is zero
         assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_replicas"), nullValue());
@@ -44,7 +46,7 @@ public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCas
             @Override
             public void run() {
                 GetIndexTemplatesResponse response = client().admin().indices()
-                        .prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
+                        .prepareGetTemplates(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME).get();
                 assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_shards"), equalTo("2"));
                 assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_replicas"), equalTo("2"));
                 assertThat(response.getIndexTemplates().get(0).getSettings().get("index.refresh_interval"), equalTo("5m"));
@@ -53,7 +55,8 @@ public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCas
     }
 
     public void testChangeSettingsIgnoringForbiddenSetting() throws Exception {
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
+        GetIndexTemplatesResponse response = client().admin().indices()
+                .prepareGetTemplates(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME).get();
         assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_shards"), equalTo("1"));
         assertThat(response.getIndexTemplates().get(0).getSettings().getAsBoolean("index.mapper.dynamic", null), is(false));
 
@@ -70,7 +73,7 @@ public class HistoryStoreSettingsTests extends AbstractWatcherIntegrationTestCas
             @Override
             public void run() {
                 GetIndexTemplatesResponse response = client().admin().indices()
-                        .prepareGetTemplates(WatcherModule.HISTORY_TEMPLATE_NAME).get();
+                        .prepareGetTemplates(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_NAME).get();
                 assertThat(response.getIndexTemplates().get(0).getSettings().get("index.number_of_shards"), equalTo("2"));
                 assertThat(response.getIndexTemplates().get(0).getSettings().getAsBoolean("index.mapper.dynamic", null), is(false));
             }

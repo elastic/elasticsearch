@@ -22,8 +22,8 @@ public class IndexRecoveryResolver extends MonitoringIndexNameResolver.Timestamp
 
     public static final String TYPE = "index_recovery";
 
-    public IndexRecoveryResolver(MonitoredSystem id, int version, Settings settings) {
-        super(id, version, settings);
+    public IndexRecoveryResolver(MonitoredSystem id, Settings settings) {
+        super(id, settings);
     }
 
     @Override

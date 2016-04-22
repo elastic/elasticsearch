@@ -22,10 +22,6 @@ public class ClusterInfoResolver extends MonitoringIndexNameResolver.Data<Cluste
 
     public static final String TYPE = "cluster_info";
 
-    public ClusterInfoResolver(int version) {
-        super(version);
-    }
-
     @Override
     public String type(ClusterInfoMonitoringDoc document) {
         return TYPE;

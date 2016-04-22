@@ -26,9 +26,9 @@ public class LocalExporterTemplateTests extends AbstractExporterTemplateTestCase
     }
 
     @Override
-    protected void putTemplate(String name, int version) throws Exception {
+    protected void putTemplate(String name) throws Exception {
         waitNoPendingTasksOnAll();
-        assertAcked(client().admin().indices().preparePutTemplate(name).setSource(generateTemplateSource(name, version)).get());
+        assertAcked(client().admin().indices().preparePutTemplate(name).setSource(generateTemplateSource(name)).get());
     }
 
     @Override

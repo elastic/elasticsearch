@@ -68,7 +68,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
      */
     public ScriptQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        script = Script.readScript(in);
+        script = new Script(in);
     }
 
     @Override

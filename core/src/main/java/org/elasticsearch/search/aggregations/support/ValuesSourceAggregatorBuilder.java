@@ -126,7 +126,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     private void read(StreamInput in) throws IOException {
         field = in.readOptionalString();
         if (in.readBoolean()) {
-            script = Script.readScript(in);
+            script = new Script(in);
         }
         if (in.readBoolean()) {
             valueType = ValueType.readFromStream(in);

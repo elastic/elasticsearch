@@ -102,7 +102,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      */
     public TemplateQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        template = Template.readTemplate(in);
+        template = new Template(in);
     }
 
     @Override

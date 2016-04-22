@@ -135,7 +135,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         postTag = in.readOptionalString();
         separator = in.readString();
         if (in.readBoolean()) {
-            collateQuery = Template.readTemplate(in);
+            collateQuery = new Template(in);
         }
         collateParams = in.readMap();
         collatePrune = in.readOptionalBoolean();

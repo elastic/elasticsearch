@@ -121,7 +121,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            reduceScript = Script.readScript(in);
+            reduceScript = new Script(in);
         }
         aggregation = in.readGenericValue();
     }

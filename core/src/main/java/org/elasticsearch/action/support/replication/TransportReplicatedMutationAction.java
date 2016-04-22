@@ -21,7 +21,6 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -34,21 +33,22 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.function.Supplier;
 
-public abstract class TransportReplicatedWriteAction<
+/**
+ * Base class for transport actions that modify data in some shard like index, delete, and shardBulk.
+ */
+public abstract class TransportReplicatedMutationAction<
             Request extends ReplicationRequest<Request>,
             ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
             Response extends ReplicationResponse
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
-    protected TransportReplicatedWriteAction(Settings settings, String actionName, TransportService transportService,
+    protected TransportReplicatedMutationAction(Settings settings, String actionName, TransportService transportService,
             ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
             Supplier<ReplicaRequest> replicaRequest, String executor) {
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
                 indexNameExpressionResolver, request, replicaRequest, executor);
     }
-
-
 
     protected final void processAfterWrite(boolean refresh, IndexShard indexShard, Translog.Location location) {
         if (refresh) {

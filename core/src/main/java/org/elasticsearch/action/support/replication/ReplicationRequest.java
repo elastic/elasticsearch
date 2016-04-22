@@ -65,7 +65,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
 
     }
 
-
     /**
      * Creates a new request with resolved shard id
      */

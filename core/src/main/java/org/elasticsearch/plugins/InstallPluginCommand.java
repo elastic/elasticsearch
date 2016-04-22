@@ -222,7 +222,7 @@ class InstallPluginCommand extends Command {
                         version);
             }
             terminal.println("-> Downloading " + pluginId + " from elastic");
-            return downloadZipAndChecksum(url, tmpDir);
+            return downloadZipAndChecksum(terminal, url, tmpDir);
         }
 
         // now try as maven coordinates, a valid URL would only have a colon and slash
@@ -231,16 +231,17 @@ class InstallPluginCommand extends Command {
             String mavenUrl = String.format(Locale.ROOT, "https://repo1.maven.org/maven2/%1$s/%2$s/%3$s/%2$s-%3$s.zip",
                     coordinates[0].replace(".", "/") /* groupId */, coordinates[1] /* artifactId */, coordinates[2] /* version */);
             terminal.println("-> Downloading " + pluginId + " from maven central");
-            return downloadZipAndChecksum(mavenUrl, tmpDir);
+            return downloadZipAndChecksum(terminal, mavenUrl, tmpDir);
         }
 
         // fall back to plain old URL
         terminal.println("-> Downloading " + URLDecoder.decode(pluginId, "UTF-8"));
-        return downloadZip(pluginId, tmpDir);
+        return downloadZip(terminal, pluginId, tmpDir);
     }
 
     /** Downloads a zip from the url, into a temp file under the given temp dir. */
-    private Path downloadZip(String urlString, Path tmpDir) throws IOException {
+    private Path downloadZip(Terminal terminal, String urlString, Path tmpDir) throws IOException {
+        terminal.println(VERBOSE, "Retrieving zip from " + urlString);
         URL url = new URL(urlString);
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
         try (InputStream in = url.openStream()) {
@@ -251,8 +252,8 @@ class InstallPluginCommand extends Command {
     }
 
     /** Downloads a zip from the url, as well as a SHA1 checksum, and checks the checksum. */
-    private Path downloadZipAndChecksum(String urlString, Path tmpDir) throws Exception {
-        Path zip = downloadZip(urlString, tmpDir);
+    private Path downloadZipAndChecksum(Terminal terminal, String urlString, Path tmpDir) throws Exception {
+        Path zip = downloadZip(terminal, urlString, tmpDir);
 
         URL checksumUrl = new URL(urlString + ".sha1");
         final String expectedChecksum;

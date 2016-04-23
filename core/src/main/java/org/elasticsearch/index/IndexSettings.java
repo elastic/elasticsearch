@@ -115,6 +115,8 @@ public final class IndexSettings {
     public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING =
         Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic,
             Property.IndexScope);
+    public static final Setting<Integer> MAX_REFRESH_LISTENERS_PER_SHARD = Setting.intSetting("index.max_refresh_listeners", 100, 0,
+            Property.Dynamic, Property.IndexScope);
 
     private final Index index;
     private final Version version;
@@ -145,6 +147,7 @@ public final class IndexSettings {
     private volatile int maxResultWindow;
     private volatile int maxRescoreWindow;
     private volatile boolean TTLPurgeDisabled;
+    private volatile int maxRefreshListeners;
 
     /**
      * Returns the default search field for this index.
@@ -251,6 +254,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
+        scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
     }
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
@@ -499,6 +503,13 @@ public final class IndexSettings {
         return scopedSettings.get(setting);
     }
 
+    public int getMaxRefreshListeners() {
+        return maxRefreshListeners;
+    }
+
+    private void setMaxRefreshListeners(int maxRefreshListeners) {
+        this.maxRefreshListeners = maxRefreshListeners;
+    }
 
     IndexScopedSettings getScopedSettings() { return scopedSettings;}
 }

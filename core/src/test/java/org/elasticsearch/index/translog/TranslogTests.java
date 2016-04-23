@@ -205,18 +205,30 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testRead() throws IOException {
+        assertNull(translog.getLastWriteLocation());
         Translog.Location loc1 = translog.add(new Translog.Index("test", "1", new byte[]{1}));
+        assertEquals(translog.currentFileGeneration(), translog.getLastWriteLocation().generation);
+        assertEquals(43, translog.getLastWriteLocation().translogLocation);
         Translog.Location loc2 = translog.add(new Translog.Index("test", "2", new byte[]{2}));
+        assertEquals(translog.currentFileGeneration(), translog.getLastWriteLocation().generation);
+        assertEquals(89, translog.getLastWriteLocation().translogLocation);
         assertThat(translog.read(loc1).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
         assertThat(translog.read(loc2).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
         translog.sync();
+        assertEquals(translog.currentFileGeneration(), translog.getLastWriteLocation().generation);
+        assertEquals(89, translog.getLastWriteLocation().translogLocation);
         assertThat(translog.read(loc1).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
         assertThat(translog.read(loc2).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
         Translog.Location loc3 = translog.add(new Translog.Index("test", "2", new byte[]{3}));
+        assertEquals(translog.currentFileGeneration(), translog.getLastWriteLocation().generation);
+        assertEquals(135, translog.getLastWriteLocation().translogLocation);
         assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
         translog.sync();
         assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
+        long lastGeneration = translog.currentFileGeneration();
         translog.prepareCommit();
+        assertEquals(lastGeneration, translog.getLastWriteLocation().generation);
+        assertEquals(135, translog.getLastWriteLocation().translogLocation);
         assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
         translog.commit();
         assertNull(translog.read(loc1));

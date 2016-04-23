@@ -85,7 +85,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -115,6 +114,8 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -123,6 +124,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static java.util.Objects.requireNonNull;
 
 public class IndexShard extends AbstractIndexShardComponent {
 
@@ -194,6 +197,10 @@ public class IndexShard extends AbstractIndexShardComponent {
      * IndexingMemoryController}).
      */
     private final AtomicBoolean active = new AtomicBoolean();
+    /**
+     * Refresh listeners. Uses a LinkedList because we frequently remove items from the front of it.
+     */
+    private final List<RefreshListener> refreshListeners = new LinkedList<>();
 
     public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
                       MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
@@ -1572,4 +1579,46 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
+    public void addRefreshListener(Translog.Location location, Runnable action) {
+        requireNonNull(location, "location cannot be null");
+        requireNonNull(action, "action cannot be null");
+
+        boolean tooManyListeners = false;
+        synchronized (refreshListeners) {
+            if (refreshListeners.size() >= indexSettings.getMaxRefreshListeners()) {
+                tooManyListeners = true;
+            } else {
+                refreshListeners.add(new RefreshListener(location, action));
+            }
+        }
+        if (tooManyListeners) {
+            refresh("too_many_listeners");
+            action.run();
+        }
+    }
+
+    private void callRefreshListeners(Translog.Location refreshedLocation) {
+        synchronized (refreshListeners) {
+            for (Iterator<RefreshListener> itr = refreshListeners.iterator(); itr.hasNext();) {
+                RefreshListener listener = itr.next();
+                if (listener.location.compareTo(refreshedLocation) <= 0) {
+                    itr.remove();
+                    threadPool.executor(ThreadPool.Names.LISTENER).execute(listener.action);
+                }
+            }
+        }
+    }
+
+    /**
+     * Listens for the next refresh that includes this location.
+     */
+    private static class RefreshListener {
+        private final Translog.Location location;
+        private final Runnable action;
+
+        public RefreshListener(Translog.Location location, Runnable action) {
+            this.location = location;
+            this.action = action;
+        }
+    }
 }

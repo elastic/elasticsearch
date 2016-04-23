@@ -30,6 +30,7 @@ import java.io.IOException;
  */
 public class ReplicatedMutationRequest<R extends ReplicatedMutationRequest<R>> extends ReplicationRequest<R> {
     private boolean refresh;
+    private boolean blockUntilRefresh;
 
     /**
      * Create an empty request.
@@ -57,6 +58,20 @@ public class ReplicatedMutationRequest<R extends ReplicatedMutationRequest<R>> e
 
     public boolean refresh() {
         return this.refresh;
+    }
+
+    /**
+     * Should this request block until it has been made visible by a refresh? Unlike {@link #refresh(boolean)} this is quite safe to use
+     * under heavy indexing so long as few total operations use it. A bulk request only counts as a single operation.
+     */
+    @SuppressWarnings("unchecked")
+    public R setBlockUntilRefresh(boolean blockUntilRefresh) {
+        this.blockUntilRefresh = blockUntilRefresh;
+        return (R) this;
+    }
+
+    public boolean isBlockUntilRefresh() {
+        return blockUntilRefresh;
     }
 
     @Override

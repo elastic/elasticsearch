@@ -129,6 +129,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final AtomicBoolean closed = new AtomicBoolean();
     private final TranslogConfig config;
     private final String translogUUID;
+    /**
+     * The last location of any write operation.
+     */
+    private volatile Location lastWriteLocation;
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogConfig} has
@@ -434,6 +438,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 ensureOpen();
                 Location location = current.add(bytes);
                 assert assertBytesAtLocation(location, bytes);
+                lastWriteLocation = location;
                 return location;
             }
         } catch (AlreadyClosedException | IOException ex) {
@@ -444,6 +449,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
             Releasables.close(out.bytes());
+        }
+    }
+
+    /**
+     * The last location that was written to the translog.
+     */
+    public Location getLastWriteLocation() {
+        try (ReleasableLock lock = readLock.acquire()) {
+            return lastWriteLocation;
         }
     }
 

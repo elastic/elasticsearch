@@ -182,7 +182,7 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public void refresh(String source) throws EngineException {
+    public Translog.Location refresh(String source) throws EngineException {
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         try (ReleasableLock lock = readLock.acquire()) {
@@ -196,6 +196,8 @@ public class ShadowEngine extends Engine {
             failEngine("refresh failed", t);
             throw new RefreshFailedEngineException(shardId, t);
         }
+        // Return null here because we don't have a translog. "Everything" is visible.
+        return null;
     }
 
     @Override

@@ -316,11 +316,16 @@ public class InternalEngineTests extends ESTestCase {
 
             // create a doc and refresh
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-            engine.index(new Engine.Index(newUid("1"), doc));
-
+            Engine.Index index = new Engine.Index(newUid("1"), doc);
+            engine.index(index);
+            Translog.Location firstIndexedLocation = index.getTranslogLocation();
             ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
-            engine.index(new Engine.Index(newUid("2"), doc2));
-            engine.refresh("test");
+            index = new Engine.Index(newUid("2"), doc2);
+            engine.index(index);
+            Translog.Location secondIndexedLocation = index.getTranslogLocation();
+            assertThat(secondIndexedLocation, greaterThan(firstIndexedLocation));
+            Translog.Location refreshedLocation = engine.refresh("test");
+            assertEquals(secondIndexedLocation, refreshedLocation);
 
             segments = engine.segments(false);
             assertThat(segments.size(), equalTo(1));

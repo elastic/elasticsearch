@@ -611,8 +611,10 @@ public abstract class Engine implements Closeable {
     /**
      * Synchronously refreshes the engine for new search operations to reflect the latest
      * changes.
+     *
+     * @return the maximum translog location that was made visible by the refresh
      */
-    public abstract void refresh(String source) throws EngineException;
+    public abstract Translog.Location refresh(String source) throws EngineException;
 
     /**
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.

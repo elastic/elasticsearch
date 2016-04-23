@@ -57,7 +57,7 @@ Previously script mode settings (e.g., "script.inline: true",
 "script.engine.groovy.inline.aggs: false", etc.) accepted the values
 `on`, `true`, `1`, and `yes` for enabling a scripting mode, and the
 values `off`, `false`, `0`, and `no` for disabling a scripting mode.
-The variants `on`, `1`, and `yes ` for enabling and `off`, `0`,
+The variants `on`, `1`, and `yes` for enabling and `off`, `0`,
 and `no` for disabling are no longer supported.
 
 

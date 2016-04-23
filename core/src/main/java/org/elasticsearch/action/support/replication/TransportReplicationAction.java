@@ -52,7 +52,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -70,6 +69,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -157,8 +157,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     protected abstract ReplicaRequest shardOperationOnPrimary(Request shardRequest, ActionListener<Response> listener) throws Exception;
 
     /**
-     * Replica operation on nodes with replica copies. While this does take a listener it should not return until it has completed any operations
-     * that it must take under the shard lock. The listener is for waiting for things like index to become visible in search.
+     * Replica operation on nodes with replica copies. While this does take a listener it should not return until it has completed any
+     * operations that it must take under the shard lock. The listener is for waiting for things like index to become visible in search.
      */
     protected abstract void shardOperationOnReplica(ReplicaRequest shardRequest, ActionListener<TransportResponse.Empty> listener);
 
@@ -345,6 +345,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     }
 
     private final class AsyncReplicaAction extends AbstractRunnable {
+        /**
+         * The number of operations remaining before we can reply. See javadoc for {@link #operationComplete()} more.
+         */
+        private final AtomicInteger operationsUntilReply = new AtomicInteger(2);
         private final ReplicaRequest request;
         private final TransportChannel channel;
         /**
@@ -411,16 +415,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 shardOperationOnReplica(request, new ActionListener<TransportResponse.Empty>() {
                     @Override
                     public void onResponse(Empty response) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(),
-                                request);
-                        }
-                        setPhase(task, "finished");
-                        try {
-                            channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                        } catch (Exception e) {
-                            onFailure(e);
-                        }
+                        operationComplete();
                     }
 
                     @Override
@@ -428,6 +423,32 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         AsyncReplicaAction.this.onFailure(e);
                     }
                 });
+            }
+            operationComplete();
+        }
+
+        /**
+         * Handle a portion of the operation finishing. Called twice: once after the operation returns and the lock is released and once
+         * after the listener returns. We only reply over the channel when both have finished but we don't know in which order they will
+         * finish.
+         *
+         * The reason we can't reply until both is finished is a bit unclear - but the advantage of doing it this ways is that we never
+         * ever ever reply while we have the operation lock. And it is just a good idea in general not to do network IO while you have a
+         * lock. So that is something.
+         */
+        private void operationComplete() {
+            if (operationsUntilReply.decrementAndGet() != 0) {
+                return;
+            }
+            if (logger.isTraceEnabled()) {
+                logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(),
+                    request);
+            }
+            setPhase(task, "finished");
+            try {
+                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            } catch (Exception e) {
+                onFailure(e);
             }
         }
     }

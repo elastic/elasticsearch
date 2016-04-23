@@ -72,8 +72,8 @@ public class TransportShardRefreshAction extends TransportReplicationAction<Basi
         final ShardId shardId = request.shardId();
         IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
         indexShard.refresh("api");
-        listener.onResponse(TransportResponse.Empty.INSTANCE);
         logger.trace("{} refresh request executed on replica", indexShard.shardId());
+        listener.onResponse(TransportResponse.Empty.INSTANCE);
     }
 
     @Override

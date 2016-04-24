@@ -42,7 +42,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
         final int min;
         if (randomBoolean()) {
-            min = randomIntBetween(1, 8);
+            min = randomIntBetween(0, 8);
             builder.put("threadpool." + threadPoolName + ".min", min);
         } else {
             min = "generic".equals(threadPoolName) ? 4 : 1; // the defaults

@@ -25,18 +25,13 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.Arrays;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.LinkedTransferQueue;
-import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-/**
- *
- */
 public class EsExecutors {
 
     /**
@@ -110,6 +105,7 @@ public class EsExecutors {
     }
 
     static class EsThreadFactory implements ThreadFactory {
+
         final ThreadGroup group;
         final AtomicInteger threadNumber = new AtomicInteger(1);
         final String namePrefix;
@@ -129,6 +125,7 @@ public class EsExecutors {
             t.setDaemon(true);
             return t;
         }
+
     }
 
     /**
@@ -136,7 +133,6 @@ public class EsExecutors {
      */
     private EsExecutors() {
     }
-
 
     static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
 
@@ -166,6 +162,7 @@ public class EsExecutors {
                 return true;
             }
         }
+
     }
 
     /**
@@ -188,4 +185,5 @@ public class EsExecutors {
             return 0;
         }
     }
+
 }

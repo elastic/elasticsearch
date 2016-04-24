@@ -525,7 +525,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             int defaultSize = defaultSettings.getAsInt("size", EsExecutors.boundedNumberOfProcessors(settings));
             final Integer queueSize = settings.getAsInt("queue_size", defaultSettings.getAsInt("queue_size", null));
             if (queueSize != null) {
-                throw new IllegalArgumentException("thread pool [" + name + "] can not have its queue re-sized but was [" + queueSize + "]");
+                throw new IllegalArgumentException("thread pool [" + name + "] of type scaling can not have its queue re-sized but was [" + queueSize + "]");
             }
             if (previousExecutorHolder != null) {
                 if (ThreadPoolType.SCALING == previousInfo.getThreadPoolType()) {

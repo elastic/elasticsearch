@@ -212,7 +212,8 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
                     IllegalArgumentException.class,
                     () -> clusterSettings.applySettings(settings("threadpool." + threadPoolName + ".queue_size", size)));
             assertThat(e, hasToString(
-                    "java.lang.IllegalArgumentException: thread pool [" + threadPoolName + "] can not have its queue re-sized but was [" +
+                    "java.lang.IllegalArgumentException: thread pool [" + threadPoolName +
+                        "] of type scaling can not have its queue re-sized but was [" +
                             size + "]"));
         });
     }

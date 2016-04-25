@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedMutationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -53,7 +54,10 @@ public class BulkShardResponse extends ReplicatedMutationResponse {
     @Override
     public void setForcedRefresh(boolean forcedRefresh) {
         for (BulkItemResponse response : responses) {
-            response.getResponse().setForcedRefresh(forcedRefresh);
+            DocWriteResponse r = response.getResponse();
+            if (r != null) {
+                r.setForcedRefresh(forcedRefresh);
+            }
         }
     }
 

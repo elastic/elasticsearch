@@ -41,7 +41,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
         DiscoveryNode[] nodes = discoveryNodes.getNodes().values().toArray(DiscoveryNode.class);
         DiscoveryNode node = randomFrom(nodes);
-        DiscoveryNode resolvedNode = discoveryNodes.resolveNode(randomBoolean() ? node.getId() : node.getName());
+        DiscoveryNode resolvedNode = discoveryNodes.resolveNode(randomFrom(node.getId(), node.getPersistentNodeId(), node.getName()));
         assertThat(resolvedNode.getId(), equalTo(node.getId()));
     }
 
@@ -117,8 +117,8 @@ public class DiscoveryNodesTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNode.Role> roles) {
-        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, LocalTransportAddress.buildUnique(), attributes,
-            roles, Version.CURRENT);
+        return new DiscoveryNode("name_" + nodeId, "process_" + nodeId, "persistent_node_" + nodeId, LocalTransportAddress.buildUnique(),
+            attributes, roles, Version.CURRENT);
     }
 
     private enum NodeSelector {

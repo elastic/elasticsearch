@@ -379,7 +379,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 // but will be added again during the pinging. We therefore create a new temporary node
                 if (!nodeFoundByAddress) {
                     if (!nodeToSend.getId().startsWith(UNICAST_NODE_PREFIX)) {
-                        DiscoveryNode tempNode = new DiscoveryNode("",
+                        DiscoveryNode tempNode = new DiscoveryNode(
                                 UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "_" + nodeToSend.getId() + "#",
                                 nodeToSend.getHostName(), nodeToSend.getHostAddress(), nodeToSend.getAddress(), nodeToSend.getAttributes(),
                                 nodeToSend.getRoles(), nodeToSend.getVersion());

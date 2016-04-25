@@ -57,7 +57,7 @@ public class DiscoveryNodeServiceTests extends ESTestCase {
         }
         DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(builder.build(), Version.CURRENT);
         DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(
-            LocalTransportAddress.buildUnique(), () -> NodeEnvironment.generateNodeId(Settings.EMPTY));
+            LocalTransportAddress.buildUnique(), NodeEnvironment.generateNodeId(Settings.EMPTY));
         assertThat(discoveryNode.getRoles(), equalTo(selectedRoles));
         assertThat(discoveryNode.getAttributes(), equalTo(expectedAttributes));
     }
@@ -80,7 +80,7 @@ public class DiscoveryNodeServiceTests extends ESTestCase {
         discoveryNodeService.addCustomAttributeProvider(() -> customAttributes);
 
         DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(
-            LocalTransportAddress.buildUnique(), () -> NodeEnvironment.generateNodeId(Settings.EMPTY));
+            LocalTransportAddress.buildUnique(), NodeEnvironment.generateNodeId(Settings.EMPTY));
         assertThat(discoveryNode.getAttributes(), equalTo(expectedAttributes));
     }
 }

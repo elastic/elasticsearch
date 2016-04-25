@@ -332,9 +332,9 @@ public class Node implements Closeable {
 
         validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress());
 
+        String nodeId = injector.getInstance(NodeEnvironment.class).nodeId();
         DiscoveryNode localNode = injector.getInstance(DiscoveryNodeService.class).buildLocalNode(
-            transportService.boundAddress().publishAddress(),
-            injector.getInstance(NodeEnvironment.class)::nodeId);
+            transportService.boundAddress().publishAddress(), nodeId);
 
         // TODO: need to find a cleaner way to start/construct a service with some initial parameters,
         // playing nice with the life cycle interfaces

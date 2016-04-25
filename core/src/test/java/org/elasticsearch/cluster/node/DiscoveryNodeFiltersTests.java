@@ -64,46 +64,46 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
                 .build();
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", LocalTransportAddress.buildUnique(), emptyMap(),
+        DiscoveryNode node = new DiscoveryNode("name1", "pid1", "nid1", LocalTransportAddress.buildUnique(), emptyMap(),
             emptySet(), Version.CURRENT);
         assertThat(filters.match(node), equalTo(true));
 
-        node = new DiscoveryNode("name2", "id2", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
+        node = new DiscoveryNode("name2", "pid2", "nid2", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
             Version.CURRENT);
         assertThat(filters.match(node), equalTo(false));
     }
 
     public void testIdMatch() {
         Settings settings = Settings.builder()
-                .put("xxx._id", "id1")
+                .put("xxx._id", "pid1")
                 .build();
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", LocalTransportAddress.buildUnique(), emptyMap(),
+        DiscoveryNode node = new DiscoveryNode("name1", "pid1", "nid1", LocalTransportAddress.buildUnique(), emptyMap(),
             emptySet(), Version.CURRENT);
         assertThat(filters.match(node), equalTo(true));
 
-        node = new DiscoveryNode("name2", "id2", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
+        node = new DiscoveryNode("name2", "pid2", "nid2", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
             Version.CURRENT);
         assertThat(filters.match(node), equalTo(false));
     }
 
     public void testIdOrNameMatch() {
         Settings settings = shuffleSettings(Settings.builder()
-                .put("xxx._id", "id1,blah")
+                .put("xxx._id", "pid1,blah")
                 .put("xxx.name", "blah,name2")
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", LocalTransportAddress.buildUnique(), emptyMap(),
+        DiscoveryNode node = new DiscoveryNode("name1", "pid1", "nid1", LocalTransportAddress.buildUnique(), emptyMap(),
             emptySet(), Version.CURRENT);
         assertThat(filters.match(node), equalTo(true));
 
-        node = new DiscoveryNode("name2", "id2", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
+        node = new DiscoveryNode("name2", "pid2", "nid2", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
             Version.CURRENT);
         assertThat(filters.match(node), equalTo(true));
 
-        node = new DiscoveryNode("name3", "id3", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
+        node = new DiscoveryNode("name3", "pid3", "nid3", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
             Version.CURRENT);
         assertThat(filters.match(node), equalTo(false));
     }
@@ -148,7 +148,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
                 .build();
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("name1", "id1", LocalTransportAddress.buildUnique(), emptyMap(),
+        DiscoveryNode node = new DiscoveryNode("name1", "pid1", "nid1", LocalTransportAddress.buildUnique(), emptyMap(),
             emptySet(), Version.CURRENT);
         assertThat(filters.match(node), equalTo(true));
     }
@@ -160,8 +160,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(AND, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"),
-            emptySet(), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(true));
     }
 
@@ -172,8 +171,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(AND, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"),
-            emptySet(), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(false));
     }
 
@@ -184,8 +182,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(AND, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"),
-            emptySet(), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(false));
     }
 
@@ -196,7 +193,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(true));
     }
 
@@ -207,7 +204,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(true));
     }
 
@@ -218,8 +215,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(AND, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"),
-            emptySet(), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(true));
     }
 
@@ -230,8 +226,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(AND, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"),
-            emptySet(), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(false));
     }
 
@@ -242,8 +237,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"),
-            emptySet(), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(true));
     }
 
@@ -254,8 +248,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"),
-            emptySet(), null);
+        DiscoveryNode node = new DiscoveryNode("", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "A"), emptySet(), null);
         assertThat(filters.match(node), equalTo(true));
     }
 

@@ -46,11 +46,9 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
 
 import java.util.HashSet;
-import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.ClusterState.Builder;
 
@@ -68,8 +66,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     private final DiscoverySettings discoverySettings;
 
     private volatile boolean master = false;
-
-    private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
     private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = ConcurrentCollections.newConcurrentMap();
 
@@ -102,13 +98,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 clusterGroups.put(clusterName, clusterGroup);
             }
             logger.debug("Connected to cluster [{}]", clusterName);
-
-            Optional<LocalDiscovery> current = clusterGroup.members().stream().filter(other -> other.localNode().equals(this.localNode()))
-                .findFirst();
-            if (current.isPresent()) {
-                throw new IllegalStateException("current cluster group already contains a node with the same id. current "
-                    + current.get().localNode() + ", this node " + localNode());
-            }
 
             clusterGroup.members().add(this);
 

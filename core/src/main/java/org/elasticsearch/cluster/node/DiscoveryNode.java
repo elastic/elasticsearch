@@ -88,7 +88,8 @@ public class DiscoveryNode implements Writeable, ToXContent {
     }
 
     private final String nodeName;
-    private final String nodeId;
+    private final String processId;
+    private final String persistentNodeId;
     private final String hostName;
     private final String hostAddress;
     private final TransportAddress address;
@@ -105,14 +106,15 @@ public class DiscoveryNode implements Writeable, ToXContent {
      * and updated.
      * </p>
      *
-     * @param nodeId     the nodes unique id.
-     * @param address    the nodes transport address
-     * @param attributes node attributes
-     * @param roles      node roles
-     * @param version    the version of the node.
+     * @param processAndNodeId the nodes unique process and node id
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param version          the version of the node
      */
-    public DiscoveryNode(String nodeId, TransportAddress address, Map<String, String> attributes, Set<Role> roles, Version version) {
-        this("", nodeId, address.getHost(), address.getAddress(), address, attributes, roles, version);
+    public DiscoveryNode(String processAndNodeId, TransportAddress address, Map<String, String> attributes, Set<Role> roles,
+                         Version version) {
+        this(processAndNodeId, processAndNodeId, address, attributes, roles, version);
     }
 
     /**
@@ -124,16 +126,38 @@ public class DiscoveryNode implements Writeable, ToXContent {
      * and updated.
      * </p>
      *
-     * @param nodeName   the nodes name
-     * @param nodeId     the nodes unique id.
-     * @param address    the nodes transport address
-     * @param attributes node attributes
-     * @param roles      node roles
-     * @param version    the version of the node.
+     * @param processId        the nodes unique process id
+     * @param persistentNodeId the nodes unique persistent id
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param version          the version of the node
      */
-    public DiscoveryNode(String nodeName, String nodeId, TransportAddress address, Map<String, String> attributes,
+    public DiscoveryNode(String processId, String persistentNodeId, TransportAddress address, Map<String, String> attributes,
                          Set<Role> roles, Version version) {
-        this(nodeName, nodeId, address.getHost(), address.getAddress(), address, attributes, roles, version);
+        this("", processId, persistentNodeId, address.getHost(), address.getAddress(), address, attributes, roles, version);
+    }
+
+    /**
+     * Creates a new {@link DiscoveryNode}
+     * <p>
+     * <b>Note:</b> if the version of the node is unknown {@link Version#minimumCompatibilityVersion()} should be used for the current
+     * version. it corresponds to the minimum version this elasticsearch version can communicate with. If a higher version is used
+     * the node might not be able to communicate with the remove node. After initial handshakes node versions will be discovered
+     * and updated.
+     * </p>
+     *
+     * @param nodeName         the nodes name
+     * @param processId        the nodes unique process id
+     * @param persistentNodeId the nodes unique persistent id
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param version          the version of the node
+     */
+    public DiscoveryNode(String nodeName, String processId, String persistentNodeId, TransportAddress address,
+                         Map<String, String> attributes, Set<Role> roles, Version version) {
+        this(nodeName, processId, persistentNodeId, address.getHost(), address.getAddress(), address, attributes, roles, version);
     }
 
     /**
@@ -145,23 +169,24 @@ public class DiscoveryNode implements Writeable, ToXContent {
      * and updated.
      * </p>
      *
-     * @param nodeName    the nodes name
-     * @param nodeId      the nodes unique id.
-     * @param hostName    the nodes hostname
-     * @param hostAddress the nodes host address
-     * @param address     the nodes transport address
-     * @param attributes  node attributes
-     * @param roles       node roles
-     * @param version     the version of the node.
+     * @param nodeName         the nodes name
+     * @param processId        the nodes unique process id
+     * @param persistentNodeId the nodes unique persistent id
+     * @param hostAddress      the nodes host address
+     * @param address          the nodes transport address
+     * @param attributes       node attributes
+     * @param roles            node roles
+     * @param version          the version of the node
      */
-    public DiscoveryNode(String nodeName, String nodeId, String hostName, String hostAddress, TransportAddress address,
-                         Map<String, String> attributes, Set<Role> roles, Version version) {
+    public DiscoveryNode(String nodeName, String processId, String persistentNodeId, String hostName, String hostAddress,
+                         TransportAddress address, Map<String, String> attributes, Set<Role> roles, Version version) {
         if (nodeName != null) {
             this.nodeName = nodeName.intern();
         } else {
             this.nodeName = "";
         }
-        this.nodeId = nodeId.intern();
+        this.processId = processId.intern();
+        this.persistentNodeId = persistentNodeId.intern();
         this.hostName = hostName.intern();
         this.hostAddress = hostAddress.intern();
         this.address = address;
@@ -191,7 +216,8 @@ public class DiscoveryNode implements Writeable, ToXContent {
      */
     public DiscoveryNode(StreamInput in) throws IOException {
         this.nodeName = in.readString().intern();
-        this.nodeId = in.readString().intern();
+        this.processId = in.readString().intern();
+        this.persistentNodeId = in.readString().intern();
         this.hostName = in.readString().intern();
         this.hostAddress = in.readString().intern();
         this.address = TransportAddressSerializers.addressFromStream(in);
@@ -215,7 +241,8 @@ public class DiscoveryNode implements Writeable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeName);
-        out.writeString(nodeId);
+        out.writeString(processId);
+        out.writeString(persistentNodeId);
         out.writeString(hostName);
         out.writeString(hostAddress);
         addressToStream(out, address);
@@ -239,10 +266,17 @@ public class DiscoveryNode implements Writeable, ToXContent {
     }
 
     /**
-     * The unique id of the node.
+     * The unique process id of the node.
      */
     public String getId() {
-        return nodeId;
+        return processId;
+    }
+
+    /**
+     * The unique process id of the node.
+     */
+    public String getPersistentNodeId() {
+        return persistentNodeId;
     }
 
     /**
@@ -299,17 +333,20 @@ public class DiscoveryNode implements Writeable, ToXContent {
     public String getHostAddress() {
         return this.hostAddress;
     }
-    
+
     /**
-     * Checks whether this node is has the same id as another node *and* has
+     * Checks whether this node has the same id as another node *and* has
      * the same attributes, network address and so fourth. This is in contrast to {@link #equals(Object)}
-     * which only uses the ids.
+     * which only compares the process ids.
      */
     public boolean equalsIncludingMetaData(DiscoveryNode other) {
         if (this.equals(other) == false) {
             return false;
         }
 
+        if (!persistentNodeId.equals(other.persistentNodeId)) {
+            return false;
+        }
         if (!nodeName.equals(other.nodeName)) {
             return false;
         }
@@ -343,12 +380,12 @@ public class DiscoveryNode implements Writeable, ToXContent {
         }
 
         DiscoveryNode other = (DiscoveryNode) obj;
-        return this.nodeId.equals(other.nodeId);
+        return this.processId.equals(other.processId);
     }
 
     @Override
     public int hashCode() {
-        return nodeId.hashCode();
+        return processId.hashCode();
     }
 
     @Override
@@ -357,15 +394,10 @@ public class DiscoveryNode implements Writeable, ToXContent {
         if (nodeName.length() > 0) {
             sb.append('{').append(nodeName).append('}');
         }
-        if (nodeId != null) {
-            sb.append('{').append(nodeId).append('}');
-        }
-        if (Strings.hasLength(hostName)) {
-            sb.append('{').append(hostName).append('}');
-        }
-        if (address != null) {
-            sb.append('{').append(address).append('}');
-        }
+        sb.append('{').append(processId).append('}');
+        sb.append('{').append(persistentNodeId).append('}');
+        sb.append('{').append(hostName).append('}');
+        sb.append('{').append(address).append('}');
         if (!attributes.isEmpty()) {
             sb.append(attributes);
         }
@@ -376,6 +408,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getId());
         builder.field("name", getName());
+        builder.field("persistent_id", getPersistentNodeId());
         builder.field("transport_address", getAddress().toString());
 
         builder.startObject("attributes");

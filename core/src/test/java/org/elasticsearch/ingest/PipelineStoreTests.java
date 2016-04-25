@@ -222,7 +222,7 @@ public class PipelineStoreTests extends ESTestCase {
             store.validatePipeline(ingestInfos, putRequest);
             fail("exception expected");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Processor type [remove] is not installed on node [{_node_id2}{local}{local[_id]}]"));
+            assertThat(e.getMessage(), equalTo("Processor type [remove] is not installed on node [" + node2 + "]"));
         }
 
         ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));

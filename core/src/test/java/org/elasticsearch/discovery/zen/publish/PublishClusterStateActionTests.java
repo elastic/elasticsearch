@@ -163,7 +163,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         MockTransportService service = buildTransportService(settings, version);
         DiscoveryNodeService discoveryNodeService = new DiscoveryNodeService(settings, version);
         DiscoveryNode discoveryNode = discoveryNodeService.buildLocalNode(
-            service.boundAddress().publishAddress(), () -> NodeEnvironment.generateNodeId(settings));
+            service.boundAddress().publishAddress(), NodeEnvironment.generateNodeId(Settings.EMPTY));
         MockNode node = new MockNode(discoveryNode, service, listener, logger);
         node.action = buildPublishClusterStateAction(settings, service, () -> node.clusterState, node);
         final CountDownLatch latch = new CountDownLatch(nodes.size() * 2 + 1);
@@ -320,9 +320,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         // node B becomes the master and sends a version of the cluster state that goes back
         discoveryNodes = DiscoveryNodes.builder(discoveryNodes)
-                .put(nodeA.discoveryNode)
-                .put(nodeB.discoveryNode)
-                .put(nodeC.discoveryNode)
                 .masterNodeId(nodeB.discoveryNode.getId())
                 .localNodeId(nodeB.discoveryNode.getId())
                 .build();

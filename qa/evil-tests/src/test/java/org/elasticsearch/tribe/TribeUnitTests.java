@@ -66,14 +66,14 @@ public class TribeUnitTests extends ESTestCase {
                 .put(baseSettings)
                 .put("cluster.name", "tribe1")
                 .put("node.name", "tribe1_node")
-                    .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
+                .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
                 .build()).start();
         tribe2 = new TribeClientNode(
             Settings.builder()
                 .put(baseSettings)
                 .put("cluster.name", "tribe2")
                 .put("node.name", "tribe2_node")
-                    .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
+                .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
                 .build()).start();
     }
 

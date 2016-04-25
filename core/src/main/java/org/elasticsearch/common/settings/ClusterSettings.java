@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
@@ -335,6 +336,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Environment.PATH_SHARED_DATA_SETTING,
                     Environment.PIDFILE_SETTING,
                     NodeEnvironment.NODE_ID_SEED_SETTING,
+                    DiscoveryNodeService.PROCESS_ID_SEED_SETTING,
                     DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING,
                     DiscoveryModule.DISCOVERY_TYPE_SETTING,
                     DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING,

@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -577,6 +578,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put(Environment.PATH_HOME_SETTING.getKey(), baseDir) // allow overriding path.home
                 .put(settings)
                 .put("node.name", name)
+                .put(DiscoveryNodeService.PROCESS_ID_SEED_SETTING.getKey(), seed)
                 .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed)
                 .build();
         MockNode node = new MockNode(finalSettings, version, plugins);
@@ -825,9 +827,14 @@ public final class InternalTestCluster extends TestCluster {
                     IOUtils.rm(nodeEnv.nodeDataPaths());
                 }
             }
+            // use a new seed to make sure we have new process id
+            final long newProcessIdSeed = DiscoveryNodeService.PROCESS_ID_SEED_SETTING.get(node.settings()) + 1;
             // use a new seed to make sure we have new node id, if the node type is one that generates new ids
-            final long newIdSeed = NodeEnvironment.NODE_ID_SEED_SETTING.get(node.settings()) + 1;
-            Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed).build();
+            final long newNodeIdSeed = NodeEnvironment.NODE_ID_SEED_SETTING.get(node.settings()) + 1;
+            Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings)
+                .put(DiscoveryNodeService.PROCESS_ID_SEED_SETTING.getKey(), newProcessIdSeed)
+                .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newNodeIdSeed)
+                .build();
             Collection<Class<? extends Plugin>> plugins = node.getPlugins();
             Version version = node.getVersion();
             node = new MockNode(finalSettings, version, plugins);

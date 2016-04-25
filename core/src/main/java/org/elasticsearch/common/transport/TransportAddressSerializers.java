@@ -36,20 +36,9 @@ public abstract class TransportAddressSerializers {
     private static final Map<Short, Writeable.Reader<TransportAddress>> ADDRESS_REGISTRY;
 
     static {
-<<<<<<< bd5693f6ca2f3945838810ac05999c91e1c2796f
         Map<Short, Writeable.Reader<TransportAddress>> registry = new HashMap<>();
-        addAddressType(registry, DummyTransportAddress.INSTANCE.uniqueAddressTypeId(), (in) -> DummyTransportAddress.INSTANCE);
         addAddressType(registry, InetSocketTransportAddress.TYPE_ID, InetSocketTransportAddress::new);
         addAddressType(registry, LocalTransportAddress.TYPE_ID, LocalTransportAddress::new);
-=======
-        Map<Short, TransportAddress> registry = new HashMap<>();
-        try {
-            addAddressType(registry, InetSocketTransportAddress.PROTO);
-            addAddressType(registry, LocalTransportAddress.PROTO);
-        } catch (Exception e) {
-            logger.warn("Failed to setup TransportAddresses", e);
-        }
->>>>>>> enforce unique network addresses across nodes in cluster
         ADDRESS_REGISTRY = unmodifiableMap(registry);
     }
 

@@ -20,8 +20,11 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.Node;
@@ -30,6 +33,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
@@ -38,13 +42,22 @@ import java.util.function.Supplier;
  */
 public class DiscoveryNodeService extends AbstractComponent {
 
+    public static final Setting<Long> PROCESS_ID_SEED_SETTING =
+        Setting.longSetting("node.process_id.seed", 0L, Long.MIN_VALUE, Setting.Property.NodeScope);
+
     private final List<CustomAttributesProvider> customAttributesProviders = new CopyOnWriteArrayList<>();
     private final Version version;
+    private final String processId;
 
     @Inject
     public DiscoveryNodeService(Settings settings, Version version) {
         super(settings);
         this.version = version;
+        this.processId = generateProcessId(settings);
+    }
+
+    public String getProcessId() {
+        return processId;
     }
 
     public DiscoveryNodeService addCustomAttributeProvider(CustomAttributesProvider customAttributesProvider) {
@@ -52,7 +65,12 @@ public class DiscoveryNodeService extends AbstractComponent {
         return this;
     }
 
-    public DiscoveryNode buildLocalNode(TransportAddress publishAddress, Supplier<String> nodeIdSupplier) {
+    public static String generateProcessId(Settings settings) {
+        Random random = Randomness.get(settings, PROCESS_ID_SEED_SETTING);
+        return UUIDs.randomBase64UUID(random);
+    }
+
+    public DiscoveryNode buildLocalNode(TransportAddress publishAddress, String nodeId) {
         Map<String, String> attributes = new HashMap<>(Node.NODE_ATTRIBUTES.get(this.settings).getAsMap());
         Set<DiscoveryNode.Role> roles = new HashSet<>();
         if (Node.NODE_INGEST_SETTING.get(settings)) {
@@ -79,7 +97,7 @@ public class DiscoveryNodeService extends AbstractComponent {
                 logger.warn("failed to build custom attributes from provider [{}]", e, provider);
             }
         }
-        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeIdSupplier.get(), publishAddress,
+        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), processId, nodeId, publishAddress,
             attributes, roles, version);
     }
 

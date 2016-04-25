@@ -31,21 +31,20 @@ import static org.elasticsearch.test.VersionUtils.randomVersion;
 
 public class DiscoveryNodeTests extends ESTestCase {
 
-    static AtomicInteger idGenerator = new AtomicInteger();
+    private static final AtomicInteger idGenerator = new AtomicInteger();
 
     /**
      * guarantees to generate a node that is unique for all aspects but for it's roles and version (which are chosen randomly)
      */
     DiscoveryNode randomNode() {
         Map<String, String> attributes = new HashMap<>();
-        for (int attr = (idGenerator.get() > 0 ? 1 : 0) + randomInt(3);
-             attr > 0;
-             attr--) {
+        for (int attr = (idGenerator.get() > 0 ? 1 : 0) + randomInt(3); attr > 0; attr--) {
             attributes.put("attr_" + attr, "v_" + idGenerator.incrementAndGet());
         }
         final DiscoveryNode node = new DiscoveryNode(
             "name_" + idGenerator.incrementAndGet(),
-            "id_" + idGenerator.incrementAndGet(),
+            "processId_" + idGenerator.incrementAndGet(),
+            "persistentNodeId_" + idGenerator.incrementAndGet(),
             LocalTransportAddress.buildUnique(),
             attributes, new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
             randomVersion(random()));
@@ -63,25 +62,29 @@ public class DiscoveryNodeTests extends ESTestCase {
 
         DiscoveryNode sameIdDifferentMeta;
 
-        sameIdDifferentMeta = new DiscoveryNode(node2.getName(), node1.getId(), node2.getAddress(), node2.getAttributes(),
-            node2.getRoles(), node2.getVersion());
+        sameIdDifferentMeta = new DiscoveryNode(node2.getName(), node1.getId(), node1.getPersistentNodeId(), node2.getAddress(),
+            node2.getAttributes(), node2.getRoles(), node2.getVersion());
         assertTrue(node1.equals(sameIdDifferentMeta));
         assertFalse(node1.equalsIncludingMetaData(sameIdDifferentMeta));
 
-        sameIdDifferentMeta = new DiscoveryNode(node2.getName(), node1.getId(), node1.getAddress(), node1.getAttributes(),
-            (randomBoolean() ? node1 : node2).getRoles(), (randomBoolean() ? node1 : node2).getVersion());
+        sameIdDifferentMeta = new DiscoveryNode(node1.getName(), node1.getId(), node2.getPersistentNodeId(), node1.getAddress(),
+            node1.getAttributes(), node1.getRoles(), node1.getVersion());
         assertTrue(node1.equals(sameIdDifferentMeta));
         assertFalse(node1.equalsIncludingMetaData(sameIdDifferentMeta));
 
-        sameIdDifferentMeta = new DiscoveryNode(node1.getName(), node1.getId(), node2.getAddress(), node1.getAttributes(),
-            (randomBoolean() ? node1 : node2).getRoles(), (randomBoolean() ? node1 : node2).getVersion());
+        sameIdDifferentMeta = new DiscoveryNode(node2.getName(), node1.getId(), node1.getPersistentNodeId(), node1.getAddress(),
+            node1.getAttributes(), (randomBoolean() ? node1 : node2).getRoles(), (randomBoolean() ? node1 : node2).getVersion());
         assertTrue(node1.equals(sameIdDifferentMeta));
         assertFalse(node1.equalsIncludingMetaData(sameIdDifferentMeta));
 
-        sameIdDifferentMeta = new DiscoveryNode(node1.getName(), node1.getId(), node1.getAddress(), node2.getAttributes(),
-            (randomBoolean() ? node1 : node2).getRoles(), (randomBoolean() ? node1 : node2).getVersion());
+        sameIdDifferentMeta = new DiscoveryNode(node1.getName(), node1.getId(), node1.getPersistentNodeId(), node2.getAddress(),
+            node1.getAttributes(), (randomBoolean() ? node1 : node2).getRoles(), (randomBoolean() ? node1 : node2).getVersion());
         assertTrue(node1.equals(sameIdDifferentMeta));
         assertFalse(node1.equalsIncludingMetaData(sameIdDifferentMeta));
 
+        sameIdDifferentMeta = new DiscoveryNode(node1.getName(), node1.getId(), node1.getPersistentNodeId(), node1.getAddress(),
+            node2.getAttributes(), (randomBoolean() ? node1 : node2).getRoles(), (randomBoolean() ? node1 : node2).getVersion());
+        assertTrue(node1.equals(sameIdDifferentMeta));
+        assertFalse(node1.equalsIncludingMetaData(sameIdDifferentMeta));
     }
 }

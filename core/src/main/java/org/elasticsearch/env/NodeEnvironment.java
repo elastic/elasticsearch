@@ -32,8 +32,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -270,7 +270,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
 
     public static String generateNodeId(Settings settings) {
         Random random = Randomness.get(settings, NODE_ID_SEED_SETTING);
-        return Strings.randomBase64UUID(random);
+        return UUIDs.randomBase64UUID(random);
     }
 
     private static void releaseAndNullLocks(Lock[] locks) {
@@ -674,12 +674,12 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     }
 
     /**
-     * returns the unique uuid describing this node. The uuid is persistent in the data folder of this node
-     * and remains across restarts.
+     * returns the unique uuid describing this node. The uuid is persisted in the data folder of this node
+     * and is reused across restarts.
      **/
     public String nodeId() {
         // we currently only return the ID and hide the underlying nodeMetaData implementation in order to avoid
-        // confusion with other "metadata" like node settings found in elasticsearch.yml. In future
+        // confusion with other "metadata" like node settings found in elasticsearch.yml. In the future
         // we can encapsulate both (and more) in one NodeMetaData (or NodeSettings) object ala IndexSettings
         return nodeMetaData.nodeId();
     }

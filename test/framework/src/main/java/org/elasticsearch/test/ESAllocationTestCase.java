@@ -132,19 +132,19 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static DiscoveryNode newNode(String nodeName, String nodeId, Map<String, String> attributes) {
-        return new DiscoveryNode(nodeName, nodeId, LocalTransportAddress.buildUnique(), attributes, MASTER_DATA_ROLES, Version.CURRENT);
+        return new DiscoveryNode(nodeName, nodeId, nodeId, LocalTransportAddress.buildUnique(), attributes, MASTER_DATA_ROLES, Version.CURRENT);
     }
 
     protected static DiscoveryNode newNode(String nodeId, Map<String, String> attributes) {
-        return new DiscoveryNode(nodeId, LocalTransportAddress.buildUnique(), attributes, MASTER_DATA_ROLES, Version.CURRENT);
+        return new DiscoveryNode(nodeId, nodeId, LocalTransportAddress.buildUnique(), attributes, MASTER_DATA_ROLES, Version.CURRENT);
     }
 
     protected static DiscoveryNode newNode(String nodeId, Set<DiscoveryNode.Role> roles) {
-        return new DiscoveryNode(nodeId, LocalTransportAddress.buildUnique(), emptyMap(), roles, Version.CURRENT);
+        return new DiscoveryNode(nodeId, nodeId, LocalTransportAddress.buildUnique(), emptyMap(), roles, Version.CURRENT);
     }
 
     protected static DiscoveryNode newNode(String nodeId, Version version) {
-        return new DiscoveryNode(nodeId, LocalTransportAddress.buildUnique(), emptyMap(), MASTER_DATA_ROLES, version);
+        return new DiscoveryNode(nodeId, nodeId, LocalTransportAddress.buildUnique(), emptyMap(), MASTER_DATA_ROLES, version);
     }
 
     protected  static ClusterState startRandomInitializingShard(ClusterState clusterState, AllocationService strategy) {

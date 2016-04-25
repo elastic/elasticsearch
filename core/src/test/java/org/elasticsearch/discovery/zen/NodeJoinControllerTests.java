@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -40,7 +41,6 @@ import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -49,8 +49,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -422,37 +420,24 @@ public class NodeJoinControllerTests extends ESTestCase {
         assertTrue("failed to publish a new state upon existing join", clusterService.state() != state);
     }
 
-    public void testRejectingJoinWithSameAddressButDifferentId() throws InterruptedException, ExecutionException {
+    public void testRemoveExistingNodeWhenJoinWithSameAddressButDifferentProcessId() throws InterruptedException, ExecutionException {
         ClusterState state = clusterService.state();
         final DiscoveryNode other_node = new DiscoveryNode("other_node", state.nodes().getLocalNode().getAddress(),
             emptyMap(), emptySet(), Version.CURRENT);
 
-        ExecutionException e = expectThrows(ExecutionException.class, () -> joinNode(other_node));
-        assertThat(e.getMessage(), containsString("found existing node"));
-    }
-
-    public void testRejectingJoinWithSameIdButDifferentAddress() throws InterruptedException, ExecutionException {
-        ClusterState state = clusterService.state();
-        final DiscoveryNode other_node = new DiscoveryNode(state.nodes().getLocalNode().getId(), LocalTransportAddress.buildUnique(),
-            emptyMap(), emptySet(), Version.CURRENT);
-
-        ExecutionException e = expectThrows(ExecutionException.class, () -> joinNode(other_node));
-        assertThat(e.getMessage(), containsString("found existing node"));
-    }
-
-    public void testJoinWithSameIdSameAddressButDifferentMeta() throws InterruptedException, ExecutionException {
-        ClusterState state = clusterService.state();
-        final DiscoveryNode localNode = state.nodes().getLocalNode();
-        final DiscoveryNode other_node = new DiscoveryNode(
-            randomBoolean() ? localNode.getName() : "other_name",
-            localNode.getId(), localNode.getAddress(),
-            randomBoolean() ? localNode.getAttributes() : Collections.singletonMap("attr", "other"),
-            randomBoolean() ? localNode.getRoles() : new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))),
-            randomBoolean() ? localNode.getVersion() : VersionUtils.randomVersion(random()));
-
         joinNode(other_node);
+        state = clusterService.state();
+        assertThat(state.getNodes().getSize(), equalTo(1));
+        assertTrue(state.getNodes().get(other_node.getId()).equalsIncludingMetaData(other_node));
+    }
 
-        assertTrue(clusterService.localNode().equalsIncludingMetaData(other_node));
+    public void testRejectingJoinWithSamePersistentIdButDifferentAddress() throws InterruptedException, ExecutionException {
+        ClusterState state = clusterService.state();
+        final DiscoveryNode other_node = new DiscoveryNode(UUIDs.randomBase64UUID(), state.nodes().getLocalNode().getId(),
+            LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+
+        ExecutionException e = expectThrows(ExecutionException.class, () -> joinNode(other_node));
+        assertThat(e.getMessage(), containsString("found existing node"));
     }
 
     public void testNormalConcurrentJoins() throws InterruptedException {

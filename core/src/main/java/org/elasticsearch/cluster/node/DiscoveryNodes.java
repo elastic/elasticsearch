@@ -280,53 +280,69 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 } else if (nodeExists(nodeId)) {
                     resolvedNodesIds.add(nodeId);
                 } else {
-                    // not a node id, try and search by name
+                    boolean matchedPersistentNodeId = false;
                     for (DiscoveryNode node : this) {
-                        if (Regex.simpleMatch(nodeId, node.getName())) {
+                        if (node.getPersistentNodeId().equals(nodeId)) {
+                            matchedPersistentNodeId = true;
                             resolvedNodesIds.add(node.getId());
+                            break; // persistent node id is unique
                         }
                     }
-                    for (DiscoveryNode node : this) {
-                        if (Regex.simpleMatch(nodeId, node.getHostAddress())) {
-                            resolvedNodesIds.add(node.getId());
-                        } else if (Regex.simpleMatch(nodeId, node.getHostName())) {
-                            resolvedNodesIds.add(node.getId());
+                    if (matchedPersistentNodeId == false) {
+                        // neither process nor persistent node id, try and search by name
+                        for (DiscoveryNode node : this) {
+                            if (Regex.simpleMatch(nodeId, node.getName())) {
+                                resolvedNodesIds.add(node.getId());
+                            }
                         }
-                    }
-                    int index = nodeId.indexOf(':');
-                    if (index != -1) {
-                        String matchAttrName = nodeId.substring(0, index);
-                        String matchAttrValue = nodeId.substring(index + 1);
-                        if (DiscoveryNode.Role.DATA.getRoleName().equals(matchAttrName)) {
-                            if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                resolvedNodesIds.addAll(dataNodes.keys());
-                            } else {
-                                resolvedNodesIds.removeAll(dataNodes.keys());
+                        for (DiscoveryNode node : this) {
+                            if (Regex.simpleMatch(nodeId, node.getName())) {
+                                resolvedNodesIds.add(node.getId());
                             }
-                        } else if (DiscoveryNode.Role.MASTER.getRoleName().equals(matchAttrName)) {
-                            if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                resolvedNodesIds.addAll(masterNodes.keys());
-                            } else {
-                                resolvedNodesIds.removeAll(masterNodes.keys());
+                        }
+                        for (DiscoveryNode node : this) {
+                            if (Regex.simpleMatch(nodeId, node.getHostAddress())) {
+                                resolvedNodesIds.add(node.getId());
+                            } else if (Regex.simpleMatch(nodeId, node.getHostName())) {
+                                resolvedNodesIds.add(node.getId());
                             }
-                        } else if (DiscoveryNode.Role.INGEST.getRoleName().equals(matchAttrName)) {
-                            if (Booleans.parseBoolean(matchAttrValue, true)) {
-                                resolvedNodesIds.addAll(ingestNodes.keys());
+                        }
+                        int index = nodeId.indexOf(':');
+                        if (index != -1) {
+                            String matchAttrName = nodeId.substring(0, index);
+                            String matchAttrValue = nodeId.substring(index + 1);
+                            if (DiscoveryNode.Role.DATA.getRoleName().equals(matchAttrName)) {
+                                if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                    resolvedNodesIds.addAll(dataNodes.keys());
+                                } else {
+                                    resolvedNodesIds.removeAll(dataNodes.keys());
+                                }
+                            } else if (DiscoveryNode.Role.MASTER.getRoleName().equals(matchAttrName)) {
+                                if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                    resolvedNodesIds.addAll(masterNodes.keys());
+                                } else {
+                                    resolvedNodesIds.removeAll(masterNodes.keys());
+                                }
+                            } else if (DiscoveryNode.Role.INGEST.getRoleName().equals(matchAttrName)) {
+                                if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                    resolvedNodesIds.addAll(ingestNodes.keys());
+                                } else {
+                                    resolvedNodesIds.removeAll(ingestNodes.keys());
+                                }
                             } else {
-                                resolvedNodesIds.removeAll(ingestNodes.keys());
-                            }
-                        } else {
-                            for (DiscoveryNode node : this) {
-                                for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
-                                    String attrName = entry.getKey();
-                                    String attrValue = entry.getValue();
-                                    if (Regex.simpleMatch(matchAttrName, attrName) && Regex.simpleMatch(matchAttrValue, attrValue)) {
-                                        resolvedNodesIds.add(node.getId());
+                                for (DiscoveryNode node : this) {
+                                    for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
+                                        String attrName = entry.getKey();
+                                        String attrValue = entry.getValue();
+                                        if (Regex.simpleMatch(matchAttrName, attrName) && Regex.simpleMatch(matchAttrValue, attrValue)) {
+                                            resolvedNodesIds.add(node.getId());
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+
                 }
             }
             return resolvedNodesIds.toArray(String.class);
@@ -568,10 +584,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public Builder put(DiscoveryNode node) {
-            final String preflight = preflightPut(node);
-            if (preflight != null) {
-                throw new IllegalArgumentException(preflight);
-            }
+            assert nodes.get(node.getId()) == null : "node with process id " + node.getId() + " already exists";
+            assert nodeWithSameAddress(node) == null : "node with address " + node.getAddress() + " already exists";
+            assert nodeWithSamePersistentId(node) == null : "node with persistent id " + node.getPersistentNodeId() + " already exists";
             nodes.put(node.getId(), node);
             return this;
         }
@@ -591,24 +606,21 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             return this;
         }
 
-        /**
-         * Checks that a node can be safely added to this node collection.
-         *
-         * @return null if all is OK or an error message explaining why a node can not be added.
-         *
-         * Note: if this method returns a non-null value, calling {@link #put(DiscoveryNode)} will fail with an
-         * exception
-         */
-        public String preflightPut(DiscoveryNode node)  {
+        public DiscoveryNode nodeWithSameAddress(DiscoveryNode node) {
             for (ObjectCursor<DiscoveryNode> cursor : nodes.values()) {
                 final DiscoveryNode existingNode = cursor.value;
-                if (node.getAddress().equals(existingNode.getAddress()) &&
-                    node.equals(existingNode) == false) {
-                    return "can't add node " + node +", found existing node " + existingNode + " with same address";
+                if (node.getAddress().equals(existingNode.getAddress())) {
+                    return existingNode;
                 }
-                if (node.getId().equals(existingNode.getId()) &&
-                    node.getAddress().equals(existingNode.getAddress()) == false) {
-                    return "can't add node " + node +", found existing node " + existingNode + " with the same id, but a different address";
+            }
+            return null;
+        }
+
+        public DiscoveryNode nodeWithSamePersistentId(DiscoveryNode node) {
+            for (ObjectCursor<DiscoveryNode> cursor : nodes.values()) {
+                final DiscoveryNode existingNode = cursor.value;
+                if (node.getPersistentNodeId().equals(existingNode.getPersistentNodeId())) {
+                    return existingNode;
                 }
             }
             return null;

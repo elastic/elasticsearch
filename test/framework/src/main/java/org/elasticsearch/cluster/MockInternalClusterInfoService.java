@@ -73,7 +73,8 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes());
         paths[0] = path;
         FsInfo fsInfo = new FsInfo(System.currentTimeMillis(), paths);
-        return new NodeStats(new DiscoveryNode(nodeName, LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
+        return new NodeStats(new DiscoveryNode(nodeName, nodeName, nodeName, LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
+            Version.CURRENT),
             System.currentTimeMillis(),
             null, null, null, null, null,
             fsInfo,

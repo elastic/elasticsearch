@@ -385,36 +385,43 @@ public class NodeJoinController extends AbstractComponent {
                     Map.Entry<DiscoveryNode, List<MembershipAction.JoinCallback>> entry = iterator.next();
                     final DiscoveryNode node = entry.getKey();
                     iterator.remove();
-                    final String preflight = nodesBuilder.preflightPut(node);
-                    if (preflight != null) {
-                        Throwable failure = new IllegalStateException(preflight);
-                        for (MembershipAction.JoinCallback callback: entry.getValue()) {
-                            joinCallbacksToFail.add(new Tuple<>(callback, failure));
-                        }
-                    } else if (currentState.nodes().nodeExists(node.getId())) {
-                        // it may be that a quick node restart can cause a join to arrive
-                        // before the node leave has been processed. In that we need to check that things
-                        // like attributes didn't change.
-                        final DiscoveryNode existing = currentState.nodes().get(node.getId());
-                        if (existing.equalsIncludingMetaData(node)) {
-                            logger.debug("received a join request for an existing node [{}]", node);
-                        } else {
-                            logger.debug("received a join request for an existing node, but with different meta data, replacing existing" +
-                                " {} with new {}", existing, node);
-                            nodeAdded = true;
-                            nodesBuilder.put(node);
-                        }
+                    DiscoveryNode existingNodeWithSameProcessId = currentState.nodes().get(node.getId());
+                    if (existingNodeWithSameProcessId != null) {
+                        logger.debug("received a join request for an existing node [{}]", node);
+                        assert existingNodeWithSameProcessId.equalsIncludingMetaData(node);
                         joinCallbacksToRespondTo.addAll(entry.getValue());
                     } else {
-                        nodeAdded = true;
-                        nodesBuilder.put(node);
-                        joinCallbacksToRespondTo.addAll(entry.getValue());
-                    }
+                        DiscoveryNode nodeWithSameAddress = nodesBuilder.nodeWithSameAddress(node);
+                        if (nodeWithSameAddress != null) {
+                            logger.warn("received join request from node [{}], but found existing node {} with same address, removing " +
+                                "existing node", node, nodeWithSameAddress);
+                            nodesBuilder.remove(nodeWithSameAddress.getId());
+                            nodesBuilder.put(node);
+                            nodeAdded = true;
+                            joinCallbacksToRespondTo.addAll(entry.getValue());
+                        } else {
+                            DiscoveryNode nodeWithSamePersistentId = nodesBuilder.nodeWithSamePersistentId(node);
+                            if (nodeWithSamePersistentId != null) {
+                                logger.warn("received join request from node [{}], but found existing node {} with same persistent node " +
+                                    "id, failing join request ", node);
+                                Throwable failure = new IllegalStateException("can't add node " + node + ", found existing node " +
+                                    nodeWithSamePersistentId + " with same persistent node id");
+                                for (MembershipAction.JoinCallback callback: entry.getValue()) {
+                                    joinCallbacksToFail.add(new Tuple<>(callback, failure));
+                                }
+                            } else {
+                                logger.trace("received join request for a new node [{}]", node);
+                                nodesBuilder.put(node);
+                                nodeAdded = true;
+                                joinCallbacksToRespondTo.addAll(entry.getValue());
+                            }
+                        }
 
-                    assert entry.getValue().stream().allMatch(cb ->
-                        joinCallbacksToRespondTo.contains(cb) ^
-                            joinCallbacksToFail.stream().filter(tuple -> tuple.v1().equals(cb)).count() > 0
-                    ) : "failed to add " + entry.getValue() + "to joinCallbacksToRespondTo or joinCallbacksToFail";
+                        assert entry.getValue().stream().allMatch(cb ->
+                            joinCallbacksToRespondTo.contains(cb) ^
+                                joinCallbacksToFail.stream().filter(tuple -> tuple.v1().equals(cb)).count() > 0
+                        ) : "failed to add " + entry.getValue() + " to either joinCallbacksToRespondTo or joinCallbacksToFail";
+                    }
                 }
             }
 

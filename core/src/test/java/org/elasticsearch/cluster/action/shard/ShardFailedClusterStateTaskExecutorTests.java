@@ -40,7 +40,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESAllocationTestCase;
@@ -304,7 +304,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             return randomSubsetOf(1, shards.toArray(new ShardRouting[0])).get(0);
         } else {
             return TestShardRouting.newShardRouting(shardRouting.index(), shardRouting.id(),
-                Strings.randomBase64UUID(random()), randomBoolean(), randomFrom(ShardRoutingState.values()));
+                UUIDs.randomBase64UUID(random()), randomBoolean(), randomFrom(ShardRoutingState.values()));
         }
     }
 

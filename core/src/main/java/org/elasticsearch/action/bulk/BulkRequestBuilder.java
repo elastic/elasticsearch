@@ -30,6 +30,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
@@ -139,6 +140,16 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      */
     public final BulkRequestBuilder setTimeout(String timeout) {
         request.timeout(timeout);
+        return this;
+    }
+
+    /**
+     * Should this request block until it has been made visible for search by a refresh? Unlike {@link #refresh(boolean)} this is quite safe
+     * to use under heavy indexing so long as few total operations use it. See {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD} for
+     * the limit. A bulk request counts as one request on each shard that it touches.
+     */
+    public final BulkRequestBuilder setBlockUntilRefresh(boolean blockUntilRefresh) {
+        request.setBlockUntilRefresh(blockUntilRefresh);
         return this;
     }
 

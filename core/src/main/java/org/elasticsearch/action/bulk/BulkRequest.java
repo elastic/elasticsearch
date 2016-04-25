@@ -38,6 +38,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
@@ -63,6 +64,10 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
     private boolean refresh = false;
+    /**
+     * Should this request block until all of its results are visible for search?
+     */
+    private boolean blockUntilRefresh = false;
 
     private long sizeInBytes = 0;
 
@@ -466,6 +471,20 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         return timeout;
     }
 
+    /**
+     * Should this request block until it has been made visible for search by a refresh? Unlike {@link #refresh(boolean)} this is quite safe
+     * to use under heavy indexing so long as few total operations use it. See {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD} for
+     * the limit. A bulk request counts as one request on each shard that it touches.
+     */
+    public BulkRequest setBlockUntilRefresh(boolean blockUntilRefresh) {
+        this.blockUntilRefresh = blockUntilRefresh;
+        return this;
+    }
+
+    public boolean shouldBlockUntilRefresh() {
+        return blockUntilRefresh;
+    }
+
     private int findNextMarker(byte marker, int from, BytesReference data, int length) {
         for (int i = from; i < length; i++) {
             if (data.get(i) == marker) {
@@ -538,6 +557,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
             }
         }
         refresh = in.readBoolean();
+        blockUntilRefresh = in.readBoolean();
         timeout = TimeValue.readTimeValue(in);
     }
 
@@ -557,6 +577,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
             request.writeTo(out);
         }
         out.writeBoolean(refresh);
+        out.writeBoolean(blockUntilRefresh);
         timeout.writeTo(out);
     }
 }

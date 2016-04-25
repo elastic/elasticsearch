@@ -75,7 +75,7 @@ public abstract class TransportReplicatedMutationAction<
         IndexShard indexShard = indexService.getShard(request.shardId().id());
         WriteResult<Response> result = onPrimaryShard(indexService, indexShard, request);
         processAfterWrite(request.refresh(), indexShard, result.location);
-        if (request.isBlockUntilRefresh() && false == request.refresh()) {
+        if (request.shouldBlockUntilRefresh() && false == request.refresh()) {
             indexShard.addRefreshListener(result.location, () -> listener.onResponse(result.response));
         } else {
             listener.onResponse(result.response);
@@ -90,7 +90,7 @@ public abstract class TransportReplicatedMutationAction<
         IndexShard indexShard = indexService.getShard(shardId.id());
         Translog.Location location = onReplicaShard(request, indexShard);
         processAfterWrite(request.refresh(), indexShard, location);
-        if (request.isBlockUntilRefresh() && false == request.refresh()) {
+        if (request.shouldBlockUntilRefresh() && false == request.refresh()) {
             indexShard.addRefreshListener(location, () -> listener.onResponse(TransportResponse.Empty.INSTANCE));
         } else {
             listener.onResponse(TransportResponse.Empty.INSTANCE);

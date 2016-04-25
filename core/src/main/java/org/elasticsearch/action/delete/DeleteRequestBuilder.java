@@ -22,6 +22,7 @@ package org.elasticsearch.action.delete;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 
 /**
@@ -82,8 +83,9 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
     }
 
     /**
-     * Should this request block until it has been made visible by a refresh? Unlike {@link #refresh(boolean)} this is quite safe to use
-     * under heavy indexing so long as few total operations use it. A bulk request only counts as a single operation.
+     * Should this request block until it has been made visible for search by a refresh? Unlike {@link #refresh(boolean)} this is quite safe
+     * to use under heavy indexing so long as few total operations use it. See {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD} for
+     * the limit. A bulk request counts as one request on each shard that it touches.
      */
     public DeleteRequestBuilder setBlockUntilRefresh(boolean blockUntilRefresh) {
         request.setBlockUntilRefresh(blockUntilRefresh);

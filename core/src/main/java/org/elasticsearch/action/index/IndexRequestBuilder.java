@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 
 import java.util.Map;
@@ -231,8 +232,9 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /**
-     * Should this request block until it has been made visible by a refresh? Unlike {@link #refresh(boolean)} this is quite safe to use
-     * under heavy indexing so long as few total operations use it. A bulk request only counts as a single operation.
+     * Should this request block until it has been made visible for search by a refresh? Unlike {@link #refresh(boolean)} this is quite safe
+     * to use under heavy indexing so long as few total operations use it. See {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD} for
+     * the limit. A bulk request counts as one request on each shard that it touches.
      */
     public IndexRequestBuilder setBlockUntilRefresh(boolean blockUntilRefresh) {
         request.setBlockUntilRefresh(blockUntilRefresh);

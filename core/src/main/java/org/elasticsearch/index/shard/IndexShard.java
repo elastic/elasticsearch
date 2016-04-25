@@ -1579,46 +1579,49 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    public void addRefreshListener(Translog.Location location, Runnable action) {
-        requireNonNull(location, "location cannot be null");
-        requireNonNull(action, "action cannot be null");
+    public void addRefreshListener(RefreshListener listener) {
+        requireNonNull(listener, "listener cannot be null");
 
         boolean tooManyListeners = false;
         synchronized (refreshListeners) {
             if (refreshListeners.size() >= indexSettings.getMaxRefreshListeners()) {
                 tooManyListeners = true;
             } else {
-                refreshListeners.add(new RefreshListener(location, action));
+                refreshListeners.add(listener);
             }
         }
         if (tooManyListeners) {
             refresh("too_many_listeners");
-            action.run();
+            listener.refreshed(true);
         }
     }
 
-    private void callRefreshListeners(Translog.Location refreshedLocation) {
+    void callRefreshListeners(Translog.Location refreshedLocation) {
         synchronized (refreshListeners) {
             for (Iterator<RefreshListener> itr = refreshListeners.iterator(); itr.hasNext();) {
                 RefreshListener listener = itr.next();
-                if (listener.location.compareTo(refreshedLocation) <= 0) {
+                if (listener.location().compareTo(refreshedLocation) <= 0) {
                     itr.remove();
-                    threadPool.executor(ThreadPool.Names.LISTENER).execute(listener.action);
+                    threadPool.executor(ThreadPool.Names.LISTENER).execute(() -> listener.refreshed(false));
                 }
             }
         }
     }
 
     /**
-     * Listens for the next refresh that includes this location.
+     * Called when a refresh includes the location.
      */
-    private static class RefreshListener {
-        private final Translog.Location location;
-        private final Runnable action;
+    public static interface RefreshListener {
+        /**
+         * The location to wait for.
+         */
+        Translog.Location location();
 
-        public RefreshListener(Translog.Location location, Runnable action) {
-            this.location = location;
-            this.action = action;
-        }
+        /**
+         * Called when the location has been refreshed.
+         *
+         * @param forcedRefresh did this request force a refresh because ran out of listener slots?
+         */
+        void refreshed(boolean forcedRefresh);
     }
 }

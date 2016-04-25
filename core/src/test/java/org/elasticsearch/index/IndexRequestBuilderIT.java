@@ -20,9 +20,11 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
@@ -30,6 +32,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.containsString;
 
 public class IndexRequestBuilderIT extends ESIntegTestCase {
@@ -49,6 +53,17 @@ public class IndexRequestBuilderIT extends ESIntegTestCase {
         indexRandom(true, builders);
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("test_field", "foobar")).get();
         ElasticsearchAssertions.assertHitCount(searchResponse, builders.length);
+    }
+
+    /**
+     * Setting blockUntilRefresh will cause the request to block until the document is made visible by a refresh.
+     */
+    public void testBlockUntilRefresh() {
+        IndexResponse index = client().prepareIndex("test", "index", "1").setSource("foo", "bar").setBlockUntilRefresh(true).get();
+        assertEquals(RestStatus.CREATED, index.status());
+        SearchResponse search = client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get();
+        assertSearchHits(search, "1");
+        // TODO tests for delete and bulk and ?update?
     }
 
     public void testOddNumberOfSourceObjects() {

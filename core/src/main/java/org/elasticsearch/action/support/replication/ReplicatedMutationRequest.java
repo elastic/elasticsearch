@@ -78,11 +78,13 @@ public class ReplicatedMutationRequest<R extends ReplicatedMutationRequest<R>> e
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         refresh = in.readBoolean();
+        blockUntilRefresh = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(refresh);
+        out.writeBoolean(blockUntilRefresh);
     }
 }

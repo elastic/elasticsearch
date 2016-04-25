@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -76,7 +75,11 @@ public abstract class TransportReplicatedMutationAction<
         IndexShard indexShard = indexService.getShard(request.shardId().id());
         WriteResult<Response> result = onPrimaryShard(indexService, indexShard, request);
         processAfterWrite(request.refresh(), indexShard, result.location);
-        listener.onResponse(result.response);
+        if (request.isBlockUntilRefresh() && false == request.refresh()) {
+            indexShard.addRefreshListener(result.location, () -> listener.onResponse(result.response));
+        } else {
+            listener.onResponse(result.response);
+        }
         return request;
     }
 
@@ -87,7 +90,11 @@ public abstract class TransportReplicatedMutationAction<
         IndexShard indexShard = indexService.getShard(shardId.id());
         Translog.Location location = onReplicaShard(request, indexShard);
         processAfterWrite(request.refresh(), indexShard, location);
-        listener.onResponse(TransportResponse.Empty.INSTANCE);
+        if (request.isBlockUntilRefresh() && false == request.refresh()) {
+            indexShard.addRefreshListener(location, () -> listener.onResponse(TransportResponse.Empty.INSTANCE));
+        } else {
+            listener.onResponse(TransportResponse.Empty.INSTANCE);
+        }
     }
 
     protected final void processAfterWrite(boolean refresh, IndexShard indexShard, Translog.Location location) {

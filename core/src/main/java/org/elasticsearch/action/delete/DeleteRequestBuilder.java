@@ -82,6 +82,15 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
     }
 
     /**
+     * Should this request block until it has been made visible by a refresh? Unlike {@link #refresh(boolean)} this is quite safe to use
+     * under heavy indexing so long as few total operations use it. A bulk request only counts as a single operation.
+     */
+    public DeleteRequestBuilder setBlockUntilRefresh(boolean blockUntilRefresh) {
+        request.setBlockUntilRefresh(blockUntilRefresh);
+        return this;
+    }
+
+    /**
      * Sets the version, which will cause the delete operation to only be performed if a matching
      * version exists and no changes happened on the doc since then.
      */

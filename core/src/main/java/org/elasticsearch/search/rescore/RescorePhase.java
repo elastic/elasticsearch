@@ -61,7 +61,7 @@ public class RescorePhase extends AbstractComponent implements SearchPhase {
             for (RescoreSearchContext ctx : context.rescore()) {
                 topDocs = ctx.rescorer().rescore(topDocs, context, ctx);
             }
-            context.queryResult().topDocs(topDocs);
+            context.queryResult().topDocs(topDocs, context.queryResult().sortValueFormats());
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
         }

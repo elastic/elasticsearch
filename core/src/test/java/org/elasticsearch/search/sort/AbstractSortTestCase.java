@@ -62,6 +62,7 @@ import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptServiceTests.TestEngineService;
 import org.elasticsearch.script.ScriptSettings;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -163,12 +164,12 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         QueryShardContext mockShardContext = createMockShardContext();
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T sortBuilder = createTestItem();
-            SortField sortField = sortBuilder.build(mockShardContext);
-            sortFieldAssertions(sortBuilder, sortField);
+            SortFieldAndFormat sortField = sortBuilder.build(mockShardContext);
+            sortFieldAssertions(sortBuilder, sortField.field, sortField.format);
         }
     }
 
-    protected abstract void sortFieldAssertions(T builder, SortField sortField) throws IOException;
+    protected abstract void sortFieldAssertions(T builder, SortField sortField, DocValueFormat format) throws IOException;
 
     /**
      * Test serialization and deserialization of the test sort.

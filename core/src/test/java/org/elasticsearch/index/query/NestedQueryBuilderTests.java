@@ -105,8 +105,8 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
                 InnerHitsContext.BaseInnerHits innerHits = searchContext.innerHits().getInnerHits().get(queryBuilder.innerHit().getName());
                 assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
-                assertEquals(innerHits.sort().getSort().length, 1);
-                assertEquals(innerHits.sort().getSort()[0].getField(), INT_FIELD_NAME);
+                assertEquals(innerHits.sort().sort.getSort().length, 1);
+                assertEquals(innerHits.sort().sort.getSort()[0].getField(), INT_FIELD_NAME);
             } else {
                 assertThat(searchContext.innerHits().getInnerHits().size(), equalTo(0));
             }

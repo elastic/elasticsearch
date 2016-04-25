@@ -270,6 +270,10 @@ at call time which results in much clearer errors.
 
 All `extraSource` methods have been removed.
 
+==== SearchResponse
+
+Sort values for `string` fields are now return as `java.lang.String` objects rather than `org.elasticsearch.common.text.Text`.
+
 ==== AggregationBuilder
 
 All methods which take an `XContentBuilder`, `BytesReference` `Map<String, Object>` or `bytes[]` have been removed in favor of providing the

@@ -142,7 +142,7 @@ public final class InnerHitsContext {
                 TopDocsCollector topDocsCollector;
                 if (sort() != null) {
                     try {
-                        topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores());
+                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores());
                     } catch (IOException e) {
                         throw ExceptionsHelper.convertToElastic(e);
                     }
@@ -317,7 +317,7 @@ public final class InnerHitsContext {
                 int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
                 TopDocsCollector topDocsCollector;
                 if (sort() != null) {
-                    topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores());
+                    topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores());
                 } else {
                     topDocsCollector = TopScoreDocCollector.create(topN);
                 }

@@ -52,6 +52,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -302,7 +303,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
 
     @Override
-    public SortField build(QueryShardContext context) throws IOException {
+    public SortFieldAndFormat build(QueryShardContext context) throws IOException {
         final SearchScript searchScript = context.getScriptService().search(
                 context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap(), context.getClusterState());
 
@@ -366,7 +367,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             throw new QueryShardException(context, "custom script sort type [" + type + "] not supported");
         }
 
-        return new SortField("_script", fieldComparatorSource, reverse);
+        return new SortFieldAndFormat(new SortField("_script", fieldComparatorSource, reverse), DocValueFormat.RAW);
     }
 
     @Override

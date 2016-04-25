@@ -23,5 +23,8 @@ package org.elasticsearch.action.support.replication;
  * Base class for responses that modify data in some shard like delete, index, and shardBulk.
  */
 public abstract class ReplicatedMutationResponse extends ReplicationResponse {
+    /**
+     * Mark the request as to forced refresh or not.
+     */
     public abstract void setForcedRefresh(boolean forcedRefresh);
 }

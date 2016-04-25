@@ -81,14 +81,16 @@ public class ReplicationResponse extends ActionResponse {
         }
 
         /**
-         * @return the total number of shards the write should go to (replicas and primaries). This includes relocating shards, so this number can be higher than the number of shards.
+         * @return the total number of shards the write should go to (replicas and primaries). This includes relocating shards, so this
+         *         number can be higher than the number of shards.
          */
         public int getTotal() {
             return total;
         }
 
         /**
-         * @return the total number of shards the write succeeded on (replicas and primaries). This includes relocating shards, so this number can be higher than the number of shards.
+         * @return the total number of shards the write succeeded on (replicas and primaries). This includes relocating shards, so this
+         *         number can be higher than the number of shards.
          */
         public int getSuccessful() {
             return successful;

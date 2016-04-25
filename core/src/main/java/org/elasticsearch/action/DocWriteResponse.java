@@ -99,6 +99,7 @@ public abstract class DocWriteResponse extends ReplicatedMutationResponse implem
         return forcedRefresh;
     }
 
+    @Override
     public void setForcedRefresh(boolean forcedRefresh) {
         this.forcedRefresh = forcedRefresh;
     }

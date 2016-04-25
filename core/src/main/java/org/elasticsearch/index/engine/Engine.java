@@ -28,15 +28,12 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherManager;
-import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -65,7 +62,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 
@@ -74,7 +70,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -611,10 +606,14 @@ public abstract class Engine implements Closeable {
     /**
      * Synchronously refreshes the engine for new search operations to reflect the latest
      * changes.
-     *
-     * @return the maximum translog location that was made visible by the refresh
      */
-    public abstract Translog.Location refresh(String source) throws EngineException;
+    @Nullable
+    public abstract void refresh(String source) throws EngineException;
+
+    /**
+     * Add a listener for refreshes.
+     */
+    public abstract void addRefreshListener(RefreshListener listener);
 
     /**
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
@@ -978,6 +977,9 @@ public abstract class Engine implements Closeable {
 
         public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null);
 
+        /**
+         * Build a realtime get result from the translog.
+         */
         public GetResult(boolean exists, long version, @Nullable Translog.Source source) {
             this.source = source;
             this.exists = exists;
@@ -986,6 +988,9 @@ public abstract class Engine implements Closeable {
             this.searcher = null;
         }
 
+        /**
+         * Build a non-realtime get result from the searcher.
+         */
         public GetResult(Searcher searcher, Versions.DocIdAndVersion docIdAndVersion) {
             this.exists = true;
             this.source = null;
@@ -1165,4 +1170,21 @@ public abstract class Engine implements Closeable {
      * This operation will close the engine if the recovery fails.
      */
     public abstract Engine recoverFromTranslog() throws IOException;
+
+    /**
+     * Called when a refresh includes the location.
+     */
+    public static interface RefreshListener {
+        /**
+         * The location to wait for.
+         */
+        Translog.Location location();
+
+        /**
+         * Called when the location has been refreshed.
+         *
+         * @param forcedRefresh did this request force a refresh because ran out of listener slots?
+         */
+        void refreshed(boolean forcedRefresh);
+    }
 }

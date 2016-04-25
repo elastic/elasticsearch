@@ -63,6 +63,7 @@ import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.Engine.RefreshListener;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -114,8 +115,6 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -124,8 +123,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static java.util.Objects.requireNonNull;
 
 public class IndexShard extends AbstractIndexShardComponent {
 
@@ -197,10 +194,6 @@ public class IndexShard extends AbstractIndexShardComponent {
      * IndexingMemoryController}).
      */
     private final AtomicBoolean active = new AtomicBoolean();
-    /**
-     * Refresh listeners. Uses a LinkedList because we frequently remove items from the front of it.
-     */
-    private final List<RefreshListener> refreshListeners = new LinkedList<>();
 
     public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
                       MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
@@ -575,6 +568,7 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public void refresh(String source) {
         verifyNotClosed();
+        
         if (canIndex()) {
             long bytes = getEngine().getIndexBufferRAMBytesUsed();
             writingBytes.addAndGet(bytes);
@@ -1547,6 +1541,13 @@ public class IndexShard extends AbstractIndexShardComponent {
         return getEngine().refreshNeeded();
     }
 
+    /**
+     * Add a listener for refreshes. 
+     */
+    public void addRefreshListener(RefreshListener listener) {
+        getEngine().addRefreshListener(listener);
+    }
+
     private class IndexShardRecoveryPerformer extends TranslogRecoveryPerformer {
 
         protected IndexShardRecoveryPerformer(ShardId shardId, MapperService mapperService, ESLogger logger) {
@@ -1577,51 +1578,5 @@ public class IndexShard extends AbstractIndexShardComponent {
         protected void delete(Engine engine, Engine.Delete engineDelete) {
             IndexShard.this.delete(engine, engineDelete);
         }
-    }
-
-    public void addRefreshListener(RefreshListener listener) {
-        requireNonNull(listener, "listener cannot be null");
-
-        boolean tooManyListeners = false;
-        synchronized (refreshListeners) {
-            if (refreshListeners.size() >= indexSettings.getMaxRefreshListeners()) {
-                tooManyListeners = true;
-            } else {
-                refreshListeners.add(listener);
-            }
-        }
-        if (tooManyListeners) {
-            refresh("too_many_listeners");
-            listener.refreshed(true);
-        }
-    }
-
-    void callRefreshListeners(Translog.Location refreshedLocation) {
-        synchronized (refreshListeners) {
-            for (Iterator<RefreshListener> itr = refreshListeners.iterator(); itr.hasNext();) {
-                RefreshListener listener = itr.next();
-                if (listener.location().compareTo(refreshedLocation) <= 0) {
-                    itr.remove();
-                    threadPool.executor(ThreadPool.Names.LISTENER).execute(() -> listener.refreshed(false));
-                }
-            }
-        }
-    }
-
-    /**
-     * Called when a refresh includes the location.
-     */
-    public static interface RefreshListener {
-        /**
-         * The location to wait for.
-         */
-        Translog.Location location();
-
-        /**
-         * Called when the location has been refreshed.
-         *
-         * @param forcedRefresh did this request force a refresh because ran out of listener slots?
-         */
-        void refreshed(boolean forcedRefresh);
     }
 }

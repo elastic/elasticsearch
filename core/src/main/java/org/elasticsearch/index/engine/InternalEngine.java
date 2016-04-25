@@ -32,6 +32,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -67,6 +68,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -75,6 +78,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  *
@@ -114,6 +119,15 @@ public class InternalEngine extends Engine {
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
     private final EngineConfig.OpenMode openMode;
     private final AtomicBoolean allowCommits = new AtomicBoolean(true);
+    /**
+     * Refresh listeners. Uses a LinkedList because we frequently remove items from the front of it.
+     */
+    // NOCOMMIT visibility
+    private final List<RefreshListener> refreshListeners = new LinkedList<>();
+    /**
+     * The translog location that was last made visible by a refresh. This is written to while {@link #refreshListeners} is synchronized.
+     */
+    private volatile Translog.Location lastRefreshedLocation;
 
     public InternalEngine(EngineConfig engineConfig) throws EngineException {
         super(engineConfig);
@@ -291,6 +305,7 @@ public class InternalEngine extends Engine {
                 searcherManager = new SearcherManager(directoryReader, searcherFactory);
                 lastCommittedSegmentInfos = readLastCommittedSegmentInfos(searcherManager, store);
                 success = true;
+                searcherManager.addListener(new RefreshListenerCallingRefreshListener());
                 return searcherManager;
             } catch (IOException e) {
                 maybeFailEngine("start", e);
@@ -500,12 +515,10 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Translog.Location refresh(String source) throws EngineException {
+    public void refresh(String source) throws EngineException {
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
-        Translog.Location location = null;
         try (ReleasableLock lock = readLock.acquire()) {
-            location = translog.getLastWriteLocation();
             ensureOpen();
             searcherManager.maybeRefreshBlocking();
         } catch (AlreadyClosedException e) {
@@ -524,7 +537,31 @@ public class InternalEngine extends Engine {
         maybePruneDeletedTombstones();
         versionMapRefreshPending.set(false);
         mergeScheduler.refreshConfig();
-        return location;
+    }
+
+    @Override
+    public void addRefreshListener(RefreshListener listener) {
+        requireNonNull(listener, "listener cannot be null");
+
+        synchronized (refreshListeners) {
+            Translog.Location lastRefresh = lastRefreshedLocation;
+            if (lastRefresh != null && lastRefresh.compareTo(listener.location()) >= 0) {
+                // Already refreshed, just call the listener
+                listener.refreshed(false);
+                return;
+            }
+            if (refreshListeners.size() < engineConfig.getIndexSettings().getMaxRefreshListeners()) {
+                // We have a free slot so register the listener
+                refreshListeners.add(listener);
+                return;
+            }
+            /*
+             * No free slot so force a refresh and call the listener in this thread. Do so outside of the synchronized block so any other
+             * attempts to add a listener can continue.  
+             */
+        }
+        refresh("too_many_listeners");
+        listener.refreshed(true);
     }
 
     @Override
@@ -1133,5 +1170,36 @@ public class InternalEngine extends Engine {
 
     public MergeStats getMergeStats() {
         return mergeScheduler.stats();
+    }
+
+    /**
+     * Listens to Lucene's {@linkplain ReferenceManager.RefreshListener} and fires off Elasticsearch's {@linkplain RefreshListener}s. 
+     */
+    private class RefreshListenerCallingRefreshListener implements ReferenceManager.RefreshListener {
+        private Translog.Location currentRefreshLocation;
+        @Override
+        public void beforeRefresh() throws IOException {
+            currentRefreshLocation = translog.getLastWriteLocation();
+        }
+
+        @Override
+        public void afterRefresh(boolean didRefresh) throws IOException {
+            if (
+                    false == didRefresh ||         // We didn't refresh so we shouldn't alert anyone to anything
+                    null == currentRefreshLocation // The translog had an empty last write location at the start of the refresh. 
+                    ) {
+                return;
+            }
+            synchronized (refreshListeners) {
+                for (Iterator<RefreshListener> itr = refreshListeners.iterator(); itr.hasNext();) {
+                    RefreshListener listener = itr.next();
+                    if (listener.location().compareTo(currentRefreshLocation) <= 0) {
+                        itr.remove();
+                        engineConfig.getThreadPool().executor(ThreadPool.Names.LISTENER).execute(() -> listener.refreshed(false));
+                    }
+                }
+                lastRefreshedLocation = currentRefreshLocation;
+            }
+        }
     }
 }

@@ -70,7 +70,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.Engine.RefreshListener;
 import org.elasticsearch.index.engine.Engine.Searcher;
+import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
@@ -92,6 +94,7 @@ import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -116,8 +119,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -308,24 +313,26 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testSegments() throws Exception {
         try (Store store = createStore();
-             Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
+            Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
             List<Segment> segments = engine.segments(false);
             assertThat(segments.isEmpty(), equalTo(true));
             assertThat(engine.segmentsStats(false).getCount(), equalTo(0L));
             assertThat(engine.segmentsStats(false).getMemoryInBytes(), equalTo(0L));
 
-            // create a doc and refresh
+            // create two docs and refresh
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-            Engine.Index index = new Engine.Index(newUid("1"), doc);
-            engine.index(index);
-            Translog.Location firstIndexedLocation = index.getTranslogLocation();
+            Engine.Index first = new Engine.Index(newUid("1"), doc);
+            engine.index(first);
             ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
-            index = new Engine.Index(newUid("2"), doc2);
-            engine.index(index);
-            Translog.Location secondIndexedLocation = index.getTranslogLocation();
-            assertThat(secondIndexedLocation, greaterThan(firstIndexedLocation));
-            Translog.Location refreshedLocation = engine.refresh("test");
-            assertEquals(secondIndexedLocation, refreshedLocation);
+            Engine.Index second = new Engine.Index(newUid("2"), doc2);
+            engine.index(second);
+            assertThat(second.getTranslogLocation(), greaterThan(first.getTranslogLocation()));
+            DummyRefreshListener refreshListener = new DummyRefreshListener(second.getTranslogLocation());
+            engine.addRefreshListener(refreshListener);
+            engine.refresh("test");
+            assertBusy(() -> assertNotNull("The listener should be called in the listener threadpool soon after the refresh",
+                    refreshListener.forcedRefresh.get()));
+            assertFalse("We didn't force a refresh with the index operations!?", refreshListener.forcedRefresh.get());
 
             segments = engine.segments(false);
             assertThat(segments.size(), equalTo(1));
@@ -2113,6 +2120,157 @@ public class InternalEngineTests extends ESTestCase {
                     }
                 }
             }
+        }
+    }
+
+    public void testTooManyRefreshListeners() throws Exception {
+        try (Store store = createStore();
+                Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+            Engine.Index index = new Engine.Index(newUid("1"), doc);
+            engine.index(index);
+
+            // Fill the listener slots
+            List<DummyRefreshListener> nonForcedListeners = new ArrayList<>(INDEX_SETTINGS.getMaxRefreshListeners());
+            for (int i = 0; i < defaultSettings.getMaxRefreshListeners(); i++) {
+                DummyRefreshListener listener = new DummyRefreshListener(index.getTranslogLocation());
+                nonForcedListeners.add(listener);
+                engine.addRefreshListener(listener);
+            }
+
+            // We shouldn't have called any of them
+            for (DummyRefreshListener listener : nonForcedListeners) {
+                assertNull("Called listener too early!", listener.forcedRefresh.get());
+            }
+
+            // Add one more listener which should cause a refresh. In this thread, no less.
+            DummyRefreshListener forcingListener = new DummyRefreshListener(index.getTranslogLocation());
+            engine.addRefreshListener(forcingListener);
+            assertTrue("Forced listener wasn't forced?", forcingListener.forcedRefresh.get());
+
+            // That forces all the listeners through. On the listener thread pool so give them some time with assertBusy.
+            for (DummyRefreshListener listener : nonForcedListeners) {
+                assertBusy(
+                        () -> assertEquals("Expected listener called with unforced refresh!", Boolean.FALSE, listener.forcedRefresh.get()));
+            }
+        }
+    }
+
+    public void testAddRefreshListenerAfterRefresh() throws Exception {
+        try (Store store = createStore();
+                Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+            Engine.Index index = new Engine.Index(newUid("1"), doc);
+            engine.index(index);
+            engine.refresh("I said so");
+            if (randomBoolean()) {
+                engine.index(new Engine.Index(newUid("1"), doc));
+                if (randomBoolean()) {
+                    engine.refresh("I said so");
+                }
+            }
+
+            DummyRefreshListener listener = new DummyRefreshListener(index.getTranslogLocation());
+            engine.addRefreshListener(listener);
+            assertFalse(listener.forcedRefresh.get());
+        }
+    }
+
+    /**
+     * Uses a whole bunch of threads to index, wait for refresh, and non-realtime get documents to validate that they are visible after
+     * waiting regardless of what crazy sequence of events causes the refresh listener to fire.
+     */
+    public void testAddRefreshListenerLotsOfThreads() throws Exception {
+        int threadCount = between(5, defaultSettings.getMaxRefreshListeners() * 2);
+        long runTime = TimeUnit.SECONDS.toNanos(5);
+        try (Store store = createStore();
+                Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
+            AtomicBoolean run = new AtomicBoolean(true);
+            CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<>();
+
+            // These threads add and block until the refresh makes the change visible and then do a non-realtime get.
+            Thread[] threads = new Thread[threadCount];
+            for (int i = 0; i < threadCount; i++) {
+                final String id = String.format("%04d", i);
+                final Term uid = newUid(id);
+                threads[i] = new Thread(() -> {
+                    int iteration = 0;
+                    while (run.get()) {
+                        try {
+                            iteration++;
+                            Document document = testDocument();
+                            String value = id + "i" + iteration; 
+                            document.add(new TextField("test", value, Field.Store.YES));
+                            ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, document, B_1, null);
+                            Engine.Index index = new Engine.Index(uid, doc);
+                            boolean created = engine.index(index);
+                            assertEquals(iteration, index.version());
+                            assertEquals(iteration == 1, created);
+
+                            DummyRefreshListener listener = new DummyRefreshListener(index.getTranslogLocation());
+                            engine.addRefreshListener(listener);
+                            assertBusy(() -> assertNotNull(listener.forcedRefresh.get()));
+
+                            Engine.Get get = new Engine.Get(false, uid);
+                            try (Engine.GetResult getResult = engine.get(get)) {
+                                assertTrue("document not found", getResult.exists());
+                                assertEquals(iteration, getResult.version());
+                                SingleFieldsVisitor visitor = new SingleFieldsVisitor("test");
+                                getResult.docIdAndVersion().context.reader().document(getResult.docIdAndVersion().docId, visitor);
+                                assertEquals(Arrays.asList(value), visitor.fields().get("test"));
+                            }
+                        } catch (Throwable t) {
+                            failures.add(new RuntimeException("failure on the [" + iteration + "] iteration of thread [" + id + "]", t));
+                        }
+                    }
+                });
+                threads[i].start();
+            }
+            long end = System.nanoTime() + runTime;
+            while (System.nanoTime() < end && failures.isEmpty()) {
+                Thread.sleep(100);
+                engine.refresh("because test");
+            }
+            run.set(false);
+            // Give the threads a second to finish whatever they were doing - refreshing all the time so they'll finish any blocking.
+            end = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
+            while (System.nanoTime() < end) {
+                Thread.sleep(100);
+                engine.refresh("because test");
+            }
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            if (failures.isEmpty()) {
+                return;
+            }
+            RuntimeException e = new RuntimeException("there were failures");
+            for (Throwable failure: failures) {
+                e.addSuppressed(failure);
+            }
+            throw e;
+        }
+    }
+
+    private static class DummyRefreshListener implements RefreshListener {
+        private final Translog.Location location;
+        /**
+         * When the listener is called this captures it's only argument.
+         */
+        private AtomicReference<Boolean> forcedRefresh = new AtomicReference<>();
+
+        public DummyRefreshListener(Location location) {
+            this.location = location;
+        }
+
+        @Override
+        public Translog.Location location() {
+            return location;
+        }
+
+        @Override
+        public void refreshed(boolean forcedRefresh) {
+            this.forcedRefresh.set(forcedRefresh);
         }
     }
 }

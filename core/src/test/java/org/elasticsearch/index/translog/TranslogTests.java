@@ -205,6 +205,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testRead() throws IOException {
+        // NOCOMMIT remove the numbers and replace with greater than assertions 
         assertNull(translog.getLastWriteLocation());
         Translog.Location loc1 = translog.add(new Translog.Index("test", "1", new byte[]{1}));
         assertEquals(translog.currentFileGeneration(), translog.getLastWriteLocation().generation);

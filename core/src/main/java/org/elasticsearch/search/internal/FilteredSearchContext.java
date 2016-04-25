@@ -106,11 +106,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext searchType(SearchType searchType) {
-        return in.searchType(searchType);
-    }
-
-    @Override
     public SearchShardTarget shardTarget() {
         return in.shardTarget();
     }

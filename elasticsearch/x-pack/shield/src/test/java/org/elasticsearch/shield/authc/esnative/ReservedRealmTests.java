@@ -131,4 +131,20 @@ public class ReservedRealmTests extends ESTestCase {
 
         assertThat(ReservedRealm.users(), containsInAnyOrder((User) XPackUser.INSTANCE, KibanaUser.INSTANCE));
     }
+
+    public void testFailedAuthentication() {
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore);
+        // maybe cache a successful auth
+        if (randomBoolean()) {
+            User user = reservedRealm.authenticate(new UsernamePasswordToken(XPackUser.NAME, new SecuredString("changeme".toCharArray())));
+            assertThat(user, sameInstance(XPackUser.INSTANCE));
+        }
+
+        try {
+            reservedRealm.authenticate(new UsernamePasswordToken(XPackUser.NAME, new SecuredString("foobar".toCharArray())));
+            fail("authentication should throw an exception otherwise we may allow others to impersonate reserved users...");
+        } catch (ElasticsearchSecurityException e) {
+            assertThat(e.getMessage(), containsString("failed to authenticate"));
+        }
+    }
 }

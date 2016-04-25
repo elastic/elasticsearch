@@ -113,6 +113,8 @@ public class BlockUntilRefreshIT extends ESIntegTestCase {
         assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
     }
 
+    // TODO add a test for -1 refresh_interval. Use an explicit refresh to trigger the listener. It might get triggered before - that is ok
+
     private void assertBulkSuccess(BulkResponse response) {
         assertNoFailures(response);
         for (BulkItemResponse item : response) {

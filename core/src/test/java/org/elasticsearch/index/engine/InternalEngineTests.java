@@ -2209,7 +2209,10 @@ public class InternalEngineTests extends ESTestCase {
 
                             DummyRefreshListener listener = new DummyRefreshListener(index.getTranslogLocation());
                             engine.addRefreshListener(listener);
-                            assertBusy(() -> assertNotNull(listener.forcedRefresh.get()));
+                            assertBusy(() -> assertNotNull("listener never called", listener.forcedRefresh.get()));
+                            if (threadCount < defaultSettings.getMaxRefreshListeners()) {
+                                assertFalse(listener.forcedRefresh.get());
+                            }
 
                             Engine.Get get = new Engine.Get(false, uid);
                             try (Engine.GetResult getResult = engine.get(get)) {
@@ -2270,7 +2273,8 @@ public class InternalEngineTests extends ESTestCase {
 
         @Override
         public void refreshed(boolean forcedRefresh) {
-            this.forcedRefresh.set(forcedRefresh);
+            Boolean oldValue = this.forcedRefresh.getAndSet(forcedRefresh);
+            assertNull("Listener called twice", oldValue);
         }
     }
 }

@@ -54,6 +54,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine.RefreshListener;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -69,10 +70,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
@@ -122,10 +123,9 @@ public class InternalEngine extends Engine {
     /**
      * Refresh listeners. Uses a LinkedList because we frequently remove items from the front of it.
      */
-    // TODO replace this with a LinkedTransferQueue?
-    private final List<RefreshListener> refreshListeners = new LinkedList<>();
+    private final LinkedTransferQueue<RefreshListener> refreshListeners = new LinkedTransferQueue<>();
     /**
-     * The translog location that was last made visible by a refresh. This is written to while {@link #refreshListeners} is synchronized.
+     * The translog location that was last made visible by a refresh.
      */
     private volatile Translog.Location lastRefreshedLocation;
 
@@ -543,23 +543,22 @@ public class InternalEngine extends Engine {
     public void addRefreshListener(RefreshListener listener) {
         requireNonNull(listener, "listener cannot be null");
 
-        synchronized (refreshListeners) {
-            Translog.Location lastRefresh = lastRefreshedLocation;
-            if (lastRefresh != null && lastRefresh.compareTo(listener.location()) >= 0) {
-                // Already refreshed, just call the listener
-                listener.refreshed(false);
-                return;
-            }
-            if (refreshListeners.size() < engineConfig.getIndexSettings().getMaxRefreshListeners()) {
-                // We have a free slot so register the listener
-                refreshListeners.add(listener);
-                return;
-            }
-            /*
-             * No free slot so force a refresh and call the listener in this thread. Do so outside of the synchronized block so any other
-             * attempts to add a listener can continue.  
-             */
+        Translog.Location lastRefresh = lastRefreshedLocation;
+        if (lastRefresh != null && lastRefresh.compareTo(listener.location()) >= 0) {
+            // Location already visible, just call the listener
+            listener.refreshed(false);
+            return;
         }
+        // NOCOMMIT size is slow here
+        if (refreshListeners.size() < engineConfig.getIndexSettings().getMaxRefreshListeners()) {
+            // We have a free slot so register the listener
+            refreshListeners.add(listener);
+            return;
+        }
+        /*
+         * No free slot so force a refresh and call the listener in this thread. Do so outside of the synchronized block so any other
+         * attempts to add a listener can continue.
+         */
         refresh("too_many_listeners");
         listener.refreshed(true);
     }
@@ -1184,21 +1183,36 @@ public class InternalEngine extends Engine {
 
         @Override
         public void afterRefresh(boolean didRefresh) throws IOException {
-            if (
-                    false == didRefresh ||         // We didn't refresh so we shouldn't alert anyone to anything
-                    null == currentRefreshLocation // The translog had an empty last write location at the start of the refresh. 
-                    ) {
+            if (false == didRefresh) {
+                // We didn't refresh so we shouldn't alert anyone to anything.
                 return;
             }
-            synchronized (refreshListeners) {
-                for (Iterator<RefreshListener> itr = refreshListeners.iterator(); itr.hasNext();) {
-                    RefreshListener listener = itr.next();
-                    if (listener.location().compareTo(currentRefreshLocation) <= 0) {
-                        itr.remove();
-                        engineConfig.getThreadPool().executor(ThreadPool.Names.LISTENER).execute(() -> listener.refreshed(false));
-                    }
+            if (null == currentRefreshLocation) {
+                /*
+                 * The translog had an empty last write location at the start of the refresh so we can't alert anyone to anything. This
+                 * usually happens during recovery. The next refresh cycle out to pick up this refresh.
+                 */
+                return;
+            }
+            /*
+             * First set the lastRefreshedLocation so listeners that come in locations before that will just execute inline without messing
+             * around with refreshListeners at all.
+             */
+            lastRefreshedLocation = currentRefreshLocation;
+            /*
+             * Now pop all listeners off the front of refreshListeners that are ready to be called. The listeners won't always be in order
+             * but they should be pretty close because you don't listen to times super far in the future. This prevents us from having to
+             * iterate over the whole queue on every refresh at the cost of some requests having to wait an extra cycle if they get stuck
+             * behind a request that missed the refresh cycle.
+             */
+            Iterator<RefreshListener> itr = refreshListeners.iterator();
+            while (itr.hasNext()) {
+                RefreshListener listener = itr.next();
+                if (listener.location().compareTo(currentRefreshLocation) > 0) {
+                    break;
                 }
-                lastRefreshedLocation = currentRefreshLocation;
+                itr.remove();
+                engineConfig.getThreadPool().executor(ThreadPool.Names.LISTENER).execute(() -> listener.refreshed(false));
             }
         }
     }

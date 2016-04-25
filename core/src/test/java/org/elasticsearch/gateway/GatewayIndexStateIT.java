@@ -49,11 +49,13 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -555,4 +557,23 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()));
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
     }
+
+
+    /**
+     * Creates a shadow replica index and asserts that the index creation was acknowledged.
+     * Can only be invoked on a cluster where each node has been configured with shared data
+     * paths and the other necessary settings for shadow replicas.
+     */
+    private void createShadowReplicaIndex(final String name, final Path dataPath, final int numReplicas) {
+        assert Files.exists(dataPath);
+        assert numReplicas >= 0;
+        final Settings idxSettings = Settings.builder()
+                                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+                                         .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
+                                         .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                                         .build();
+        assertAcked(prepareCreate(name).setSettings(idxSettings).get());
+    }
+
 }

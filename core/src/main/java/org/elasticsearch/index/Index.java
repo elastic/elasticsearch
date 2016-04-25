@@ -50,10 +50,8 @@ public class Index implements Writeable<Index>, ToXContent {
     private final String uuid;
 
     public Index(String name, String uuid) {
-        Objects.requireNonNull(name);
-        Objects.requireNonNull(uuid);
-        this.name = name.intern();
-        this.uuid = uuid.intern();
+        this.name = Objects.requireNonNull(name).intern();
+        this.uuid = Objects.requireNonNull(uuid).intern();
     }
 
     public Index(StreamInput in) throws IOException {

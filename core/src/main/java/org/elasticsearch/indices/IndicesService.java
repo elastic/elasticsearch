@@ -112,7 +112,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -567,11 +566,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     private void deleteIndexStore(String reason, Index index, IndexSettings indexSettings) throws IOException {
-       deleteIndexStoreWithPredicate(reason, index, indexSettings, DEFAULT_INDEX_DELETION_PREDICATE);
+       deleteIndexStoreIfDeletionAllowed(reason, index, indexSettings, DEFAULT_INDEX_DELETION_PREDICATE);
     }
 
-    private void deleteIndexStoreWithPredicate(final String reason, final Index index, final IndexSettings indexSettings,
-                                               final IndexDeletionPredicate predicate) throws IOException {
+    private void deleteIndexStoreIfDeletionAllowed(final String reason, final Index index, final IndexSettings indexSettings,
+                                                   final IndexDeletionAllowedPredicate predicate) throws IOException {
         boolean success = false;
         try {
             // we are trying to delete the index store here - not a big deal if the lock can't be obtained
@@ -696,9 +695,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             }
             final IndexSettings indexSettings = buildIndexSettings(metaData);
             try {
-                deleteIndexStoreWithPredicate("stale deleted index", index, indexSettings, ALWAYS_TRUE);
+                deleteIndexStoreIfDeletionAllowed("stale deleted index", index, indexSettings, ALWAYS_TRUE);
             } catch (IOException e) {
-                // we just warn about the exception here because if deleteIndexStoreWithPredicate
+                // we just warn about the exception here because if deleteIndexStoreIfDeletionAllowed
                 // throws an exception, it gets added to the list of pending deletes to be tried again
                 logger.warn("[{}] failed to delete index on disk", e, metaData.getIndex());
             }
@@ -1119,12 +1118,12 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     @FunctionalInterface
-    interface IndexDeletionPredicate extends BiFunction<Index, IndexSettings, Boolean> {
-        Boolean apply(Index index, IndexSettings indexSettings);
+    interface IndexDeletionAllowedPredicate {
+        boolean apply(Index index, IndexSettings indexSettings);
     }
 
-    private final IndexDeletionPredicate DEFAULT_INDEX_DELETION_PREDICATE =
+    private final IndexDeletionAllowedPredicate DEFAULT_INDEX_DELETION_PREDICATE =
         (Index index, IndexSettings indexSettings) -> canDeleteIndexContents(index, indexSettings);
-    private final IndexDeletionPredicate ALWAYS_TRUE = (Index index, IndexSettings indexSettings) -> true;
+    private final IndexDeletionAllowedPredicate ALWAYS_TRUE = (Index index, IndexSettings indexSettings) -> true;
 
 }

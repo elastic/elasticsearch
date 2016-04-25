@@ -68,14 +68,16 @@ final public class IndexGraveyard implements MetaData.Custom {
     public static final IndexGraveyard PROTO = new IndexGraveyard(new ArrayList<>());
     public static final String TYPE = "index-graveyard";
     private static final ParseField TOMBSTONES_FIELD = new ParseField("tombstones");
-    private static final ObjectParser<List<Tombstone>, Void> GRAVEYARD_PARSER = new ObjectParser<>("index_graveyard", ArrayList::new);
+    private static final ObjectParser<List<Tombstone>, Void> GRAVEYARD_PARSER;
     static {
+        GRAVEYARD_PARSER = new ObjectParser<>("index_graveyard", ArrayList::new);
         GRAVEYARD_PARSER.declareObjectArray(List::addAll, Tombstone.getParser(), TOMBSTONES_FIELD);
     }
 
     private final List<Tombstone> tombstones;
 
     private IndexGraveyard(final List<Tombstone> list) {
+        assert list != null;
         tombstones = Collections.unmodifiableList(list);
     }
 
@@ -109,7 +111,7 @@ final public class IndexGraveyard implements MetaData.Custom {
 
     @Override
     public int hashCode() {
-        return Objects.hash(tombstones);
+        return tombstones.hashCode();
     }
 
     /**
@@ -175,6 +177,7 @@ final public class IndexGraveyard implements MetaData.Custom {
     final public static class Builder {
         private List<Tombstone> tombstones;
         private int numPurged = -1;
+        private long currentTime = System.currentTimeMillis();
 
         private Builder() {
             tombstones = new ArrayList<>();
@@ -195,7 +198,7 @@ final public class IndexGraveyard implements MetaData.Custom {
          * Add a deleted index to the list of tombstones in the cluster state.
          */
         public Builder addTombstone(final Index index) {
-            tombstones.add(new Tombstone(index, System.currentTimeMillis()));
+            tombstones.add(new Tombstone(index, currentTime));
             return this;
         }
 
@@ -309,11 +312,10 @@ final public class IndexGraveyard implements MetaData.Custom {
 
         @Override
         public IndexGraveyard apply(final MetaData.Custom previous) {
-            @SuppressWarnings("unchecked")
-            final IndexGraveyard old = (IndexGraveyard) previous;
+            @SuppressWarnings("unchecked") final IndexGraveyard old = (IndexGraveyard) previous;
             if (removedCount > old.tombstones.size()) {
-                throw new IllegalStateException("IndexGraveyardDiff cannot remove " + removedCount + " entries from " +
-                                                old.tombstones.size() + " tombstones.");
+                throw new IllegalStateException("IndexGraveyardDiff cannot remove [" + removedCount + "] entries from [" +
+                                                old.tombstones.size() + "] tombstones.");
             }
             final List<Tombstone> newTombstones = new ArrayList<>(old.tombstones.subList(removedCount, old.tombstones.size()));
             for (Tombstone tombstone : added) {
@@ -341,16 +343,16 @@ final public class IndexGraveyard implements MetaData.Custom {
         private static final String INDEX_KEY = "index";
         private static final String DELETE_DATE_IN_MILLIS_KEY = "delete_date_in_millis";
         private static final String DELETE_DATE_KEY = "delete_date";
-        private static final ObjectParser<Tombstone.Builder, Void> TOMBSTONE_PARSER =
-            new ObjectParser<>("tombstoneEntry", Tombstone.Builder::new);
+        private static final ObjectParser<Tombstone.Builder, Void> TOMBSTONE_PARSER;
         static {
+            TOMBSTONE_PARSER = new ObjectParser<>("tombstoneEntry", Tombstone.Builder::new);
             TOMBSTONE_PARSER.declareObject(Tombstone.Builder::index, Index::parseIndex, new ParseField(INDEX_KEY));
             TOMBSTONE_PARSER.declareLong(Tombstone.Builder::deleteDateInMillis, new ParseField(DELETE_DATE_IN_MILLIS_KEY));
-            TOMBSTONE_PARSER.declareString((b,s) -> {}, new ParseField(DELETE_DATE_KEY));
+            TOMBSTONE_PARSER.declareString((b, s) -> {}, new ParseField(DELETE_DATE_KEY));
         }
 
         static BiFunction<XContentParser, Void, Tombstone> getParser() {
-            return (p,c) -> TOMBSTONE_PARSER.apply(p, c).build();
+            return (p, c) -> TOMBSTONE_PARSER.apply(p, c).build();
         }
 
         private final Index index;
@@ -404,8 +406,7 @@ final public class IndexGraveyard implements MetaData.Custom {
             if (other == null || getClass() != other.getClass()) {
                 return false;
             }
-            @SuppressWarnings("unchecked")
-            Tombstone that = (Tombstone) other;
+            @SuppressWarnings("unchecked") Tombstone that = (Tombstone) other;
             if (index.equals(that.index) == false) {
                 return false;
             }

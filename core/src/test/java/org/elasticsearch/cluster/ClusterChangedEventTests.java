@@ -386,10 +386,19 @@ public class ClusterChangedEventTests extends ESTestCase {
         }
         final int numDel;
         switch (deletionQuantity) {
-            case DELETE_ALL: numDel = stateIndices.size(); break;
-            case DELETE_NONE: numDel = 0; break;
-            case DELETE_RANDOM: numDel = randomIntBetween(0, Math.max(stateIndices.size() - 1, 0)); break;
-            default: throw new IllegalArgumentException("Unhandled mode " + deletionQuantity);
+            case DELETE_ALL: {
+                numDel = stateIndices.size();
+                break;
+            }
+            case DELETE_NONE: {
+                numDel = 0;
+                break;
+            }
+            case DELETE_RANDOM: {
+                numDel = randomIntBetween(0, Math.max(stateIndices.size() - 1, 0));
+                break;
+            }
+            default: throw new AssertionError("Unhandled mode [" + deletionQuantity + "]");
         }
         final List<Index> addedIndices = addIndices(numAdd, randomAsciiOfLengthBetween(5, 10));
         List<Index> delIndices = delIndices(numDel, stateIndices);

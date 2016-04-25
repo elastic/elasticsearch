@@ -127,6 +127,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.lang.Math.max;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
@@ -174,6 +175,8 @@ public class InternalEngineTests extends ESTestCase {
                 .put(IndexSettings.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
                 .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
+                        between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY)))
                 .build()); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
         store = createStore();
@@ -2181,7 +2184,7 @@ public class InternalEngineTests extends ESTestCase {
      * waiting regardless of what crazy sequence of events causes the refresh listener to fire.
      */
     public void testAddRefreshListenerLotsOfThreads() throws Exception {
-        int threadCount = between(5, defaultSettings.getMaxRefreshListeners() * 2);
+        int threadCount = between(5, max(50, defaultSettings.getMaxRefreshListeners() * 2));
         long runTime = TimeUnit.SECONDS.toNanos(5);
         try (Store store = createStore();
                 Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
@@ -2226,6 +2229,7 @@ public class InternalEngineTests extends ESTestCase {
                             failures.add(new RuntimeException("failure on the [" + iteration + "] iteration of thread [" + id + "]", t));
                         }
                     }
+                    logger.info("Finished [{}] iterations", iteration);
                 });
                 threads[i].start();
             }

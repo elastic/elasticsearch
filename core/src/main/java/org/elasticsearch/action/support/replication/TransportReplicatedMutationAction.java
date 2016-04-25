@@ -76,7 +76,10 @@ public abstract class TransportReplicatedMutationAction<
         IndexShard indexShard = indexService.getShard(request.shardId().id());
         WriteResult<Response> result = onPrimaryShard(indexService, indexShard, request);
         processAfterWrite(request.refresh(), indexShard, result.location);
-        result.response.setForcedRefresh(request.refresh());
+        if (request.refresh()) {
+            // Only setForcedRefresh if it is true because this can touch every item in a bulk request
+            result.response.setForcedRefresh(true);
+        }
         if (request.shouldBlockUntilRefresh() && false == request.refresh()) {
             indexShard.addRefreshListener(new RefreshListener() {
                 @Override

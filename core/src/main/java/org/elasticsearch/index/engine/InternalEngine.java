@@ -125,6 +125,12 @@ public class InternalEngine extends Engine {
      */
     private final LinkedTransferQueue<RefreshListener> refreshListeners = new LinkedTransferQueue<>();
     /**
+     * The estimated size of refreshListenersEstimatedSize used for triggering refresh when the size gets over
+     * {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}. No effort is made to correct for threading issues in the size calculation
+     * beyond it being volatile.
+     */
+    private volatile int refreshListenersEstimatedSize;
+    /**
      * The translog location that was last made visible by a refresh.
      */
     private volatile Translog.Location lastRefreshedLocation;
@@ -550,9 +556,10 @@ public class InternalEngine extends Engine {
             return;
         }
         // NOCOMMIT size is slow here
-        if (refreshListeners.size() < engineConfig.getIndexSettings().getMaxRefreshListeners()) {
+        if (refreshListenersEstimatedSize < engineConfig.getIndexSettings().getMaxRefreshListeners()) {
             // We have a free slot so register the listener
             refreshListeners.add(listener);
+            refreshListenersEstimatedSize++;
             return;
         }
         /*
@@ -1209,11 +1216,13 @@ public class InternalEngine extends Engine {
             while (itr.hasNext()) {
                 RefreshListener listener = itr.next();
                 if (listener.location().compareTo(currentRefreshLocation) > 0) {
-                    break;
+                    return;
                 }
                 itr.remove();
+                refreshListenersEstimatedSize--;
                 engineConfig.getThreadPool().executor(ThreadPool.Names.LISTENER).execute(() -> listener.refreshed(false));
             }
+            refreshListenersEstimatedSize = 0;
         }
     }
 }

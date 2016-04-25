@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTokenStreamTestCase;
@@ -63,13 +64,8 @@ public class MinHashTokenFilterTests extends ESTokenStreamTestCase {
         String source = "Hello 123 world";
         Tokenizer tokenizer = new StandardTokenizer();
         tokenizer.setReader(new StringReader(source));
-        try {
-            tokenFilter.create(tokenizer);
-            fail("Should throw exception when [num_hashes] is zero");
-        } catch (IllegalArgumentException e) {
-            // all good
-            assertThat(e.getMessage(), equalTo("Must use one or more hashes for MinHash Token Filter"));
-        }
+        Exception e = LuceneTestCase.expectThrows(IllegalArgumentException.class, () -> tokenFilter.create(tokenizer));
+        assertEquals(e.getMessage(), "Must use one or more hashes for MinHash Token Filter");
     }
 
     public void testBadSettingsTooManyHashes() throws IOException {
@@ -85,12 +81,7 @@ public class MinHashTokenFilterTests extends ESTokenStreamTestCase {
         String source = "Hello 123 world";
         Tokenizer tokenizer = new StandardTokenizer();
         tokenizer.setReader(new StringReader(source));
-        try {
-            tokenFilter.create(tokenizer);
-            fail("Should throw exception when [num_hashes] is greater than 100");
-        } catch (IllegalArgumentException e) {
-            // all good
-            assertThat(e.getMessage(), equalTo("Cannot use more than 100 hashes for MinHash Token Filter"));
-        }
+        Exception e = LuceneTestCase.expectThrows(IllegalArgumentException.class, () -> tokenFilter.create(tokenizer));
+        assertEquals(e.getMessage(), "Cannot use more than 100 hashes for MinHash Token Filter");
     }
 }

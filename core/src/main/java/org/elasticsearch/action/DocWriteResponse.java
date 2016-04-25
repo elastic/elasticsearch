@@ -18,11 +18,15 @@
  */
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.support.replication.ReplicatedMutationRequest;
+import org.elasticsearch.action.support.replication.ReplicatedMutationResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
@@ -31,12 +35,13 @@ import java.io.IOException;
 /**
  * A base class for the response of a write operation that involves a single doc
  */
-public abstract class DocWriteResponse extends ReplicationResponse implements StatusToXContent {
+public abstract class DocWriteResponse extends ReplicatedMutationResponse implements StatusToXContent {
 
     private ShardId shardId;
     private String id;
     private String type;
     private long version;
+    private boolean forcedRefresh;
 
     public DocWriteResponse(ShardId shardId, String type, String id, long version) {
         this.shardId = shardId;
@@ -85,6 +90,19 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
         return this.version;
     }
 
+    /**
+     * Did this request force a refresh? Requests that set {@link ReplicatedMutationRequest#refresh(boolean)} to true should always return
+     * true for this. Requests that set {@link ReplicatedMutationRequest#setBlockUntilRefresh(boolean)} to true should only return this if
+     * they run out of refresh listener slots (see {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}).
+     */
+    public boolean forcedRefresh() {
+        return forcedRefresh;
+    }
+
+    public void setForcedRefresh(boolean forcedRefresh) {
+        this.forcedRefresh = forcedRefresh;
+    }
+
     /** returns the rest status for this response (based on {@link ShardInfo#status()} */
     public RestStatus status() {
         return getShardInfo().status();
@@ -98,6 +116,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
         type = in.readString();
         id = in.readString();
         version = in.readZLong();
+        forcedRefresh = in.readBoolean();
     }
 
     @Override
@@ -107,6 +126,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements St
         out.writeString(type);
         out.writeString(id);
         out.writeZLong(version);
+        out.writeBoolean(forcedRefresh);
     }
 
     static final class Fields {

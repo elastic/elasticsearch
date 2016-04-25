@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -38,6 +41,7 @@ public class BlockUntilRefreshIT extends ESIntegTestCase {
     public void testIndex() {
         IndexResponse index = client().prepareIndex("test", "index", "1").setSource("foo", "bar").setBlockUntilRefresh(true).get();
         assertEquals(RestStatus.CREATED, index.status());
+        assertFalse("request shouldn't have forced a refresh", index.forcedRefresh());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
         // TODO update!!!
     }
@@ -48,7 +52,9 @@ public class BlockUntilRefreshIT extends ESIntegTestCase {
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
 
         // Now delete with blockUntilRefresh
-        client().prepareDelete("test", "test", "1").setBlockUntilRefresh(true).get();
+        DeleteResponse delete = client().prepareDelete("test", "test", "1").setBlockUntilRefresh(true).get();
+        assertTrue("document was deleted", delete.isFound());
+        assertFalse("request shouldn't have forced a refresh", delete.forcedRefresh());
         assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
     }
 
@@ -56,19 +62,26 @@ public class BlockUntilRefreshIT extends ESIntegTestCase {
         // Index by bulk with block_until_refresh
         BulkRequestBuilder bulk = client().prepareBulk().setBlockUntilRefresh(true);
         bulk.add(client().prepareIndex("test", "index", "1").setSource("foo", "bar"));
-        assertNoFailures(bulk.get());
+        assertBulkSuccess(bulk.get());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
 
-        // Update by bult with block_until_refresh
+        // Update by bulk with block_until_refresh
         bulk = client().prepareBulk().setBlockUntilRefresh(true);
         bulk.add(client().prepareUpdate("test", "index", "1").setDoc("foo", "baz"));
-        assertNoFailures(bulk.get());
+        assertBulkSuccess(bulk.get());
         assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "baz")).get(), "1");
 
-        // Update by bult with block_until_refresh
+        // Update by bulk with block_until_refresh
         bulk = client().prepareBulk().setBlockUntilRefresh(true);
         bulk.add(client().prepareDelete("test", "index", "1"));
-        assertNoFailures(bulk.get());
+        assertBulkSuccess(bulk.get());
         assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
+    }
+
+    private void assertBulkSuccess(BulkResponse response) {
+        assertNoFailures(response);
+        for (BulkItemResponse item : response) {
+            assertFalse("request shouldn't have forced a refresh", item.getResponse().forcedRefresh());
+        }
     }
 }

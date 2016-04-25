@@ -43,7 +43,7 @@ import java.util.function.Supplier;
  */
 public abstract class TransportReplicatedMutationAction<
             Request extends ReplicatedMutationRequest<Request>,
-            Response extends ReplicationResponse
+            Response extends ReplicatedMutationResponse
         > extends TransportReplicationAction<Request, Request, Response> {
 
     protected TransportReplicatedMutationAction(Settings settings, String actionName, TransportService transportService,
@@ -76,6 +76,7 @@ public abstract class TransportReplicatedMutationAction<
         IndexShard indexShard = indexService.getShard(request.shardId().id());
         WriteResult<Response> result = onPrimaryShard(indexService, indexShard, request);
         processAfterWrite(request.refresh(), indexShard, result.location);
+        result.response.setForcedRefresh(request.refresh());
         if (request.shouldBlockUntilRefresh() && false == request.refresh()) {
             indexShard.addRefreshListener(new RefreshListener() {
                 @Override
@@ -86,7 +87,9 @@ public abstract class TransportReplicatedMutationAction<
                 @Override
                 public void refreshed(boolean forcedRefresh) {
                     logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
-                    // TODO mark the response
+                    if (forcedRefresh) {
+                        result.response.setForcedRefresh(true);
+                    }
                     listener.onResponse(result.response);
                 }
                 
@@ -137,7 +140,7 @@ public abstract class TransportReplicatedMutationAction<
         indexShard.maybeFlush();
     }
 
-    protected static class WriteResult<T extends ReplicationResponse> {
+    protected static class WriteResult<T extends ReplicatedMutationResponse> {
         public final T response;
         public final Translog.Location location;
 

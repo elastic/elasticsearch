@@ -290,11 +290,13 @@ public class SettingTests extends ESTestCase {
         Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(),
             Property.Dynamic, Property.NodeScope);
         List<String> value = listSetting.get(Settings.EMPTY);
+        assertFalse(listSetting.exists(Settings.EMPTY));
         assertEquals(1, value.size());
         assertEquals("foo,bar", value.get(0));
 
         List<String> input = Arrays.asList("test", "test1, test2", "test", ",,,,");
         Settings.Builder builder = Settings.builder().putArray("foo.bar", input.toArray(new String[0]));
+        assertTrue(listSetting.exists(builder.build()));
         value = listSetting.get(builder.build());
         assertEquals(input.size(), value.size());
         assertArrayEquals(value.toArray(new String[0]), input.toArray(new String[0]));
@@ -307,6 +309,7 @@ public class SettingTests extends ESTestCase {
         value = listSetting.get(builder.build());
         assertEquals(input.size(), value.size());
         assertArrayEquals(value.toArray(new String[0]), input.toArray(new String[0]));
+        assertTrue(listSetting.exists(builder.build()));
 
         AtomicReference<List<String>> ref = new AtomicReference<>();
         AbstractScopedSettings.SettingUpdater<List<String>> settingUpdater = listSetting.newUpdater(ref::set, logger);

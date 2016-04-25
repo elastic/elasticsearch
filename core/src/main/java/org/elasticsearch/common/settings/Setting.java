@@ -344,7 +344,7 @@ public class Setting<T> extends ToXContentToBytes {
             return get(primary);
         }
         if (fallbackSetting == null) {
-            return get(secondary); 
+            return get(secondary);
         }
         if (exists(secondary)) {
             return get(secondary);
@@ -596,7 +596,6 @@ public class Setting<T> extends ToXContentToBytes {
 
         return new Setting<List<T>>(new ListKey(key),
             (s) -> arrayToParsableString(defaultStringValue.apply(s).toArray(Strings.EMPTY_ARRAY)), parser, properties) {
-            private final Pattern pattern = Pattern.compile(Pattern.quote(key)+"(\\.\\d+)?");
             @Override
             public String getRaw(Settings settings) {
                 String[] array = settings.getAsArray(getKey(), null);
@@ -606,6 +605,12 @@ public class Setting<T> extends ToXContentToBytes {
             @Override
             boolean hasComplexMatcher() {
                 return true;
+            }
+
+            @Override
+            public boolean exists(Settings settings) {
+                boolean exists = super.exists(settings);
+                return exists || settings.get(getKey() + ".0") != null;
             }
         };
     }

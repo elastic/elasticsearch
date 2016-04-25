@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.Script;
 
@@ -322,6 +323,16 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      */
     public UpdateRequestBuilder setScriptedUpsert(boolean scriptedUpsert) {
         request.scriptedUpsert(scriptedUpsert);
+        return this;
+    }
+
+    /**
+     * Should this request block until it has been made visible for search by a refresh? Unlike {@link #setRefresh(boolean)} this is quite
+     * safe to use under heavy indexing so long as few total operations use it. See {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}
+     * for the limit. Defaults to false.
+     */
+    public UpdateRequestBuilder setBlockUntilRefresh(boolean blockUntilRefresh) {
+        request.setBlockUntilRefresh(blockUntilRefresh);
         return this;
     }
 

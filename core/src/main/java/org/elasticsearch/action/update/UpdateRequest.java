@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
@@ -84,6 +85,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     @Nullable
     private IndexRequest doc;
+
+    /**
+     * Should this request block until all of its results are visible for search?
+     */
+    private boolean blockUntilRefresh = false;
+
 
     public UpdateRequest() {
 
@@ -718,6 +725,20 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this;
     }
 
+    /**
+     * Should this request block until it has been made visible for search by a refresh? Unlike {@link #refresh(boolean)} this is quite safe
+     * to use under heavy indexing so long as few total operations use it. See {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD} for
+     * the limit. Defaults to false.
+     */
+    public UpdateRequest setBlockUntilRefresh(boolean blockUntilRefresh) {
+        this.blockUntilRefresh = blockUntilRefresh;
+        return this;
+    }
+
+    public boolean shouldBlockUntilRefresh() {
+        return blockUntilRefresh;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -751,6 +772,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         versionType = VersionType.fromValue(in.readByte());
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
+        blockUntilRefresh = in.readBoolean();
     }
 
     @Override
@@ -801,6 +823,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         out.writeByte(versionType.getValue());
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
+        out.writeBoolean(blockUntilRefresh);
     }
 
 }

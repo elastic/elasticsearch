@@ -2191,7 +2191,7 @@ public class InternalEngineTests extends ESTestCase {
             // These threads add and block until the refresh makes the change visible and then do a non-realtime get.
             Thread[] threads = new Thread[threadCount];
             for (int i = 0; i < threadCount; i++) {
-                final String id = String.format("%04d", i);
+                final String id = String.format(Locale.ROOT, "%04d", i);
                 final Term uid = newUid(id);
                 threads[i] = new Thread(() -> {
                     int iteration = 0;

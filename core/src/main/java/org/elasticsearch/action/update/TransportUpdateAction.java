@@ -26,6 +26,7 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -175,6 +176,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         switch (result.operation()) {
             case UPSERT:
                 IndexRequest upsertRequest = result.action();
+                upsertRequest.setBlockUntilRefresh(request.shouldBlockUntilRefresh());
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
                 indexAction.execute(upsertRequest, new ActionListener<IndexResponse>() {
@@ -212,6 +214,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 break;
             case INDEX:
                 IndexRequest indexRequest = result.action();
+                indexRequest.setBlockUntilRefresh(request.shouldBlockUntilRefresh());
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
                 indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
@@ -241,7 +244,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 });
                 break;
             case DELETE:
-                deleteAction.execute(result.action(), new ActionListener<DeleteResponse>() {
+                DeleteRequest deleteRequest = result.action();
+                deleteRequest.setBlockUntilRefresh(request.shouldBlockUntilRefresh());
+                deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                     @Override
                     public void onResponse(DeleteResponse response) {
                         UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), false);

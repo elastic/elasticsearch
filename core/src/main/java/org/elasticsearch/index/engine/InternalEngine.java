@@ -122,7 +122,7 @@ public class InternalEngine extends Engine {
     /**
      * Refresh listeners. Uses a LinkedList because we frequently remove items from the front of it.
      */
-    // NOCOMMIT visibility
+    // TODO replace this with a LinkedTransferQueue?
     private final List<RefreshListener> refreshListeners = new LinkedList<>();
     /**
      * The translog location that was last made visible by a refresh. This is written to while {@link #refreshListeners} is synchronized.

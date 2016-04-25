@@ -83,9 +83,9 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
     }
 
     /**
-     * Should this request block until it has been made visible for search by a refresh? Unlike {@link #refresh(boolean)} this is quite safe
-     * to use under heavy indexing so long as few total operations use it. See {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD} for
-     * the limit. A bulk request counts as one request on each shard that it touches.
+     * Should this request block until it has been made visible for search by a refresh? Unlike {@link #setRefresh(boolean)} this is quite
+     * safe to use under heavy indexing so long as few total operations use it. See {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}
+     * for the limit. A bulk request counts as one request on each shard that it touches. Defaults to false.
      */
     public DeleteRequestBuilder setBlockUntilRefresh(boolean blockUntilRefresh) {
         request.setBlockUntilRefresh(blockUntilRefresh);

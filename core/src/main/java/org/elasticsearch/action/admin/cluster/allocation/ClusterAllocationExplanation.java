@@ -159,7 +159,9 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
                 // If either we don't have allocation IDs, or they contain the store allocation id, show the allocation
                 // status
                 storeCopy = StoreCopy.AVAILABLE;
-                finalExplanation = "the shard can be assigned and the node contains a valid copy of the shard data";
+                if (finalDecision != FinalDecision.NO) {
+                    finalExplanation = "the shard can be assigned and the node contains a valid copy of the shard data";
+                }
             } else {
                 // Otherwise, this is a stale copy of the data (allocation ids don't match)
                 storeCopy = StoreCopy.STALE;

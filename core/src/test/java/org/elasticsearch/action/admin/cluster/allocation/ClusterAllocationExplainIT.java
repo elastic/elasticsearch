@@ -125,34 +125,46 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertThat(UnassignedInfo.Reason.INDEX_CREATED, equalTo(cae.getUnassignedInfo().getReason()));
         assertThat("expecting no remaining delay: " + cae.getRemainingDelayNanos(), cae.getRemainingDelayNanos(), equalTo(0L));
 
-        Map<DiscoveryNode, Decision> nodeToDecisions = cae.getNodeDecisions();
-        Map<DiscoveryNode, Float> nodeToWeight = cae.getNodeWeights();
-        Map<DiscoveryNode, IndicesShardStoresResponse.StoreStatus> nodeToStatus = cae.getNodeStoreStatus();
+        Map<DiscoveryNode, ClusterAllocationExplanation.NodeExplanation> explanations = cae.getNodeExplanations();
 
         Float noAttrWeight = -1f;
         Float barAttrWeight = -1f;
         Float fooBarAttrWeight = -1f;
-        for (Map.Entry<DiscoveryNode, Decision> entry : nodeToDecisions.entrySet()) {
+        for (Map.Entry<DiscoveryNode, ClusterAllocationExplanation.NodeExplanation> entry : explanations.entrySet()) {
             DiscoveryNode node = entry.getKey();
             String nodeName = node.getName();
-            Decision d = entry.getValue();
-            float weight = nodeToWeight.get(node);
-            IndicesShardStoresResponse.StoreStatus storeStatus = nodeToStatus.get(node);
+            ClusterAllocationExplanation.NodeExplanation explanation = entry.getValue();
+            ClusterAllocationExplanation.FinalDecision finalDecision = explanation.getFinalDecision();
+            String finalExplanation = explanation.getFinalExplanation();
+            ClusterAllocationExplanation.StoreCopy storeCopy = explanation.getStoreCopy();
+            Decision d = explanation.getDecision();
+            float weight = explanation.getWeight();
+            IndicesShardStoresResponse.StoreStatus storeStatus = explanation.getStoreStatus();
 
             assertEquals(d.type(), Decision.Type.NO);
             if (noAttrNode.equals(nodeName)) {
                 assertThat(d.toString(), containsString("node does not match index include filters [foo:\"bar\"]"));
                 noAttrWeight = weight;
                 assertNull(storeStatus);
+                assertEquals("the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
+                        explanation.getFinalExplanation());
+                assertEquals(ClusterAllocationExplanation.FinalDecision.NO, finalDecision);
             } else if (barAttrNode.equals(nodeName)) {
                 assertThat(d.toString(), containsString("node does not match index include filters [foo:\"bar\"]"));
                 barAttrWeight = weight;
                 assertNull(storeStatus);
+                assertEquals("the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
+                        explanation.getFinalExplanation());
+                assertEquals(ClusterAllocationExplanation.FinalDecision.NO, finalDecision);
             } else if (fooBarAttrNode.equals(nodeName)) {
                 assertThat(d.toString(), containsString("the shard cannot be allocated on the same node id"));
                 fooBarAttrWeight = weight;
                 assertEquals(storeStatus.getAllocationStatus(),
                         IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY);
+                assertEquals(ClusterAllocationExplanation.FinalDecision.NO, finalDecision);
+                assertEquals(ClusterAllocationExplanation.StoreCopy.AVAILABLE, storeCopy);
+                assertEquals("the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
+                        explanation.getFinalExplanation());
             } else {
                 fail("unexpected node with name: " + nodeName +
                      ", I have: " + noAttrNode + ", " + barAttrNode + ", " + fooBarAttrNode);

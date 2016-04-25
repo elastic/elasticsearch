@@ -94,21 +94,24 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         assertTrue(cae2.isAssigned());
         assertEquals("assignedNode", cae2.getAssignedNodeId());
         assertNull(cae2.getUnassignedInfo());
-        for (Map.Entry<DiscoveryNode, Decision> entry : cae2.getNodeDecisions().entrySet()) {
-            assertEquals(nodeToDecisions.get(entry.getKey()), entry.getValue());
-        }
-        for (Map.Entry<DiscoveryNode, IndicesShardStoresResponse.StoreStatus> entry : cae2.getNodeStoreStatus().entrySet()) {
-            assertEquals(nodeWithStore, entry.getKey());
-            IndicesShardStoresResponse.StoreStatus status = entry.getValue();
-            assertEquals(storeStatus.getLegacyVersion(), status.getLegacyVersion());
-            assertEquals(storeStatus.getAllocationId(), status.getAllocationId());
-            assertEquals(storeStatus.getAllocationStatus(), status.getAllocationStatus());
-            assertEquals(ExceptionsHelper.detailedMessage(storeStatus.getStoreException()),
-                    ExceptionsHelper.detailedMessage(status.getStoreException()));
-        }
-        assertEquals(nodeToWeight, cae2.getNodeWeights());
         assertEquals(remainingDelay, cae2.getRemainingDelayNanos());
         assertEquals(allocationIds, cae2.getActiveAllocationIds());
+        for (Map.Entry<DiscoveryNode, ClusterAllocationExplanation.NodeExplanation> entry : cae2.getNodeExplanations().entrySet()) {
+            DiscoveryNode node = entry.getKey();
+            ClusterAllocationExplanation.NodeExplanation explanation = entry.getValue();
+            IndicesShardStoresResponse.StoreStatus status = explanation.getStoreStatus();
+            if (status != null) {
+                assertEquals(nodeWithStore, node);
+                assertEquals(storeStatus.getLegacyVersion(), status.getLegacyVersion());
+                assertEquals(storeStatus.getAllocationId(), status.getAllocationId());
+                assertEquals(storeStatus.getAllocationStatus(), status.getAllocationStatus());
+                assertEquals(ExceptionsHelper.detailedMessage(storeStatus.getStoreException()),
+                        ExceptionsHelper.detailedMessage(status.getStoreException()));
+            }
+
+            assertEquals(nodeToDecisions.get(node), explanation.getDecision());
+            assertEquals(nodeToWeight.get(node), explanation.getWeight());
+        }
     }
 
     public void testStaleShardExplanation() throws Exception {
@@ -136,8 +139,9 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"shard\":{\"index\":\"test\",\"index_uuid\":\"uuid\",\"id\":0,\"primary\":true}," +
                      "\"assigned\":true,\"assigned_node_id\":\"assignedNode\"," +
-                     "\"nodes\":{\"node1\":{\"node_name\":\"\",\"node_attributes\":{},\"store\":{\"shard_copy\":\"STALE_COPY\"}," +
-                     "\"final_decision\":\"STORE_STALE\",\"weight\":1.5,\"decisions\":[{\"decider\":\"no label\",\"decision\":\"NO\"," +
+                     "\"nodes\":{\"node1\":{\"node_name\":\"\",\"node_attributes\":{},\"store\":{\"shard_copy\":\"STALE\"}," +
+                     "\"final_decision\":\"NO\",\"final_explanation\":\"the copy of the shard is stale, allocation ids do not match\"" +
+                     ",\"weight\":1.5,\"decisions\":[{\"decider\":\"no label\",\"decision\":\"NO\"," +
                      "\"explanation\":\"because I said no\"},{\"decider\":\"yes label\",\"decision\":\"YES\"," +
                      "\"explanation\":\"yes please\"},{\"decider\":\"throttle label\",\"decision\":\"THROTTLE\"," +
                      "\"explanation\":\"wait a sec\"}]}}}",

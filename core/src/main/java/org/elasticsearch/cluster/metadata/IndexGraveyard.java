@@ -177,7 +177,7 @@ final public class IndexGraveyard implements MetaData.Custom {
     final public static class Builder {
         private List<Tombstone> tombstones;
         private int numPurged = -1;
-        private long currentTime = System.currentTimeMillis();
+        private final long currentTime = System.currentTimeMillis();
 
         private Builder() {
             tombstones = new ArrayList<>();

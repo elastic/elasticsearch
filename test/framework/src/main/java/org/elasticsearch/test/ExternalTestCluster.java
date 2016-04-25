@@ -87,12 +87,12 @@ public final class ExternalTestCluster extends TestCluster {
         try {
             client.addTransportAddresses(transportAddresses);
             NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
-            httpAddresses = new InetSocketAddress[nodeInfos.getNodes().length];
+            httpAddresses = new InetSocketAddress[nodeInfos.getNodes().size()];
             this.clusterName = nodeInfos.getClusterName().value();
             int dataNodes = 0;
             int masterAndDataNodes = 0;
-            for (int i = 0; i < nodeInfos.getNodes().length; i++) {
-                NodeInfo nodeInfo = nodeInfos.getNodes()[i];
+            for (int i = 0; i < nodeInfos.getNodes().size(); i++) {
+                NodeInfo nodeInfo = nodeInfos.getNodes().get(i);
                 httpAddresses[i] = ((InetSocketTransportAddress) nodeInfo.getHttp().address().publishAddress()).address();
                 if (DiscoveryNode.isDataNode(nodeInfo.getSettings())) {
                     dataNodes++;

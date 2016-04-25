@@ -2046,8 +2046,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     protected HttpRequestBuilder httpClient(CloseableHttpClient httpClient) {
         final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
-        final NodeInfo[] nodes = nodeInfos.getNodes();
-        assertTrue(nodes.length > 0);
+        final List<NodeInfo> nodes = nodeInfos.getNodes();
+        assertFalse(nodeInfos.hasFailures());
         TransportAddress publishAddress = randomFrom(nodes).getHttp().address().publishAddress();
         assertEquals(1, publishAddress.uniqueAddressTypeId());
         InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();

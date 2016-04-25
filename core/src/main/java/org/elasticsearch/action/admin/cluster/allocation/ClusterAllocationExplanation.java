@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -148,12 +149,12 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
             final Throwable storeErr = storeStatus.getStoreException();
             if (storeErr != null) {
                 finalDecision = FinalDecision.NO;
-                if (ExceptionsHelper.unwrapCause(storeErr) instanceof IOException) {
-                    storeCopy = StoreCopy.IO_ERROR;
-                    finalExplanation = "there was an IO error reading from data in the shard store";
-                } else {
+                if (ExceptionsHelper.unwrapCause(storeErr) instanceof CorruptIndexException) {
                     storeCopy = StoreCopy.CORRUPT;
                     finalExplanation = "the copy of data in the shard store is corrupt";
+                } else {
+                    storeCopy = StoreCopy.IO_ERROR;
+                    finalExplanation = "there was an IO error reading from data in the shard store";
                 }
             } else if (activeAllocationIds.isEmpty() || activeAllocationIds.contains(storeStatus.getAllocationId())) {
                 // If either we don't have allocation IDs, or they contain the store allocation id, show the allocation

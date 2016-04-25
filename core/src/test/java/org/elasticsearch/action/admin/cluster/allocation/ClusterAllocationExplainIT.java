@@ -170,8 +170,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                      ", I have: " + noAttrNode + ", " + barAttrNode + ", " + fooBarAttrNode);
             }
         }
-        assertThat(noAttrWeight, greaterThan(barAttrWeight));
-        assertThat(noAttrWeight, greaterThan(fooBarAttrWeight));
         assertFalse(barAttrWeight == fooBarAttrWeight);
     }
 }

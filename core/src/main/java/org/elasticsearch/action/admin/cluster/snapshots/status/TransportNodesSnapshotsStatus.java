@@ -29,7 +29,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -105,11 +105,11 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
     @Override
     protected NodeSnapshotStatus nodeOperation(NodeRequest request) {
-        Map<SnapshotId, Map<ShardId, SnapshotIndexShardStatus>> snapshotMapBuilder = new HashMap<>();
+        Map<SnapshotName, Map<ShardId, SnapshotIndexShardStatus>> snapshotMapBuilder = new HashMap<>();
         try {
             String nodeId = clusterService.localNode().getId();
-            for (SnapshotId snapshotId : request.snapshotIds) {
-                Map<ShardId, IndexShardSnapshotStatus> shardsStatus = snapshotShardsService.currentSnapshotShards(snapshotId);
+            for (SnapshotName snapshotName : request.snapshotNames) {
+                Map<ShardId, IndexShardSnapshotStatus> shardsStatus = snapshotShardsService.currentSnapshotShards(snapshotName);
                 if (shardsStatus == null) {
                     continue;
                 }
@@ -125,7 +125,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
                     }
                     shardMapBuilder.put(shardEntry.getKey(), shardStatus);
                 }
-                snapshotMapBuilder.put(snapshotId, unmodifiableMap(shardMapBuilder));
+                snapshotMapBuilder.put(snapshotName, unmodifiableMap(shardMapBuilder));
             }
             return new NodeSnapshotStatus(clusterService.localNode(), unmodifiableMap(snapshotMapBuilder));
         } catch (Exception e) {
@@ -140,7 +140,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
     public static class Request extends BaseNodesRequest<Request> {
 
-        private SnapshotId[] snapshotIds;
+        private SnapshotName[] snapshotNames;
 
         public Request() {
         }
@@ -149,8 +149,8 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
             super(nodesIds);
         }
 
-        public Request snapshotIds(SnapshotId[] snapshotIds) {
-            this.snapshotIds = snapshotIds;
+        public Request snapshotIds(SnapshotName[] snapshotNames) {
+            this.snapshotNames = snapshotNames;
             return this;
         }
 
@@ -207,33 +207,33 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
     public static class NodeRequest extends BaseNodeRequest {
 
-        private SnapshotId[] snapshotIds;
+        private SnapshotName[] snapshotNames;
 
         public NodeRequest() {
         }
 
         NodeRequest(String nodeId, TransportNodesSnapshotsStatus.Request request) {
             super(nodeId);
-            snapshotIds = request.snapshotIds;
+            snapshotNames = request.snapshotNames;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             int n = in.readVInt();
-            snapshotIds = new SnapshotId[n];
+            snapshotNames = new SnapshotName[n];
             for (int i = 0; i < n; i++) {
-                snapshotIds[i] = SnapshotId.readSnapshotId(in);
+                snapshotNames[i] = SnapshotName.readSnapshotName(in);
             }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (snapshotIds != null) {
-                out.writeVInt(snapshotIds.length);
-                for (int i = 0; i < snapshotIds.length; i++) {
-                    snapshotIds[i].writeTo(out);
+            if (snapshotNames != null) {
+                out.writeVInt(snapshotNames.length);
+                for (int i = 0; i < snapshotNames.length; i++) {
+                    snapshotNames[i].writeTo(out);
                 }
             } else {
                 out.writeVInt(0);
@@ -243,17 +243,17 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
     public static class NodeSnapshotStatus extends BaseNodeResponse {
 
-        private Map<SnapshotId, Map<ShardId, SnapshotIndexShardStatus>> status;
+        private Map<SnapshotName, Map<ShardId, SnapshotIndexShardStatus>> status;
 
         NodeSnapshotStatus() {
         }
 
-        public NodeSnapshotStatus(DiscoveryNode node, Map<SnapshotId, Map<ShardId, SnapshotIndexShardStatus>> status) {
+        public NodeSnapshotStatus(DiscoveryNode node, Map<SnapshotName, Map<ShardId, SnapshotIndexShardStatus>> status) {
             super(node);
             this.status = status;
         }
 
-        public Map<SnapshotId, Map<ShardId, SnapshotIndexShardStatus>> status() {
+        public Map<SnapshotName, Map<ShardId, SnapshotIndexShardStatus>> status() {
             return status;
         }
 
@@ -261,9 +261,9 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             int numberOfSnapshots = in.readVInt();
-            Map<SnapshotId, Map<ShardId, SnapshotIndexShardStatus>> snapshotMapBuilder = new HashMap<>(numberOfSnapshots);
+            Map<SnapshotName, Map<ShardId, SnapshotIndexShardStatus>> snapshotMapBuilder = new HashMap<>(numberOfSnapshots);
             for (int i = 0; i < numberOfSnapshots; i++) {
-                SnapshotId snapshotId = SnapshotId.readSnapshotId(in);
+                SnapshotName snapshotName = SnapshotName.readSnapshotName(in);
                 int numberOfShards = in.readVInt();
                 Map<ShardId, SnapshotIndexShardStatus> shardMapBuilder = new HashMap<>(numberOfShards);
                 for (int j = 0; j < numberOfShards; j++) {
@@ -271,7 +271,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
                     SnapshotIndexShardStatus status = SnapshotIndexShardStatus.readShardSnapshotStatus(in);
                     shardMapBuilder.put(shardId, status);
                 }
-                snapshotMapBuilder.put(snapshotId, unmodifiableMap(shardMapBuilder));
+                snapshotMapBuilder.put(snapshotName, unmodifiableMap(shardMapBuilder));
             }
             status = unmodifiableMap(snapshotMapBuilder);
         }
@@ -281,7 +281,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
             super.writeTo(out);
             if (status != null) {
                 out.writeVInt(status.size());
-                for (Map.Entry<SnapshotId, Map<ShardId, SnapshotIndexShardStatus>> entry : status.entrySet()) {
+                for (Map.Entry<SnapshotName, Map<ShardId, SnapshotIndexShardStatus>> entry : status.entrySet()) {
                     entry.getKey().writeTo(out);
                     out.writeVInt(entry.getValue().size());
                     for (Map.Entry<ShardId, SnapshotIndexShardStatus> shardEntry : entry.getValue().entrySet()) {

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -28,11 +28,11 @@ import java.io.IOException;
  * Snapshot restore exception
  */
 public class SnapshotRestoreException extends SnapshotException {
-    public SnapshotRestoreException(SnapshotId snapshot, String message) {
+    public SnapshotRestoreException(SnapshotName snapshot, String message) {
         super(snapshot, message);
     }
 
-    public SnapshotRestoreException(SnapshotId snapshot, String message, Throwable cause) {
+    public SnapshotRestoreException(SnapshotName snapshot, String message, Throwable cause) {
         super(snapshot, message, cause);
     }
 

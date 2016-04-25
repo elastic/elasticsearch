@@ -21,9 +21,10 @@ package org.elasticsearch.index.snapshots;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.snapshots.SnapshotId;
 
 /**
  * Shard-level snapshot repository
@@ -42,7 +43,7 @@ public interface IndexShardRepository {
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
      * {@link IndexShardSnapshotStatus#aborted()} to see if the snapshot process should be aborted.
      *
-     * @param snapshotId          snapshot id
+     * @param snapshotId         snapshot id
      * @param shardId             shard to be snapshotted
      * @param snapshotIndexCommit commit point
      * @param snapshotStatus      snapshot status
@@ -54,23 +55,23 @@ public interface IndexShardRepository {
      * <p>
      * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
      *
-     * @param snapshotId      snapshot id
+     * @param snapshotName      snapshot name
      * @param shardId         shard id (in the current index)
      * @param version   version of elasticsearch that created this snapshot
      * @param snapshotShardId shard id (in the snapshot)
      * @param recoveryState   recovery state
      */
-    void restore(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState);
+    void restore(SnapshotName snapshotName, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState);
 
     /**
      * Retrieve shard snapshot status for the stored snapshot
      *
-     * @param snapshotId snapshot id
+     * @param snapshotName snapshot name
      * @param version   version of elasticsearch that created this snapshot
      * @param shardId    shard id
      * @return snapshot status
      */
-    IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId);
+    IndexShardSnapshotStatus snapshotStatus(SnapshotName snapshotName, Version version, ShardId shardId);
 
     /**
      * Verifies repository settings on data node

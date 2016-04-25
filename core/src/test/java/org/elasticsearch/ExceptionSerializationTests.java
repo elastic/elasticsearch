@@ -27,7 +27,7 @@ import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -304,8 +304,8 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testSnapshotException() throws IOException {
         SnapshotException ex = serialize(
-                new SnapshotException(new SnapshotId("repo", "snap"), "no such snapshot", new NullPointerException()));
-        assertEquals(ex.snapshot(), new SnapshotId("repo", "snap"));
+                new SnapshotException(new SnapshotName("repo", "snap"), "no such snapshot", new NullPointerException()));
+        assertEquals(ex.snapshot(), new SnapshotName("repo", "snap"));
         assertEquals(ex.getMessage(), "[repo:snap] no such snapshot");
         assertTrue(ex.getCause() instanceof NullPointerException);
 

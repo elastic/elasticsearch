@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -84,19 +84,19 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
             public void onResponse() {
                 if (request.waitForCompletion()) {
                     snapshotsService.addListener(new SnapshotsService.SnapshotCompletionListener() {
-                        SnapshotId snapshotId = new SnapshotId(request.repository(), request.snapshot());
+                        SnapshotName snapshotName = new SnapshotName(request.repository(), request.snapshot());
 
                         @Override
-                        public void onSnapshotCompletion(SnapshotId snapshotId, SnapshotInfo snapshot) {
-                            if (this.snapshotId.equals(snapshotId)) {
+                        public void onSnapshotCompletion(SnapshotName snapshotName, SnapshotInfo snapshot) {
+                            if (this.snapshotName.equals(snapshotName)) {
                                 listener.onResponse(new CreateSnapshotResponse(snapshot));
                                 snapshotsService.removeListener(this);
                             }
                         }
 
                         @Override
-                        public void onSnapshotFailure(SnapshotId snapshotId, Throwable t) {
-                            if (this.snapshotId.equals(snapshotId)) {
+                        public void onSnapshotFailure(SnapshotName snapshotName, Throwable t) {
+                            if (this.snapshotName.equals(snapshotName)) {
                                 listener.onFailure(t);
                                 snapshotsService.removeListener(this);
                             }

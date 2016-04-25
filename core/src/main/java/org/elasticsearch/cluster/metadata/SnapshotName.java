@@ -21,23 +21,27 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
- * Snapshot ID - repository name + snapshot name
+ * Snapshot Name - repository name + snapshot name
  */
-public class SnapshotId implements Streamable {
+public class SnapshotName implements Writeable {
 
-    private String repository;
+    private final String repository;
 
-    private String snapshot;
+    private final String snapshot;
 
     // Caching hash code
     private int hashCode;
 
-    private SnapshotId() {
+    private SnapshotName(final StreamInput in) throws IOException {
+        this.repository = in.readString();
+        this.snapshot = in.readString();
+        this.hashCode = computeHashCode();
     }
 
     /**
@@ -46,7 +50,9 @@ public class SnapshotId implements Streamable {
      * @param repository repository name
      * @param snapshot   snapshot name
      */
-    public SnapshotId(String repository, String snapshot) {
+    public SnapshotName(final String repository, final String snapshot) {
+        Objects.requireNonNull(repository);
+        Objects.requireNonNull(snapshot);
         this.repository = repository;
         this.snapshot = snapshot;
         this.hashCode = computeHashCode();
@@ -76,11 +82,15 @@ public class SnapshotId implements Streamable {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null) return false;
-        SnapshotId snapshotId = (SnapshotId) o;
-        return snapshot.equals(snapshotId.snapshot) && repository.equals(snapshotId.repository);
+    public boolean equals(final Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        SnapshotName snapshotName = (SnapshotName) o;
+        return snapshot.equals(snapshotName.snapshot) && repository.equals(snapshotName.repository);
     }
 
     @Override
@@ -89,38 +99,21 @@ public class SnapshotId implements Streamable {
     }
 
     private int computeHashCode() {
-        int result = repository != null ? repository.hashCode() : 0;
-        result = 31 * result + snapshot.hashCode();
-        return result;
+        return Objects.hash(repository, snapshot);
     }
 
     /**
-     * Reads snapshot id from stream input
+     * Reads snapshot name from stream input
      *
      * @param in stream input
-     * @return snapshot id
+     * @return snapshot name
      */
-    public static SnapshotId readSnapshotId(StreamInput in) throws IOException {
-        SnapshotId snapshot = new SnapshotId();
-        snapshot.readFrom(in);
-        return snapshot;
+    public static SnapshotName readSnapshotName(final StreamInput in) throws IOException {
+        return new SnapshotName(in);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        repository = in.readString();
-        snapshot = in.readString();
-        hashCode = computeHashCode();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(repository);
         out.writeString(snapshot);
     }

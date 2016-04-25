@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -34,7 +34,7 @@ import java.io.IOException;
  */
 public class RestoreSource implements Streamable, ToXContent {
 
-    private SnapshotId snapshotId;
+    private SnapshotName snapshotName;
 
     private String index;
 
@@ -43,14 +43,14 @@ public class RestoreSource implements Streamable, ToXContent {
     RestoreSource() {
     }
 
-    public RestoreSource(SnapshotId snapshotId, Version version, String index) {
-        this.snapshotId = snapshotId;
+    public RestoreSource(SnapshotName snapshotName, Version version, String index) {
+        this.snapshotName = snapshotName;
         this.version = version;
         this.index = index;
     }
 
-    public SnapshotId snapshotId() {
-        return snapshotId;
+    public SnapshotName snapshotName() {
+        return snapshotName;
     }
 
     public String index() {
@@ -73,14 +73,14 @@ public class RestoreSource implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        snapshotId = SnapshotId.readSnapshotId(in);
+        snapshotName = SnapshotName.readSnapshotName(in);
         version = Version.readVersion(in);
         index = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        snapshotId.writeTo(out);
+        snapshotName.writeTo(out);
         Version.writeVersion(version, out);
         out.writeString(index);
     }
@@ -88,8 +88,8 @@ public class RestoreSource implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
-                .field("repository", snapshotId.getRepository())
-                .field("snapshot", snapshotId.getSnapshot())
+                .field("repository", snapshotName.getRepository())
+                .field("snapshot", snapshotName.getSnapshot())
                 .field("version", version.toString())
                 .field("index", index)
                 .endObject();
@@ -97,7 +97,7 @@ public class RestoreSource implements Streamable, ToXContent {
 
     @Override
     public String toString() {
-        return snapshotId.toString();
+        return snapshotName.toString();
     }
 
     @Override
@@ -108,14 +108,14 @@ public class RestoreSource implements Streamable, ToXContent {
         RestoreSource that = (RestoreSource) o;
 
         if (!index.equals(that.index)) return false;
-        if (!snapshotId.equals(that.snapshotId)) return false;
+        if (!snapshotName.equals(that.snapshotName)) return false;
 
         return true;
     }
 
     @Override
     public int hashCode() {
-        int result = snapshotId.hashCode();
+        int result = snapshotName.hashCode();
         result = 31 * result + index.hashCode();
         return result;
     }

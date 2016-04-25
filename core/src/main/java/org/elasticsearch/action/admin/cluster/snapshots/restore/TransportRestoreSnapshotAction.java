@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -84,11 +84,11 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
             public void onResponse(RestoreInfo restoreInfo) {
                 if (restoreInfo == null && request.waitForCompletion()) {
                     restoreService.addListener(new ActionListener<RestoreService.RestoreCompletionResponse>() {
-                        SnapshotId snapshotId = new SnapshotId(request.repository(), request.snapshot());
+                        SnapshotName snapshotName = new SnapshotName(request.repository(), request.snapshot());
 
                         @Override
                         public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
-                            if (this.snapshotId.equals(restoreCompletionResponse.getSnapshotId())) {
+                            if (this.snapshotName.equals(restoreCompletionResponse.getSnapshotName())) {
                                 listener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.getRestoreInfo()));
                                 restoreService.removeListener(this);
                             }

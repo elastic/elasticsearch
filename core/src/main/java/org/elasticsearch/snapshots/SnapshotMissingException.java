@@ -19,7 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 
@@ -30,11 +30,11 @@ import java.io.IOException;
  */
 public class SnapshotMissingException extends SnapshotException {
 
-    public SnapshotMissingException(SnapshotId snapshot, Throwable cause) {
+    public SnapshotMissingException(SnapshotName snapshot, Throwable cause) {
         super(snapshot, "is missing", cause);
     }
 
-    public SnapshotMissingException(SnapshotId snapshot) {
+    public SnapshotMissingException(SnapshotName snapshot) {
         super(snapshot, "is missing");
     }
 

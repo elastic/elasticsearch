@@ -21,7 +21,7 @@ package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.cluster.ClusterState.Custom;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -77,12 +77,12 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
      * Returns currently running restore process with corresponding snapshot id or null if this snapshot is not being
      * restored
      *
-     * @param snapshotId snapshot id
+     * @param snapshotName snapshot id
      * @return restore metadata or null
      */
-    public Entry snapshot(SnapshotId snapshotId) {
+    public Entry snapshot(SnapshotName snapshotName) {
         for (Entry entry : entries) {
-            if (snapshotId.equals(entry.snapshotId())) {
+            if (snapshotName.equals(entry.snapshotId())) {
                 return entry;
             }
         }
@@ -111,20 +111,20 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
      */
     public static class Entry {
         private final State state;
-        private final SnapshotId snapshotId;
+        private final SnapshotName snapshotName;
         private final ImmutableOpenMap<ShardId, ShardRestoreStatus> shards;
         private final List<String> indices;
 
         /**
          * Creates new restore metadata
          *
-         * @param snapshotId snapshot id
+         * @param snapshotName snapshot id
          * @param state      current state of the restore process
          * @param indices    list of indices being restored
          * @param shards     map of shards being restored to their current restore status
          */
-        public Entry(SnapshotId snapshotId, State state, List<String> indices, ImmutableOpenMap<ShardId, ShardRestoreStatus> shards) {
-            this.snapshotId = snapshotId;
+        public Entry(SnapshotName snapshotName, State state, List<String> indices, ImmutableOpenMap<ShardId, ShardRestoreStatus> shards) {
+            this.snapshotName = snapshotName;
             this.state = state;
             this.indices = indices;
             if (shards == null) {
@@ -139,8 +139,8 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
          *
          * @return snapshot id
          */
-        public SnapshotId snapshotId() {
-            return this.snapshotId;
+        public SnapshotName snapshotId() {
+            return this.snapshotName;
         }
 
         /**
@@ -178,7 +178,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
             Entry entry = (Entry) o;
 
             if (!indices.equals(entry.indices)) return false;
-            if (!snapshotId.equals(entry.snapshotId)) return false;
+            if (!snapshotName.equals(entry.snapshotName)) return false;
             if (!shards.equals(entry.shards)) return false;
             if (state != entry.state) return false;
 
@@ -188,7 +188,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
         @Override
         public int hashCode() {
             int result = state.hashCode();
-            result = 31 * result + snapshotId.hashCode();
+            result = 31 * result + snapshotName.hashCode();
             result = 31 * result + shards.hashCode();
             result = 31 * result + indices.hashCode();
             return result;
@@ -409,7 +409,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
     public RestoreInProgress readFrom(StreamInput in) throws IOException {
         Entry[] entries = new Entry[in.readVInt()];
         for (int i = 0; i < entries.length; i++) {
-            SnapshotId snapshotId = SnapshotId.readSnapshotId(in);
+            SnapshotName snapshotName = SnapshotName.readSnapshotName(in);
             State state = State.fromValue(in.readByte());
             int indices = in.readVInt();
             List<String> indexBuilder = new ArrayList<>();
@@ -423,7 +423,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
                 ShardRestoreStatus shardState = ShardRestoreStatus.readShardRestoreStatus(in);
                 builder.put(shardId, shardState);
             }
-            entries[i] = new Entry(snapshotId, state, Collections.unmodifiableList(indexBuilder), builder.build());
+            entries[i] = new Entry(snapshotName, state, Collections.unmodifiableList(indexBuilder), builder.build());
         }
         return new RestoreInProgress(entries);
     }

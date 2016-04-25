@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.common.Randomness;
@@ -76,10 +76,10 @@ public class RestRecoveryActionTests extends ESTestCase {
 
             final RestoreSource restoreSource = randomBoolean() ? mock(RestoreSource.class) : null;
             if (restoreSource != null) {
-                final SnapshotId snapshotId = mock(SnapshotId.class);
-                when(snapshotId.getRepository()).thenReturn(randomAsciiOfLength(8));
-                when(snapshotId.getSnapshot()).thenReturn(randomAsciiOfLength(8));
-                when(restoreSource.snapshotId()).thenReturn(snapshotId);
+                final SnapshotName snapshotName = mock(SnapshotName.class);
+                when(snapshotName.getRepository()).thenReturn(randomAsciiOfLength(8));
+                when(snapshotName.getSnapshot()).thenReturn(randomAsciiOfLength(8));
+                when(restoreSource.snapshotName()).thenReturn(snapshotName);
             }
 
             RecoveryState.Index index = mock(RecoveryState.Index.class);
@@ -161,10 +161,10 @@ public class RestRecoveryActionTests extends ESTestCase {
             assertThat(cells.get(6).value, equalTo(state.getTargetNode().getHostName()));
             assertThat(
                     cells.get(7).value,
-                    equalTo(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getRepository()));
+                    equalTo(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotName().getRepository()));
             assertThat(
                     cells.get(8).value,
-                    equalTo(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getSnapshot()));
+                    equalTo(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotName().getSnapshot()));
             assertThat(cells.get(9).value, equalTo(state.getIndex().totalRecoverFiles()));
             assertThat(cells.get(10).value, equalTo(state.getIndex().recoveredFileCount()));
             assertThat(cells.get(11).value, equalTo(percent(state.getIndex().recoveredFilesPercent())));

@@ -20,7 +20,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -30,13 +30,13 @@ import java.io.IOException;
  * Generic snapshot exception
  */
 public class SnapshotException extends ElasticsearchException {
-    private final SnapshotId snapshot;
+    private final SnapshotName snapshot;
 
-    public SnapshotException(SnapshotId snapshot, String msg) {
+    public SnapshotException(SnapshotName snapshot, String msg) {
         this(snapshot, msg, null);
     }
 
-    public SnapshotException(SnapshotId snapshot, String msg, Throwable cause) {
+    public SnapshotException(SnapshotName snapshot, String msg, Throwable cause) {
         super("[" + (snapshot == null ? "_na" : snapshot) + "] " + msg, cause);
         this.snapshot = snapshot;
     }
@@ -44,7 +44,7 @@ public class SnapshotException extends ElasticsearchException {
     public SnapshotException(StreamInput in) throws IOException {
         super(in);
         if (in.readBoolean()) {
-            snapshot = SnapshotId.readSnapshotId(in);
+            snapshot = SnapshotName.readSnapshotName(in);
         } else {
             snapshot = null;
         }
@@ -53,10 +53,15 @@ public class SnapshotException extends ElasticsearchException {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalStreamable(snapshot);
+        if (snapshot != null) {
+            out.writeBoolean(true);
+            snapshot.writeTo(out);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
-    public SnapshotId snapshot() {
+    public SnapshotName snapshot() {
         return snapshot;
     }
 }

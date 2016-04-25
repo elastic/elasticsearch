@@ -150,8 +150,8 @@ public class RestRecoveryAction extends AbstractCatAction {
                 t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName());
                 t.addCell(state.getTargetNode().getHostName());
-                t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getRepository());
-                t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getSnapshot());
+                t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotName().getRepository());
+                t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotName().getSnapshot());
                 t.addCell(state.getIndex().totalRecoverFiles());
                 t.addCell(state.getIndex().recoveredFileCount());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredFilesPercent()));

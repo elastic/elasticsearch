@@ -39,6 +39,8 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
 
     private final String name;
 
+    private final String uuid;
+
     private final Version version;
 
     private final SnapshotState state;
@@ -61,13 +63,15 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
 
     public final static Snapshot PROTO = new Snapshot();
 
-    private Snapshot(String name, List<String> indices, SnapshotState state, String reason, Version version, long startTime, long endTime,
-                              int totalShard, int successfulShards, List<SnapshotShardFailure> shardFailures) {
+    private Snapshot(String name, String uuid, List<String> indices, SnapshotState state, String reason, Version version, long startTime,
+                     long endTime, int totalShard, int successfulShards, List<SnapshotShardFailure> shardFailures) {
         assert name != null;
+        assert uuid != null;
         assert indices != null;
         assert state != null;
         assert shardFailures != null;
         this.name = name;
+        this.uuid = uuid;
         this.indices = indices;
         this.state = state;
         this.reason = reason;
@@ -80,13 +84,13 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
     }
 
 
-    public Snapshot(String name, List<String> indices, long startTime) {
-        this(name, indices, SnapshotState.IN_PROGRESS, null, Version.CURRENT, startTime, 0L, 0, 0, NO_FAILURES);
+    public Snapshot(String name, String uuid, List<String> indices, long startTime) {
+        this(name, uuid, indices, SnapshotState.IN_PROGRESS, null, Version.CURRENT, startTime, 0L, 0, 0, NO_FAILURES);
     }
 
-    public Snapshot(String name, List<String> indices, long startTime, String reason, long endTime,
-                             int totalShard, List<SnapshotShardFailure> shardFailures) {
-        this(name, indices, snapshotState(reason, shardFailures), reason, Version.CURRENT,
+    public Snapshot(String name, String uuid, List<String> indices, long startTime, String reason, long endTime,
+                        int totalShard, List<SnapshotShardFailure> shardFailures) {
+        this(name, uuid, indices, snapshotState(reason, shardFailures), reason, Version.CURRENT,
                 startTime, endTime, totalShard, totalShard - shardFailures.size(), shardFailures);
     }
 
@@ -94,7 +98,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
      * Special constructor for the prototype object
      */
     private Snapshot() {
-        this("", Collections.emptyList(), 0);
+        this("", "", Collections.emptyList(), 0);
     }
 
     private static SnapshotState snapshotState(String reason, List<SnapshotShardFailure> shardFailures) {
@@ -116,6 +120,15 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
      */
     public String name() {
         return name;
+    }
+
+    /**
+     * Returns snapshot uuid
+     *
+     * @return snapshot uuid
+     */
+    public String uuid() {
+        return uuid;
     }
 
     /**
@@ -214,20 +227,21 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         Snapshot that = (Snapshot) o;
-
-        if (startTime != that.startTime) return false;
-        if (!name.equals(that.name)) return false;
-
-        return true;
+        return startTime == that.startTime && name.equals(that.name) && uuid.equals(that.uuid);
     }
 
     @Override
     public int hashCode() {
         int result = name.hashCode();
+        result = 31 * result + uuid.hashCode();
         result = 31 * result + Long.hashCode(startTime);
         return result;
     }
@@ -240,6 +254,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
     static final class Fields {
         static final String SNAPSHOT = "snapshot";
         static final String NAME = "name";
+        static final String UUID = "uuid";
         static final String VERSION_ID = "version_id";
         static final String INDICES = "indices";
         static final String STATE = "state";
@@ -256,6 +271,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.SNAPSHOT);
         builder.field(Fields.NAME, name);
+        builder.field(Fields.UUID, uuid);
         builder.field(Fields.VERSION_ID, version.id);
         builder.startArray(Fields.INDICES);
         for (String index : indices) {
@@ -284,6 +300,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
 
     public static Snapshot fromXContent(XContentParser parser) throws IOException {
         String name = null;
+        String uuid = null;
         Version version = Version.CURRENT;
         SnapshotState state = SnapshotState.IN_PROGRESS;
         String reason = null;
@@ -302,37 +319,39 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
         XContentParser.Token token;
         if ((token = parser.nextToken()) == XContentParser.Token.START_OBJECT) {
             String currentFieldName = parser.currentName();
-            if ("snapshot".equals(currentFieldName)) {
+            if (Fields.SNAPSHOT.equals(currentFieldName)) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                         token = parser.nextToken();
                         if (token.isValue()) {
-                            if ("name".equals(currentFieldName)) {
+                            if (Fields.NAME.equals(currentFieldName)) {
                                 name = parser.text();
-                            } else if ("state".equals(currentFieldName)) {
+                            } else if (Fields.UUID.equals(currentFieldName)) {
+                                uuid = parser.text();
+                            } else if (Fields.STATE.equals(currentFieldName)) {
                                 state = SnapshotState.valueOf(parser.text());
-                            } else if ("reason".equals(currentFieldName)) {
+                            } else if (Fields.REASON.equals(currentFieldName)) {
                                 reason = parser.text();
-                            } else if ("start_time".equals(currentFieldName)) {
+                            } else if (Fields.START_TIME.equals(currentFieldName)) {
                                 startTime = parser.longValue();
-                            } else if ("end_time".equals(currentFieldName)) {
+                            } else if (Fields.END_TIME.equals(currentFieldName)) {
                                 endTime = parser.longValue();
-                            } else if ("total_shards".equals(currentFieldName)) {
+                            } else if (Fields.TOTAL_SHARDS.equals(currentFieldName)) {
                                 totalShard = parser.intValue();
-                            } else if ("successful_shards".equals(currentFieldName)) {
+                            } else if (Fields.SUCCESSFUL_SHARDS.equals(currentFieldName)) {
                                 successfulShards = parser.intValue();
-                            } else if ("version_id".equals(currentFieldName)) {
+                            } else if (Fields.VERSION_ID.equals(currentFieldName)) {
                                 version = Version.fromId(parser.intValue());
                             }
                         } else if (token == XContentParser.Token.START_ARRAY) {
-                            if ("indices".equals(currentFieldName)) {
+                            if (Fields.INDICES.equals(currentFieldName)) {
                                 ArrayList<String> indicesArray = new ArrayList<>();
                                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                     indicesArray.add(parser.text());
                                 }
                                 indices = Collections.unmodifiableList(indicesArray);
-                            } else if ("failures".equals(currentFieldName)) {
+                            } else if (Fields.FAILURES.equals(currentFieldName)) {
                                 ArrayList<SnapshotShardFailure> shardFailureArrayList = new ArrayList<>();
                                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                     shardFailureArrayList.add(SnapshotShardFailure.fromXContent(parser));
@@ -352,7 +371,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
         } else {
             throw new ElasticsearchParseException("unexpected token  [" + token + "]");
         }
-        return new Snapshot(name, indices, state, reason, version, startTime, endTime, totalShard, successfulShards, shardFailures);
+        return new Snapshot(name, uuid, indices, state, reason, version, startTime, endTime, totalShard, successfulShards, shardFailures);
     }
 
 }

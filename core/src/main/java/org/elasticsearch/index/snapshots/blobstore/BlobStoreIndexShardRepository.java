@@ -32,7 +32,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -67,6 +67,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreFormat;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.elasticsearch.repositories.blobstore.LegacyBlobStoreFormat;
+import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -88,6 +89,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.testB
 public class BlobStoreIndexShardRepository extends AbstractComponent implements IndexShardRepository {
 
     private static final int BUFFER_SIZE = 4096;
+
     private BlobStore blobStore;
 
     private BlobPath basePath;
@@ -103,8 +105,6 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
     private RateLimiter snapshotRateLimiter;
 
     private RateLimiter restoreRateLimiter;
-
-    private RateLimiterListener rateLimiterListener;
 
     private RateLimitingInputStream.Listener snapshotThrottleListener;
 
@@ -162,7 +162,6 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         this.chunkSize = chunkSize;
         this.snapshotRateLimiter = snapshotRateLimiter;
         this.restoreRateLimiter = restoreRateLimiter;
-        this.rateLimiterListener = rateLimiterListener;
         this.snapshotThrottleListener = nanos -> rateLimiterListener.onSnapshotPause(nanos);
         this.restoreThrottleListener = nanos -> rateLimiterListener.onRestorePause(nanos);
         this.compress = compress;
@@ -176,7 +175,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      */
     @Override
     public void snapshot(SnapshotId snapshotId, ShardId shardId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
-        SnapshotContext snapshotContext = new SnapshotContext(snapshotId, shardId, snapshotStatus);
+        SnapshotContext snapshotContext = new SnapshotContext(snapshotId.getSnapshotName(), shardId, snapshotStatus);
         snapshotStatus.startTime(System.currentTimeMillis());
 
         try {
@@ -199,12 +198,12 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      * {@inheritDoc}
      */
     @Override
-    public void restore(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
-        final RestoreContext snapshotContext = new RestoreContext(snapshotId, version, shardId, snapshotShardId, recoveryState);
+    public void restore(SnapshotName snapshotName, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
+        final RestoreContext snapshotContext = new RestoreContext(snapshotName, version, shardId, snapshotShardId, recoveryState);
         try {
             snapshotContext.restore();
         } catch (Throwable e) {
-            throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId.getSnapshot() + "]", e);
+            throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotName.getSnapshot() + "]", e);
         }
     }
 
@@ -212,8 +211,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      * {@inheritDoc}
      */
     @Override
-    public IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId) {
-        Context context = new Context(snapshotId, version, shardId);
+    public IndexShardSnapshotStatus snapshotStatus(SnapshotName snapshotName, Version version, ShardId shardId) {
+        Context context = new Context(snapshotName, version, shardId);
         BlobStoreIndexShardSnapshot snapshot = context.loadSnapshot();
         IndexShardSnapshotStatus status = new IndexShardSnapshotStatus();
         status.updateStage(IndexShardSnapshotStatus.Stage.DONE);
@@ -245,11 +244,11 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
     /**
      * Delete shard snapshot
      *
-     * @param snapshotId snapshot id
+     * @param snapshotName snapshot id
      * @param shardId    shard id
      */
-    public void delete(SnapshotId snapshotId, Version version, ShardId shardId) {
-        Context context = new Context(snapshotId, version, shardId, shardId);
+    public void delete(SnapshotName snapshotName, Version version, ShardId shardId) {
+        Context context = new Context(snapshotName, version, shardId, shardId);
         context.delete();
     }
 
@@ -283,7 +282,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      */
     private class Context {
 
-        protected final SnapshotId snapshotId;
+        protected final SnapshotName snapshotName;
 
         protected final ShardId shardId;
 
@@ -291,12 +290,12 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
         protected final Version version;
 
-        public Context(SnapshotId snapshotId, Version version, ShardId shardId) {
-            this(snapshotId, version, shardId, shardId);
+        public Context(SnapshotName snapshotName, Version version, ShardId shardId) {
+            this(snapshotName, version, shardId, shardId);
         }
 
-        public Context(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId) {
-            this.snapshotId = snapshotId;
+        public Context(SnapshotName snapshotName, Version version, ShardId shardId, ShardId snapshotShardId) {
+            this.snapshotName = snapshotName;
             this.version = version;
             this.shardId = shardId;
             blobContainer = blobStore.blobContainer(basePath.add("indices").add(snapshotShardId.getIndexName()).add(Integer.toString(snapshotShardId.getId())));
@@ -318,15 +317,15 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             int fileListGeneration = tuple.v2();
 
             try {
-                indexShardSnapshotFormat(version).delete(blobContainer, snapshotId.getSnapshot());
+                indexShardSnapshotFormat(version).delete(blobContainer, snapshotName.getSnapshot());
             } catch (IOException e) {
-                logger.debug("[{}] [{}] failed to delete shard snapshot file", shardId, snapshotId);
+                logger.debug("[{}] [{}] failed to delete shard snapshot file", shardId, snapshotName);
             }
 
             // Build a list of snapshots that should be preserved
             List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
             for (SnapshotFiles point : snapshots) {
-                if (!point.snapshot().equals(snapshotId.getSnapshot())) {
+                if (!point.snapshot().equals(snapshotName.getSnapshot())) {
                     newSnapshotsList.add(point);
                 }
             }
@@ -339,7 +338,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         public BlobStoreIndexShardSnapshot loadSnapshot() {
             try {
-                return indexShardSnapshotFormat(version).read(blobContainer, snapshotId.getSnapshot());
+                return indexShardSnapshotFormat(version).read(blobContainer, snapshotName.getSnapshot());
             } catch (IOException ex) {
                 throw new IndexShardRestoreFailedException(shardId, "failed to read shard snapshot file", ex);
             }
@@ -388,7 +387,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             try {
                 blobContainer.deleteBlobs(blobsToDelete);
             } catch (IOException e) {
-                logger.debug("[{}] [{}] error deleting some of the blobs [{}] during cleanup", e, snapshotId, shardId, blobsToDelete);
+                logger.debug("[{}] [{}] error deleting some of the blobs [{}] during cleanup", e, snapshotName, shardId, blobsToDelete);
             }
 
             // If we deleted all snapshots - we don't need to create the index file
@@ -497,12 +496,12 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         /**
          * Constructs new context
          *
-         * @param snapshotId     snapshot id
+         * @param snapshotName     snapshot name
          * @param shardId        shard to be snapshotted
          * @param snapshotStatus snapshot status to report progress
          */
-        public SnapshotContext(SnapshotId snapshotId, ShardId shardId, IndexShardSnapshotStatus snapshotStatus) {
-            super(snapshotId, Version.CURRENT, shardId);
+        public SnapshotContext(SnapshotName snapshotName, ShardId shardId, IndexShardSnapshotStatus snapshotStatus) {
+            super(snapshotName, Version.CURRENT, shardId);
             IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             store = indexService.getShardOrNull(shardId.id()).store();
             this.snapshotStatus = snapshotStatus;
@@ -515,7 +514,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          * @param snapshotIndexCommit snapshot commit point
          */
         public void snapshot(IndexCommit snapshotIndexCommit) {
-            logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, repositoryName);
+            logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotName, repositoryName);
             store.incRef();
             try {
                 final Map<String, BlobMetaData> blobs;
@@ -546,10 +545,10 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 }
                 for (String fileName : fileNames) {
                     if (snapshotStatus.aborted()) {
-                        logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
+                        logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotName, fileName);
                         throw new IndexShardSnapshotFailedException(shardId, "Aborted");
                     }
-                    logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotId, fileName);
+                    logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotName, fileName);
                     final StoreFileMetaData md = metadata.get(fileName);
                     FileInfo existingFileInfo = null;
                     List<FileInfo> filesInfo = snapshots.findPhysicalIndexFiles(fileName);
@@ -587,7 +586,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 snapshotStatus.files(indexNumberOfFiles, indexTotalFilesSize);
 
                 if (snapshotStatus.aborted()) {
-                    logger.debug("[{}] [{}] Aborted during initialization", shardId, snapshotId);
+                    logger.debug("[{}] [{}] Aborted during initialization", shardId, snapshotName);
                     throw new IndexShardSnapshotFailedException(shardId, "Aborted");
                 }
 
@@ -605,14 +604,14 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 // now create and write the commit point
                 snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FINALIZE);
 
-                BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getSnapshot(),
+                BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotName.getSnapshot(),
                         snapshotIndexCommit.getGeneration(), indexCommitPointFiles, snapshotStatus.startTime(),
                         // snapshotStatus.startTime() is assigned on the same machine, so it's safe to use with VLong
                         System.currentTimeMillis() - snapshotStatus.startTime(), indexNumberOfFiles, indexTotalFilesSize);
                 //TODO: The time stored in snapshot doesn't include cleanup time.
-                logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
+                logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotName);
                 try {
-                    indexShardSnapshotFormat.write(snapshot, blobContainer, snapshotId.getSnapshot());
+                    indexShardSnapshotFormat.write(snapshot, blobContainer, snapshotName.getSnapshot());
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
@@ -720,7 +719,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
             private void checkAborted() {
                 if (snapshotStatus.aborted()) {
-                    logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
+                    logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotName, fileName);
                     throw new IndexShardSnapshotFailedException(shardId, "Aborted");
                 }
             }
@@ -781,13 +780,13 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         /**
          * Constructs new restore context
          *
-         * @param snapshotId      snapshot id
+         * @param snapshotName      snapshot id
          * @param shardId         shard to be restored
          * @param snapshotShardId shard in the snapshot that data should be restored from
          * @param recoveryState   recovery state to report progress
          */
-        public RestoreContext(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
-            super(snapshotId, version, shardId, snapshotShardId);
+        public RestoreContext(SnapshotName snapshotName, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
+            super(snapshotName, version, shardId, snapshotShardId);
             store = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id()).store();
             this.recoveryState = recoveryState;
         }
@@ -798,7 +797,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         public void restore() throws IOException {
             store.incRef();
             try {
-                logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
+                logger.debug("[{}] [{}] restoring to [{}] ...", snapshotName, repositoryName, shardId);
                 BlobStoreIndexShardSnapshot snapshot = loadSnapshot();
                 SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
                 final Store.MetadataSnapshot recoveryTargetMetadata;
@@ -832,7 +831,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     FileInfo fileInfo = fileInfos.get(md.name());
                     recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length(), true);
                     if (logger.isTraceEnabled()) {
-                        logger.trace("[{}] [{}] not_recovering [{}] from [{}], exists in local store and is same", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
+                        logger.trace("[{}] [{}] not_recovering [{}] from [{}], exists in local store and is same", shardId, snapshotName, fileInfo.physicalName(), fileInfo.name());
                     }
                 }
 
@@ -842,9 +841,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length(), false);
                     if (logger.isTraceEnabled()) {
                         if (md == null) {
-                            logger.trace("[{}] [{}] recovering [{}] from [{}], does not exists in local store", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
+                            logger.trace("[{}] [{}] recovering [{}] from [{}], does not exists in local store", shardId, snapshotName, fileInfo.physicalName(), fileInfo.name());
                         } else {
-                            logger.trace("[{}] [{}] recovering [{}] from [{}], exists in local store but is different", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
+                            logger.trace("[{}] [{}] recovering [{}] from [{}], exists in local store but is different", shardId, snapshotName, fileInfo.physicalName(), fileInfo.name());
                         }
                     }
                 }
@@ -854,12 +853,12 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 }
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("[{}] [{}] recovering_files [{}] with total_size [{}], reusing_files [{}] with reused_size [{}]", shardId, snapshotId,
+                    logger.trace("[{}] [{}] recovering_files [{}] with total_size [{}], reusing_files [{}] with reused_size [{}]", shardId, snapshotName,
                             index.totalRecoverFiles(), new ByteSizeValue(index.totalRecoverBytes()), index.reusedFileCount(), new ByteSizeValue(index.reusedFileCount()));
                 }
                 try {
                     for (final FileInfo fileToRecover : filesToRecover) {
-                        logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
+                        logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotName, fileToRecover.name());
                         restoreFile(fileToRecover);
                     }
                 } catch (IOException ex) {
@@ -889,11 +888,11 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                             store.deleteQuiet("restore", storeFile);
                             store.directory().deleteFile(storeFile);
                         } catch (IOException e) {
-                            logger.warn("[{}] failed to delete file [{}] during snapshot cleanup", snapshotId, storeFile);
+                            logger.warn("[{}] failed to delete file [{}] during snapshot cleanup", snapshotName, storeFile);
                         }
                     }
                 } catch (IOException e) {
-                    logger.warn("[{}] failed to list directory - some of files might not be deleted", snapshotId);
+                    logger.warn("[{}] failed to list directory - some of files might not be deleted", snapshotName);
                 }
             } finally {
                 store.decRef();

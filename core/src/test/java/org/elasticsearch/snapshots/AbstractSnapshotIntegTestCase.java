@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.PendingClusterTask;
@@ -109,7 +109,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     public SnapshotInfo waitForCompletion(String repository, String snapshot, TimeValue timeout) throws InterruptedException {
         long start = System.currentTimeMillis();
-        SnapshotId snapshotId = new SnapshotId(repository, snapshot);
+        SnapshotName snapshotName = new SnapshotName(repository, snapshot);
         while (System.currentTimeMillis() - start < timeout.millis()) {
             List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshot).get().getSnapshots();
             assertThat(snapshotInfos.size(), equalTo(1));
@@ -117,7 +117,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 // Make sure that snapshot clean up operations are finished
                 ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
                 SnapshotsInProgress snapshotsInProgress = stateResponse.getState().custom(SnapshotsInProgress.TYPE);
-                if (snapshotsInProgress == null || snapshotsInProgress.snapshot(snapshotId) == null) {
+                if (snapshotsInProgress == null || snapshotsInProgress.snapshot(snapshotName) == null) {
                     return snapshotInfos.get(0);
                 }
             }

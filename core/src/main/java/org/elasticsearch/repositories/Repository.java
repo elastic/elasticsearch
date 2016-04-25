@@ -20,11 +20,12 @@ package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
@@ -39,9 +40,11 @@ import java.util.List;
  * <p>
  * Typical snapshot usage pattern:
  * <ul>
- * <li>Master calls {@link #initializeSnapshot(org.elasticsearch.cluster.metadata.SnapshotId, List, org.elasticsearch.cluster.metadata.MetaData)}
+ * <li>Master calls {@link #initializeSnapshot(SnapshotId, List, org.elasticsearch.cluster.metadata.MetaData)}
  * with list of indices that will be included into the snapshot</li>
- * <li>Data nodes call {@link org.elasticsearch.index.snapshots.IndexShardRepository#snapshot(SnapshotId, ShardId, IndexCommit, IndexShardSnapshotStatus)} for each shard</li>
+ * <li>Data nodes call
+ * {@link org.elasticsearch.index.snapshots.IndexShardRepository#snapshot(SnapshotId, ShardId, IndexCommit, IndexShardSnapshotStatus)}
+ * for each shard</li>
  * <li>When all shard calls return master calls {@link #finalizeSnapshot}
  * with possible list of failures</li>
  * </ul>
@@ -51,28 +54,28 @@ public interface Repository extends LifecycleComponent<Repository> {
     /**
      * Reads snapshot description from repository.
      *
-     * @param snapshotId snapshot ID
+     * @param snapshotName snapshot name
      * @return information about snapshot
      */
-    Snapshot readSnapshot(SnapshotId snapshotId);
+    Snapshot readSnapshot(SnapshotName snapshotName);
 
     /**
      * Returns global metadata associate with the snapshot.
      * <p>
      * The returned meta data contains global metadata as well as metadata for all indices listed in the indices parameter.
      *
-     * @param snapshot snapshot
+     * @param snapshot snapshot name
      * @param indices    list of indices
      * @return information about snapshot
      */
-    MetaData readSnapshotMetaData(SnapshotId snapshotId, Snapshot snapshot, List<String> indices) throws IOException;
+    MetaData readSnapshotMetaData(SnapshotName snapshotName, Snapshot snapshot, List<String> indices) throws IOException;
 
     /**
      * Returns the list of snapshots currently stored in the repository
      *
      * @return snapshot list
      */
-    List<SnapshotId> snapshots();
+    List<SnapshotName> snapshots();
 
     /**
      * Starts snapshotting process
@@ -94,14 +97,15 @@ public interface Repository extends LifecycleComponent<Repository> {
      * @param shardFailures list of shard failures
      * @return snapshot description
      */
-    Snapshot finalizeSnapshot(SnapshotId snapshotId, List<String> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures);
+    Snapshot finalizeSnapshot(SnapshotId snapshotId, List<String> indices, long startTime, String failure, int totalShards,
+                              List<SnapshotShardFailure> shardFailures);
 
     /**
      * Deletes snapshot
      *
-     * @param snapshotId snapshot id
+     * @param snapshotName snapshot name
      */
-    void deleteSnapshot(SnapshotId snapshotId);
+    void deleteSnapshot(SnapshotName snapshotName);
 
     /**
      * Returns snapshot throttle time in nanoseconds

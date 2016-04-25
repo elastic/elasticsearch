@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -51,6 +51,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
@@ -654,7 +655,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 switch (randomIntBetween(0, 1)) {
                     case 0:
                         return new SnapshotsInProgress(new SnapshotsInProgress.Entry(
-                                new SnapshotId(randomName("repo"), randomName("snap")),
+                                SnapshotId.create(new SnapshotName(randomName("repo"), randomName("snap"))),
                                 randomBoolean(),
                                 randomBoolean(),
                                 SnapshotsInProgress.State.fromValue((byte) randomIntBetween(0, 6)),
@@ -663,7 +664,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 ImmutableOpenMap.of()));
                     case 1:
                         return new RestoreInProgress(new RestoreInProgress.Entry(
-                                new SnapshotId(randomName("repo"), randomName("snap")),
+                                new SnapshotName(randomName("repo"), randomName("snap")),
                                 RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
                                 emptyList(),
                                 ImmutableOpenMap.of()));

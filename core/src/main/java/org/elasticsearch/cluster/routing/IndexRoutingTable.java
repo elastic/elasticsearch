@@ -377,14 +377,18 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          * Initializes a new empty index, to be restored from a snapshot
          */
         public Builder initializeAsNewRestore(IndexMetaData indexMetaData, RestoreSource restoreSource, IntSet ignoreShards) {
-            return initializeAsRestore(indexMetaData, restoreSource, ignoreShards, true, new UnassignedInfo(UnassignedInfo.Reason.NEW_INDEX_RESTORED, "restore_source[" + restoreSource.snapshotId().getRepository() + "/" + restoreSource.snapshotId().getSnapshot() + "]"));
+            final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NEW_INDEX_RESTORED,
+                "restore_source[" + restoreSource.snapshotName().getRepository() + "/" + restoreSource.snapshotName().getSnapshot() + "]");
+            return initializeAsRestore(indexMetaData, restoreSource, ignoreShards, true, unassignedInfo);
         }
 
         /**
          * Initializes an existing index, to be restored from a snapshot
          */
         public Builder initializeAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource) {
-            return initializeAsRestore(indexMetaData, restoreSource, null, false, new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED, "restore_source[" + restoreSource.snapshotId().getRepository() + "/" + restoreSource.snapshotId().getSnapshot() + "]"));
+            final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
+                "restore_source[" + restoreSource.snapshotName().getRepository() + "/" + restoreSource.snapshotName().getSnapshot() + "]");
+            return initializeAsRestore(indexMetaData, restoreSource, null, false, unassignedInfo);
         }
 
         /**

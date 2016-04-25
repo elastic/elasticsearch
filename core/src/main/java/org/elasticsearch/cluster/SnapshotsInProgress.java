@@ -23,13 +23,14 @@ import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.cluster.ClusterState.Custom;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,7 +75,8 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
         private final ImmutableOpenMap<String, List<ShardId>> waitingIndices;
         private final long startTime;
 
-        public Entry(SnapshotId snapshotId, boolean includeGlobalState, boolean partial, State state, List<String> indices, long startTime, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
+        public Entry(SnapshotId snapshotId, boolean includeGlobalState, boolean partial, State state, List<String> indices,
+                     long startTime, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             this.state = state;
             this.snapshotId = snapshotId;
             this.includeGlobalState = includeGlobalState;
@@ -100,6 +102,10 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
 
         public SnapshotId snapshotId() {
             return this.snapshotId;
+        }
+
+        public SnapshotName snapshotName() {
+            return this.snapshotId.getSnapshotName();
         }
 
         public ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards() {
@@ -347,9 +353,9 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
         return this.entries;
     }
 
-    public Entry snapshot(SnapshotId snapshotId) {
+    public Entry snapshot(SnapshotName snapshotName) {
         for (Entry entry : entries) {
-            if (snapshotId.equals(entry.snapshotId())) {
+            if (snapshotName.equals(entry.snapshotId().getSnapshotName())) {
                 return entry;
             }
         }
@@ -383,7 +389,8 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
                 State shardState = State.fromValue(in.readByte());
                 builder.put(shardId, new ShardSnapshotStatus(nodeId, shardState));
             }
-            entries[i] = new Entry(snapshotId, includeGlobalState, partial, state, Collections.unmodifiableList(indexBuilder), startTime, builder.build());
+            entries[i] = new Entry(snapshotId, includeGlobalState, partial, state, Collections.unmodifiableList(indexBuilder),
+                                   startTime, builder.build());
         }
         return new SnapshotsInProgress(entries);
     }
@@ -411,9 +418,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
     }
 
     static final class Fields {
-        static final String REPOSITORY = "repository";
         static final String SNAPSHOTS = "snapshots";
-        static final String SNAPSHOT = "snapshot";
         static final String INCLUDE_GLOBAL_STATE = "include_global_state";
         static final String PARTIAL = "partial";
         static final String STATE = "state";
@@ -438,8 +443,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
 
     public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.field(Fields.REPOSITORY, entry.snapshotId().getRepository());
-        builder.field(Fields.SNAPSHOT, entry.snapshotId().getSnapshot());
+        entry.snapshotId.toXContent(builder, params);
         builder.field(Fields.INCLUDE_GLOBAL_STATE, entry.includeGlobalState());
         builder.field(Fields.PARTIAL, entry.partial());
         builder.field(Fields.STATE, entry.state());

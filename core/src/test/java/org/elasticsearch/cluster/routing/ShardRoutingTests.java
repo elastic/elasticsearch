@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
@@ -183,8 +183,8 @@ public class ShardRoutingTests extends ESTestCase {
                 case 4:
                     // change restore source
                     otherRouting = TestShardRouting.newShardRouting(otherRouting.getIndexName(), otherRouting.id(), otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
-                            otherRouting.restoreSource() == null ? new RestoreSource(new SnapshotId("test", "s1"), Version.CURRENT, "test") :
-                                    new RestoreSource(otherRouting.restoreSource().snapshotId(), Version.CURRENT, otherRouting.index() + "_1"),
+                            otherRouting.restoreSource() == null ? new RestoreSource(new SnapshotName("test", "s1"), Version.CURRENT, "test") :
+                                    new RestoreSource(otherRouting.restoreSource().snapshotName(), Version.CURRENT, otherRouting.index() + "_1"),
                             otherRouting.primary(), otherRouting.state(), otherRouting.unassignedInfo());
                     break;
                 case 5:

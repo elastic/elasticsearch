@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -90,7 +90,7 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  * <li>Once shard snapshot is created data node updates state of the shard in the cluster state using the {@link SnapshotShardsService#updateIndexShardSnapshotStatus} method</li>
  * <li>When last shard is completed master node in {@link SnapshotShardsService#innerUpdateSnapshotState} method marks the snapshot as completed</li>
  * <li>After cluster state is updated, the {@link #endSnapshot(SnapshotsInProgress.Entry)} finalizes snapshot in the repository,
- * notifies all {@link #snapshotCompletionListeners} that snapshot is completed, and finally calls {@link #removeSnapshotFromClusterState(SnapshotId, SnapshotInfo, Throwable)} to remove snapshot from cluster state</li>
+ * notifies all {@link #snapshotCompletionListeners} that snapshot is completed, and finally calls {@link #removeSnapshotFromClusterState(SnapshotName, SnapshotInfo, Throwable)} to remove snapshot from cluster state</li>
  * </ul>
  */
 public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsService> implements ClusterStateListener {
@@ -122,17 +122,17 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     /**
      * Retrieves snapshot from repository
      *
-     * @param snapshotId snapshot id
+     * @param snapshotName snapshot id
      * @return snapshot
      * @throws SnapshotMissingException if snapshot is not found
      */
-    public Snapshot snapshot(SnapshotId snapshotId) {
-        validate(snapshotId);
-        List<SnapshotsInProgress.Entry> entries = currentSnapshots(snapshotId.getRepository(), new String[]{snapshotId.getSnapshot()});
+    public Snapshot snapshot(SnapshotName snapshotName) {
+        validate(snapshotName);
+        List<SnapshotsInProgress.Entry> entries = currentSnapshots(snapshotName.getRepository(), new String[]{snapshotName.getSnapshot()});
         if (!entries.isEmpty()) {
             return inProgressSnapshot(entries.iterator().next());
         }
-        return repositoriesService.repository(snapshotId.getRepository()).readSnapshot(snapshotId);
+        return repositoriesService.repository(snapshotName.getRepository()).readSnapshot(snapshotName);
     }
 
     /**
@@ -148,15 +148,15 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
             snapshotSet.add(inProgressSnapshot(entry));
         }
         Repository repository = repositoriesService.repository(repositoryName);
-        List<SnapshotId> snapshotIds = repository.snapshots();
-        for (SnapshotId snapshotId : snapshotIds) {
+        List<SnapshotName> snapshotIds = repository.snapshots();
+        for (SnapshotName snapshotName : snapshotIds) {
             try {
-                snapshotSet.add(repository.readSnapshot(snapshotId));
+                snapshotSet.add(repository.readSnapshot(snapshotName));
             } catch (Exception ex) {
                 if (ignoreUnavailable) {
-                    logger.warn("failed to get snapshot [{}]", ex, snapshotId);
+                    logger.warn("failed to get snapshot [{}]", ex, snapshotName);
                 } else {
-                    throw new SnapshotException(snapshotId, "Snapshot could not be read", ex);
+                    throw new SnapshotException(snapshotName, "Snapshot could not be read", ex);
                 }
             }
         }
@@ -192,8 +192,9 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @param listener snapshot creation listener
      */
     public void createSnapshot(final SnapshotRequest request, final CreateSnapshotListener listener) {
-        final SnapshotId snapshotId = new SnapshotId(request.repository(), request.name());
-        validate(snapshotId);
+        final SnapshotName snapshotName = new SnapshotName(request.repository(), request.name());
+        validate(snapshotName);
+        final SnapshotId snapshotId = SnapshotId.create(snapshotName);
         clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry newSnapshot = null;
@@ -211,7 +212,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                     snapshots = new SnapshotsInProgress(newSnapshot);
                 } else {
                     // TODO: What should we do if a snapshot is already running?
-                    throw new ConcurrentSnapshotExecutionException(snapshotId, "a snapshot is already running");
+                    throw new ConcurrentSnapshotExecutionException(snapshotName, "a snapshot is already running");
                 }
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, snapshots).build();
             }
@@ -254,31 +255,31 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         if (repositoriesMetaData == null || repositoriesMetaData.repository(request.repository()) == null) {
             throw new RepositoryMissingException(request.repository());
         }
-        validate(new SnapshotId(request.repository(), request.name()));
+        validate(new SnapshotName(request.repository(), request.name()));
     }
 
-    private static void validate(SnapshotId snapshotId) {
-        String name = snapshotId.getSnapshot();
+    private static void validate(SnapshotName snapshotName) {
+        String name = snapshotName.getSnapshot();
         if (!Strings.hasLength(name)) {
-            throw new InvalidSnapshotNameException(snapshotId, "cannot be empty");
+            throw new InvalidSnapshotNameException(snapshotName, "cannot be empty");
         }
         if (name.contains(" ")) {
-            throw new InvalidSnapshotNameException(snapshotId, "must not contain whitespace");
+            throw new InvalidSnapshotNameException(snapshotName, "must not contain whitespace");
         }
         if (name.contains(",")) {
-            throw new InvalidSnapshotNameException(snapshotId, "must not contain ','");
+            throw new InvalidSnapshotNameException(snapshotName, "must not contain ','");
         }
         if (name.contains("#")) {
-            throw new InvalidSnapshotNameException(snapshotId, "must not contain '#'");
+            throw new InvalidSnapshotNameException(snapshotName, "must not contain '#'");
         }
         if (name.charAt(0) == '_') {
-            throw new InvalidSnapshotNameException(snapshotId, "must not start with '_'");
+            throw new InvalidSnapshotNameException(snapshotName, "must not start with '_'");
         }
         if (!name.toLowerCase(Locale.ROOT).equals(name)) {
-            throw new InvalidSnapshotNameException(snapshotId, "must be lowercase");
+            throw new InvalidSnapshotNameException(snapshotName, "must be lowercase");
         }
         if (!Strings.validFileName(name)) {
-            throw new InvalidSnapshotNameException(snapshotId, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
+            throw new InvalidSnapshotNameException(snapshotName, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
     }
 
@@ -295,7 +296,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     private void beginSnapshot(ClusterState clusterState, final SnapshotsInProgress.Entry snapshot, final boolean partial, final CreateSnapshotListener userCreateSnapshotListener) {
         boolean snapshotCreated = false;
         try {
-            Repository repository = repositoriesService.repository(snapshot.snapshotId().getRepository());
+            Repository repository = repositoriesService.repository(snapshot.snapshotName().getRepository());
 
             MetaData metaData = clusterState.metaData();
             if (!snapshot.includeGlobalState()) {
@@ -315,7 +316,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 endSnapshot(snapshot);
                 return;
             }
-            clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshotId().getSnapshot() + "]", new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshotName() + "]", new ClusterStateUpdateTask() {
                 boolean accepted = false;
                 SnapshotsInProgress.Entry updatedSnapshot;
                 String failure = null;
@@ -325,7 +326,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                     SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                     List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
                     for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
-                        if (entry.snapshotId().equals(snapshot.snapshotId())) {
+                        if (entry.snapshotName().equals(snapshot.snapshotName())) {
                             // Replace the snapshot that was just created
                             ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = shards(currentState, entry.indices());
                             if (!partial) {
@@ -365,13 +366,13 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
                 @Override
                 public void onFailure(String source, Throwable t) {
-                    logger.warn("[{}] failed to create snapshot", t, snapshot.snapshotId());
-                    removeSnapshotFromClusterState(snapshot.snapshotId(), null, t);
+                    logger.warn("[{}] failed to create snapshot", t, snapshot.snapshotName());
+                    removeSnapshotFromClusterState(snapshot.snapshotName(), null, t);
                     try {
-                        repositoriesService.repository(snapshot.snapshotId().getRepository()).finalizeSnapshot(
+                        repositoriesService.repository(snapshot.snapshotName().getRepository()).finalizeSnapshot(
                                 snapshot.snapshotId(), snapshot.indices(), snapshot.startTime(), ExceptionsHelper.detailedMessage(t), 0, Collections.<SnapshotShardFailure>emptyList());
                     } catch (Throwable t2) {
-                        logger.warn("[{}] failed to close snapshot in repository", snapshot.snapshotId());
+                        logger.warn("[{}] failed to close snapshot in repository", snapshot.snapshotName());
                     }
                     userCreateSnapshotListener.onFailure(t);
                 }
@@ -394,14 +395,14 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 }
             });
         } catch (Throwable t) {
-            logger.warn("failed to create snapshot [{}]", t, snapshot.snapshotId());
-            removeSnapshotFromClusterState(snapshot.snapshotId(), null, t);
+            logger.warn("failed to create snapshot [{}]", t, snapshot.snapshotName());
+            removeSnapshotFromClusterState(snapshot.snapshotName(), null, t);
             if (snapshotCreated) {
                 try {
-                    repositoriesService.repository(snapshot.snapshotId().getRepository()).finalizeSnapshot(snapshot.snapshotId(), snapshot.indices(), snapshot.startTime(),
+                    repositoriesService.repository(snapshot.snapshotName().getRepository()).finalizeSnapshot(snapshot.snapshotId(), snapshot.indices(), snapshot.startTime(),
                             ExceptionsHelper.detailedMessage(t), 0, Collections.<SnapshotShardFailure>emptyList());
                 } catch (Throwable t2) {
-                    logger.warn("[{}] failed to close snapshot in repository", snapshot.snapshotId());
+                    logger.warn("[{}] failed to close snapshot in repository", snapshot.snapshotName());
                 }
             }
             userCreateSnapshotListener.onFailure(t);
@@ -409,7 +410,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     }
 
     private Snapshot inProgressSnapshot(SnapshotsInProgress.Entry entry) {
-        return new Snapshot(entry.snapshotId().getSnapshot(), entry.indices(), entry.startTime());
+        return new Snapshot(entry.snapshotId().getName(), entry.snapshotId().getUUID(), entry.indices(), entry.startTime());
     }
 
     /**
@@ -434,12 +435,12 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
             // Most likely scenario - one snapshot is currently running
             // Check this snapshot against the query
             SnapshotsInProgress.Entry entry = snapshotsInProgress.entries().get(0);
-            if (!entry.snapshotId().getRepository().equals(repository)) {
+            if (!entry.snapshotName().getRepository().equals(repository)) {
                 return Collections.emptyList();
             }
             if (snapshots != null && snapshots.length > 0) {
                 for (String snapshot : snapshots) {
-                    if (entry.snapshotId().getSnapshot().equals(snapshot)) {
+                    if (entry.snapshotName().getSnapshot().equals(snapshot)) {
                         return snapshotsInProgress.entries();
                     }
                 }
@@ -450,12 +451,12 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         }
         List<SnapshotsInProgress.Entry> builder = new ArrayList<>();
         for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
-            if (!entry.snapshotId().getRepository().equals(repository)) {
+            if (!entry.snapshotName().getRepository().equals(repository)) {
                 continue;
             }
             if (snapshots != null && snapshots.length > 0) {
                 for (String snapshot : snapshots) {
-                    if (entry.snapshotId().getSnapshot().equals(snapshot)) {
+                    if (entry.snapshotName().getSnapshot().equals(snapshot)) {
                         builder.add(entry);
                         break;
                     }
@@ -470,20 +471,20 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     /**
      * Returns status of shards  currently finished snapshots
      * <p>
-     * This method is executed on master node and it's complimentary to the {@link SnapshotShardsService#currentSnapshotShards(SnapshotId)} because it
+     * This method is executed on master node and it's complimentary to the {@link SnapshotShardsService#currentSnapshotShards(SnapshotName)} because it
      * returns similar information but for already finished snapshots.
      * </p>
      *
-     * @param snapshotId snapshot id
+     * @param snapshotName snapshot id
      * @return map of shard id to snapshot status
      */
-    public Map<ShardId, IndexShardSnapshotStatus> snapshotShards(SnapshotId snapshotId) throws IOException {
-        validate(snapshotId);
+    public Map<ShardId, IndexShardSnapshotStatus> snapshotShards(SnapshotName snapshotName) throws IOException {
+        validate(snapshotName);
         Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
-        Repository repository = repositoriesService.repository(snapshotId.getRepository());
-        IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(snapshotId.getRepository());
-        Snapshot snapshot = repository.readSnapshot(snapshotId);
-        MetaData metaData = repository.readSnapshotMetaData(snapshotId, snapshot, snapshot.indices());
+        Repository repository = repositoriesService.repository(snapshotName.getRepository());
+        IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(snapshotName.getRepository());
+        Snapshot snapshot = repository.readSnapshot(snapshotName);
+        MetaData metaData = repository.readSnapshotMetaData(snapshotName, snapshot, snapshot.indices());
         for (String index : snapshot.indices()) {
             IndexMetaData indexMetaData = metaData.indices().get(index);
             if (indexMetaData != null) {
@@ -497,7 +498,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                         shardSnapshotStatus.failure(shardFailure.reason());
                         shardStatus.put(shardId, shardSnapshotStatus);
                     } else {
-                        IndexShardSnapshotStatus shardSnapshotStatus = indexShardRepository.snapshotStatus(snapshotId, snapshot.version(), shardId);
+                        IndexShardSnapshotStatus shardSnapshotStatus = indexShardRepository.snapshotStatus(snapshotName, snapshot.version(), shardId);
                         shardStatus.put(shardId, shardSnapshotStatus);
                     }
                 }
@@ -582,15 +583,15 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                             entries.add(updatedSnapshot);
                         } else if (snapshot.state() == State.INIT && newMaster) {
                             // Clean up the snapshot that failed to start from the old master
-                            deleteSnapshot(snapshot.snapshotId(), new DeleteSnapshotListener() {
+                            deleteSnapshot(snapshot.snapshotName(), new DeleteSnapshotListener() {
                                 @Override
                                 public void onResponse() {
-                                    logger.debug("cleaned up abandoned snapshot {} in INIT state", snapshot.snapshotId());
+                                    logger.debug("cleaned up abandoned snapshot {} in INIT state", snapshot.snapshotName());
                                 }
 
                                 @Override
                                 public void onFailure(Throwable t) {
-                                    logger.warn("failed to clean up abandoned snapshot {} in INIT state", snapshot.snapshotId());
+                                    logger.warn("failed to clean up abandoned snapshot {} in INIT state", snapshot.snapshotName());
                                 }
                             });
                         } else if (snapshot.state() == State.SUCCESS && newMaster) {
@@ -786,10 +787,10 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new Runnable() {
             @Override
             public void run() {
-                SnapshotId snapshotId = entry.snapshotId();
+                SnapshotName snapshotName = entry.snapshotName();
                 try {
-                    final Repository repository = repositoriesService.repository(snapshotId.getRepository());
-                    logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshotId, entry.state(), failure);
+                    final Repository repository = repositoriesService.repository(snapshotName.getRepository());
+                    logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshotName, entry.state(), failure);
                     ArrayList<ShardSearchFailure> failures = new ArrayList<>();
                     ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
                     for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardStatus : entry.shards()) {
@@ -800,11 +801,11 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                             shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
                         }
                     }
-                    Snapshot snapshot = repository.finalizeSnapshot(snapshotId, entry.indices(), entry.startTime(), failure, entry.shards().size(), Collections.unmodifiableList(shardFailures));
-                    removeSnapshotFromClusterState(snapshotId, new SnapshotInfo(snapshot), null);
+                    Snapshot snapshot = repository.finalizeSnapshot(entry.snapshotId(), entry.indices(), entry.startTime(), failure, entry.shards().size(), Collections.unmodifiableList(shardFailures));
+                    removeSnapshotFromClusterState(snapshotName, new SnapshotInfo(snapshot), null);
                 } catch (Throwable t) {
-                    logger.warn("[{}] failed to finalize snapshot", t, snapshotId);
-                    removeSnapshotFromClusterState(snapshotId, null, t);
+                    logger.warn("[{}] failed to finalize snapshot", t, snapshotName);
+                    removeSnapshotFromClusterState(snapshotName, null, t);
                 }
             }
         });
@@ -813,11 +814,11 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     /**
      * Removes record of running snapshot from cluster state
      *
-     * @param snapshotId snapshot id
+     * @param snapshotName snapshot id
      * @param snapshot   snapshot info if snapshot was successful
      * @param t          exception if snapshot failed
      */
-    private void removeSnapshotFromClusterState(final SnapshotId snapshotId, final SnapshotInfo snapshot, final Throwable t) {
+    private void removeSnapshotFromClusterState(final SnapshotName snapshotName, final SnapshotInfo snapshot, final Throwable t) {
         clusterService.submitStateUpdateTask("remove snapshot metadata", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -826,7 +827,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                     boolean changed = false;
                     ArrayList<SnapshotsInProgress.Entry> entries = new ArrayList<>();
                     for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
-                        if (entry.snapshotId().equals(snapshotId)) {
+                        if (entry.snapshotName().equals(snapshotName)) {
                             changed = true;
                         } else {
                             entries.add(entry);
@@ -842,7 +843,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
             @Override
             public void onFailure(String source, Throwable t) {
-                logger.warn("[{}] failed to remove snapshot metadata", t, snapshotId);
+                logger.warn("[{}] failed to remove snapshot metadata", t, snapshotName);
             }
 
             @Override
@@ -850,9 +851,9 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 for (SnapshotCompletionListener listener : snapshotCompletionListeners) {
                     try {
                         if (snapshot != null) {
-                            listener.onSnapshotCompletion(snapshotId, snapshot);
+                            listener.onSnapshotCompletion(snapshotName, snapshot);
                         } else {
-                            listener.onSnapshotFailure(snapshotId, t);
+                            listener.onSnapshotFailure(snapshotName, t);
                         }
                     } catch (Throwable t) {
                         logger.warn("failed to notify listener [{}]", t, listener);
@@ -868,11 +869,11 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * <p>
      * If the snapshot is still running cancels the snapshot first and then deletes it from the repository.
      *
-     * @param snapshotId snapshot id
+     * @param snapshotName snapshot id
      * @param listener   listener
      */
-    public void deleteSnapshot(final SnapshotId snapshotId, final DeleteSnapshotListener listener) {
-        validate(snapshotId);
+    public void deleteSnapshot(final SnapshotName snapshotName, final DeleteSnapshotListener listener) {
+        validate(snapshotName);
         clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask() {
 
             boolean waitForSnapshot = false;
@@ -884,12 +885,12 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                     // No snapshots running - we can continue
                     return currentState;
                 }
-                SnapshotsInProgress.Entry snapshot = snapshots.snapshot(snapshotId);
+                SnapshotsInProgress.Entry snapshot = snapshots.snapshot(snapshotName);
                 if (snapshot == null) {
                     // This snapshot is not running - continue
                     if (!snapshots.entries().isEmpty()) {
                         // However other snapshots are running - cannot continue
-                        throw new ConcurrentSnapshotExecutionException(snapshotId, "another snapshot is currently running cannot delete");
+                        throw new ConcurrentSnapshotExecutionException(snapshotName, "another snapshot is currently running cannot delete");
                     }
                     return currentState;
                 } else {
@@ -951,26 +952,26 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                     logger.trace("adding snapshot completion listener to wait for deleted snapshot to finish");
                     addListener(new SnapshotCompletionListener() {
                         @Override
-                        public void onSnapshotCompletion(SnapshotId completedSnapshotId, SnapshotInfo snapshot) {
-                            if (completedSnapshotId.equals(snapshotId)) {
+                        public void onSnapshotCompletion(SnapshotName completedSnapshotName, SnapshotInfo snapshot) {
+                            if (completedSnapshotName.equals(snapshotName)) {
                                 logger.trace("deleted snapshot completed - deleting files");
                                 removeListener(this);
-                                deleteSnapshotFromRepository(snapshotId, listener);
+                                deleteSnapshotFromRepository(snapshotName, listener);
                             }
                         }
 
                         @Override
-                        public void onSnapshotFailure(SnapshotId failedSnapshotId, Throwable t) {
-                            if (failedSnapshotId.equals(snapshotId)) {
+                        public void onSnapshotFailure(SnapshotName failedSnapshotName, Throwable t) {
+                            if (failedSnapshotName.equals(snapshotName)) {
                                 logger.trace("deleted snapshot failed - deleting files", t);
                                 removeListener(this);
-                                deleteSnapshotFromRepository(snapshotId, listener);
+                                deleteSnapshotFromRepository(snapshotName, listener);
                             }
                         }
                     });
                 } else {
                     logger.trace("deleted snapshot is not running - deleting files");
-                    deleteSnapshotFromRepository(snapshotId, listener);
+                    deleteSnapshotFromRepository(snapshotName, listener);
                 }
             }
         });
@@ -987,7 +988,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE);
         if (snapshots != null) {
             for (SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
-                if (repository.equals(snapshot.snapshotId().getRepository())) {
+                if (repository.equals(snapshot.snapshotName().getRepository())) {
                     return true;
                 }
             }
@@ -998,16 +999,16 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     /**
      * Deletes snapshot from repository
      *
-     * @param snapshotId snapshot id
+     * @param snapshotName snapshot name
      * @param listener   listener
      */
-    private void deleteSnapshotFromRepository(final SnapshotId snapshotId, final DeleteSnapshotListener listener) {
+    private void deleteSnapshotFromRepository(final SnapshotName snapshotName, final DeleteSnapshotListener listener) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new Runnable() {
             @Override
             public void run() {
                 try {
-                    Repository repository = repositoriesService.repository(snapshotId.getRepository());
-                    repository.deleteSnapshot(snapshotId);
+                    Repository repository = repositoriesService.repository(snapshotName.getRepository());
+                    repository.deleteSnapshot(snapshotName);
                     listener.onResponse();
                 } catch (Throwable t) {
                     listener.onFailure(t);
@@ -1192,9 +1193,9 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
     public static interface SnapshotCompletionListener {
 
-        void onSnapshotCompletion(SnapshotId snapshotId, SnapshotInfo snapshot);
+        void onSnapshotCompletion(SnapshotName snapshotName, SnapshotInfo snapshot);
 
-        void onSnapshotFailure(SnapshotId snapshotId, Throwable t);
+        void onSnapshotFailure(SnapshotName snapshotName, Throwable t);
     }
 
     /**

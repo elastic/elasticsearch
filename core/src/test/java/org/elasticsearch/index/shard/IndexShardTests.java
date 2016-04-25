@@ -46,7 +46,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.RestoreSource;
@@ -93,6 +93,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.FieldMaskingReader;
@@ -1114,7 +1115,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         final ShardRouting origRouting = test_target.getShardOrNull(0).routingEntry();
         ShardRouting routing = new ShardRouting(origRouting);
         ShardRoutingHelper.reinit(routing);
-        routing = ShardRoutingHelper.newWithRestoreSource(routing, new RestoreSource(new SnapshotId("foo", "bar"), Version.CURRENT, "test"));
+        routing = ShardRoutingHelper.newWithRestoreSource(routing, new RestoreSource(new SnapshotName("foo", "bar"), Version.CURRENT, "test"));
         test_target.removeShard(0, "just do it man!");
         final IndexShard test_target_shard = test_target.createShard(routing);
         Store sourceStore = test_shard.store();
@@ -1129,7 +1130,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void restore(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
+            public void restore(SnapshotName snapshotName, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
                 try {
                     cleanLuceneIndex(targetStore.directory());
                     for (String file : sourceStore.directory().listAll()) {
@@ -1144,7 +1145,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId) {
+            public IndexShardSnapshotStatus snapshotStatus(SnapshotName snapshotName, Version version, ShardId shardId) {
                 return null;
             }
 

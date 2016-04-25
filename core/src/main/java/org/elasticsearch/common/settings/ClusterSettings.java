@@ -94,6 +94,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.elasticsearch.tribe.TribeService;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -411,6 +412,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING,
-                    IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING
+                    IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING,
+                    ResourceWatcherService.ENABLED,
+                    ResourceWatcherService.RELOAD_INTERVAL_HIGH,
+                    ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
+                    ResourceWatcherService.RELOAD_INTERVAL_LOW
             )));
 }

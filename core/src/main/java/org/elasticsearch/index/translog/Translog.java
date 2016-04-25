@@ -132,6 +132,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * The last location of any write operation.
      */
+    // NOCOMMIT Decide if we should keep this. We can probably build it synthetically when needed, especially if we're will to relax "size".
     private volatile Location lastWriteLocation;
 
     /**

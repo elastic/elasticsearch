@@ -45,6 +45,7 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
             "node_stats.indices.segments.stored_fields_memory_in_bytes",
             "node_stats.indices.segments.term_vectors_memory_in_bytes",
             "node_stats.indices.segments.norms_memory_in_bytes",
+            "node_stats.indices.segments.points_memory_in_bytes",
             "node_stats.indices.segments.doc_values_memory_in_bytes",
             "node_stats.indices.segments.index_writer_memory_in_bytes",
             "node_stats.indices.segments.version_map_memory_in_bytes",

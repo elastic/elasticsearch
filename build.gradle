@@ -13,17 +13,17 @@ subprojects {
   }
 }
 
-task bundleXPack(type: Zip) {
+task bundlePack(type: Zip) {
   dependsOn 'elasticsearch:x-pack:bundlePlugin'
-  dependsOn 'kibana:npmPackage'
+  dependsOn 'kibana:bundlePlugin'
   from { zipTree(project('elasticsearch:x-pack').bundlePlugin.outputs.files.singleFile) }
-  from { zipTree(project('kibana').npmPackage.outputs.files.singleFile) }
+  from { zipTree(project('kibana').bundlePlugin.outputs.files.singleFile) }
   destinationDir file('build/distributions')
   baseName = 'x-pack'
   version = VersionProperties.elasticsearch
 }
 
-task assemble(dependsOn: bundleXPack) {
+task assemble(dependsOn: bundlePack) {
   group = 'Build'
   description = 'Assembles the outputs of this project.'
 }

@@ -119,7 +119,7 @@ The source `transform` feature has been removed. Instead, use an ingest pipeline
 
 The join between parent and child documents no longer relies on indexed fields
 and therefore from 5.0.0 onwards the `_parent` field is no longer indexed. In
-order to find documents that referrer to a specific parent id the new
+order to find documents that refer to a specific parent id, the new
 `parent_id` query can be used. The GET response and hits inside the search
 response still include the parent id under the `_parent` key.
 

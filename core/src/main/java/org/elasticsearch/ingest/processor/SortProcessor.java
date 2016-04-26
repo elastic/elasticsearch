@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Processor that sorts an array of items.
@@ -89,7 +90,7 @@ public final class SortProcessor extends AbstractProcessor {
     @Override
     @SuppressWarnings("unchecked")
     public void execute(IngestDocument document) {
-        List<?> list = document.getFieldValue(field, List.class);
+        List<? extends Comparable> list = document.getFieldValue(field, List.class);
 
         if (list == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot sort.");
@@ -99,37 +100,12 @@ public final class SortProcessor extends AbstractProcessor {
             return;
         }
 
-        Object first = list.get(0);
-        Comparator comparator;
-
-        // TODO
-        // This all feels awful, is there a better way?  I had to do it this way
-        // so we can chain a .reverse() later, otherwise the intrinsic
-        // .stream().sorted()... would have worked fine
-        if (first instanceof Double) {
-            comparator = Comparator.comparingDouble(d -> (Double)d);
-        } else if (first instanceof Float) {
-            comparator = (Object o1, Object o2) -> ((Float)o1).compareTo((Float)o2);
-        } else if (first instanceof Long) {
-            comparator = Comparator.comparingLong(d -> (Long)d);
-        } else if (first instanceof Integer) {
-            comparator = Comparator.comparingInt(d -> (Integer)d);
-        } else if (first instanceof Number) {
-            // catchall for shorts, bytes, etc.
-            // TODO gross, cleaner way?
-            comparator =
-                (Object o1, Object o2) -> ((Number)o1).intValue() - ((Number)o2).intValue();
-        } else if (first instanceof Boolean) {
-            comparator = (Object o1, Object o2) -> ((Boolean)o1).compareTo((Boolean)o2);
+        if (order.equals(SortOrder.ASCENDING)) {
+            Collections.sort(list);
         } else {
-            comparator = Comparator.comparing(String::valueOf);
+            Collections.sort(list, Collections.reverseOrder());
         }
 
-        if (order.equals(SortOrder.DESCENDING)) {
-            comparator = comparator.reversed();
-        }
-
-        Collections.sort(list, comparator);
         document.setFieldValue(field, list);
     }
 

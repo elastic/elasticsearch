@@ -151,7 +151,7 @@ Index the document we want to percolate:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT "http://localhost:9200/my-index/message/1" -d'
+curl -XPUT "http://localhost:9200/my-index/doctype/1" -d'
 {
   "message" : "A new bonsai tree in the office"
 }'
@@ -163,7 +163,7 @@ Index response:
 --------------------------------------------------
 {
   "_index": "my-index",
-  "_type": "message",
+  "_type": "doctype",
   "_id": "1",
   "_version": 1,
   "_shards": {
@@ -184,9 +184,8 @@ curl -XGET "http://localhost:9200/my-index/_search" -d'
     "query" : {
         "percolate" : {
             "field": "query",
-            "document_type" : "doctype",
             "index" : "my-index",
-            "type" : "message",
+            "type" : "doctype",
             "id" : "1",
             "version" : 1 <1>
         }

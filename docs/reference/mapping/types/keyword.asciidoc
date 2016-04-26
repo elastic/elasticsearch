@@ -33,7 +33,7 @@ PUT my_index
 [[keyword-params]]
 ==== Parameters for keyword fields
 
-The following parameters are accepted by `string` fields:
+The following parameters are accepted by `keyword` fields:
 
 [horizontal]
 

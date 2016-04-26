@@ -310,12 +310,6 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext searchType(SearchType searchType) {
-        this.searchType = searchType;
-        return this;
-    }
-
-    @Override
     public SearchShardTarget shardTarget() {
         return this.shardTarget;
     }

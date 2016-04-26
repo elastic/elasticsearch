@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -83,7 +82,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         @Override
         @SuppressWarnings("unchecked")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().before(Version.V_5_0_0)) {
+            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
                 return new LegacyTokenCountFieldMapper.TypeParser().parse(name, node, parserContext);
             }
             TokenCountFieldMapper.Builder builder = new TokenCountFieldMapper.Builder(name);

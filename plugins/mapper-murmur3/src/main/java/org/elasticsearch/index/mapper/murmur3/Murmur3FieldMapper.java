@@ -89,7 +89,7 @@ public class Murmur3FieldMapper extends FieldMapper {
                 throw new MapperParsingException("Setting [index] cannot be modified for field [" + name + "]");
             }
 
-            if (parserContext.indexVersionCreated().before(Version.V_5_0_0)) {
+            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
                 node.remove("precision_step");
             }
 

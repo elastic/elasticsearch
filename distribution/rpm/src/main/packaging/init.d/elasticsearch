@@ -71,6 +71,11 @@ if [ -n $USER ] && [ -z $ES_USER ] ; then
    ES_USER=$USER
 fi
 
+if [ ! -x "$exec" ]; then
+    echo "The elasticsearch startup script does not exists or it is not executable, tried: $exec"
+    exit 1
+fi
+
 checkJava() {
     if [ -x "$JAVA_HOME/bin/java" ]; then
         JAVA="$JAVA_HOME/bin/java"

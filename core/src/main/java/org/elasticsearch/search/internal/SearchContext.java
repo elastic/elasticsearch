@@ -129,8 +129,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SearchType searchType();
 
-    public abstract SearchContext searchType(SearchType searchType);
-
     public abstract SearchShardTarget shardTarget();
 
     public abstract int numberOfShards();

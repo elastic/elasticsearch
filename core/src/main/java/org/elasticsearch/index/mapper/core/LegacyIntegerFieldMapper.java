@@ -33,13 +33,10 @@ import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -85,7 +82,7 @@ public class LegacyIntegerFieldMapper extends LegacyNumberFieldMapper {
 
         @Override
         public LegacyIntegerFieldMapper build(BuilderContext context) {
-            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0)) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0_alpha2)) {
                 throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
             }
             setupFieldType(context);

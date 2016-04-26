@@ -32,7 +32,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
@@ -116,7 +115,7 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
 
         @Override
         public LegacyDateFieldMapper build(BuilderContext context) {
-            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0)) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0_alpha2)) {
                 throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
             }
             setupFieldType(context);

@@ -136,7 +136,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().before(Version.V_5_0_0)) {
+            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
                 switch (type) {
                 case BYTE:
                     return new LegacyByteFieldMapper.TypeParser().parse(name, node, parserContext);

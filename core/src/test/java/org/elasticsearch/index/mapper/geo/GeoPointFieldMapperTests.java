@@ -429,7 +429,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
 
-        if (version.onOrAfter(Version.V_5_0_0)) {
+        if (version.onOrAfter(Version.V_5_0_0_alpha2)) {
             assertThat(doc.rootDoc().getFields("point.lat").length, equalTo(4));
             assertThat(doc.rootDoc().getFields("point.lon").length, equalTo(4));
 
@@ -538,7 +538,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
 
-        if (version.before(Version.V_5_0_0)) {
+        if (version.before(Version.V_5_0_0_alpha2)) {
             assertThat(doc.rootDoc().getFields("point.lat").length, equalTo(2));
             assertThat(doc.rootDoc().getFields("point.lon").length, equalTo(2));
             assertThat(doc.rootDoc().getFields("point.lat")[0].numericValue().doubleValue(), equalTo(1.2));
@@ -660,7 +660,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
 
-        if (version.before(Version.V_5_0_0)) {
+        if (version.before(Version.V_5_0_0_alpha2)) {
             assertThat(doc.rootDoc().getFields("point.lat").length, equalTo(2));
             assertThat(doc.rootDoc().getFields("point.lon").length, equalTo(2));
             assertThat(doc.rootDoc().getFields("point.lat")[0].numericValue().doubleValue(), equalTo(1.2));

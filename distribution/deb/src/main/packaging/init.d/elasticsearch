@@ -2,13 +2,6 @@
 #
 # /etc/init.d/elasticsearch -- startup script for Elasticsearch
 #
-# Written by Miquel van Smoorenburg <miquels@cistron.nl>.
-# Modified for Debian GNU/Linux	by Ian Murdock <imurdock@gnu.ai.mit.edu>.
-# Modified for Tomcat by Stefan Gybas <sgybas@debian.org>.
-# Modified for Tomcat6 by Thierry Carrez <thierry.carrez@ubuntu.com>.
-# Additional improvements by Jason Brittain <jason.brittain@mulesoft.com>.
-# Modified by Nicolas Huray for Elasticsearch <nicolas.huray@gmail.com>.
-#
 ### BEGIN INIT INFO
 # Provides:          elasticsearch
 # Required-Start:    $network $remote_fs $named
@@ -191,7 +184,6 @@ case "$1" in
   restart|force-reload)
 	if [ -f "$PID_FILE" ]; then
 		$0 stop
-		sleep 1
 	fi
 	$0 start
 	;;

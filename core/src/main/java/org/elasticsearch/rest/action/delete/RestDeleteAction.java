@@ -52,6 +52,7 @@ public class RestDeleteAction extends BaseRestHandler {
         deleteRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
         deleteRequest.timeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
         deleteRequest.refresh(request.paramAsBoolean("refresh", deleteRequest.refresh()));
+        deleteRequest.setBlockUntilRefresh(request.paramAsBoolean("block_until_refresh", deleteRequest.shouldBlockUntilRefresh()));
         deleteRequest.version(RestActions.parseVersion(request));
         deleteRequest.versionType(VersionType.fromString(request.param("version_type"), deleteRequest.versionType()));
 

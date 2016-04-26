@@ -22,6 +22,11 @@
         }
       },
       "params": {
+        "block_until_refresh": {
+          "type" : "boolean",
+          "default": false,
+          "description" : "Do not return from the request until the changes this request makes is visible by search"
+        },
         "consistency": {
           "type" : "enum",
           "options" : ["one", "quorum", "all"],

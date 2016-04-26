@@ -1,0 +1,36 @@
+---
+"block_until_refresh waits until changes are visible in search":
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          body:    { foo: bar }
+          refresh: true
+ - is_true: forced_refresh
+
+ - do:
+      search:
+          index:   test_1
+          type:    test
+          body:
+            query:   { term: { _id: 1 }}
+ - match: { hits.total: 1 }
+
+ - do:
+     update:
+         index:   test_1
+         type:    test
+         id:      1
+         block_until_refresh: true
+         body:
+           doc: { test: asdf }
+ - is_false: forced_refresh
+
+ - do:
+      search:
+          index:   test_1
+          type:    test
+          body:
+            query:   { match: { test: asdf } }
+ - match: { hits.total: 1 }

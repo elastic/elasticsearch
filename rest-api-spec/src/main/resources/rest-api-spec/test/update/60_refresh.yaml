@@ -39,6 +39,7 @@
           body:
             doc:        { foo: baz }
             upsert:     { foo: bar }
+ - is_true: forced_refresh
 
  - do:
       search:

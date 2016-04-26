@@ -143,7 +143,8 @@ public abstract class DocWriteResponse extends ReplicatedMutationResponse implem
         builder.field(Fields._INDEX, shardId.getIndexName())
             .field(Fields._TYPE, type)
             .field(Fields._ID, id)
-            .field(Fields._VERSION, version);
+            .field(Fields._VERSION, version)
+            .field("forced_refresh", forcedRefresh);
         shardInfo.toXContent(builder, params);
         return builder;
     }

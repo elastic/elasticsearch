@@ -189,6 +189,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         } else {
                             update.setGetResult(null);
                         }
+                        update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
                     }
 
@@ -222,6 +223,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     public void onResponse(IndexResponse response) {
                         UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
                         update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
+                        update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
                     }
 
@@ -251,6 +253,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     public void onResponse(DeleteResponse response) {
                         UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), false);
                         update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), null));
+                        update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
                     }
 

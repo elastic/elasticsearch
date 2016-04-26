@@ -32,6 +32,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import com.amazonaws.services.s3.S3ClientOptions;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -154,6 +155,9 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         }
         client = new AmazonS3Client(credentials, clientConfiguration);
 
+        if (settings.getAsBoolean(CLOUD_AWS.PATH_STYLE_ACCESS, false)) {
+            client.setS3ClientOptions(new S3ClientOptions().withPathStyleAccess(true));
+        }
         if (endpoint != null) {
             client.setEndpoint(endpoint);
         }

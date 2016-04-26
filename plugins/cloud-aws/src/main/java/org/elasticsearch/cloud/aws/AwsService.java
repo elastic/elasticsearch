@@ -40,6 +40,7 @@ public interface AwsService {
         public static final String PROXY_PASSWORD = "cloud.aws.proxy.password";
         public static final String SIGNER = "cloud.aws.signer";
         public static final String REGION = "cloud.aws.region";
+        public static final String PATH_STYLE_ACCESS = "cloud.aws.path_style_access";
         @Deprecated
         public static final String DEPRECATED_PROXY_HOST = "cloud.aws.proxy_host";
         @Deprecated

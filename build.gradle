@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.VersionProperties
+
 if (project.projectDir.name != 'x-plugins') {
   throw new GradleException('You must checkout x-plugins in a directory named x-plugins next to elasticsearch')
 }
@@ -11,43 +13,28 @@ subprojects {
   }
 }
 
-/*
-        <repository>
-            <id>elasticsearch-releases</id>
-            <url>http://maven.elasticsearch.org/releases</url>
-            <releases>
-                <enabled>true</enabled>
-                <updatePolicy>daily</updatePolicy>
-            </releases>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-        <repository>
-            <id>elasticsearch-internal-snapshots</id>
-            <url>http://maven.elasticsearch.org/artifactory/internal-snapshots</url>
-            <releases>
-                <enabled>false</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-                <updatePolicy>always</updatePolicy>
-            </snapshots>
-        </repository>
-*/
-
-/*
-subprojects {
-  task artifacts {
-    group = "Help"
-    description = "Displays the artifacts associated with each configuration of " + project
-    doFirst {
-      configurations.findAll().each { config ->
-        println "${config}:"
-        config.allArtifacts.getFiles().each { file -> println "" + file}
-        println ' '
-      }
-    }
-  }
+task bundlePack(type: Zip) {
+  dependsOn 'elasticsearch:x-pack:bundlePlugin'
+  dependsOn 'kibana:bundlePlugin'
+  from { zipTree(project('elasticsearch:x-pack').bundlePlugin.outputs.files.singleFile) }
+  from { zipTree(project('kibana').bundlePlugin.outputs.files.singleFile) }
+  destinationDir file('build/distributions')
+  baseName = 'x-pack'
+  version = VersionProperties.elasticsearch
 }
-*/
+
+task assemble(dependsOn: bundlePack) {
+  group = 'Build'
+  description = 'Assembles the outputs of this project.'
+}
+
+task build(dependsOn: assemble) {
+  group = 'Build'
+  description = 'Assembles and tests this project.'
+}
+
+task clean(type: Delete) {
+  group = 'Build'
+  description = 'Deletes the build directory'
+  delete 'build'
+}

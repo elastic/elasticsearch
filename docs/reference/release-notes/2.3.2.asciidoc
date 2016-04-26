@@ -1,0 +1,59 @@
+[[release-notes-2.3.2]]
+== 2.3.2 Release Notes
+
+Also see <<breaking-changes-2.3>>.
+
+[[deprecation-2.3.2]]
+[float]
+=== Deprecations
+
+REST::
+* Deprecate camelCase usages {pull}17800[#17800] (issue: {issue}8988[#8988])
+
+Search::
+* Deprecate sort option reverse. {pull}17378[#17378] (issue: {issue}17047[#17047])
+
+Settings::
+* Deprecate camelCase settings magic {pull}17875[#17875] (issue: {issue}8988[#8988])
+
+
+
+[[enhancement-2.3.2]]
+[float]
+=== Enhancements
+
+Analysis::
+* Analyze API : Fix/deprecated filters in analyze in 2x {pull}17844[#17844] (issue: {issue}15189[#15189])
+
+
+
+[[bug-2.3.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Aggregations: Adds serialisation of sigma to extended_stats_bucket pipeline aggregation {pull}17703[#17703] (issue: {issue}17701[#17701])
+* ExtendedStatsAggregator should also pass sigma to emtpy aggs. {pull}17388[#17388] (issue: {issue}17362[#17362])
+
+Allocation::
+* Rebalancing policy shouldn't prevent hard allocation decisions {pull}17698[#17698] (issues: {issue}14057[#14057], {issue}14259[#14259])
+* When considering the size of shadow replica shards, set size to 0 {pull}17509[#17509] (issue: {issue}17460[#17460])
+
+Logging::
+* Add missing index name to search slow log. {pull}17818[#17818] (issue: {issue}17025[#17025])
+
+Mapping::
+* Fail if an object is added after a field with the same name. {pull}17568[#17568] (issue: {issue}17567[#17567])
+
+More Like This::
+* Alias items are not ignored anymore {pull}17204[#17204] (issue: {issue}14944[#14944])
+
+REST::
+* Fixes reading of CORS pre-flight headers and methods {pull}17524[#17524] (issue: {issue}17523[#17523])
+* index is a required url part for update by query {pull}17503[#17503]
+
+Recovery::
+* Backports Notify GatewayRecoveryListener on failure {pull}17805[#17805]
+
+Snapshot/Restore::
+* On restore, selecting concrete indices can select wrong index {pull}17715[#17715]

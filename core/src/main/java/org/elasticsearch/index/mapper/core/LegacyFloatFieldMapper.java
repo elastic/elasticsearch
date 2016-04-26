@@ -166,17 +166,16 @@ public class LegacyFloatFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public FieldStats stats(IndexReader reader) throws IOException {
+        public FieldStats.Double stats(IndexReader reader) throws IOException {
             int maxDoc = reader.maxDoc();
             Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
             if (terms == null) {
-                return null;
+                return new FieldStats.Double(maxDoc, isSearchable(), isAggregatable());
             }
             float minValue = NumericUtils.sortableIntToFloat(LegacyNumericUtils.getMinInt(terms));
             float maxValue = NumericUtils.sortableIntToFloat(LegacyNumericUtils.getMaxInt(terms));
-            return new FieldStats.Double(
-                maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
-            );
+            return new FieldStats.Double(maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(),
+                isSearchable(), isAggregatable(), minValue, maxValue);
         }
 
         @Override

@@ -1176,7 +1176,7 @@ public abstract class Engine implements Closeable {
      */
     public static interface RefreshListener {
         /**
-         * The location to wait for.
+         * The location to wait for. Must not return null and should be fast.
          */
         Translog.Location location();
 

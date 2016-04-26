@@ -89,8 +89,8 @@ public abstract class TransportReplicatedMutationAction<
 
                 @Override
                 public void refreshed(boolean forcedRefresh) {
-                    logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
                     if (forcedRefresh) {
+                        logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
                         result.response.setForcedRefresh(true);
                     }
                     listener.onResponse(result.response);
@@ -110,7 +110,7 @@ public abstract class TransportReplicatedMutationAction<
         IndexShard indexShard = indexService.getShard(shardId.id());
         Translog.Location location = onReplicaShard(request, indexShard);
         processAfterWrite(request.refresh(), indexShard, location);
-        if (request.shouldBlockUntilRefresh() && false == request.refresh()) {
+        if (request.shouldBlockUntilRefresh() && false == request.refresh() && location != null) {
             indexShard.addRefreshListener(new RefreshListener() {
                 @Override
                 public Location location() {

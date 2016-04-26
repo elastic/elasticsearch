@@ -2259,6 +2259,38 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
+    /**
+     * It is possible that {@link Engine#addRefreshListener(RefreshListener)} can miss the call to refresh that made the change visible if
+     * the refresh happens concurrently with the the add.
+     */
+    public void testAddRefreshListenerConcurrentRefresh() throws Exception {
+        try (Store store = createStore();
+                Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)) {
+            AtomicBoolean run = new AtomicBoolean(true);
+            Thread refresher = new Thread(() -> {
+                while (run.get()) {
+                    engine.refresh("test");
+                }
+            });
+            refresher.start();
+            try {
+                for (int i = 0; i < 100; i++) {
+                    ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+                    Engine.Index index = new Engine.Index(newUid("1"), doc);
+                    engine.index(index);
+
+                    DummyRefreshListener listener = new DummyRefreshListener(index.getTranslogLocation());
+                    engine.addRefreshListener(listener);
+                    assertBusy(() -> assertNotNull(listener.forcedRefresh.get()));
+                    assertFalse(listener.forcedRefresh.get());
+                }
+            } finally {
+                run.set(false);
+                refresher.join();
+            }
+        }
+    }
+
     private static class DummyRefreshListener implements RefreshListener {
         private final Translog.Location location;
         /**

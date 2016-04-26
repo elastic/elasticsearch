@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -113,7 +114,21 @@ public class BlockUntilRefreshIT extends ESIntegTestCase {
         assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
     }
 
-    // TODO add a test for -1 refresh_interval. Use an explicit refresh to trigger the listener. It might get triggered before - that is ok
+    /**
+     * Tests that an explicit request makes block_until_refresh return. It doesn't check that block_until_refresh doesn't return until the
+     * explicit refresh if the interval is -1 because we don't have that kind of control over refresh. It can happen all on its own.
+     */
+    public void testNoRefreshInterval() throws InterruptedException, ExecutionException {
+        client().admin().indices().prepareCreate("test").setSettings("index.refresh_interval", -1).get();
+        ListenableActionFuture<IndexResponse> index = client().prepareIndex("test", "index", "1").setSource("foo", "bar")
+                .setBlockUntilRefresh(true).execute();
+        while (false == index.isDone()) {
+            client().admin().indices().prepareRefresh("test").get();
+        }
+        assertEquals(RestStatus.CREATED, index.get().status());
+        assertFalse("request shouldn't have forced a refresh", index.get().forcedRefresh());
+        assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
+    }
 
     private void assertBulkSuccess(BulkResponse response) {
         assertNoFailures(response);

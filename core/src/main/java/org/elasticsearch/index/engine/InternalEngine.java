@@ -121,7 +121,7 @@ public class InternalEngine extends Engine {
     private final EngineConfig.OpenMode openMode;
     private final AtomicBoolean allowCommits = new AtomicBoolean(true);
     /**
-     * Refresh listeners. Uses a LinkedList because we frequently remove items from the front of it.
+     * Refresh listeners. While they are not stored in sorted order they are processed as though they are.
      */
     private final LinkedTransferQueue<RefreshListener> refreshListeners = new LinkedTransferQueue<>();
     /**
@@ -548,14 +548,14 @@ public class InternalEngine extends Engine {
     @Override
     public void addRefreshListener(RefreshListener listener) {
         requireNonNull(listener, "listener cannot be null");
+        Translog.Location listenerLocation = requireNonNull(listener.location(), "listener's location cannot be null");
 
         Translog.Location lastRefresh = lastRefreshedLocation;
-        if (lastRefresh != null && lastRefresh.compareTo(listener.location()) >= 0) {
+        if (lastRefresh != null && lastRefresh.compareTo(listenerLocation) >= 0) {
             // Location already visible, just call the listener
             listener.refreshed(false);
             return;
         }
-        // NOCOMMIT size is slow here
         if (refreshListenersEstimatedSize < engineConfig.getIndexSettings().getMaxRefreshListeners()) {
             // We have a free slot so register the listener
             refreshListeners.add(listener);
@@ -1190,10 +1190,7 @@ public class InternalEngine extends Engine {
 
         @Override
         public void afterRefresh(boolean didRefresh) throws IOException {
-            if (false == didRefresh) {
-                // We didn't refresh so we shouldn't alert anyone to anything.
-                return;
-            }
+            // This intentionally ignores didRefresh so a refresh call over the API can force rechecking the refreshListeners.
             if (null == currentRefreshLocation) {
                 /*
                  * The translog had an empty last write location at the start of the refresh so we can't alert anyone to anything. This

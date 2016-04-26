@@ -20,7 +20,9 @@
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
@@ -53,6 +55,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -60,6 +63,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The {@code TransportClusterAllocationExplainAction} is responsible for actually executing the explanation of a shard's allocation on the
@@ -126,6 +130,68 @@ public class TransportClusterAllocationExplainAction
     }
 
     /**
+     * Construct a {@code NodeExplanation} object for the given shard given all the metadata. This also attempts to construct the human
+     * readable FinalDecision and final explanation as part of the explanation.
+     */
+    public static NodeExplanation calculateNodeExplanation(ShardRouting shard,
+                                                           IndexMetaData indexMetaData,
+                                                           DiscoveryNode node,
+                                                           Decision nodeDecision,
+                                                           Float nodeWeight,
+                                                           IndicesShardStoresResponse.StoreStatus storeStatus,
+                                                           String assignedNodeId,
+                                                           Set<String> activeAllocationIds) {
+        ClusterAllocationExplanation.FinalDecision finalDecision;
+        ClusterAllocationExplanation.StoreCopy storeCopy;
+        String finalExplanation;
+
+        if (node.getId().equals(assignedNodeId)) {
+            finalDecision = ClusterAllocationExplanation.FinalDecision.ALREADY_ASSIGNED;
+            finalExplanation = "the shard is already assigned to this node";
+        } else if (nodeDecision.type() == Decision.Type.NO) {
+            finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
+            finalExplanation = "the shard cannot be assigned because one or more allocation decider returns a 'NO' decision";
+        } else {
+            finalDecision = ClusterAllocationExplanation.FinalDecision.YES;
+            finalExplanation = "the shard can be assigned";
+        }
+
+        if (storeStatus != null) {
+            final Throwable storeErr = storeStatus.getStoreException();
+            // The store error only influences the decision if the shard is primary and has not been allocated before
+            if (storeErr != null && shard.primary() && shard.allocatedPostIndexCreate(indexMetaData) == false) {
+                finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
+                if (ExceptionsHelper.unwrapCause(storeErr) instanceof CorruptIndexException) {
+                    storeCopy = ClusterAllocationExplanation.StoreCopy.CORRUPT;
+                    finalExplanation = "the copy of data in the shard store is corrupt";
+                } else {
+                    storeCopy = ClusterAllocationExplanation.StoreCopy.IO_ERROR;
+                    finalExplanation = "there was an IO error reading from data in the shard store";
+                }
+            } else if (activeAllocationIds.isEmpty()) {
+                // The ids are only empty if dealing with a legacy index
+                // TODO: fetch the shard state versions and display here?
+                storeCopy = ClusterAllocationExplanation.StoreCopy.UNKNOWN;
+            } else if (activeAllocationIds.contains(storeStatus.getAllocationId())) {
+                storeCopy = ClusterAllocationExplanation.StoreCopy.AVAILABLE;
+                if (finalDecision == ClusterAllocationExplanation.FinalDecision.YES) {
+                    finalExplanation = "the shard can be assigned and the node contains a valid copy of the shard data";
+                }
+            } else {
+                // Otherwise, this is a stale copy of the data (allocation ids don't match)
+                storeCopy = ClusterAllocationExplanation.StoreCopy.STALE;
+                finalExplanation = "the copy of the shard is stale, allocation ids do not match";
+                finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
+            }
+        } else {
+            // No copies of the data, so deciders are what influence the decision and explanation
+            storeCopy = ClusterAllocationExplanation.StoreCopy.NONE;
+        }
+        return new NodeExplanation(node, nodeDecision, nodeWeight, storeStatus, finalDecision, finalExplanation, storeCopy);
+    }
+
+
+    /**
      * For the given {@code ShardRouting}, return the explanation of the allocation for that shard on all nodes. If {@code
      * includeYesDecisions} is true, returns all decisions, otherwise returns only 'NO' and 'THROTTLE' decisions.
      */
@@ -147,16 +213,35 @@ public class TransportClusterAllocationExplainAction
                 nodeToDecision.put(discoNode, d);
             }
         }
-        long remainingDelayNanos = 0;
+        long remainingDelayMillis = 0;
         final MetaData metadata = allocation.metaData();
         final IndexMetaData indexMetaData = metadata.index(shard.index());
         if (ui != null) {
             final Settings indexSettings = indexMetaData.getSettings();
-            remainingDelayNanos = ui.getRemainingDelay(System.nanoTime(), metadata.settings(), indexSettings);
+            long remainingDelayNanos = ui.getRemainingDelay(System.nanoTime(), metadata.settings(), indexSettings);
+            remainingDelayMillis = TimeValue.timeValueNanos(remainingDelayNanos).millis();
         }
-        return new ClusterAllocationExplanation(shard.shardId(), shard.primary(), shard.currentNodeId(), ui, nodeToDecision,
-                shardAllocator.weighShard(allocation, shard), remainingDelayNanos, shardStores,
-                indexMetaData.activeAllocationIds(shard.getId()));
+
+        // Calculate weights for each of the nodes
+        Map<DiscoveryNode, Float> weights = shardAllocator.weighShard(allocation, shard);
+
+        Map<DiscoveryNode, IndicesShardStoresResponse.StoreStatus> nodeToStatus = new HashMap<>(shardStores.size());
+        for (IndicesShardStoresResponse.StoreStatus status : shardStores) {
+            nodeToStatus.put(status.getNode(), status);
+        }
+
+        Map<DiscoveryNode, NodeExplanation> explanations = new HashMap<>(shardStores.size());
+        for (Map.Entry<DiscoveryNode, Decision> entry : nodeToDecision.entrySet()) {
+            DiscoveryNode node = entry.getKey();
+            Decision decision = entry.getValue();
+            Float weight = weights.get(node);
+            IndicesShardStoresResponse.StoreStatus storeStatus = nodeToStatus.get(node);
+            NodeExplanation nodeExplanation = calculateNodeExplanation(shard, indexMetaData, node, decision, weight,
+                    storeStatus, shard.currentNodeId(), indexMetaData.activeAllocationIds(shard.getId()));
+            explanations.put(node, nodeExplanation);
+        }
+        return new ClusterAllocationExplanation(shard.shardId(), shard.primary(),
+                shard.currentNodeId(), remainingDelayMillis, ui, explanations);
     }
 
     @Override

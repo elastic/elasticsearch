@@ -59,7 +59,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
         final int expectedSize;
         if (sizeBasedOnNumberOfProcessors < min || randomBoolean()) {
-            expectedSize = randomIntBetween(min + 1, 16);
+            expectedSize = randomIntBetween(min, 16);
             builder.put("threadpool." + threadPoolName + ".size", expectedSize);
         }  else {
             expectedSize = sizeBasedOnNumberOfProcessors;
@@ -188,12 +188,12 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
         runScalingThreadPoolTest(Settings.EMPTY, (clusterSettings, threadPool) -> {
             final Executor beforeExecutor = threadPool.executor(threadPoolName);
-            final int size = randomIntBetween(128, 512);
+            int expectedMin = "generic".equals(threadPoolName) ? 4 : 1;
+            final int size = randomIntBetween(expectedMin, Integer.MAX_VALUE);
             clusterSettings.applySettings(settings("threadpool." + threadPoolName + ".size", size));
             final Executor afterExecutor = threadPool.executor(threadPoolName);
             assertSame(beforeExecutor, afterExecutor);
             final ThreadPool.Info info = info(threadPool, threadPoolName);
-            int expectedMin = "generic".equals(threadPoolName) ? 4 : 1;
             assertThat(info.getMin(), equalTo(expectedMin));
             assertThat(info.getMax(), equalTo(size));
 

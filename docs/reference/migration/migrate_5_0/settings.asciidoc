@@ -156,8 +156,8 @@ The deprecated settings `index.cache.query.enable` and
 `indices.cache.query.size` have been removed and are replaced with
 `index.requests.cache.enable` and `indices.requests.cache.size` respectively.
 
-`indices.requests.cache.clean_interval has been replaced with
-`indices.cache.clean_interval and is no longer supported.
+`indices.requests.cache.clean_interval` has been replaced with
+`indices.cache.clean_interval` and is no longer supported.
 
 ==== Field Data Cache Settings
 

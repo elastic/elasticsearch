@@ -416,7 +416,12 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
                 dateParser = this.dateMathParser;
             }
 
-            if (PointValues.size(reader, name()) == 0) {
+            try {
+                if (PointValues.size(reader, name()) == 0) {
+                    // no points, so nothing matches
+                    return Relation.DISJOINT;
+                }
+            } catch (Exception e) {
                 // no points, so nothing matches
                 return Relation.DISJOINT;
             }

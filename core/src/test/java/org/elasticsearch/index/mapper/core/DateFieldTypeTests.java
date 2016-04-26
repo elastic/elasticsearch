@@ -113,6 +113,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         doTestIsFieldWithinQuery(ft, reader, null, alternateFormat);
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, null);
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, alternateFormat);
+
+        // Fields with no value indexed.
+        DateFieldType ft2 = new DateFieldType();
+        ft2.setName("my_date2");
+        assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02",
+            false, false, null, null));
         IOUtils.close(reader, w, dir);
     }
 

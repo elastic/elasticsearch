@@ -40,12 +40,9 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.core.LegacyDateFieldMapper;
-import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.LegacyFloatFieldMapper;
-import org.elasticsearch.index.mapper.core.LegacyIntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.core.TextFieldMapper.TextFieldType;
@@ -639,7 +636,7 @@ final class DocumentParser {
     }
 
     private static Mapper.Builder<?, ?> newLongBuilder(String name, Version indexCreated) {
-        if (indexCreated.onOrAfter(Version.V_5_0_0)) {
+        if (indexCreated.onOrAfter(Version.V_5_0_0_alpha2)) {
             return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG);
         } else {
             return new LegacyLongFieldMapper.Builder(name);
@@ -647,7 +644,7 @@ final class DocumentParser {
     }
 
     private static Mapper.Builder<?, ?> newFloatBuilder(String name, Version indexCreated) {
-        if (indexCreated.onOrAfter(Version.V_5_0_0)) {
+        if (indexCreated.onOrAfter(Version.V_5_0_0_alpha2)) {
             return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);
         } else {
             return new LegacyFloatFieldMapper.Builder(name);
@@ -655,7 +652,7 @@ final class DocumentParser {
     }
 
     private static Mapper.Builder<?, ?> newDateBuilder(String name, FormatDateTimeFormatter dateTimeFormatter, Version indexCreated) {
-        if (indexCreated.onOrAfter(Version.V_5_0_0)) {
+        if (indexCreated.onOrAfter(Version.V_5_0_0_alpha2)) {
             DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
             if (dateTimeFormatter != null) {
                 builder.dateTimeFormatter(dateTimeFormatter);

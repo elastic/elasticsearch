@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.ip;
 
-import org.apache.lucene.analysis.LegacyNumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
@@ -33,7 +32,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.Cidrs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
@@ -122,7 +120,7 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
 
         @Override
         public LegacyIpFieldMapper build(BuilderContext context) {
-            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0)) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0_alpha2)) {
                 throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
             }
             setupFieldType(context);

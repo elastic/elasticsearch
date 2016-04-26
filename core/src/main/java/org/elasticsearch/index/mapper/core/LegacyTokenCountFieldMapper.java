@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -75,7 +74,7 @@ public class LegacyTokenCountFieldMapper extends LegacyIntegerFieldMapper {
 
         @Override
         public LegacyTokenCountFieldMapper build(BuilderContext context) {
-            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0)) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0_alpha2)) {
                 throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
             }
             setupFieldType(context);

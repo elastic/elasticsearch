@@ -48,14 +48,12 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.LegacyNumberFieldMapper.Defaults;
 import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.mapper.ip.LegacyIpFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -105,7 +103,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
 
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().before(Version.V_5_0_0)) {
+            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
                 return new LegacyIpFieldMapper.TypeParser().parse(name, node, parserContext);
             }
             Builder builder = new Builder(name);

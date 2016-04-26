@@ -139,7 +139,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
 
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().before(Version.V_5_0_0)) {
+            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
                 return new LegacyDateFieldMapper.TypeParser().parse(name, node, parserContext);
             }
             Builder builder = new Builder(name);

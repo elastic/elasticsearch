@@ -12,7 +12,7 @@ your application to Elasticsearch 2.3.
 ==== CORS support broken in 2.3.0 and 2.3.1
 
 A change to the CORS implementation means that CORS support for pre-flight
-`OPTIONS` requests is broken in 2.3.0 and 2.3.1.  This will be fixed in 2.3.2.
+`OPTIONS` requests is broken in 2.3.0 and 2.3.1.  This is fixed in 2.3.2.
 
 [[breaking_23_index_apis]]
 [float]

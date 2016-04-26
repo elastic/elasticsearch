@@ -78,15 +78,15 @@ public final class Settings implements ToXContent {
         return settingsRequireUnits;
     }
 
-    private ImmutableMap<String, String> settings;
-    private final ImmutableMap<String, String> forcedUnderscoreSettings;
+    private ImmutableMap<String, Setting> settings;
+    private final ImmutableMap<String, Setting> forcedUnderscoreSettings;
 
     Settings(Map<String, String> settings) {
         // we use a sorted map for consistent serialization when using getAsMap()
         // TODO: use Collections.unmodifiableMap with a TreeMap
-        this.settings = ImmutableSortedMap.copyOf(settings);
-        Map<String, String> forcedUnderscoreSettings = null;
-        for (Map.Entry<String, String> entry : settings.entrySet()) {
+        this.settings = ImmutableSortedMap.copyOf(convertToSettingSettings(settings));
+        Map<String, Setting> forcedUnderscoreSettings = null;
+        for (Map.Entry<String, Setting> entry : this.settings.entrySet()) {
             String toUnderscoreCase = Strings.toUnderscoreCase(entry.getKey());
             if (!toUnderscoreCase.equals(entry.getKey())) {
                 if (forcedUnderscoreSettings == null) {
@@ -95,15 +95,42 @@ public final class Settings implements ToXContent {
                 forcedUnderscoreSettings.put(toUnderscoreCase, entry.getValue());
             }
         }
-        this.forcedUnderscoreSettings = forcedUnderscoreSettings == null ? ImmutableMap.<String, String>of() : ImmutableMap.copyOf(forcedUnderscoreSettings);
+        this.forcedUnderscoreSettings = forcedUnderscoreSettings == null ? ImmutableMap.<String, Setting>of() : ImmutableMap.copyOf(forcedUnderscoreSettings);
     }
+
+    /**
+     * The settings as a map of String.
+     * @return an map of String valued settings
+     */
+    private Map<String, String> convertToStringSettings(Map<String, Setting> settings) {
+        Map<String, String> stringSettings = new HashMap<>();
+        for (Map.Entry<String, Setting> entry : settings.entrySet()) {
+            stringSettings.put(entry.getKey(), entry.getValue().get());
+        }
+        return stringSettings;
+    }
+
+
+    /**
+     * The settings as a map of Setting; this type of Map can handle
+     * null values.
+     * @return an map of {@link org.elasticsearch.common.settings.Setting} valued settings
+     */
+    private Map<String, Setting> convertToSettingSettings(Map<String, String> settings) {
+        Map<String, Setting> settingSettings = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : settings.entrySet()) {
+            settingSettings.put(entry.getKey(), new Setting(entry.getValue()));
+        }
+        return settingSettings;
+    }
+
 
     /**
      * The settings as a flat {@link java.util.Map}.
      * @return an unmodifiable map of settings
      */
     public Map<String, String> getAsMap() {
-        return Collections.unmodifiableMap(this.settings);
+        return Collections.unmodifiableMap(convertToStringSettings(this.settings));
     }
 
     /**
@@ -111,7 +138,7 @@ public final class Settings implements ToXContent {
      */
     public Map<String, Object> getAsStructuredMap() {
         Map<String, Object> map = Maps.newHashMapWithExpectedSize(2);
-        for (Map.Entry<String, String> entry : settings.entrySet()) {
+        for (Map.Entry<String, Setting> entry : settings.entrySet()) {
             processSetting(map, "", entry.getKey(), entry.getValue());
         }
         for (Map.Entry<String, Object> entry : map.entrySet()) {
@@ -124,7 +151,7 @@ public final class Settings implements ToXContent {
         return map;
     }
 
-    private void processSetting(Map<String, Object> map, String prefix, String setting, String value) {
+    private void processSetting(Map<String, Object> map, String prefix, String setting, Setting value) {
         int prefixLength = setting.indexOf('.');
         if (prefixLength == -1) {
             @SuppressWarnings("unchecked") Map<String, Object> innerMap = (Map<String, Object>) map.get(prefix + setting);
@@ -134,12 +161,12 @@ public final class Settings implements ToXContent {
                     map.put(prefix + setting + "." + entry.getKey(), entry.getValue());
                 }
             }
-            map.put(prefix + setting, value);
+            map.put(prefix + setting, value.get());
         } else {
             String key = setting.substring(0, prefixLength);
             String rest = setting.substring(prefixLength + 1);
             Object existingValue = map.get(prefix + key);
-            if (existingValue == null) {
+            if (Setting.isNullValue(existingValue)) {
                 Map<String, Object> newMap = Maps.newHashMapWithExpectedSize(2);
                 processSetting(newMap, "", rest, value);
                 map.put(key, newMap);
@@ -229,11 +256,19 @@ public final class Settings implements ToXContent {
      * @return The setting value, <tt>null</tt> if it does not exists.
      */
     public String get(String setting) {
-        String retVal = settings.get(setting);
-        if (retVal != null) {
-            return retVal;
+        Setting entryVal = settings.get(setting);
+
+        if (!Setting.isNullValue(entryVal)) {
+            return entryVal.get();
         }
-        return forcedUnderscoreSettings.get(setting);
+
+        entryVal = forcedUnderscoreSettings.get(setting);
+
+        if (!Setting.isNullValue(entryVal)) {
+            return entryVal.get();
+        }
+
+        return null;
     }
 
     /**
@@ -670,8 +705,8 @@ public final class Settings implements ToXContent {
      */
     public String toDelimitedString(char delimiter) {
         StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, String> entry : settings.entrySet()) {
-            sb.append(entry.getKey()).append("=").append(entry.getValue()).append(delimiter);
+        for (Map.Entry<String, Setting> entry : settings.entrySet()) {
+            sb.append(entry.getKey()).append("=").append(entry.getValue().get()).append(delimiter);
         }
         return sb.toString();
     }
@@ -762,6 +797,36 @@ public final class Settings implements ToXContent {
         }
 
         /**
+         * Removes all the keys with the specified prefix from the internal map holding the current list of settings.
+         */
+        public Integer removePrefix(String keyPrefix) {
+            Integer removed = 0;
+            Iterator<Map.Entry<String,String>> mapIterator = map.entrySet().iterator();
+            while (mapIterator.hasNext()) {
+                Map.Entry<String,String> mapEntry = mapIterator.next();
+                String key = mapEntry.getKey();
+                if ( key.indexOf(keyPrefix + ".") == 0 || key.equals(keyPrefix) ) {
+                    mapIterator.remove();
+                    removed++;
+                }
+            }
+            return removed;
+        }
+
+        /**
+         * Returns true if the map contains the key or keys with that prefix.
+         *
+         */
+        public Boolean keyExists(String keyPrefix) {
+            for (String key : map.keySet()) {
+                if (key.indexOf(keyPrefix + ".") == 0 || key.equals(keyPrefix)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
          * Returns a setting value based on the setting key.
          */
         public String get(String key) {
@@ -802,14 +867,21 @@ public final class Settings implements ToXContent {
         }
 
         /**
-         * Sets a setting with the provided setting key and value.
+         * Sets a setting with the provided setting key and value. If the value
+         * is null and a value for the key existed, the value will be removed.
          *
          * @param key   The setting key
          * @param value The setting value
          * @return The builder
          */
         public Builder put(String key, String value) {
-            map.put(key, value);
+            if (value == null && keyExists(key)) {
+                // Remove this value and all the
+                // keys below it.
+                removePrefix(key);
+            } else {
+                map.put(key, value);
+            }
             return this;
         }
 
@@ -973,21 +1045,37 @@ public final class Settings implements ToXContent {
         }
 
         /**
-         * Sets all the provided settings.
+         * This will merge the settings passed to it with the existing ones
+         * with the following criteria: if a setting did not exist, add it;
+         * if a setting existed do one of two things: if the value is not null
+         * replace the old value with the new one, it the new value is null
+         * remove the setting - and all the sub-keys.
          */
-        public Builder put(Settings settings) {
-            removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings.getAsMap());
-            map.putAll(settings.getAsMap());
+        public Builder mergeSettings(Map<String, String> settings) {
+            for (String key : settings.keySet()) {
+                if (keyExists(key) && settings.get(key) == null) {
+                    removePrefix(key);
+                } else {
+                    map.put(key, settings.get(key));
+                }
+            }
             return this;
         }
 
         /**
          * Sets all the provided settings.
          */
+        public Builder put(Settings settings) {
+            return put(settings.getAsMap());
+        }
+
+
+        /**
+         * Sets all the provided settings.
+         */
         public Builder put(Map<String, String> settings) {
             removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings);
-            map.putAll(settings);
-            return this;
+            return mergeSettings(settings);
         }
 
         /**
@@ -1006,7 +1094,7 @@ public final class Settings implements ToXContent {
                 final Matcher matcher = ARRAY_PATTERN.matcher(entry.getKey());
                 if (matcher.matches()) {
                     prefixesToRemove.add(matcher.group(1));
-                } else if (Iterables.any(map.keySet(), startsWith(entry.getKey() + "."))) {
+                } else if (Iterables.any(map.keySet(), startsWith(entry.getKey() + ".")) && settings.get(entry.getKey()) != null) {
                     prefixesToRemove.add(entry.getKey());
                 }
             }

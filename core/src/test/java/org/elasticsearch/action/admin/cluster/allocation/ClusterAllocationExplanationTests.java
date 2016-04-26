@@ -23,14 +23,19 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -48,6 +53,46 @@ import static java.util.Collections.emptySet;
  * Tests for the cluster allocation explanation
  */
 public final class ClusterAllocationExplanationTests extends ESTestCase {
+
+    private NodeExplanation makeNodeExplanation(String idxName, boolean isAssigned) {
+        Index i = new Index(idxName, "uuid");
+        ShardRouting shard = ShardRouting.newUnassigned(i, 0, null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        IndexMetaData indexMetaData = IndexMetaData.builder(idxName)
+                .settings(Settings.builder()
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetaData.SETTING_INDEX_UUID, "uuid"))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+        DiscoveryNode node = new DiscoveryNode("node-0", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        Decision.Multi d = new Decision.Multi();
+        d.add(Decision.single(Decision.Type.NO, "no label", "because I said no"));
+        d.add(Decision.single(Decision.Type.YES, "yes label", "yes please"));
+        d.add(Decision.single(Decision.Type.THROTTLE, "throttle label", "wait a sec"));
+        Float nodeWeight = randomFloat();
+        IndicesShardStoresResponse.StoreStatus storeStatus = new IndicesShardStoresResponse.StoreStatus(node, 42, "eggplant",
+                IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY, new ElasticsearchException("stuff's broke, yo"));
+        String assignedNodeId = "node-0";
+        Set<String> activeAllocationIds = new HashSet<>();
+        if (isAssigned) {
+            activeAllocationIds.add("eggplant");
+        }
+
+        return TransportClusterAllocationExplainAction.calculateNodeExplanation(shard, indexMetaData, node, d, nodeWeight,
+                storeStatus, assignedNodeId, activeAllocationIds);
+    }
+    
+    public void testDecisionAndExplanation() {
+        NodeExplanation ne = makeNodeExplanation("foo", true);
+        assertEquals("the shard is already assigned to this node", ne.getFinalExplanation());
+        assertEquals(ClusterAllocationExplanation.FinalDecision.ALREADY_ASSIGNED, ne.getFinalDecision());
+        assertEquals(ClusterAllocationExplanation.StoreCopy.AVAILABLE, ne.getStoreCopy());
+
+        ne = makeNodeExplanation("foo", false);
+        assertEquals("the shard is already assigned to this node", ne.getFinalExplanation());
+        assertEquals(ClusterAllocationExplanation.FinalDecision.ALREADY_ASSIGNED, ne.getFinalDecision());
+        assertEquals(ClusterAllocationExplanation.StoreCopy.UNKNOWN, ne.getStoreCopy());
+    }
 
     public void testDecisionEquality() {
         Decision.Multi d = new Decision.Multi();
@@ -76,15 +121,11 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         }
 
         long remainingDelay = randomIntBetween(0, 500);
-        DiscoveryNode nodeWithStore = new DiscoveryNode("node-1", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
-        IndicesShardStoresResponse.StoreStatus storeStatus = new IndicesShardStoresResponse.StoreStatus(nodeWithStore, 42, "eggplant",
-                IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY, new ElasticsearchException("stuff's broke, yo"));
-        List<IndicesShardStoresResponse.StoreStatus> storeStatusList = Collections.singletonList(storeStatus);
-        Set<String> allocationIds = new HashSet<>();
-        allocationIds.add("eggplant");
-        allocationIds.add("potato");
-        ClusterAllocationExplanation cae = new ClusterAllocationExplanation(shard, true, "assignedNode", null,
-                nodeToDecisions, nodeToWeight, remainingDelay, storeStatusList, allocationIds);
+        Map<DiscoveryNode, NodeExplanation> nodeExplanations = new HashMap<>(1);
+        NodeExplanation ne = makeNodeExplanation("bar", true);
+        nodeExplanations.put(ne.getNode(), ne);
+        ClusterAllocationExplanation cae = new ClusterAllocationExplanation(shard, true,
+                "assignedNode", remainingDelay, null, nodeExplanations);
         BytesStreamOutput out = new BytesStreamOutput();
         cae.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes());
@@ -94,57 +135,55 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         assertTrue(cae2.isAssigned());
         assertEquals("assignedNode", cae2.getAssignedNodeId());
         assertNull(cae2.getUnassignedInfo());
-        assertEquals(remainingDelay, cae2.getRemainingDelayNanos());
-        assertEquals(allocationIds, cae2.getActiveAllocationIds());
-        for (Map.Entry<DiscoveryNode, ClusterAllocationExplanation.NodeExplanation> entry : cae2.getNodeExplanations().entrySet()) {
+        assertEquals(remainingDelay, cae2.getRemainingDelayMillis());
+        for (Map.Entry<DiscoveryNode, NodeExplanation> entry : cae2.getNodeExplanations().entrySet()) {
             DiscoveryNode node = entry.getKey();
-            ClusterAllocationExplanation.NodeExplanation explanation = entry.getValue();
+            NodeExplanation explanation = entry.getValue();
             IndicesShardStoresResponse.StoreStatus status = explanation.getStoreStatus();
-            if (status != null) {
-                assertEquals(nodeWithStore, node);
-                assertEquals(storeStatus.getLegacyVersion(), status.getLegacyVersion());
-                assertEquals(storeStatus.getAllocationId(), status.getAllocationId());
-                assertEquals(storeStatus.getAllocationStatus(), status.getAllocationStatus());
-                assertEquals(ExceptionsHelper.detailedMessage(storeStatus.getStoreException()),
-                        ExceptionsHelper.detailedMessage(status.getStoreException()));
-            }
-
-            assertEquals(nodeToDecisions.get(node), explanation.getDecision());
-            assertEquals(nodeToWeight.get(node), explanation.getWeight());
+            assertNotNull(explanation.getStoreStatus());
+            assertNotNull(explanation.getDecision());
+            assertNotNull(explanation.getWeight());
         }
     }
 
     public void testStaleShardExplanation() throws Exception {
-        ShardId shard = new ShardId("test", "uuid", 0);
-        Map<DiscoveryNode, Decision> nodeToDecisions = new HashMap<>();
-        Map<DiscoveryNode, Float> nodeToWeight = new HashMap<>();
-        DiscoveryNode dn = new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+        long remainingDelay = 42;
+        Index i = new Index("test", "uuid");
+        ShardId shardId = new ShardId(i, 0);
+        ShardRouting shard = ShardRouting.newUnassigned(i, 0, null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        IndexMetaData indexMetaData = IndexMetaData.builder("test")
+                .settings(Settings.builder()
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetaData.SETTING_INDEX_UUID, "uuid"))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+        DiscoveryNode node = new DiscoveryNode("node-0", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
         Decision.Multi d = new Decision.Multi();
         d.add(Decision.single(Decision.Type.NO, "no label", "because I said no"));
         d.add(Decision.single(Decision.Type.YES, "yes label", "yes please"));
         d.add(Decision.single(Decision.Type.THROTTLE, "throttle label", "wait a sec"));
-        nodeToDecisions.put(dn, d);
-        nodeToWeight.put(dn, 1.5f);
-
-        long remainingDelay = 42;
-        DiscoveryNode nodeWithStore = new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
-        IndicesShardStoresResponse.StoreStatus storeStatus = new IndicesShardStoresResponse.StoreStatus(nodeWithStore, 42, "eggplant",
-                IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY, null);
-        List<IndicesShardStoresResponse.StoreStatus> storeStatusList = Collections.singletonList(storeStatus);
+        Float nodeWeight = 1.5f;
         Set<String> allocationIds = new HashSet<>();
-        allocationIds.add("potato");
-        ClusterAllocationExplanation cae = new ClusterAllocationExplanation(shard, true, "assignedNode", null,
-                nodeToDecisions, nodeToWeight, remainingDelay, storeStatusList, allocationIds);
+        allocationIds.add("bar");
+        IndicesShardStoresResponse.StoreStatus storeStatus = new IndicesShardStoresResponse.StoreStatus(node, 42, "eggplant",
+                IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY, new ElasticsearchException("stuff's broke, yo"));
+        NodeExplanation ne = TransportClusterAllocationExplainAction.calculateNodeExplanation(shard, indexMetaData, node, d, nodeWeight,
+                storeStatus, "node-0", allocationIds);
+        Map<DiscoveryNode, NodeExplanation> nodeExplanations = new HashMap<>(1);
+        nodeExplanations.put(ne.getNode(), ne);
+        ClusterAllocationExplanation cae = new ClusterAllocationExplanation(shardId, true,
+                "assignedNode", remainingDelay, null, nodeExplanations);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"shard\":{\"index\":\"test\",\"index_uuid\":\"uuid\",\"id\":0,\"primary\":true}," +
-                     "\"assigned\":true,\"assigned_node_id\":\"assignedNode\"," +
-                     "\"nodes\":{\"node1\":{\"node_name\":\"\",\"node_attributes\":{},\"store\":{\"shard_copy\":\"STALE\"}," +
-                     "\"final_decision\":\"NO\",\"final_explanation\":\"the copy of the shard is stale, allocation ids do not match\"" +
-                     ",\"weight\":1.5,\"decisions\":[{\"decider\":\"no label\",\"decision\":\"NO\"," +
-                     "\"explanation\":\"because I said no\"},{\"decider\":\"yes label\",\"decision\":\"YES\"," +
-                     "\"explanation\":\"yes please\"},{\"decider\":\"throttle label\",\"decision\":\"THROTTLE\"," +
-                     "\"explanation\":\"wait a sec\"}]}}}",
+        assertEquals("{\"shard\":{\"index\":\"test\",\"index_uuid\":\"uuid\",\"id\":0,\"primary\":true},\"assigned\":true," +
+                     "\"assigned_node_id\":\"assignedNode\",\"nodes\":{\"node-0\":{\"node_name\":\"\",\"node_attributes" +
+                     "\":{},\"store\":{\"shard_copy\":\"STALE\",\"store_exception\":\"ElasticsearchException[stuff's br" +
+                     "oke, yo]\"},\"final_decision\":\"NO\",\"final_explanation\":\"the copy of the shard is stale, all" +
+                     "ocation ids do not match\",\"weight\":1.5,\"decisions\":[{\"decider\":\"no label\",\"decision\":" +
+                     "\"NO\",\"explanation\":\"because I said no\"},{\"decider\":\"yes label\",\"decision\":\"YES\",\"e" +
+                     "xplanation\":\"yes please\"},{\"decider\":\"throttle label\",\"decision\":\"THROTTLE\",\"explanat" +
+                     "ion\":\"wait a sec\"}]}}}",
                 builder.string());
     }
 }

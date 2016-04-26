@@ -43,7 +43,7 @@ public final class ClusterAllocationExplainTests extends ESSingleNodeTestCase {
         assertEquals(false, cae.isPrimary());
         assertNull(cae.getAssignedNodeId());
         assertNotNull(cae.getUnassignedInfo());
-        ClusterAllocationExplanation.NodeExplanation explanation = cae.getNodeExplanations().values().iterator().next();
+        NodeExplanation explanation = cae.getNodeExplanations().values().iterator().next();
         ClusterAllocationExplanation.FinalDecision fd = explanation.getFinalDecision();
         ClusterAllocationExplanation.StoreCopy storeCopy = explanation.getStoreCopy();
         String finalExplanation = explanation.getFinalExplanation();

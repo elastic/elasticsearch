@@ -75,7 +75,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertThat(cae.getShard().getIndexName(), equalTo("test"));
         assertFalse(cae.isPrimary());
         assertFalse(cae.isAssigned());
-        assertThat("expecting a remaining delay, got: " + cae.getRemainingDelayNanos(), cae.getRemainingDelayNanos(), greaterThan(0L));
+        assertThat("expecting a remaining delay, got: " + cae.getRemainingDelayMillis(), cae.getRemainingDelayMillis(), greaterThan(0L));
     }
 
     public void testUnassignedShards() throws Exception {
@@ -123,17 +123,17 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertFalse(cae.isPrimary());
         assertFalse(cae.isAssigned());
         assertThat(UnassignedInfo.Reason.INDEX_CREATED, equalTo(cae.getUnassignedInfo().getReason()));
-        assertThat("expecting no remaining delay: " + cae.getRemainingDelayNanos(), cae.getRemainingDelayNanos(), equalTo(0L));
+        assertThat("expecting no remaining delay: " + cae.getRemainingDelayMillis(), cae.getRemainingDelayMillis(), equalTo(0L));
 
-        Map<DiscoveryNode, ClusterAllocationExplanation.NodeExplanation> explanations = cae.getNodeExplanations();
+        Map<DiscoveryNode, NodeExplanation> explanations = cae.getNodeExplanations();
 
         Float noAttrWeight = -1f;
         Float barAttrWeight = -1f;
         Float fooBarAttrWeight = -1f;
-        for (Map.Entry<DiscoveryNode, ClusterAllocationExplanation.NodeExplanation> entry : explanations.entrySet()) {
+        for (Map.Entry<DiscoveryNode, NodeExplanation> entry : explanations.entrySet()) {
             DiscoveryNode node = entry.getKey();
             String nodeName = node.getName();
-            ClusterAllocationExplanation.NodeExplanation explanation = entry.getValue();
+            NodeExplanation explanation = entry.getValue();
             ClusterAllocationExplanation.FinalDecision finalDecision = explanation.getFinalDecision();
             String finalExplanation = explanation.getFinalExplanation();
             ClusterAllocationExplanation.StoreCopy storeCopy = explanation.getStoreCopy();

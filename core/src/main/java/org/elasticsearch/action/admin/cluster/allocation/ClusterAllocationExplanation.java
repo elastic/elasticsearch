@@ -58,7 +58,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     private final Map<DiscoveryNode, NodeExplanation> nodeExplanations;
 
     public ClusterAllocationExplanation(ShardId shard, boolean primary, @Nullable String assignedNodeId, long remainingDelayMillis,
-                                        UnassignedInfo unassignedInfo, Map<DiscoveryNode, NodeExplanation> nodeExplanations) {
+                                        @Nullable UnassignedInfo unassignedInfo, Map<DiscoveryNode, NodeExplanation> nodeExplanations) {
         this.shard = shard;
         this.primary = primary;
         this.assignedNodeId = assignedNodeId;

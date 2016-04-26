@@ -37,6 +37,6 @@ public class VersionCompatibilityTests extends ESTestCase {
          *
          */
         assertThat("Remove workaround in LicenseService class when es core supports merging cluster level custom metadata",
-                Version.CURRENT.onOrBefore(Version.V_5_0_0), is(true));
+                Version.CURRENT.onOrBefore(Version.V_5_0_0_alpha2), is(true));
     }
 }

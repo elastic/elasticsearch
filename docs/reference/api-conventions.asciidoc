@@ -413,9 +413,9 @@ using the `fuzziness` parameter. The `fuzziness` parameter is context
 sensitive which means that it depends on the type of the field being queried:
 
 [float]
-==== Numeric, date and IPv4 fields
+==== Numeric, date and IP fields
 
-When querying numeric, date and IPv4 fields, `fuzziness` is interpreted as a
+When querying numeric, date, IPv4, and IPv6 fields, `fuzziness` is interpreted as a
 `+/-` margin. It behaves like a <<query-dsl-range-query>> where:
 
     -fuzziness <= field value <= +fuzziness

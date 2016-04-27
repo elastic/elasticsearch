@@ -5,78 +5,74 @@
  */
 package org.elasticsearch.xpack;
 
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.Properties;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
 
 /**
- *
+ * Information about the built version of x-pack that is running.
  */
 public class XPackBuild {
-
 
     public static final XPackBuild CURRENT;
 
     static {
-        String hash = "NA";
-        String hashShort = "NA";
-        String timestamp = "NA";
+        final String shortHash;
+        final String date;
 
-        try (InputStream is = XPackBuild.class.getResourceAsStream("/xpack-build.properties")) {
-            Properties props = new Properties();
-            props.load(is);
-            hash = props.getProperty("hash", hash);
-            if (!hash.equals("NA")) {
-                hashShort = hash.substring(0, 7);
+        Path path = getElasticsearchCodebase();
+        if (path.toString().endsWith(".jar")) {
+            try (JarInputStream jar = new JarInputStream(Files.newInputStream(path))) {
+                Manifest manifest = jar.getManifest();
+                shortHash = manifest.getMainAttributes().getValue("Change");
+                date = manifest.getMainAttributes().getValue("Build-Date");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
-            String gitTimestampRaw = props.getProperty("timestamp");
-            if (gitTimestampRaw != null) {
-                timestamp = ISODateTimeFormat.dateTimeNoMillis().withZone(DateTimeZone.UTC).print(Long.parseLong(gitTimestampRaw));
-            }
-        } catch (Exception e) {
-            // just ignore...
+        } else {
+            // not running from a jar (unit tests, IDE)
+            shortHash = "Unknown";
+            date = "Unknown";
         }
 
-        CURRENT = new XPackBuild(hash, hashShort, timestamp);
+        CURRENT = new XPackBuild(shortHash, date);
     }
 
-    private String hash;
-    private String hashShort;
-    private String timestamp;
-
-    XPackBuild(String hash, String hashShort, String timestamp) {
-        this.hash = hash;
-        this.hashShort = hashShort;
-        this.timestamp = timestamp;
+    /**
+     * Returns path to xpack codebase path
+     */
+    @SuppressForbidden(reason = "looks up path of xpack.jar directly")
+    static Path getElasticsearchCodebase() {
+        URL url = XPackBuild.class.getProtectionDomain().getCodeSource().getLocation();
+        try {
+            return PathUtils.get(url.toURI());
+        } catch (URISyntaxException bogus) {
+            throw new RuntimeException(bogus);
+        }
     }
 
-    public String hash() {
-        return hash;
+    private String shortHash;
+    private String date;
+
+    XPackBuild(String shortHash, String date) {
+        this.shortHash = shortHash;
+        this.date = date;
     }
 
-    public String hashShort() {
-        return hashShort;
+    public String shortHash() {
+        return shortHash;
     }
 
-    public String timestamp() {
-        return timestamp;
-    }
-
-    public static XPackBuild readBuild(StreamInput in) throws IOException {
-        String hash = in.readString();
-        String hashShort = in.readString();
-        String timestamp = in.readString();
-        return new XPackBuild(hash, hashShort, timestamp);
-    }
-
-    public static void writeBuild(XPackBuild build, StreamOutput out) throws IOException {
-        out.writeString(build.hash());
-        out.writeString(build.hashShort());
-        out.writeString(build.timestamp());
+    public String date() {
+        return date;
     }
 }

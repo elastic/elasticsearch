@@ -131,9 +131,9 @@ public class SignificanceHeuristicTests extends ESTestCase {
             sTerms[1] = new SignificantLongTerms();
         } else {
             BytesRef term = new BytesRef("someterm");
-            buckets.add(new SignificantStringTerms.Bucket(term, 1, 2, 3, 4, InternalAggregations.EMPTY));
-            sTerms[0] = new SignificantStringTerms(10, 20, "some_name", 1, 1, heuristic, buckets, Collections.emptyList(),
-                    null);
+            buckets.add(new SignificantStringTerms.Bucket(term, 1, 2, 3, 4, InternalAggregations.EMPTY, DocValueFormat.RAW));
+            sTerms[0] = new SignificantStringTerms(10, 20, "some_name", DocValueFormat.RAW, 1, 1, heuristic, buckets,
+                    Collections.emptyList(), null);
             sTerms[1] = new SignificantStringTerms();
         }
         return sTerms;
@@ -184,7 +184,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
     private InternalSignificantTerms createAggregation(String type, SignificanceHeuristic significanceHeuristic, List<InternalSignificantTerms.Bucket> buckets, long subsetSize, long supersetSize) {
         if (type.equals("string")) {
-            return new SignificantStringTerms(subsetSize, supersetSize, "sig_terms", 2, -1, significanceHeuristic, buckets, new ArrayList<PipelineAggregator>(), new HashMap<String, Object>());
+            return new SignificantStringTerms(subsetSize, supersetSize, "sig_terms", DocValueFormat.RAW, 2, -1, significanceHeuristic, buckets, new ArrayList<PipelineAggregator>(), new HashMap<String, Object>());
         } else {
             return new SignificantLongTerms(subsetSize, supersetSize, "sig_terms", DocValueFormat.RAW, 2, -1, significanceHeuristic, buckets, new ArrayList<PipelineAggregator>(), new HashMap<String, Object>());
         }
@@ -192,7 +192,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
     private InternalSignificantTerms.Bucket createBucket(String type, long subsetDF, long subsetSize, long supersetDF, long supersetSize, long label) {
         if (type.equals("string")) {
-            return new SignificantStringTerms.Bucket(new BytesRef(Long.toString(label).getBytes(StandardCharsets.UTF_8)), subsetDF, subsetSize, supersetDF, supersetSize, InternalAggregations.EMPTY);
+            return new SignificantStringTerms.Bucket(new BytesRef(Long.toString(label).getBytes(StandardCharsets.UTF_8)), subsetDF, subsetSize, supersetDF, supersetSize, InternalAggregations.EMPTY, DocValueFormat.RAW);
         } else {
             return new SignificantLongTerms.Bucket(subsetDF, subsetSize, supersetDF, supersetSize, label, InternalAggregations.EMPTY, DocValueFormat.RAW);
         }

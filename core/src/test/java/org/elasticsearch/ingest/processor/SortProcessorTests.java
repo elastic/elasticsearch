@@ -55,7 +55,7 @@ public class SortProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         Processor processor = new SortProcessor(randomAsciiOfLength(10), fieldName, order);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedResult));
+        assertEquals(ingestDocument.getFieldValue(fieldName, List.class), expectedResult);
     }
 
     public void testSortIntegersNonRandom() throws Exception {
@@ -92,7 +92,7 @@ public class SortProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         Processor processor = new SortProcessor(randomAsciiOfLength(10), fieldName, order);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedResult));
+        assertEquals(ingestDocument.getFieldValue(fieldName, List.class), expectedResult);
     }
 
     public void testSortShorts() throws Exception {
@@ -115,7 +115,7 @@ public class SortProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         Processor processor = new SortProcessor(randomAsciiOfLength(10), fieldName, order);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedResult));
+        assertEquals(ingestDocument.getFieldValue(fieldName, List.class), expectedResult);
     }
 
     public void testSortDoubles() throws Exception {
@@ -138,7 +138,7 @@ public class SortProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         Processor processor = new SortProcessor(randomAsciiOfLength(10), fieldName, order);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedResult));
+        assertEquals(ingestDocument.getFieldValue(fieldName, List.class), expectedResult);
     }
 
     public void testSortFloats() throws Exception {
@@ -161,7 +161,7 @@ public class SortProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         Processor processor = new SortProcessor(randomAsciiOfLength(10), fieldName, order);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedResult));
+        assertEquals(ingestDocument.getFieldValue(fieldName, List.class), expectedResult);
     }
 
     public void testSortBytes() throws Exception {
@@ -184,7 +184,7 @@ public class SortProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         Processor processor = new SortProcessor(randomAsciiOfLength(10), fieldName, order);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedResult));
+        assertEquals(ingestDocument.getFieldValue(fieldName, List.class), expectedResult);
     }
 
     public void testSortBooleans() throws Exception {
@@ -207,7 +207,7 @@ public class SortProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         Processor processor = new SortProcessor(randomAsciiOfLength(10), fieldName, order);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedResult));
+        assertEquals(ingestDocument.getFieldValue(fieldName, List.class), expectedResult);
     }
 
     public void testSortMixedStrings() throws Exception {
@@ -235,7 +235,7 @@ public class SortProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         Processor processor = new SortProcessor(randomAsciiOfLength(10), fieldName, order);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedResult));
+        assertEquals(ingestDocument.getFieldValue(fieldName, List.class), expectedResult);
     }
 
     public void testSortMixedObjects() throws Exception {
@@ -265,7 +265,7 @@ public class SortProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         Processor processor = new SortProcessor(randomAsciiOfLength(10), fieldName, order);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedResult));
+        assertEquals(ingestDocument.getFieldValue(fieldName, List.class), expectedResult);
     }
 
 

@@ -141,32 +141,20 @@ public class TransportClusterAllocationExplainAction
                                                            IndicesShardStoresResponse.StoreStatus storeStatus,
                                                            String assignedNodeId,
                                                            Set<String> activeAllocationIds) {
-        ClusterAllocationExplanation.FinalDecision finalDecision;
-        ClusterAllocationExplanation.StoreCopy storeCopy;
-        String finalExplanation;
+        final ClusterAllocationExplanation.FinalDecision finalDecision;
+        final ClusterAllocationExplanation.StoreCopy storeCopy;
+        final String finalExplanation;
 
-        if (node.getId().equals(assignedNodeId)) {
-            finalDecision = ClusterAllocationExplanation.FinalDecision.ALREADY_ASSIGNED;
-            finalExplanation = "the shard is already assigned to this node";
-        } else if (nodeDecision.type() == Decision.Type.NO) {
-            finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
-            finalExplanation = "the shard cannot be assigned because one or more allocation decider returns a 'NO' decision";
+        if (storeStatus == null) {
+            // No copies of the data
+            storeCopy = ClusterAllocationExplanation.StoreCopy.NONE;
         } else {
-            finalDecision = ClusterAllocationExplanation.FinalDecision.YES;
-            finalExplanation = "the shard can be assigned";
-        }
-
-        if (storeStatus != null) {
             final Throwable storeErr = storeStatus.getStoreException();
-            // The store error only influences the decision if the shard is primary and has not been allocated before
-            if (storeErr != null && shard.primary() && shard.allocatedPostIndexCreate(indexMetaData) == false) {
-                finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
+            if (storeErr != null) {
                 if (ExceptionsHelper.unwrapCause(storeErr) instanceof CorruptIndexException) {
                     storeCopy = ClusterAllocationExplanation.StoreCopy.CORRUPT;
-                    finalExplanation = "the copy of data in the shard store is corrupt";
                 } else {
                     storeCopy = ClusterAllocationExplanation.StoreCopy.IO_ERROR;
-                    finalExplanation = "there was an IO error reading from data in the shard store";
                 }
             } else if (activeAllocationIds.isEmpty()) {
                 // The ids are only empty if dealing with a legacy index
@@ -174,18 +162,36 @@ public class TransportClusterAllocationExplainAction
                 storeCopy = ClusterAllocationExplanation.StoreCopy.UNKNOWN;
             } else if (activeAllocationIds.contains(storeStatus.getAllocationId())) {
                 storeCopy = ClusterAllocationExplanation.StoreCopy.AVAILABLE;
-                if (finalDecision == ClusterAllocationExplanation.FinalDecision.YES) {
-                    finalExplanation = "the shard can be assigned and the node contains a valid copy of the shard data";
-                }
             } else {
                 // Otherwise, this is a stale copy of the data (allocation ids don't match)
                 storeCopy = ClusterAllocationExplanation.StoreCopy.STALE;
-                finalExplanation = "the copy of the shard is stale, allocation ids do not match";
-                finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
             }
+        }
+
+        if (node.getId().equals(assignedNodeId)) {
+            finalDecision = ClusterAllocationExplanation.FinalDecision.ALREADY_ASSIGNED;
+            finalExplanation = "the shard is already assigned to this node";
+        } else if (shard.primary() && shard.unassigned() && storeCopy == ClusterAllocationExplanation.StoreCopy.STALE) {
+            finalExplanation = "the copy of the shard is stale, allocation ids do not match";
+            finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
+        } else if (shard.primary() && shard.unassigned() && storeCopy == ClusterAllocationExplanation.StoreCopy.CORRUPT) {
+            finalExplanation = "the copy of the shard is corrupt";
+            finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
+        } else if (shard.primary() && shard.unassigned() && storeCopy == ClusterAllocationExplanation.StoreCopy.IO_ERROR) {
+            finalExplanation = "the copy of the shard cannot be read";
+            finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
         } else {
-            // No copies of the data, so deciders are what influence the decision and explanation
-            storeCopy = ClusterAllocationExplanation.StoreCopy.NONE;
+            if (nodeDecision.type() == Decision.Type.NO) {
+                finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
+                finalExplanation = "the shard cannot be assigned because one or more allocation decider returns a 'NO' decision";
+            } else {
+                finalDecision = ClusterAllocationExplanation.FinalDecision.YES;
+                if (storeCopy == ClusterAllocationExplanation.StoreCopy.AVAILABLE) {
+                    finalExplanation = "the shard can be assigned and the node contains a valid copy of the shard data";
+                } else {
+                    finalExplanation = "the shard can be assigned";
+                }
+            }
         }
         return new NodeExplanation(node, nodeDecision, nodeWeight, storeStatus, finalDecision, finalExplanation, storeCopy);
     }

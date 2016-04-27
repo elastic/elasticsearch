@@ -12,11 +12,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.support.http.HttpClient;
-import org.elasticsearch.watcher.support.http.HttpMethod;
-import org.elasticsearch.watcher.support.http.HttpRequest;
-import org.elasticsearch.watcher.support.http.HttpResponse;
-import org.elasticsearch.watcher.support.http.Scheme;
+import org.elasticsearch.xpack.watcher.support.http.HttpClient;
+import org.elasticsearch.xpack.watcher.support.http.HttpMethod;
+import org.elasticsearch.xpack.watcher.support.http.HttpRequest;
+import org.elasticsearch.xpack.watcher.support.http.HttpResponse;
+import org.elasticsearch.xpack.watcher.support.http.Scheme;
 
 import java.io.IOException;
 

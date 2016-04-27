@@ -1,5 +1,5 @@
 {
-  "watcher.get_watch": {
+  "xpack.watcher.get_watch": {
     "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-get-watch.html",
     "methods": [ "GET" ],
     "url": {

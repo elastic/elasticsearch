@@ -1,0 +1,6 @@
+---
+"Test watcher stats output":
+
+  - do: {xpack.watcher.stats: {}}
+  - match: { "watcher_state": "started" }
+  - match: { "manually_stopped": false }

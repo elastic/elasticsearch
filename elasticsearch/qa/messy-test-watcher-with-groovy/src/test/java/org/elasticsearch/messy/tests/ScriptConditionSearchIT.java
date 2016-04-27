@@ -19,19 +19,19 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
-import org.elasticsearch.watcher.condition.script.ScriptCondition;
-import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.support.ScriptServiceProxy;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.xpack.watcher.condition.script.ExecutableScriptCondition;
+import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.support.Script;
+import org.elasticsearch.xpack.watcher.support.ScriptServiceProxy;
+import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
 
-import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.when;
 

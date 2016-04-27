@@ -37,7 +37,7 @@ import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
-import org.elasticsearch.watcher.execution.InternalWatchExecutor;
+import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
 
 import java.io.IOException;
 import java.nio.file.Path;

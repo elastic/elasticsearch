@@ -1,5 +1,5 @@
 {
-  "watcher.ack_watch": {
+  "xpack.watcher.ack_watch": {
     "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-ack-watch.html",
     "methods": [ "PUT", "POST" ],
     "url": {

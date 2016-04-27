@@ -1,5 +1,5 @@
 {
-  "watcher.delete_watch": {
+  "xpack.watcher.delete_watch": {
     "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-delete-watch.html",
     "methods": [ "DELETE" ],
     "url": {

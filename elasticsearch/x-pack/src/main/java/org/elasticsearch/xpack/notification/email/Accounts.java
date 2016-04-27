@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.notification.email;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.watcher.support.secret.SecretService;
+import org.elasticsearch.xpack.watcher.support.secret.SecretService;
 
 import java.util.HashMap;
 import java.util.Map;

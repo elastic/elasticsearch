@@ -1,5 +1,5 @@
 {
-  "watcher.deactivate_watch": {
+  "xpack.watcher.deactivate_watch": {
     "documentation": "https://www.elastic.co/guide/en/watcher/current/api-rest.html#api-rest-deactivate-watch",
     "methods": [ "PUT", "POST" ],
     "url": {

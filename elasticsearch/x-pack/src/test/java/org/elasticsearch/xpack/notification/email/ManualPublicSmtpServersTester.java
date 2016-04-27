@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.watcher.support.secret.SecretService;
+import org.elasticsearch.xpack.watcher.support.secret.SecretService;
 
 import java.io.IOException;
 import java.util.Collections;

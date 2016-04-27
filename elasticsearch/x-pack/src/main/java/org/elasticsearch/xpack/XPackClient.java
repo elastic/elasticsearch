@@ -11,7 +11,7 @@ import org.elasticsearch.license.plugin.LicensingClient;
 import org.elasticsearch.marvel.client.MonitoringClient;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.client.SecurityClient;
-import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.action.XPackInfoAction;
 import org.elasticsearch.xpack.action.XPackInfoRequest;
 import org.elasticsearch.xpack.action.XPackInfoRequestBuilder;

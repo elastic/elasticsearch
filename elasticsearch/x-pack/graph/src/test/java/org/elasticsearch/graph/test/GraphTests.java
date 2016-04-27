@@ -30,7 +30,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.shield.Security;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.watcher.Watcher;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Collection;

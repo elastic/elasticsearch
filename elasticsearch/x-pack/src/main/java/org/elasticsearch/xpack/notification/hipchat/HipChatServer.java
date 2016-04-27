@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.notification.hipchat;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.watcher.support.http.HttpRequest;
+import org.elasticsearch.xpack.watcher.support.http.HttpRequest;
 
 /**
  *

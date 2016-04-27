@@ -32,7 +32,7 @@ import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
 import org.elasticsearch.shield.support.NoOpLogger;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.watcher.Watcher;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.Before;
 

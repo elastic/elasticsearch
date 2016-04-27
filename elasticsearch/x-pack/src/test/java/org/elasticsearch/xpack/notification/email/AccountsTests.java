@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.notification.email;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.watcher.support.secret.SecretService;
+import org.elasticsearch.xpack.watcher.support.secret.SecretService;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

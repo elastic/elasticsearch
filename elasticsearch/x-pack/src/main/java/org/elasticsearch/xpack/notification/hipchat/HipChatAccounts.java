@@ -9,7 +9,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.notification.hipchat.HipChatAccount.Profile;
-import org.elasticsearch.watcher.support.http.HttpClient;
+import org.elasticsearch.xpack.watcher.support.http.HttpClient;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -512,7 +512,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     public void runAsGranted(User user, String action, TransportMessage message) {
         if (events.contains(RUN_AS_GRANTED)) {
             try {
-                enqueue(message("run_as_granted", action, user, null, message), "access_granted");
+                enqueue(message("run_as_granted", action, user, null, message), "run_as_granted");
             } catch (Exception e) {
                 logger.warn("failed to index audit event: [run_as_granted]", e);
             }
@@ -523,7 +523,18 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     public void runAsDenied(User user, String action, TransportMessage message) {
         if (events.contains(RUN_AS_DENIED)) {
             try {
-                enqueue(message("run_as_denied", action, user, null, message), "access_granted");
+                enqueue(message("run_as_denied", action, user, null, message), "run_as_denied");
+            } catch (Exception e) {
+                logger.warn("failed to index audit event: [run_as_denied]", e);
+            }
+        }
+    }
+
+    @Override
+    public void runAsDenied(User user, RestRequest request) {
+        if (events.contains(RUN_AS_DENIED)) {
+            try {
+                enqueue(message("run_as_denied", user, request), "run_as_denied");
             } catch (Exception e) {
                 logger.warn("failed to index audit event: [run_as_denied]", e);
             }
@@ -606,6 +617,26 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         if (indices != null) {
             msg.builder.array(Field.INDICES, indices);
         }
+        msg.builder.field(Field.REQUEST_BODY, restRequestContent(request));
+        msg.builder.field(Field.ORIGIN_TYPE, "rest");
+        SocketAddress address = request.getRemoteAddress();
+        if (address instanceof InetSocketAddress) {
+            msg.builder.field(Field.ORIGIN_ADDRESS, NetworkAddress.format(((InetSocketAddress) request.getRemoteAddress())
+                    .getAddress()));
+        } else {
+            msg.builder.field(Field.ORIGIN_ADDRESS, address);
+        }
+        msg.builder.field(Field.URI, request.uri());
+
+        return msg.end();
+    }
+
+    private Message message(String type, User user, RestRequest request) throws Exception {
+
+        Message msg = new Message().start();
+        common("rest", type, msg.builder);
+
+        msg.builder.field(Field.PRINCIPAL, user.principal());
         msg.builder.field(Field.REQUEST_BODY, restRequestContent(request));
         msg.builder.field(Field.ORIGIN_TYPE, "rest");
         SocketAddress address = request.getRemoteAddress();

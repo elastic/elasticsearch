@@ -8,6 +8,7 @@ package org.elasticsearch.shield;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.shield.authc.Authentication;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.user.User;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,6 +26,12 @@ public interface SecurityContext {
     <V> V executeAs(User user, Callable<V> callable);
 
     User getUser();
+
+    Authentication getAuthentication();
+
+    default boolean hasAuthentication() {
+        return getAuthentication() != null;
+    }
 
     class Insecure implements SecurityContext {
 
@@ -49,6 +56,11 @@ public interface SecurityContext {
 
         @Override
         public User getUser() {
+            return null;
+        }
+
+        @Override
+        public Authentication getAuthentication() {
             return null;
         }
     }
@@ -82,14 +94,20 @@ public interface SecurityContext {
 
         @Override
         public User getUser() {
-            return authcService.getCurrentUser();
+            Authentication authentication = authcService.getCurrentAuthentication();
+            return authentication == null ? null : authentication.getUser();
+        }
+
+        @Override
+        public Authentication getAuthentication() {
+            return authcService.getCurrentAuthentication();
         }
 
         private void setUser(User user) {
             try {
-                authcService.attachUserHeaderIfMissing(user);
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to attach watcher user to request", e);
+                authcService.attachUserIfMissing(user);
+            } catch (IOException | IllegalArgumentException e) {
+                throw new ElasticsearchException("failed to attach user to request", e);
             }
         }
     }

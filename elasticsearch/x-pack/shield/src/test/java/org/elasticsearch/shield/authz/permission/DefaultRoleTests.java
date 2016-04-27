@@ -12,6 +12,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.license.plugin.action.get.GetLicenseAction;
 import org.elasticsearch.shield.action.user.AuthenticateRequestBuilder;
 import org.elasticsearch.shield.action.user.ChangePasswordRequestBuilder;
+import org.elasticsearch.shield.authc.Authentication;
+import org.elasticsearch.shield.authc.Authentication.RealmRef;
+import org.elasticsearch.shield.authc.activedirectory.ActiveDirectoryRealm;
+import org.elasticsearch.shield.authc.esnative.NativeRealm;
+import org.elasticsearch.shield.authc.esnative.ReservedRealm;
+import org.elasticsearch.shield.authc.file.FileRealm;
+import org.elasticsearch.shield.authc.ldap.LdapRealm;
+import org.elasticsearch.shield.authc.pki.PkiRealm;
 import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.action.user.AuthenticateAction;
 import org.elasticsearch.shield.action.user.AuthenticateRequest;
@@ -28,7 +36,11 @@ import java.util.Iterator;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for the {@link DefaultRole}
@@ -51,9 +63,16 @@ public class DefaultRoleTests extends ESTestCase {
                 new ChangePasswordRequestBuilder(mock(Client.class)).username(user.principal()).request() :
                 new AuthenticateRequestBuilder(mock(Client.class)).username(user.principal()).request();
         final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
-        assertThat(request, instanceOf(UserRequest.class));
+        final Authentication authentication = mock(Authentication.class);
+        final RealmRef authenticatedBy = mock(RealmRef.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getRunAsUser()).thenReturn(user);
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authenticatedBy.getType())
+                .thenReturn(changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealm.TYPE) : randomAsciiOfLengthBetween(4, 12));
 
-        assertThat(DefaultRole.INSTANCE.cluster().check(action, request, user), is(true));
+        assertThat(request, instanceOf(UserRequest.class));
+        assertThat(DefaultRole.INSTANCE.cluster().check(action, request, authentication), is(true));
     }
 
     public void testDefaultRoleDoesNotAllowNonMatchingUsername() {
@@ -64,19 +83,33 @@ public class DefaultRoleTests extends ESTestCase {
                 new ChangePasswordRequestBuilder(mock(Client.class)).username(username).request() :
                 new AuthenticateRequestBuilder(mock(Client.class)).username(username).request();
         final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
-        assertThat(request, instanceOf(UserRequest.class));
+        final Authentication authentication = mock(Authentication.class);
+        final RealmRef authenticatedBy = mock(RealmRef.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getRunAsUser()).thenReturn(user);
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authenticatedBy.getType())
+                .thenReturn(changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealm.TYPE) : randomAsciiOfLengthBetween(4, 12));
 
-        assertThat(DefaultRole.INSTANCE.cluster().check(action, request, user), is(false));
+        assertThat(request, instanceOf(UserRequest.class));
+        assertThat(DefaultRole.INSTANCE.cluster().check(action, request, authentication), is(false));
 
         final User user2 = new User("admin", new String[] { "bar" }, user);
+        when(authentication.getUser()).thenReturn(user2);
+        when(authentication.getRunAsUser()).thenReturn(user);
+        final RealmRef lookedUpBy = mock(RealmRef.class);
+        when(authentication.getLookedUpBy()).thenReturn(lookedUpBy);
+        when(lookedUpBy.getType())
+                .thenReturn(changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealm.TYPE) : randomAsciiOfLengthBetween(4, 12));
+        // this should still fail since the username is still different
+        assertThat(DefaultRole.INSTANCE.cluster().check(action, request, authentication), is(false));
+
         if (request instanceof ChangePasswordRequest) {
             ((ChangePasswordRequest)request).username("joe");
         } else {
             ((AuthenticateRequest)request).username("joe");
         }
-        // run as should not be checked by this role, it is up to the caller to provide the correct user
-        assertThat(DefaultRole.INSTANCE.cluster().check(action, request, user2), is(false));
-        assertThat(DefaultRole.INSTANCE.cluster().check(action, request, user), is(true));
+        assertThat(DefaultRole.INSTANCE.cluster().check(action, request, authentication), is(true));
     }
 
     public void testDefaultRoleDoesNotAllowOtherActions() {
@@ -84,8 +117,85 @@ public class DefaultRoleTests extends ESTestCase {
         final TransportRequest request = mock(TransportRequest.class);
         final String action = randomFrom(PutUserAction.NAME, DeleteUserAction.NAME, ClusterHealthAction.NAME, ClusterStateAction.NAME,
                 ClusterStatsAction.NAME, GetLicenseAction.NAME);
+        final Authentication authentication = mock(Authentication.class);
+        final RealmRef authenticatedBy = mock(RealmRef.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getRunAsUser()).thenReturn(randomBoolean() ? user : new User("runAs"));
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authenticatedBy.getType())
+                .thenReturn(randomAsciiOfLengthBetween(4, 12));
 
-        assertThat(DefaultRole.INSTANCE.cluster().check(action, request, user), is(false));
-        verifyZeroInteractions(user, request);
+        assertThat(DefaultRole.INSTANCE.cluster().check(action, request, authentication), is(false));
+        verifyZeroInteractions(user, request, authentication);
+    }
+
+    public void testDefaultRoleWithRunAsChecksAuthenticatedBy() {
+        final String username = "joe";
+        final User runAs = new User(username);
+        final User user = new User("admin", new String[] { "bar" }, runAs);
+        final boolean changePasswordRequest = randomBoolean();
+        final TransportRequest request = changePasswordRequest ?
+                new ChangePasswordRequestBuilder(mock(Client.class)).username(username).request() :
+                new AuthenticateRequestBuilder(mock(Client.class)).username(username).request();
+        final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
+        final Authentication authentication = mock(Authentication.class);
+        final RealmRef authenticatedBy = mock(RealmRef.class);
+        final RealmRef lookedUpBy = mock(RealmRef.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getRunAsUser()).thenReturn(runAs);
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authentication.getLookedUpBy()).thenReturn(lookedUpBy);
+        when(lookedUpBy.getType())
+                .thenReturn(changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealm.TYPE) : randomAsciiOfLengthBetween(4, 12));
+
+        assertThat(DefaultRole.INSTANCE.cluster().check(action, request, authentication), is(true));
+
+        when(authentication.getRunAsUser()).thenReturn(user);
+        assertThat(DefaultRole.INSTANCE.cluster().check(action, request, authentication), is(false));
+    }
+
+    public void testDefaultRoleDoesNotAllowChangePasswordForOtherRealms() {
+        final User user = new User("joe");
+        final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(user.principal()).request();
+        final String action = ChangePasswordAction.NAME;
+        final Authentication authentication = mock(Authentication.class);
+        final RealmRef authenticatedBy = mock(RealmRef.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getRunAsUser()).thenReturn(user);
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authenticatedBy.getType()).thenReturn(randomFrom(LdapRealm.TYPE, FileRealm.TYPE, ActiveDirectoryRealm.TYPE, PkiRealm.TYPE,
+                        randomAsciiOfLengthBetween(4, 12)));
+
+        assertThat(request, instanceOf(UserRequest.class));
+        assertThat(DefaultRole.INSTANCE.cluster().check(action, request, authentication), is(false));
+        verify(authenticatedBy).getType();
+        verify(authentication, times(2)).getRunAsUser();
+        verify(authentication).getUser();
+        verify(authentication).getAuthenticatedBy();
+        verifyNoMoreInteractions(authenticatedBy, authentication);
+    }
+
+    public void testDefaultRoleDoesNotAllowChangePasswordForLookedUpByOtherRealms() {
+        final User runAs = new User("joe");
+        final User user = new User("admin", new String[] { "bar" }, runAs);
+        final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(runAs.principal()).request();
+        final String action = ChangePasswordAction.NAME;
+        final Authentication authentication = mock(Authentication.class);
+        final RealmRef authenticatedBy = mock(RealmRef.class);
+        final RealmRef lookedUpBy = mock(RealmRef.class);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getRunAsUser()).thenReturn(runAs);
+        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
+        when(authentication.getLookedUpBy()).thenReturn(lookedUpBy);
+        when(lookedUpBy.getType()).thenReturn(randomFrom(LdapRealm.TYPE, FileRealm.TYPE, ActiveDirectoryRealm.TYPE, PkiRealm.TYPE,
+                randomAsciiOfLengthBetween(4, 12)));
+
+        assertThat(request, instanceOf(UserRequest.class));
+        assertThat(DefaultRole.INSTANCE.cluster().check(action, request, authentication), is(false));
+        verify(authentication).getLookedUpBy();
+        verify(authentication, times(2)).getRunAsUser();
+        verify(authentication).getUser();
+        verify(lookedUpBy).getType();
+        verifyNoMoreInteractions(authentication, lookedUpBy, authenticatedBy);
     }
 }

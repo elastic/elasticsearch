@@ -384,6 +384,17 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
         }
     }
 
+    @Override
+    public void runAsDenied(User user, RestRequest request) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("{}[rest] [run_as_denied]\t{}, principal=[{}], uri=[{}], request_body=[{}]", prefix,
+                    hostAttributes(request), user.principal(), request.uri(), restRequestContent(request));
+        } else {
+            logger.info("{}[transport] [run_as_denied]\t{}, principal=[{}], uri=[{}]", prefix,
+                    hostAttributes(request), user.principal(), request.uri());
+        }
+    }
+
     private static String hostAttributes(RestRequest request) {
         String formattedAddress;
         SocketAddress socketAddress = request.getRemoteAddress();

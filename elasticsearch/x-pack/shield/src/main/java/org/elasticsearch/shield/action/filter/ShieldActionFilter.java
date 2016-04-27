@@ -20,13 +20,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.shield.Security;
+import org.elasticsearch.shield.SecurityContext;
 import org.elasticsearch.shield.action.ShieldActionMapper;
+import org.elasticsearch.shield.authc.Authentication;
 import org.elasticsearch.shield.user.SystemUser;
 import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.action.interceptor.RequestInterceptor;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.AuthenticationService;
-import org.elasticsearch.shield.authc.InternalAuthenticationService;
 import org.elasticsearch.shield.authz.AuthorizationService;
 import org.elasticsearch.shield.authz.AuthorizationUtils;
 import org.elasticsearch.shield.authz.privilege.HealthAndStatsPrivilege;
@@ -58,11 +59,13 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
     private final Set<RequestInterceptor> requestInterceptors;
     private final SecurityLicenseState licenseState;
     private final ThreadContext threadContext;
+    private final SecurityContext securityContext;
 
     @Inject
     public ShieldActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService,
                               CryptoService cryptoService, AuditTrail auditTrail, SecurityLicenseState licenseState,
-                              ShieldActionMapper actionMapper,  Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool) {
+                              ShieldActionMapper actionMapper,  Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
+                              SecurityContext securityContext) {
         super(settings);
         this.authcService = authcService;
         this.authzService = authzService;
@@ -72,6 +75,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
         this.licenseState = licenseState;
         this.requestInterceptors = requestInterceptors;
         this.threadContext = threadPool.getThreadContext();
+        this.securityContext = securityContext;
     }
 
     @Override
@@ -91,8 +95,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
         // only restore the context if it is not empty. This is needed because sometimes a response is sent to the user
         // and then a cleanup action is executed (like for search without a scroll)
         final ThreadContext.StoredContext original = threadContext.newStoredContext();
-        final boolean restoreOriginalContext = threadContext.getHeader(InternalAuthenticationService.USER_KEY) != null ||
-                threadContext.getTransient(InternalAuthenticationService.USER_KEY) != null;
+        final boolean restoreOriginalContext = securityContext.hasAuthentication();
         try {
             if (licenseState.authenticationAndAuthorizationEnabled()) {
                 if (AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action)) {
@@ -133,9 +136,11 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
          the {@link Rest} filter and the {@link ServerTransport} filter respectively), it's safe to assume a system user
          here if a request is not associated with any other user.
          */
-        String shieldAction = actionMapper.action(action, request);
-        User user = authcService.authenticate(shieldAction, request, SystemUser.INSTANCE);
-        authzService.authorize(user, shieldAction, request);
+        final String shieldAction = actionMapper.action(action, request);
+        Authentication authentication = authcService.authenticate(shieldAction, request, SystemUser.INSTANCE);
+        assert authentication != null;
+        authzService.authorize(authentication, shieldAction, request);
+        final User user = authentication.getUser();
         request = unsign(user, shieldAction, request);
 
         /*

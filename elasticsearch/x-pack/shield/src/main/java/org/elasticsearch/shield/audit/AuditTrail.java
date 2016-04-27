@@ -94,6 +94,10 @@ public interface AuditTrail {
         @Override
         public void runAsDenied(User user, String action, TransportMessage message) {
         }
+
+        @Override
+        public void runAsDenied(User user, RestRequest request) {
+        }
     };
 
     String name();
@@ -131,4 +135,6 @@ public interface AuditTrail {
     void runAsGranted(User user, String action, TransportMessage message);
 
     void runAsDenied(User user, String action, TransportMessage message);
+
+    void runAsDenied(User user, RestRequest request);
 }

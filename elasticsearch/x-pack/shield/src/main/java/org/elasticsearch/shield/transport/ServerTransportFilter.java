@@ -8,7 +8,7 @@ package org.elasticsearch.shield.transport;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.shield.user.User;
+import org.elasticsearch.shield.authc.Authentication;
 import org.elasticsearch.shield.action.ShieldActionMapper;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.pki.PkiRealm;
@@ -101,8 +101,8 @@ public interface ServerTransportFilter {
                 }
             }
 
-            User user = authcService.authenticate(shieldAction, request, null);
-            authzService.authorize(user, shieldAction, request);
+            Authentication authentication = authcService.authenticate(shieldAction, request, null);
+            authzService.authorize(authentication, shieldAction, request);
         }
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.shield.action.role.PutRoleAction;
 import org.elasticsearch.shield.action.user.PutUserAction;
+import org.elasticsearch.shield.authc.Authentication;
 import org.elasticsearch.shield.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
 import org.elasticsearch.shield.user.User;
 import org.elasticsearch.test.ESTestCase;
@@ -28,6 +29,8 @@ import org.elasticsearch.transport.TransportRequest;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for the superuser role
@@ -36,14 +39,16 @@ public class SuperuserRoleTests extends ESTestCase {
 
     public void testCluster() {
         final User user = new User("joe", SuperuserRole.NAME);
+        final Authentication authentication = mock(Authentication.class);
+        when(authentication.getUser()).thenReturn(user);
         final TransportRequest request = new TransportRequest.Empty();
 
-        assertThat(SuperuserRole.INSTANCE.cluster().check(ClusterHealthAction.NAME, request, user), is(true));
-        assertThat(SuperuserRole.INSTANCE.cluster().check(ClusterUpdateSettingsAction.NAME, request, user), is(true));
-        assertThat(SuperuserRole.INSTANCE.cluster().check(PutUserAction.NAME, request, user), is(true));
-        assertThat(SuperuserRole.INSTANCE.cluster().check(PutRoleAction.NAME, request, user), is(true));
-        assertThat(SuperuserRole.INSTANCE.cluster().check(PutIndexTemplateAction.NAME, request, user), is(true));
-        assertThat(SuperuserRole.INSTANCE.cluster().check("internal:admin/foo", request, user), is(false));
+        assertThat(SuperuserRole.INSTANCE.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
+        assertThat(SuperuserRole.INSTANCE.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(true));
+        assertThat(SuperuserRole.INSTANCE.cluster().check(PutUserAction.NAME, request, authentication), is(true));
+        assertThat(SuperuserRole.INSTANCE.cluster().check(PutRoleAction.NAME, request, authentication), is(true));
+        assertThat(SuperuserRole.INSTANCE.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(true));
+        assertThat(SuperuserRole.INSTANCE.cluster().check("internal:admin/foo", request, authentication), is(false));
     }
 
     public void testIndices() {

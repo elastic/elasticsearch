@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.shield.authc.Authentication;
 import org.elasticsearch.shield.user.User;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -29,11 +30,11 @@ public interface AuthorizationService {
      * have the appropriate privileges for this action/request, an {@link ElasticsearchSecurityException}
      * will be thrown.
      *
-     * @param user      The user
-     * @param action    The action
-     * @param request   The request
+     * @param authentication  The authentication information
+     * @param action          The action
+     * @param request         The request
      * @throws ElasticsearchSecurityException   If the given user is no allowed to execute the given request
      */
-    void authorize(User user, String action, TransportRequest request) throws ElasticsearchSecurityException;
+    void authorize(Authentication authentication, String action, TransportRequest request) throws ElasticsearchSecurityException;
 
 }

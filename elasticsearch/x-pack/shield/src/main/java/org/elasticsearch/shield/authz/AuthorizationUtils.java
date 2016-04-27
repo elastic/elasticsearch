@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.shield.authc.Authentication;
 import org.elasticsearch.shield.user.SystemUser;
 import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.InternalAuthenticationService;
@@ -44,8 +45,8 @@ public final class AuthorizationUtils {
             return false;
         }
 
-        User user = threadContext.getTransient(InternalAuthenticationService.USER_KEY);
-        if (user == null || SystemUser.is(user)) {
+        Authentication authentication = threadContext.getTransient(Authentication.AUTHENTICATION_KEY);
+        if (authentication == null || SystemUser.is(authentication.getUser())) {
             return true;
         }
 

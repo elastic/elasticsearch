@@ -12,7 +12,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestFilterChain;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.shield.user.User;
+import org.elasticsearch.shield.authc.Authentication;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.SecurityLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -52,8 +52,8 @@ public class ShieldRestFilterTests extends ESTestCase {
 
     public void testProcess() throws Exception {
         RestRequest request = mock(RestRequest.class);
-        User user = new User("_user", "r1");
-        when(authcService.authenticate(request)).thenReturn(user);
+        Authentication authentication = mock(Authentication.class);
+        when(authcService.authenticate(request)).thenReturn(authentication);
         filter.process(request, channel, chain);
         verify(chain).continueProcessing(request, channel);
         verifyZeroInteractions(channel);

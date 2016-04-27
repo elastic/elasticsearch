@@ -19,27 +19,27 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.marvel.action.MonitoringBulkAction;
-import org.elasticsearch.shield.user.User;
+import org.elasticsearch.shield.authc.Authentication;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class KibanaUserRoleTests extends ESTestCase {
 
     public void testCluster() {
-        final User user = new User("joe");
+        final Authentication authentication = mock(Authentication.class);
         final TransportRequest request = new TransportRequest.Empty();
-        assertThat(KibanaUserRole.INSTANCE.cluster().check(ClusterHealthAction.NAME, request, user), is(true));
-        assertThat(KibanaUserRole.INSTANCE.cluster().check(ClusterStateAction.NAME, request, user), is(true));
-        assertThat(KibanaUserRole.INSTANCE.cluster().check(ClusterStatsAction.NAME, request, user), is(true));
-        assertThat(KibanaUserRole.INSTANCE.cluster().check(PutIndexTemplateAction.NAME, request, user), is(false));
-        assertThat(KibanaUserRole.INSTANCE.cluster().check(ClusterRerouteAction.NAME, request, user), is(false));
-        assertThat(KibanaUserRole.INSTANCE.cluster().check(ClusterUpdateSettingsAction.NAME, request, user), is(false));
-
-        assertThat(KibanaUserRole.INSTANCE.cluster().check(MonitoringBulkAction.NAME, request, user), is(false));
+        assertThat(KibanaUserRole.INSTANCE.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
+        assertThat(KibanaUserRole.INSTANCE.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
+        assertThat(KibanaUserRole.INSTANCE.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
+        assertThat(KibanaUserRole.INSTANCE.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(false));
+        assertThat(KibanaUserRole.INSTANCE.cluster().check(ClusterRerouteAction.NAME, request, authentication), is(false));
+        assertThat(KibanaUserRole.INSTANCE.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
+        assertThat(KibanaUserRole.INSTANCE.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
     }
 
     public void testRunAs() {

@@ -30,6 +30,8 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
@@ -54,6 +56,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -217,11 +220,58 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
             return InetAddressPoint.newRangeQuery(name(), lower, upper);
         }
 
+        /** Add both values and return the maximum value in case of overflow. */
+        private static byte[] add(byte[] a, byte[] b) {
+            byte[] aCopy = new byte[a.length + 1];
+            System.arraycopy(a, 0, aCopy, 1, a.length);
+            byte[] bCopy = new byte[b.length + 1];
+            System.arraycopy(b, 0, bCopy, 1, b.length);
+            byte[] sum = new byte[aCopy.length];
+            NumericUtils.add(aCopy.length, 0, aCopy, bCopy, sum);
+            if (sum[0] == 0) {
+                return Arrays.copyOfRange(sum, 1, sum.length);
+            } else {
+                byte[] result = new byte[a.length];
+                Arrays.fill(result, (byte) 0xff);
+                return result;
+            }
+        }
+
+        /** Subtract both values and return the minimum value in case of underflow. */
+        private static byte[] subtract(byte[] a, byte[] b) {
+            if (StringHelper.compare(a.length, a, 0, b, 0) <= 0) {
+                return new byte[a.length];
+            } else {
+                byte[] result = new byte[a.length];
+                NumericUtils.subtract(a.length, 0, a, b, result);
+                return result;
+            }
+        }
+
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            InetAddress base = parse(value);
-            int mask = fuzziness.asInt();
-            return XInetAddressPoint.newPrefixQuery(name(), base, mask);
+            // TODO: this is crazy, throw an exception instead
+            byte[] base = InetAddressPoint.encode(parse(value));
+            byte[] delta;
+            if (fuzziness.asString().contains(".") || fuzziness.asString().contains(":")) {
+                InetAddress address = InetAddresses.forString(fuzziness.asString());
+                delta = address.getAddress();
+                if (delta.length < InetAddressPoint.BYTES) { // ipv4
+                    byte[] newDelta = new byte[InetAddressPoint.BYTES];
+                    System.arraycopy(delta, 0, newDelta, newDelta.length - delta.length, delta.length);
+                    delta = newDelta;
+                }
+            } else {
+                delta = new byte[InetAddressPoint.BYTES];
+                for (int i = 0; i < 8; ++i) {
+                    delta[delta.length - 1 - i] = (byte) (fuzziness.asLong() >>> (i * 8));
+                }
+            }
+
+            byte[] lower = subtract(base, delta);
+            byte[] upper = add(base, delta);
+
+            return InetAddressPoint.newRangeQuery(name(), InetAddressPoint.decode(lower), InetAddressPoint.decode(upper));
         }
 
         @Override

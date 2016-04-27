@@ -25,6 +25,7 @@ import org.apache.lucene.document.XInetAddressPoint;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -156,5 +157,50 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
                         InetAddresses.forString("192.168.1.7"),
                         InetAddresses.forString("2001:db8::")),
                 ft.rangeQuery("::ffff:c0a8:107", "2001:db8::", true, true));
+    }
+
+    public void testFuzzyQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        assertEquals(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::1"), InetAddresses.forString("::5")),
+                ft.fuzzyQuery("::3", Fuzziness.build(2), 0, 0, randomBoolean()));
+        // underflow
+        assertEquals(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("::a")),
+                ft.fuzzyQuery("::3", Fuzziness.build(7), 0, 0, randomBoolean()));
+        // overflow
+        assertEquals(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffa"),
+                        InetAddresses.forString("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")),
+                ft.fuzzyQuery("ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffd", Fuzziness.build(3), 0, 0, randomBoolean()));
+
+        // same with ipv6 addresses as deltas (crazy, eh)
+        assertEquals(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::1"), InetAddresses.forString("::5")),
+                ft.fuzzyQuery("::3", Fuzziness.build("::2"), 0, 0, randomBoolean()));
+        // underflow
+        assertEquals(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("::a")),
+                ft.fuzzyQuery("::3", Fuzziness.build("::7"), 0, 0, randomBoolean()));
+        // overflow
+        assertEquals(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffa"),
+                        InetAddresses.forString("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")),
+                ft.fuzzyQuery("ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffd", Fuzziness.build("::3"), 0, 0, randomBoolean()));
+
+        // same with ipv4 addresses as deltas (crazy, eh)
+        assertEquals(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("192.168.0.254"), InetAddresses.forString("192.168.1.8")),
+                ft.fuzzyQuery("192.168.1.3", Fuzziness.build("0.0.0.5"), 0, 0, randomBoolean()));
+        // underflow
+        assertEquals(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("::a")),
+                ft.fuzzyQuery("::3", Fuzziness.build("0.0.0.7"), 0, 0, randomBoolean()));
+        // overflow
+        assertEquals(
+                InetAddressPoint.newRangeQuery("field", InetAddresses.forString("ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffa"),
+                        InetAddresses.forString("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")),
+                ft.fuzzyQuery("ffff:ffff:ffff:ffff:ffff:ffff:ffff:fffd", Fuzziness.build("0.0.0.3"), 0, 0, randomBoolean()));
     }
 }

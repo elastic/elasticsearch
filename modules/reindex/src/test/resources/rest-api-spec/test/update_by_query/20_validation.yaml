@@ -29,13 +29,23 @@
 ---
 "requests_per_second cannot be an empty string":
   - do:
-      index:
-        index:   test
-        type:    test
-        id:      1
-        body:    { "text": "test" }
-  - do:
-      catch: /requests_per_second cannot be an empty string/
+      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
       update_by_query:
+        requests_per_second: ""
         index: test
-        requests_per_second: ''
+
+---
+"requests_per_second cannot be negative":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      update_by_query:
+        requests_per_second: -12
+        index: test
+
+---
+"requests_per_second cannot be zero":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      update_by_query:
+        requests_per_second: 0
+        index: test

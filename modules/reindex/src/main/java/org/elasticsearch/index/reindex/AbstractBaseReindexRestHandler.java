@@ -49,17 +49,26 @@ public abstract class AbstractBaseReindexRestHandler<
      * @return requests_per_second from the request as a float if it was on the request, null otherwise
      */
     public static Float parseRequestsPerSecond(RestRequest request) {
-        String requestsPerSecond = request.param("requests_per_second");
-        if (requestsPerSecond == null) {
+        String requestsPerSecondString = request.param("requests_per_second");
+        if (requestsPerSecondString == null) {
             return null;
         }
-        if ("".equals(requestsPerSecond)) {
-            throw new IllegalArgumentException("requests_per_second cannot be an empty string");
+        if ("unlimited".equals(requestsPerSecondString)) {
+            return Float.POSITIVE_INFINITY;
         }
-        if ("unlimited".equals(requestsPerSecond)) {
-            return 0f;
+        float requestsPerSecond;
+        try {
+            requestsPerSecond = Float.parseFloat(requestsPerSecondString);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                    "[requests_per_second] must be a float greater than 0. Use \"unlimited\" to disable throttling.", e);
         }
-        return Float.parseFloat(requestsPerSecond);
+        if (requestsPerSecond <= 0) {
+            // We validate here and in the setters because the setters use "Float.POSITIVE_INFINITY" instead of "unlimited"
+            throw new IllegalArgumentException(
+                    "[requests_per_second] must be a float greater than 0. Use \"unlimited\" to disable throttling.");
+        }
+        return requestsPerSecond;
     }
 
     protected final IndicesQueriesRegistry indicesQueriesRegistry;

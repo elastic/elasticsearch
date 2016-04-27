@@ -33,55 +33,55 @@ public class ReindexVersioningTests extends ReindexTestCase {
 
     public void testExternalVersioningCreatesWhenAbsentAndSetsVersion() throws Exception {
         setupSourceAbsent();
-        assertThat(reindexExternal(), responseMatcher().created(1));
+        assertThat(reindexExternal(), reindexResponseMatcher().created(1));
         assertDest("source", SOURCE_VERSION);
     }
 
     public void testExternalVersioningUpdatesOnOlderAndSetsVersion() throws Exception {
         setupDestOlder();
-        assertThat(reindexExternal(), responseMatcher().updated(1));
+        assertThat(reindexExternal(), reindexResponseMatcher().updated(1));
         assertDest("source", SOURCE_VERSION);
     }
 
     public void testExternalVersioningVersionConflictsOnNewer() throws Exception {
         setupDestNewer();
-        assertThat(reindexExternal(), responseMatcher().versionConflicts(1));
+        assertThat(reindexExternal(), reindexResponseMatcher().versionConflicts(1));
         assertDest("dest", NEWER_VERSION);
     }
 
     public void testInternalVersioningCreatesWhenAbsent() throws Exception {
         setupSourceAbsent();
-        assertThat(reindexInternal(), responseMatcher().created(1));
+        assertThat(reindexInternal(), reindexResponseMatcher().created(1));
         assertDest("source", 1);
     }
 
     public void testInternalVersioningUpdatesOnOlder() throws Exception {
         setupDestOlder();
-        assertThat(reindexInternal(), responseMatcher().updated(1));
+        assertThat(reindexInternal(), reindexResponseMatcher().updated(1));
         assertDest("source", OLDER_VERSION + 1);
     }
 
     public void testInternalVersioningUpdatesOnNewer() throws Exception {
         setupDestNewer();
-        assertThat(reindexInternal(), responseMatcher().updated(1));
+        assertThat(reindexInternal(), reindexResponseMatcher().updated(1));
         assertDest("source", NEWER_VERSION + 1);
     }
 
     public void testCreateCreatesWhenAbsent() throws Exception {
         setupSourceAbsent();
-        assertThat(reindexCreate(), responseMatcher().created(1));
+        assertThat(reindexCreate(), reindexResponseMatcher().created(1));
         assertDest("source", 1);
     }
 
     public void testCreateVersionConflictsOnOlder() throws Exception {
         setupDestOlder();
-        assertThat(reindexCreate(), responseMatcher().versionConflicts(1));
+        assertThat(reindexCreate(), reindexResponseMatcher().versionConflicts(1));
         assertDest("dest", OLDER_VERSION);
     }
 
     public void testCreateVersionConflictsOnNewer() throws Exception {
         setupDestNewer();
-        assertThat(reindexCreate(), responseMatcher().versionConflicts(1));
+        assertThat(reindexCreate(), reindexResponseMatcher().versionConflicts(1));
         assertDest("dest", NEWER_VERSION);
     }
 

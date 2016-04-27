@@ -204,7 +204,7 @@ public class BulkByScrollTask extends CancellableTask {
             builder.field("noops", noops);
             builder.field("retries", retries);
             builder.timeValueField("throttled_millis", "throttled", throttled);
-            builder.field("requests_per_second", requestsPerSecond == 0 ? "unlimited" : requestsPerSecond);
+            builder.field("requests_per_second", requestsPerSecond == Float.POSITIVE_INFINITY ? "unlimited" : requestsPerSecond);
             if (reasonCancelled != null) {
                 builder.field("canceled", reasonCancelled);
             }
@@ -412,9 +412,6 @@ public class BulkByScrollTask extends CancellableTask {
     }
 
     private void setRequestsPerSecond(float requestsPerSecond) {
-        if (requestsPerSecond == -1) {
-            requestsPerSecond = 0;
-        }
         this.requestsPerSecond = requestsPerSecond;
     }
 

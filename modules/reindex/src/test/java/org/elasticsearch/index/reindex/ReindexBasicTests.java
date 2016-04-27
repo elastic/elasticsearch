@@ -37,22 +37,22 @@ public class ReindexBasicTests extends ReindexTestCase {
 
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source("source").destination("dest", "all").refresh(true);
-        assertThat(copy.get(), responseMatcher().created(4));
+        assertThat(copy.get(), reindexResponseMatcher().created(4));
         assertHitCount(client().prepareSearch("dest").setTypes("all").setSize(0).get(), 4);
 
         // Now none of them
         copy = reindex().source("source").destination("all", "none").filter(termQuery("foo", "no_match")).refresh(true);
-        assertThat(copy.get(), responseMatcher().created(0));
+        assertThat(copy.get(), reindexResponseMatcher().created(0));
         assertHitCount(client().prepareSearch("dest").setTypes("none").setSize(0).get(), 0);
 
         // Now half of them
         copy = reindex().source("source").destination("dest", "half").filter(termQuery("foo", "a")).refresh(true);
-        assertThat(copy.get(), responseMatcher().created(2));
+        assertThat(copy.get(), reindexResponseMatcher().created(2));
         assertHitCount(client().prepareSearch("dest").setTypes("half").setSize(0).get(), 2);
 
         // Limit with size
         copy = reindex().source("source").destination("dest", "size_one").size(1).refresh(true);
-        assertThat(copy.get(), responseMatcher().created(1));
+        assertThat(copy.get(), reindexResponseMatcher().created(1));
         assertHitCount(client().prepareSearch("dest").setTypes("size_one").setSize(0).get(), 1);
     }
 
@@ -70,7 +70,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         ReindexRequestBuilder copy = reindex().source("source").destination("dest", "all").refresh(true);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
-        assertThat(copy.get(), responseMatcher().created(max).batches(max, 5));
+        assertThat(copy.get(), reindexResponseMatcher().created(max).batches(max, 5));
         assertHitCount(client().prepareSearch("dest").setTypes("all").setSize(0).get(), max);
 
         // Copy some of the docs
@@ -79,7 +79,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         copy.size(half); // The real "size" of the request.
-        assertThat(copy.get(), responseMatcher().created(half).batches(half, 5));
+        assertThat(copy.get(), reindexResponseMatcher().created(half).batches(half, 5));
         assertHitCount(client().prepareSearch("dest").setTypes("half").setSize(0).get(), half);
     }
 }

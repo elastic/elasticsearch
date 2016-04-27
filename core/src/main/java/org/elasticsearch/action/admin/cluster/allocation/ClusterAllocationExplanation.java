@@ -114,7 +114,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         return this.unassignedInfo;
     }
 
-    /** Return the remaining allocation delay for this shard in nanoseconds */
+    /** Return the remaining allocation delay for this shard in millisocends */
     public long getRemainingDelayMillis() {
         return this.remainingDelayMillis;
     }
@@ -142,8 +142,8 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
             if (unassignedInfo != null) {
                 unassignedInfo.toXContent(builder, params);
                 long delay = unassignedInfo.getLastComputedLeftDelayNanos();
-                builder.timeValueField("allocation_delay_ms", "allocation_delay", TimeValue.timeValueNanos(delay));
-                builder.timeValueField("remaining_delay_ms", "remaining_delay", TimeValue.timeValueMillis(remainingDelayMillis));
+                builder.timeValueField("allocation_delay_in_millis", "allocation_delay", TimeValue.timeValueNanos(delay));
+                builder.timeValueField("remaining_delay_in_millis", "remaining_delay", TimeValue.timeValueMillis(remainingDelayMillis));
             }
             builder.startObject("nodes");
             for (NodeExplanation explanation : nodeExplanations.values()) {

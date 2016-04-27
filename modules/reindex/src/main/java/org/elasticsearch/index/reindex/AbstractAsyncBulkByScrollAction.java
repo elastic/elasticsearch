@@ -339,7 +339,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * How many nanoseconds should a batch of lastBatchSize have taken if it were perfectly throttled? Package private for testing.
      */
     float perfectlyThrottledBatchTime(int lastBatchSize) {
-        if (task.getRequestsPerSecond() == 0) {
+        if (task.getRequestsPerSecond() == Float.POSITIVE_INFINITY) {
             return 0;
         }
         //       requests

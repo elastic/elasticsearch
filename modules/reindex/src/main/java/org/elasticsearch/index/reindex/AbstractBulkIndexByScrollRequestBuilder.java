@@ -20,14 +20,13 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.script.Script;
 
 public abstract class AbstractBulkIndexByScrollRequestBuilder<
                 Request extends AbstractBulkIndexByScrollRequest<Request>,
-                Response extends ActionResponse,
+                Response extends BulkIndexByScrollResponse,
                 Self extends AbstractBulkIndexByScrollRequestBuilder<Request, Response, Self>>
         extends AbstractBulkByScrollRequestBuilder<Request, Response, Self> {
 

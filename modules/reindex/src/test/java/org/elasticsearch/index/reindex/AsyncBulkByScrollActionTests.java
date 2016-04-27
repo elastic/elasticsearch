@@ -369,7 +369,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     public void testPerfectlyThrottledBatchTime() {
         DummyAbstractAsyncBulkByScrollAction action = new DummyAbstractAsyncBulkByScrollAction();
-        testRequest.setRequestsPerSecond(0);
+        testRequest.setRequestsPerSecond(Float.POSITIVE_INFINITY);
         assertThat((double) action.perfectlyThrottledBatchTime(randomInt()), closeTo(0f, 0f));
 
         int total = between(0, 1000000);

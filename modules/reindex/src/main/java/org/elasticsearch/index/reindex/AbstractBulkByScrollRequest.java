@@ -87,11 +87,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     private int maxRetries = 11;
 
     /**
-     * The throttle for this request in sub-requests per second. 0 means set no throttle and that is the default. Throttling is done between
-     * batches, as we start the next scroll requests. That way we can increase the scroll's timeout to make sure that it contains any time
-     * that we might wait.
+     * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
      */
-    private float requestsPerSecond = 0;
+    private float requestsPerSecond = Float.POSITIVE_INFINITY;
 
     public AbstractBulkByScrollRequest() {
     }
@@ -264,16 +264,24 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
-     * The throttle for this request in sub-requests per second. 0 means set no throttle and that is the default.
+     * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
      */
     public float getRequestsPerSecond() {
         return requestsPerSecond;
     }
 
     /**
-     * Set the throttle for this request in sub-requests per second. 0 means set no throttle and that is the default.
+     * Set the throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
      */
     public Self setRequestsPerSecond(float requestsPerSecond) {
+        if (requestsPerSecond <= 0) {
+            throw new IllegalArgumentException(
+                    "[requests_per_second] must be greater than 0. Use Float.POSITIVE_INFINITY to disable throttling.");
+        }
         this.requestsPerSecond = requestsPerSecond;
         return self();
     }

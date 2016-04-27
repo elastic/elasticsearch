@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
@@ -88,8 +89,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     @Override
     protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (queryBuilder.ids().size() == 0) {
-            assertThat(query, instanceOf(BooleanQuery.class));
-            assertThat(((BooleanQuery)query).clauses().size(), equalTo(0));
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(query, instanceOf(TermsQuery.class));
         }

@@ -286,6 +286,8 @@ public class MatchQuery {
     }
 
     protected Query zeroTermsQuery() {
+        // TODO This is weird: DEFAULT_ZERO_TERMS_QUERY is a public static final field, so this can have only one value.
+        // why are we then having this if clause in here?
         return zeroTermsQuery == DEFAULT_ZERO_TERMS_QUERY ? Queries.newMatchNoDocsQuery() : Queries.newMatchAllQuery();
     }
 

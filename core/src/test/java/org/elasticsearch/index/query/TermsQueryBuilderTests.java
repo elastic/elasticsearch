@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.CollectionUtil;
@@ -93,41 +94,45 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     @Override
     protected void doAssertLuceneQuery(TermsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, instanceOf(BooleanQuery.class));
-        BooleanQuery booleanQuery = (BooleanQuery) query;
-
-        // we only do the check below for string fields (otherwise we'd have to decode the values)
-        if (queryBuilder.fieldName().equals(INT_FIELD_NAME) || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)
-                || queryBuilder.fieldName().equals(BOOLEAN_FIELD_NAME) || queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
-            return;
-        }
-
-        // expected returned terms depending on whether we have a terms query or a terms lookup query
-        List<Object> terms;
-        if (queryBuilder.termsLookup() != null) {
-            terms = randomTerms;
+        if (queryBuilder.termsLookup() == null && (queryBuilder.values() == null || queryBuilder.values().isEmpty())) {
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
-            terms = queryBuilder.values();
-        }
-
-        // compare whether we have the expected list of terms returned
-        final List<Term> booleanTerms = new ArrayList<>();
-        for (BooleanClause booleanClause : booleanQuery) {
-            assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-            assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
-            Term term = ((TermQuery) booleanClause.getQuery()).getTerm();
-            booleanTerms.add(term);
-        }
-        CollectionUtil.timSort(booleanTerms);
-        List<Term> expectedTerms = new ArrayList<>();
-        for (Object term : terms) {
-            if (term != null) { // terms lookup filters this out
-                expectedTerms.add(new Term(queryBuilder.fieldName(), term.toString()));
+            assertThat(query, instanceOf(BooleanQuery.class));
+            BooleanQuery booleanQuery = (BooleanQuery) query;
+    
+            // we only do the check below for string fields (otherwise we'd have to decode the values)
+            if (queryBuilder.fieldName().equals(INT_FIELD_NAME) || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)
+                    || queryBuilder.fieldName().equals(BOOLEAN_FIELD_NAME) || queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
+                return;
             }
+    
+            // expected returned terms depending on whether we have a terms query or a terms lookup query
+            List<Object> terms;
+            if (queryBuilder.termsLookup() != null) {
+                terms = randomTerms;
+            } else {
+                terms = queryBuilder.values();
+            }
+    
+            // compare whether we have the expected list of terms returned
+            final List<Term> booleanTerms = new ArrayList<>();
+            for (BooleanClause booleanClause : booleanQuery) {
+                assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+                assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
+                Term term = ((TermQuery) booleanClause.getQuery()).getTerm();
+                booleanTerms.add(term);
+            }
+            CollectionUtil.timSort(booleanTerms);
+            List<Term> expectedTerms = new ArrayList<>();
+            for (Object term : terms) {
+                if (term != null) { // terms lookup filters this out
+                    expectedTerms.add(new Term(queryBuilder.fieldName(), term.toString()));
+                }
+            }
+            CollectionUtil.timSort(expectedTerms);
+            assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms.size(), booleanTerms.size());
+            assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms, booleanTerms);
         }
-        CollectionUtil.timSort(expectedTerms);
-        assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms.size(), booleanTerms.size());
-        assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms, booleanTerms);
     }
 
     public void testEmtpyFieldName() {

@@ -43,6 +43,11 @@ public interface Processor {
     String getTag();
 
     /**
+     * Sets the tag of the processor that ran last
+     */
+    void setLastType(String lastType);
+
+    /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
     interface Factory<P extends Processor> {

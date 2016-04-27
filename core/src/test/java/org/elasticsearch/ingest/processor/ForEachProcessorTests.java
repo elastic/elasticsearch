@@ -179,6 +179,11 @@ public class ForEachProcessorTests extends ESTestCase {
                 public String getTag() {
                     return null;
                 }
+
+                @Override
+                public void setLastType(String lastType) {
+
+                }
             });
         }
         int numValues = randomIntBetween(1, 32);

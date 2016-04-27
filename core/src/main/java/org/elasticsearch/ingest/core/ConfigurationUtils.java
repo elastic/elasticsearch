@@ -104,6 +104,26 @@ public final class ConfigurationUtils {
     }
 
     /**
+     * Returns and removes the specified property from the specified configuration map.
+     *
+     * If the property value isn't of type boolean a {@link ElasticsearchParseException} is thrown.
+     * If the property is missing an {@link ElasticsearchParseException} is thrown
+     */
+    public static boolean readBooleanProperty(String processorType, String processorTag, Map<String, Object> configuration, String propertyName,
+                                      boolean defaultValue) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            return Boolean.parseBoolean(value.toString());
+        } catch (Throwable t) {
+            throw newConfigurationException(processorType, processorTag, propertyName,
+                "property cannot be converted to a boolean [" + value.toString() + "]");
+        }
+    }
+
+    /**
      * Returns and removes the specified property of type list from the specified configuration map.
      *
      * If the property value isn't of type list an {@link ElasticsearchParseException} is thrown.

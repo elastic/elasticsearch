@@ -294,7 +294,7 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             if (fielddata == false) {
-                throw new IllegalStateException("Fielddata is disabled on text fields by default. Set fielddata=true on [" + name()
+                throw new IllegalArgumentException("Fielddata is disabled on text fields by default. Set fielddata=true on [" + name()
                         + "] in order to load fielddata in memory by uninverting the inverted index. Note that this can however "
                         + "use significant memory.");
             }

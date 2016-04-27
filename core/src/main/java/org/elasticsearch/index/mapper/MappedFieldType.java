@@ -96,7 +96,11 @@ public abstract class MappedFieldType extends FieldType {
     @Override
     public abstract MappedFieldType clone();
 
-    /** Return a fielddata builder for this field. */
+    /** Return a fielddata builder for this field
+     *  @throws IllegalArgumentException if the fielddata is not supported on this type.
+     *  An IllegalArgumentException is needed in order to return an http error 400
+     *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+     **/
     public IndexFieldData.Builder fielddataBuilder() {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
@@ -315,6 +319,25 @@ public abstract class MappedFieldType extends FieldType {
         return BytesRefs.toBytesRef(value);
     }
 
+    /** Returns true if the field is searchable.
+     *
+     */
+    protected boolean isSearchable() {
+        return indexOptions() != IndexOptions.NONE;
+    }
+
+    /** Returns true if the field is aggregatable.
+     *
+     */
+    protected boolean isAggregatable() {
+        try {
+            fielddataBuilder();
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
     /** Generates a query that will only match documents that contain the given value.
      *  The default implementation returns a {@link TermQuery} over the value bytes,
      *  boosted by {@link #boost()}.
@@ -376,11 +399,13 @@ public abstract class MappedFieldType extends FieldType {
         int maxDoc = reader.maxDoc();
         Terms terms = MultiFields.getTerms(reader, name());
         if (terms == null) {
-            return null;
+            return new FieldStats.Text(maxDoc, isSearchable(), isAggregatable());
         }
-        return new FieldStats.Text(
-            maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), terms.getMin(), terms.getMax()
-        );
+        FieldStats stats = new FieldStats.Text(maxDoc, terms.getDocCount(),
+            terms.getSumDocFreq(), terms.getSumTotalTermFreq(),
+            isSearchable(), isAggregatable(),
+            terms.getMin(), terms.getMax());
+        return stats;
     }
 
     /**
@@ -411,9 +436,13 @@ public abstract class MappedFieldType extends FieldType {
         return null;
     }
 
+    /** @throws IllegalArgumentException if the fielddata is not supported on this type.
+     *  An IllegalArgumentException is needed in order to return an http error 400
+     *  when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
+     **/
     protected final void failIfNoDocValues() {
         if (hasDocValues() == false) {
-            throw new IllegalStateException("Can't load fielddata on [" + name()
+            throw new IllegalArgumentException("Can't load fielddata on [" + name()
                 + "] because fielddata is unsupported on fields of type ["
                 + typeName() + "]. Use doc values instead.");
         }

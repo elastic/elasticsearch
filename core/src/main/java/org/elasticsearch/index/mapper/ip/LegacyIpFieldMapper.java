@@ -252,14 +252,14 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
             int maxDoc = reader.maxDoc();
             Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
             if (terms == null) {
-                return null;
+                return new FieldStats.Ip(maxDoc, isSearchable(), isAggregatable());
             }
             long minValue = LegacyNumericUtils.getMinLong(terms);
             long maxValue = LegacyNumericUtils.getMaxLong(terms);
-            return new FieldStats.Ip(maxDoc, terms.getDocCount(), terms.getSumDocFreq(),
-                    terms.getSumTotalTermFreq(),
-                    InetAddress.getByName(longToIp(minValue)),
-                    InetAddress.getByName(longToIp(maxValue)));
+            return new FieldStats.Ip(maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(),
+                isSearchable(), isAggregatable(),
+                InetAddress.getByName(longToIp(minValue)),
+                InetAddress.getByName(longToIp(maxValue)));
         }
 
         @Override

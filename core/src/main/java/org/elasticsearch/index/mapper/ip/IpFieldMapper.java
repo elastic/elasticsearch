@@ -229,14 +229,14 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
             String field = name();
             long size = PointValues.size(reader, field);
             if (size == 0) {
-                return null;
+                return new FieldStats.Ip(reader.maxDoc(), isSearchable(), isAggregatable());
             }
             int docCount = PointValues.getDocCount(reader, field);
             byte[] min = PointValues.getMinPackedValue(reader, field);
             byte[] max = PointValues.getMaxPackedValue(reader, field);
-            return new FieldStats.Ip(reader.maxDoc(),docCount, -1L, size,
-                    InetAddressPoint.decode(min),
-                    InetAddressPoint.decode(max));
+            return new FieldStats.Ip(reader.maxDoc(), docCount, -1L, size,
+                isSearchable(), isAggregatable(),
+                InetAddressPoint.decode(min), InetAddressPoint.decode(max));
         }
 
         @Override

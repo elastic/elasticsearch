@@ -396,15 +396,14 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
             String field = name();
             long size = PointValues.size(reader, field);
             if (size == 0) {
-                return null;
+                return new FieldStats.Date(reader.maxDoc(), isSearchable(), isAggregatable(), dateTimeFormatter());
             }
             int docCount = PointValues.getDocCount(reader, field);
             byte[] min = PointValues.getMinPackedValue(reader, field);
             byte[] max = PointValues.getMaxPackedValue(reader, field);
             return new FieldStats.Date(reader.maxDoc(),docCount, -1L, size,
-                    LongPoint.decodeDimension(min, 0),
-                    LongPoint.decodeDimension(max, 0),
-                    dateTimeFormatter());
+                isSearchable(), isAggregatable(),
+                dateTimeFormatter(), LongPoint.decodeDimension(min, 0), LongPoint.decodeDimension(max, 0));
         }
 
         @Override

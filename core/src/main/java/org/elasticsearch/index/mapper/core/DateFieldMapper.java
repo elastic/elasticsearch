@@ -319,6 +319,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+            failIfNotIndexed();
             long baseLo = parseToMilliseconds(value, false, null, dateMathParser);
             long baseHi = parseToMilliseconds(value, true, null, dateMathParser);
             long delta;
@@ -333,16 +334,19 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            failIfNotIndexed();
             return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null);
         }
 
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
                 @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
+            failIfNotIndexed();
             return new LateParsingQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser);
         }
 
         Query innerRangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
                 @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
+            failIfNotIndexed();
             DateMathParser parser = forcedDateParser == null
                     ? dateMathParser
                     : forcedDateParser;

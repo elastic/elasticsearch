@@ -21,6 +21,8 @@ package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
@@ -48,5 +50,29 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         // current impl ignores args and should always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null, randomDouble(), randomDouble(),
                 randomBoolean(), randomBoolean(), null, null));
+    }
+
+    public void testTermQuery() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", null));
+
+        ft.setIndexOptions(IndexOptions.NONE);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> ft.termQuery("42", null));
+        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+    }
+
+    public void testRangeQuery() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertEquals(LongPoint.newRangeQuery("field", 1, 3), ft.rangeQuery("1", "3", true, true));
+
+        ft.setIndexOptions(IndexOptions.NONE);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> ft.rangeQuery("1", "3", true, true));
+        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 }

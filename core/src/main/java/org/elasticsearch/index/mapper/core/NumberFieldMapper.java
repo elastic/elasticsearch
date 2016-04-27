@@ -735,6 +735,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
+            failIfNotIndexed();
             Query query = type.termQuery(name(), value);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
@@ -744,6 +745,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         @Override
         public Query termsQuery(List values, QueryShardContext context) {
+            failIfNotIndexed();
             Query query = type.termsQuery(name(), values);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
@@ -753,6 +755,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            failIfNotIndexed();
             Query query = type.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
@@ -763,6 +766,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength,
                                 int maxExpansions, boolean transpositions) {
+            failIfNotIndexed();
             return type.fuzzyQuery(name(), value, fuzziness);
         }
 

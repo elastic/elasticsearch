@@ -164,6 +164,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
 
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
+            failIfNotIndexed();
             if (value instanceof InetAddress) {
                 return InetAddressPoint.newExactQuery(name(), (InetAddress) value);
             } else {
@@ -188,6 +189,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            failIfNotIndexed();
             InetAddress lower;
             if (lowerTerm == null) {
                 lower = XInetAddressPoint.MIN_VALUE;
@@ -219,6 +221,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+            failIfNotIndexed();
             InetAddress base = parse(value);
             int mask = fuzziness.asInt();
             return XInetAddressPoint.newPrefixQuery(name(), base, mask);

@@ -343,6 +343,7 @@ public abstract class MappedFieldType extends FieldType {
      *  boosted by {@link #boost()}.
      *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type */
     public Query termQuery(Object value, @Nullable QueryShardContext context) {
+        failIfNotIndexed();
         TermQuery query = new TermQuery(new Term(name(), indexedValueForSearch(value)));
         if (boost == 1f ||
             (context != null && context.indexVersionCreated().before(Version.V_5_0_0_alpha1))) {
@@ -352,6 +353,7 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public Query termsQuery(List values, @Nullable QueryShardContext context) {
+        failIfNotIndexed();
         BytesRef[] bytesRefs = new BytesRef[values.size()];
         for (int i = 0; i < bytesRefs.length; i++) {
             bytesRefs[i] = indexedValueForSearch(values.get(i));
@@ -360,6 +362,7 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+        failIfNotIndexed();
         return new TermRangeQuery(name(),
             lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
             upperTerm == null ? null : indexedValueForSearch(upperTerm),
@@ -367,11 +370,13 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+        failIfNotIndexed();
         return new FuzzyQuery(new Term(name(), indexedValueForSearch(value)),
                 fuzziness.asDistance(BytesRefs.toString(value)), prefixLength, maxExpansions, transpositions);
     }
 
     public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
+        failIfNotIndexed();
         PrefixQuery query = new PrefixQuery(new Term(name(), indexedValueForSearch(value)));
         if (method != null) {
             query.setRewriteMethod(method);
@@ -445,6 +450,13 @@ public abstract class MappedFieldType extends FieldType {
             throw new IllegalArgumentException("Can't load fielddata on [" + name()
                 + "] because fielddata is unsupported on fields of type ["
                 + typeName() + "]. Use doc values instead.");
+        }
+    }
+
+    protected final void failIfNotIndexed() {
+        if (indexOptions() == IndexOptions.NONE && pointDimensionCount() == 0) {
+            // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
+            throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
         }
     }
 

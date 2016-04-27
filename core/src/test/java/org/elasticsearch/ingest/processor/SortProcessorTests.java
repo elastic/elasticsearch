@@ -246,7 +246,7 @@ public class SortProcessorTests extends ESTestCase {
         Object value;
         for (int j = 0; j < numItems; j++) {
             if (randomBoolean()) {
-                value = String.valueOf(randomIntBetween(0, 100));
+                value = randomIntBetween(0, 100);
             } else {
                 value = randomAsciiOfLengthBetween(1, 10);
             }

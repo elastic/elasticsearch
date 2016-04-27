@@ -204,7 +204,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query query;
         if (this.ids.isEmpty()) {
-             query = Queries.newMatchNoDocsQuery();
+             query = Queries.newMatchNoDocsQuery("Missing ids in " + this.getName());
         } else {
             Collection<String> typesForQuery;
             if (types.length == 0) {

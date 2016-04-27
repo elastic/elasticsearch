@@ -138,7 +138,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             if (isSameIndex(value, context.index().getName())) {
                 return Queries.newMatchAllQuery();
             } else {
-                return Queries.newMatchNoDocsQuery();
+                return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + value);
             }
         }
         
@@ -157,7 +157,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 }
             }
             // None of the listed index names are this one
-            return Queries.newMatchNoDocsQuery();
+            return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + values);
         }
 
         private boolean isSameIndex(Object value, String indexName) {

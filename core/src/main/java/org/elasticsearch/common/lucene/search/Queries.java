@@ -25,7 +25,6 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -45,8 +44,8 @@ public class Queries {
     }
 
     /** Return a query that matches no document. */
-    public static Query newMatchNoDocsQuery() {
-        return new MatchNoDocsQuery();
+    public static Query newMatchNoDocsQuery(String reason) {
+        return new MatchNoDocsQuery(reason);
     }
 
     public static Query newNestedFilter() {

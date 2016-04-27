@@ -20,10 +20,10 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import java.io.IOException;
 import static org.hamcrest.CoreMatchers.either;

@@ -21,17 +21,15 @@ package org.elasticsearch.index.query;
 
 
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;

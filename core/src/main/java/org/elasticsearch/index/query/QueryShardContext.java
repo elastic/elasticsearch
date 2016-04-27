@@ -373,7 +373,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private static Query toQuery(final QueryBuilder<?> queryBuilder, final QueryShardContext context) throws IOException {
         final Query query = QueryBuilder.rewriteQuery(queryBuilder, context).toQuery(context);
         if (query == null) {
-            return Queries.newMatchNoDocsQuery();
+            return Queries.newMatchNoDocsQuery("No query left after rewrite.");
         }
         return query;
     }

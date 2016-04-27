@@ -5,9 +5,11 @@
 
 Numeric fields have been refactored to use a different data structure that
 performs better for range queries. However, since this data structure does
-not record document frequencies, numeric fields can no longer be used for
-significant terms aggregations. It is recommended to use <<keyword,`keyword`>>
-fields instead, either directly or through a <<multi-fields,multi-field>>
-if the numeric representation is still needed for sorting, range queries or
-numeric aggregations like
+not record document frequencies, numeric fields need to fall back to running
+queries in order to estimate the number of matching documents in the
+background set, which may incur a performance degradation.
+
+It is recommended to use <<keyword,`keyword`>> fields instead, either directly
+or through a <<multi-fields,multi-field>> if the numeric representation is
+still needed for sorting, range queries or numeric aggregations like
 <<search-aggregations-metrics-stats-aggregation,`stats` aggregations>>.

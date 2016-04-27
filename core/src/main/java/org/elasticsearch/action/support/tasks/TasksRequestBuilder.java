@@ -26,8 +26,11 @@ import org.elasticsearch.common.unit.TimeValue;
 /**
  * Builder for task-based requests
  */
-public class TasksRequestBuilder <Request extends BaseTasksRequest<Request>, Response extends BaseTasksResponse, RequestBuilder extends TasksRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+public class TasksRequestBuilder<
+            Request extends BaseTasksRequest<Request>,
+            Response extends BaseTasksResponse,
+            RequestBuilder extends TasksRequestBuilder<Request, Response, RequestBuilder>
+        > extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
     protected TasksRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
         super(client, action, request);

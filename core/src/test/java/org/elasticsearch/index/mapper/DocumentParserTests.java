@@ -497,4 +497,184 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
         assertEquals(0, doc.rootDoc().getFields("foo").length);
     }
+
+    public void testDynamicDottedFieldNameLongArray() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject().startArray("foo.bar.baz")
+                .value(0)
+                .value(1)
+            .endArray().endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertEquals(4, doc.rootDoc().getFields("foo.bar.baz").length);
+    }
+
+    public void testDynamicDottedFieldNameLongArrayWithParentTemplate() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startArray("dynamic_templates").startObject().startObject("georule")
+                .field("match", "foo*")
+                .startObject("mapping").field("type", "object").endObject()
+            .endObject().endObject().endArray().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject().startArray("foo.bar.baz")
+                .value(0)
+                .value(1)
+            .endArray().endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertEquals(4, doc.rootDoc().getFields("foo.bar.baz").length);
+    }
+
+    public void testDynamicFalseDottedFieldNameLongArray() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
+            .endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject().startArray("foo.bar.baz")
+                .value(0)
+                .value(1)
+            .endArray().endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertEquals(0, doc.rootDoc().getFields("foo.bar.baz").length);
+    }
+
+    public void testDynamicStrictDottedFieldNameLongArray() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
+            .endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject().startArray("foo.bar.baz")
+                .value(0)
+                .value(1)
+            .endArray().endObject().bytes();
+        StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
+                () -> mapper.parse("test", "type", "1", bytes));
+        assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
+    }
+
+    public void testDynamicDottedFieldNameLong() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject().field("foo.bar.baz", 0)
+            .endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertEquals(2, doc.rootDoc().getFields("foo.bar.baz").length);
+    }
+
+    public void testDynamicDottedFieldNameLongWithParentTemplate() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startArray("dynamic_templates").startObject().startObject("georule")
+                .field("match", "foo*")
+                .startObject("mapping").field("type", "object").endObject()
+            .endObject().endObject().endArray().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject().field("foo.bar.baz", 0)
+            .endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertEquals(2, doc.rootDoc().getFields("foo.bar.baz").length);
+    }
+
+    public void testDynamicFalseDottedFieldNameLong() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
+            .endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject().field("foo.bar.baz", 0)
+            .endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertEquals(0, doc.rootDoc().getFields("foo.bar.baz").length);
+    }
+
+    public void testDynamicStrictDottedFieldNameLong() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
+            .endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject().field("foo.bar.baz", 0)
+            .endObject().bytes();
+        StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
+                () -> mapper.parse("test", "type", "1", bytes));
+        assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
+    }
+
+    public void testDynamicDottedFieldNameObject() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject().startObject("foo.bar.baz")
+                .field("a", 0)
+            .endObject().endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertEquals(2, doc.rootDoc().getFields("foo.bar.baz.a").length);
+    }
+
+    public void testDynamicDottedFieldNameObjectWithParentTemplate() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startArray("dynamic_templates").startObject().startObject("georule")
+                .field("match", "foo*")
+                .startObject("mapping").field("type", "object").endObject()
+            .endObject().endObject().endArray().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject().startObject("foo.bar.baz")
+                .field("a", 0)
+            .endObject().endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertEquals(2, doc.rootDoc().getFields("foo.bar.baz.a").length);
+    }
+
+    public void testDynamicFalseDottedFieldNameObject() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "false")
+            .endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject().startObject("foo.bar.baz")
+                .field("a", 0)
+            .endObject().endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertEquals(0, doc.rootDoc().getFields("foo.bar.baz.a").length);
+    }
+
+    public void testDynamicStrictDottedFieldNameObject() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").field("dynamic", "strict")
+            .endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject().startObject("foo.bar.baz")
+                .field("a", 0)
+            .endObject().endObject().bytes();
+        StrictDynamicMappingException exception = expectThrows(StrictDynamicMappingException.class,
+                () -> mapper.parse("test", "type", "1", bytes));
+        assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
+    }
 }

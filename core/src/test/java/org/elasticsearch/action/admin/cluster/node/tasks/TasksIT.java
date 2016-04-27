@@ -135,11 +135,11 @@ public class TasksIT extends ESIntegTestCase {
         ensureGreen("test"); // Make sure all shards are allocated
         client().prepareFieldStats().setFields("field").get();
 
-        // the percolate operation should produce one main task
+        // the field stats operation should produce one main task
         NumShards numberOfShards = getNumShards("test");
         assertEquals(1, numberOfEvents(FieldStatsAction.NAME, Tuple::v1));
         // and then one operation per shard
-        assertEquals(numberOfShards.totalNumShards, numberOfEvents(FieldStatsAction.NAME + "[s]", Tuple::v1));
+        assertEquals(numberOfShards.numPrimaries, numberOfEvents(FieldStatsAction.NAME + "[s]", Tuple::v1));
 
         // the shard level tasks should have the main task as a parent
         assertParentTask(findEvents(FieldStatsAction.NAME + "[s]", Tuple::v1), findEvents(FieldStatsAction.NAME, Tuple::v1).get(0));

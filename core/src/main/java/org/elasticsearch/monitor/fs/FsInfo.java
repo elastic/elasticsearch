@@ -22,7 +22,6 @@ package org.elasticsearch.monitor.fs;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -33,6 +32,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
 
@@ -189,50 +189,292 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         }
     }
 
-    public static class IoStats implements Writeable, ToXContent {
-        private long readBytes;
-        private long writeBytes;
+    public static class DeviceStats implements Writeable, ToXContent {
 
-        private IoStats() {
+        final int majorDeviceNumber;
+        final int minorDeviceNumber;
+        final String deviceName;
+        final long currentReadsCompleted;
+        final long previousReadsCompleted;
+        final long currentSectorsRead;
+        final long previousSectorsRead;
+        final long currentReadMilliseconds;
+        final long previousReadMilliseconds;
+        final long currentWritesCompleted;
+        final long previousWritesCompleted;
+        final long currentSectorsWritten;
+        final long previousSectorsWritten;
+        final long currentWriteMilliseconds;
+        final long previousWriteMilliseconds;
+        final long currentWeightedMilliseconds;
+        final long previousWeightedMilliseconds;
+        final long currentRelativeTime;
+        final long previousRelativeTime;
+
+        public DeviceStats(
+                final int majorDeviceNumber,
+                final int minorDeviceNumber,
+                final String deviceName,
+                final long currentReadsCompleted,
+                final long currentSectorsRead,
+                final long currentReadMilliseconds,
+                final long currentWritesCompleted,
+                final long currentSectorsWritten,
+                final long currentWriteMilliseconds,
+                final long currentWeightedMillseconds,
+                final long currentRelativeTime,
+                final DeviceStats previousDeviceStats) {
+            this(
+                    majorDeviceNumber,
+                    minorDeviceNumber,
+                    deviceName,
+                    currentReadsCompleted,
+                    previousDeviceStats != null ? previousDeviceStats.currentReadsCompleted : -1,
+                    currentSectorsWritten,
+                    previousDeviceStats != null ? previousDeviceStats.currentSectorsWritten : -1,
+                    currentSectorsRead,
+                    previousDeviceStats != null ? previousDeviceStats.currentSectorsRead : -1,
+                    currentWritesCompleted,
+                    previousDeviceStats != null ? previousDeviceStats.currentWritesCompleted : -1,
+                    currentReadMilliseconds,
+                    previousDeviceStats != null ? previousDeviceStats.currentReadMilliseconds : -1,
+                    currentWriteMilliseconds,
+                    previousDeviceStats != null ? previousDeviceStats.currentWriteMilliseconds : -1,
+                    currentWeightedMillseconds,
+                    previousDeviceStats != null ? previousDeviceStats.currentWeightedMilliseconds : -1,
+                    currentRelativeTime,
+                    previousDeviceStats != null ? previousDeviceStats.currentRelativeTime : -1);
         }
 
-        public IoStats(long readBytes, long writeBytes) {
-            this.readBytes = readBytes;
-            this.writeBytes = writeBytes;
+        private DeviceStats(
+                final int majorDeviceNumber,
+                final int minorDeviceNumber,
+                final String deviceName,
+                final long currentReadsCompleted,
+                final long previousReadsCompleted,
+                final long currentSectorsWritten,
+                final long previousSectorsWritten,
+                final long currentSectorsRead,
+                final long previousSectorsRead,
+                final long currentWritesCompleted,
+                final long previousWritesCompleted,
+                final long currentReadMilliseconds,
+                final long previousReadMilliseconds,
+                final long currentWriteMilliseconds,
+                final long previousWriteMilliseconds,
+                final long currentWeightedMilliseconds,
+                final long previousWeightedMilliseconds,
+                final long currentRelativeTime,
+                final long previousRelativeTime) {
+            this.majorDeviceNumber = majorDeviceNumber;
+            this.minorDeviceNumber = minorDeviceNumber;
+            this.deviceName = deviceName;
+            this.currentReadsCompleted = currentReadsCompleted;
+            this.previousReadsCompleted = previousReadsCompleted;
+            this.currentWritesCompleted = currentWritesCompleted;
+            this.previousWritesCompleted = previousWritesCompleted;
+            this.currentSectorsRead = currentSectorsRead;
+            this.previousSectorsRead = previousSectorsRead;
+            this.currentSectorsWritten = currentSectorsWritten;
+            this.previousSectorsWritten = previousSectorsWritten;
+            this.currentReadMilliseconds = currentReadMilliseconds;
+            this.previousReadMilliseconds = previousReadMilliseconds;
+            this.currentWriteMilliseconds = currentWriteMilliseconds;
+            this.previousWriteMilliseconds = previousWriteMilliseconds;
+            this.currentWeightedMilliseconds = currentWeightedMilliseconds;
+            this.previousWeightedMilliseconds = previousWeightedMilliseconds;
+            this.currentRelativeTime = currentRelativeTime;
+            this.previousRelativeTime = previousRelativeTime;
         }
 
-        public IoStats(StreamInput in) throws IOException {
-            readBytes = in.readVLong();
-            writeBytes = in.readVLong();
+        public DeviceStats(StreamInput in) throws IOException {
+            majorDeviceNumber = in.readVInt();
+            minorDeviceNumber = in.readVInt();
+            deviceName = in.readString();
+            currentReadsCompleted = in.readLong();
+            previousReadsCompleted = in.readLong();
+            currentWritesCompleted = in.readLong();
+            previousWritesCompleted = in.readLong();
+            currentSectorsRead = in.readLong();
+            previousSectorsRead = in.readLong();
+            currentSectorsWritten = in.readLong();
+            previousSectorsWritten = in.readLong();
+            currentReadMilliseconds = in.readLong();
+            previousReadMilliseconds = in.readLong();
+            currentWriteMilliseconds = in.readLong();
+            previousWriteMilliseconds = in.readLong();
+            currentWeightedMilliseconds = in.readLong();
+            previousWeightedMilliseconds = in.readLong();
+            currentRelativeTime = in.readLong();
+            previousRelativeTime = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(readBytes);
-            out.writeVLong(writeBytes);
+            out.writeVInt(majorDeviceNumber);
+            out.writeVInt(minorDeviceNumber);
+            out.writeString(deviceName);
+            out.writeLong(currentReadsCompleted);
+            out.writeLong(previousReadsCompleted);
+            out.writeLong(currentWritesCompleted);
+            out.writeLong(previousWritesCompleted);
+            out.writeLong(currentSectorsRead);
+            out.writeLong(previousSectorsRead);
+            out.writeLong(currentSectorsWritten);
+            out.writeLong(previousSectorsWritten);
+            out.writeLong(currentReadMilliseconds);
+            out.writeLong(previousReadMilliseconds);
+            out.writeLong(currentWriteMilliseconds);
+            out.writeLong(previousWriteMilliseconds);
+            out.writeLong(currentWeightedMilliseconds);
+            out.writeLong(previousWeightedMilliseconds);
+            out.writeLong(currentRelativeTime);
+            out.writeLong(previousRelativeTime);
         }
 
-        public long getReadBytes() {
-            return readBytes;
+        private long totalOperationsCompleted() {
+            return (currentReadsCompleted - previousReadsCompleted) + (currentWritesCompleted - previousWritesCompleted);
         }
 
-        public long getWriteBytes() {
-            return writeBytes;
+        public float iops() {
+            if (previousReadsCompleted == -1 || previousWritesCompleted == -1 || previousRelativeTime == -1) return -1;
+
+            return rateOfChange(
+                    previousReadsCompleted + previousWritesCompleted,
+                    currentReadsCompleted + currentWritesCompleted,
+                    previousRelativeTime,
+                    currentRelativeTime);
+        }
+
+        public float readsPerSecond() {
+            if (previousReadsCompleted == -1 || previousRelativeTime == -1) return -1;
+
+            return rateOfChange(previousReadsCompleted, currentReadsCompleted, previousRelativeTime, currentRelativeTime);
+        }
+
+        public float writesPerSecond() {
+            if (previousWritesCompleted == -1 || previousRelativeTime == -1) return -1;
+
+            return rateOfChange(previousWritesCompleted, currentWritesCompleted, previousRelativeTime, currentRelativeTime);
+        }
+
+        public float readKilobytesPerSecond() {
+            if (previousSectorsRead == -1 || previousRelativeTime == -1) return -1;
+
+            return rateOfChange(previousSectorsRead, currentSectorsRead, previousRelativeTime, currentRelativeTime) / 2;
+        }
+
+        public float writeKilobytesPerSecond() {
+            if (previousSectorsWritten == -1 || previousRelativeTime == -1) return -1;
+
+            return rateOfChange(previousSectorsWritten, currentSectorsWritten, previousRelativeTime, currentRelativeTime) / 2;
+        }
+
+        public float averageRequestSizeInKilobytes() {
+            if (previousReadsCompleted == -1 || previousWritesCompleted == -1 || previousSectorsRead == -1) return -1;
+
+            final long totalOperationsCompleted = totalOperationsCompleted();
+            if (totalOperationsCompleted == 0) return 0;
+            return ((currentSectorsRead - previousSectorsRead) + (currentSectorsWritten - previousSectorsWritten))
+                    / (float)totalOperationsCompleted / 2;
+        }
+
+        public float averageResidentRequests() {
+            if (previousWeightedMilliseconds == -1 || previousRelativeTime == -1) return -1;
+
+            return rateOfChange(
+                    previousWeightedMilliseconds,
+                    currentWeightedMilliseconds,
+                    previousRelativeTime,
+                    currentRelativeTime) / 1000;
+        }
+
+        public float averageAwaitTimeInMilliseconds() {
+            if (previousReadMilliseconds == -1 || previousReadsCompleted == -1) return -1;
+
+            final long totalOperationsCompleted = totalOperationsCompleted();
+            if (totalOperationsCompleted == 0) return 0;
+            return ((currentReadMilliseconds - previousReadMilliseconds) + (currentWriteMilliseconds - previousWriteMilliseconds))
+                    / (float) totalOperationsCompleted;
+        }
+
+        public float averageReadAwaitTimeInMilliseconds() {
+            if (previousReadMilliseconds == -1 || previousReadsCompleted == -1) return -1;
+
+            final long readOperationsCompleted = currentReadsCompleted - previousReadsCompleted;
+            if (readOperationsCompleted == 0) return 0;
+            return (currentReadMilliseconds - previousReadMilliseconds) / (float)readOperationsCompleted;
+        }
+
+        public float averageWriteAwaitTimeInMilliseconds() {
+            if (previousWriteMilliseconds == -1 || previousWritesCompleted == -1) return -1;
+
+            final long writeOperationsCompleted = currentWritesCompleted - previousWritesCompleted;
+            if (writeOperationsCompleted == 0) return 0;
+            return (currentWriteMilliseconds - previousWriteMilliseconds) / (float)writeOperationsCompleted;
+
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(Fields.READ_BYTES, readBytes);
-            builder.field(Fields.WRITE_BYTES, writeBytes);
-            builder.endObject();
+            builder.field("device_name", deviceName);
+            builder.field("iops", iops());
+            builder.field("reads_per_second", readsPerSecond());
+            builder.field("writes_per_second", writesPerSecond());
+            builder.field("read_kilobytes_per_second", readKilobytesPerSecond());
+            builder.field("write_kilobytes_per_second", writeKilobytesPerSecond());
+            builder.field("average_request_size_in_kilobytes", averageRequestSizeInKilobytes());
+            builder.field("average_resident_requests", averageResidentRequests());
+            builder.field("average_await_time_in_milliseconds", averageAwaitTimeInMilliseconds());
+            builder.field("average_read_await_time_in_milliseconds", averageReadAwaitTimeInMilliseconds());
+            builder.field("average_write_await_time_in_milliseconds", averageWriteAwaitTimeInMilliseconds());
             return builder;
         }
 
-        private static final class Fields {
-            private static final String READ_BYTES = "read_bytes";
-            private static final String WRITE_BYTES = "write_bytes";
+    }
+
+    public static class IoStats implements Writeable, ToXContent {
+        final DeviceStats[] devicesStats;
+
+        public IoStats(final DeviceStats[] devicesStats) {
+            this.devicesStats = devicesStats;
         }
+
+        public IoStats(StreamInput in) throws IOException {
+            final int length = in.readVInt();
+            final DeviceStats[] devicesStats = new DeviceStats[length];
+            for (int i = 0; i < length; i++) {
+                devicesStats[i] = new DeviceStats(in);
+            }
+            this.devicesStats = devicesStats;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(devicesStats.length);
+            for (int i = 0; i < devicesStats.length; i++) {
+                devicesStats[i].writeTo(out);
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (devicesStats.length > 0) {
+                builder.startArray("devices");
+                for (DeviceStats deviceStats : devicesStats) {
+                    builder.startObject();
+                    deviceStats.toXContent(builder, params);
+                    builder.endObject();
+                }
+                builder.endArray();
+            }
+            return builder;
+        }
+
+    }
+
+    private static float rateOfChange(final long previous, final long current, final long t1, final long t2) {
+        return TimeUnit.SECONDS.toNanos(1) * (current - previous) / (float)(t2 - t1);
     }
 
     final long timestamp;
@@ -316,8 +558,9 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         }
         builder.endArray();
         if (ioStats != null) {
-            builder.field(Fields.IO_STATS);
+            builder.startObject(Fields.IO_STATS);
             ioStats.toXContent(builder, params);
+            builder.endObject();
         }
         builder.endObject();
         return builder;

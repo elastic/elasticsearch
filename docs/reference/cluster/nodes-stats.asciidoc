@@ -121,13 +121,51 @@ information that concern the file system:
 	`null` means we could not determine it, `true` means the device possibly spins
 	 and `false` means it does not (ex: solid-state disks).
 
-`fs.io_stats.read_bytes` (Linux only)::
-    The number of bytes the Elasticsearch process caused to be read that
-    actually hit the storage layer
+`fs.io_stats.devices` (Linux only)::
+    Array of disk metrics for each device that is backing an
+    Elasticsearch data path. These disk metrics are probed periodically
+    and averages between the last probe and the current probe are
+    computed.
 
-`fs.io_stats.read_bytes` (Linux only)::
-    The number of bytes the Elasticsearch process caused to be written
-    that actually hit the storage layer
+`fs.io_stats.devices.device_name` (Linux only)::
+    The Linux device name.
+
+`fs.io_stats.devices.iops` (Linux only)::
+    The average number of read and write operations completed per
+    second.
+
+`fs.io_stats.devices.reads_per_second` (Linux only)::
+    The average number of read operations completed per second.
+
+`fs.io_stats.devices.writes_per_second` (Linux only)::
+    The average number of write operations completed per second.
+
+`fs.io_stats.devices.read_kilobytes_per_second` (Linux only)::
+    The average number of kilobytes read per second.
+
+`fs.io_stats.devices.write_kilobytes_per_second` (Linux only)::
+    The average number of kilobytes written per second.
+
+`fs.io_stats.devices.average_request_size_in_kilobytes` (Linux only)::
+    The average number of kilobytes of requests that were issued to the
+    device.
+
+`fs.io_stats.devices.average_resident_requests` (Linux only)::
+    The average number of requests being serviced or waiting to be
+    serviced (sometimes referred to as "average queue size", but this
+    is misleading because requests being serviced are included.
+
+`fs.io_stats.devices.average_await_time_in_milliseconds` (Linux only)::
+    The average time in milliseconds for requests issued to the device
+    to be served.
+
+`fs.io_stats.devices.read_await_time_in_milliseconds` (Linux only)::
+    The average time in milliseconds for read requests issued to the
+    device to be served.
+
+`fs.io_stats.devices.write_await_time_in_milliseconds` (Linux only)::
+    The average time in milliseconds for write requests issued to the
+    device to be served.
 
 [float]
 [[os-stats]]

@@ -19,54 +19,71 @@
 
 package org.elasticsearch.monitor.fs;
 
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.SingleObjectCache;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.env.NodeEnvironment;
 
 import java.io.IOException;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 
-/**
- */
-public class FsService extends AbstractComponent {
+public class FsService extends AbstractLifecycleComponent<FsService> {
 
     private final FsProbe probe;
-
-    private final SingleObjectCache<FsInfo> fsStatsCache;
+    private final TimeValue refreshInterval;
+    private final BiFunction<Runnable, TimeValue, ScheduledFuture> scheduler;
+    private final AtomicReference<FsInfo> ref = new AtomicReference<>();
+    private final Runnable probeRunner;
+    private ScheduledFuture scheduledFuture;
 
     public final static Setting<TimeValue> REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("monitor.fs.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
             Property.NodeScope);
 
-    public FsService(Settings settings, NodeEnvironment nodeEnvironment) throws IOException {
+    public FsService(
+            final Settings settings,
+            final NodeEnvironment nodeEnvironment,
+            final BiFunction<Runnable, TimeValue, ScheduledFuture> scheduler) throws IOException {
         super(settings);
         this.probe = new FsProbe(settings, nodeEnvironment);
-        TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
-        fsStatsCache = new FsInfoCache(refreshInterval, probe.stats());
+        refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
+        this.scheduler = scheduler;
+        probeRunner = () -> {
+            try {
+                final FsInfo fsInfo = probe.stats(ref.get());
+                ref.set(fsInfo);
+            } catch (IOException e) {
+            }
+        };
         logger.debug("using refresh_interval [{}]", refreshInterval);
     }
 
     public FsInfo stats() {
-        return fsStatsCache.getOrRefresh();
+        return ref.get();
     }
 
-    private class FsInfoCache extends SingleObjectCache<FsInfo> {
-        public FsInfoCache(TimeValue interval, FsInfo initValue) {
-            super(interval, initValue);
-        }
+    @Override
+    protected void doStart() {
+        // force the probe to run in case stats is called before the
+        // first scheduled run occurs
+        probeRunner.run();
+        // now schedule the probe to run periodically
+        scheduledFuture = scheduler.apply(probeRunner, refreshInterval);
+    }
 
-        @Override
-        protected FsInfo refresh() {
-            try {
-                return probe.stats();
-            } catch (IOException ex) {
-                logger.warn("Failed to fetch fs stats - returning empty instance");
-                return new FsInfo(0, null);
-            }
-        }
+    @Override
+    protected void doStop() {
+        FutureUtils.cancel(scheduledFuture);
+    }
+
+    @Override
+    protected void doClose() {
+        FutureUtils.cancel(scheduledFuture);
     }
 
 }

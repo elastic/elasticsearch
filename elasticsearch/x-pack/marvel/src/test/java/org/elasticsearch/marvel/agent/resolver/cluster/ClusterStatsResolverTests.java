@@ -6,6 +6,7 @@
 package org.elasticsearch.marvel.agent.resolver.cluster;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -97,7 +98,8 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
                         emptyMap(), emptySet(), Version.CURRENT),
                         ClusterHealthStatus.GREEN, randomNodeInfo(), randomNodeStats(), randomShardStats())
         };
-        return new ClusterStatsResponse(Math.abs(randomLong()), ClusterName.DEFAULT, UUID.randomUUID().toString(), responses);
+        return new ClusterStatsResponse(Math.abs(randomLong()), ClusterName.DEFAULT, UUID.randomUUID().toString(), responses,
+                                         new FailedNodeException[0]);
     }
 
     /**

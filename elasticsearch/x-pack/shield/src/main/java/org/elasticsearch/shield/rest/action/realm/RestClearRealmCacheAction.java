@@ -44,7 +44,10 @@ public class RestClearRealmCacheAction extends BaseRestHandler {
         new SecurityClient(client).clearRealmCache(req, new RestBuilderListener<ClearRealmCacheResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClearRealmCacheResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
                 response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
         });

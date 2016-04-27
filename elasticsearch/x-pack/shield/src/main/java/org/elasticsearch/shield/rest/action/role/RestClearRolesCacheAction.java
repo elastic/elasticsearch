@@ -45,7 +45,10 @@ public class RestClearRolesCacheAction extends BaseRestHandler {
         new SecurityClient(client).clearRolesCache(req, new RestBuilderListener<ClearRolesCacheResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClearRolesCacheResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
                 response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
         });

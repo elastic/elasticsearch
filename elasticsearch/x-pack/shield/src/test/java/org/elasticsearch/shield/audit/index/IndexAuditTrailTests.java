@@ -5,14 +5,17 @@
  */
 package org.elasticsearch.shield.audit.index;
 
-import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -21,13 +24,13 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.user.SystemUser;
 import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.AuthenticationToken;
+import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.shield.transport.filter.ShieldIpFilterRule;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -39,11 +42,13 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -61,8 +66,6 @@ import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.MO
 import static org.elasticsearch.shield.audit.index.IndexNameResolver.Rollover.WEEKLY;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
-import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_PASSWORD;
-import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_USER_NAME;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -74,24 +77,118 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-//test is just too slow, please fix it to not be sleep-based
-@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1)
 public class IndexAuditTrailTests extends ShieldIntegTestCase {
     public static final String SECOND_CLUSTER_NODE_PREFIX = "remote_" + SUITE_CLUSTER_NODE_PREFIX;
 
+    private static boolean remoteIndexing;
+    private static InternalTestCluster remoteCluster;
+    private static Settings remoteSettings;
+    private static byte[] systemKey;
+
     private IndexNameResolver.Rollover rollover;
     private IndexAuditTrail auditor;
-    private boolean remoteIndexing = false;
-    private InternalTestCluster cluster2;
-    private Client remoteClient;
     private int numShards;
     private int numReplicas;
     private ThreadPool threadPool;
 
+    @BeforeClass
+    public static void configureBeforeClass() {
+        remoteIndexing = randomBoolean();
+        systemKey = InternalCryptoService.generateKey();
+        if (remoteIndexing == false) {
+            remoteSettings = Settings.EMPTY;
+        }
+    }
+
+    @AfterClass
+    public static void cleanupAfterTest() {
+        if (remoteCluster != null) {
+            remoteCluster.close();
+            remoteCluster = null;
+        }
+        remoteSettings = null;
+    }
+
+    @Before
+    public void initializeRemoteClusterIfNecessary() throws Exception {
+        if (remoteIndexing == false) {
+            logger.info("--> remote indexing disabled.");
+            return;
+        }
+
+        if (remoteCluster != null) {
+            return;
+        }
+
+        // create another cluster
+        String cluster2Name = clusterName(Scope.SUITE.name(), randomLong());
+
+        // Setup a second test cluster with randomization for number of nodes, shield enabled, and SSL
+        final int numNodes = randomIntBetween(1, 2);
+        final boolean useShield = randomBoolean();
+        final boolean useSSL = useShield && randomBoolean();
+        logger.info("--> remote indexing enabled. shield enabled: [{}], SSL enabled: [{}], nodes: [{}]", useShield, useSSL, numNodes);
+        ShieldSettingsSource cluster2SettingsSource =
+                new ShieldSettingsSource(numNodes, useSSL, systemKey(), createTempDir(), Scope.SUITE) {
+            @Override
+            public Settings nodeSettings(int nodeOrdinal) {
+                Settings.Builder builder = Settings.builder()
+                        .put(super.nodeSettings(nodeOrdinal))
+                        .put(Security.enabledSetting(), useShield);
+                return builder.build();
+            }
+        };
+        remoteCluster = new InternalTestCluster("network", randomLong(), createTempDir(), numNodes, numNodes, cluster2Name,
+                cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(),
+                useShield ? getClientWrapper() : Function.identity());
+        remoteCluster.beforeTest(random(), 0.5);
+
+        NodesInfoResponse response = remoteCluster.client().admin().cluster().prepareNodesInfo().execute().actionGet();
+        TransportInfo info = response.getNodes()[0].getTransport();
+        InetSocketTransportAddress inet = (InetSocketTransportAddress) info.address().publishAddress();
+
+        Settings.Builder builder = Settings.builder()
+                .put(Security.enabledSetting(), useShield)
+                .put(remoteSettings(NetworkAddress.format(inet.address().getAddress()), inet.address().getPort(), cluster2Name))
+                .put("xpack.security.audit.index.client.xpack.security.user", ShieldSettingsSource.DEFAULT_USER_NAME + ":" +
+                        ShieldSettingsSource.DEFAULT_PASSWORD);
+
+        if (useSSL) {
+            for (Map.Entry<String, String> entry : cluster2SettingsSource.getClientSSLSettings().getAsMap().entrySet()) {
+                builder.put("xpack.security.audit.index.client." + entry.getKey(), entry.getValue());
+            }
+        }
+        remoteSettings = builder.build();
+    }
+
+    @After
+    public void afterTest() {
+        if (threadPool != null) {
+            threadPool.shutdown();
+        }
+        if (auditor != null) {
+            auditor.close();
+        }
+
+        if (remoteCluster != null) {
+            remoteCluster.wipe(Collections.<String>emptySet());
+        }
+    }
+
     @Override
     protected Set<String> excludeTemplates() {
         return Collections.singleton(IndexAuditTrail.INDEX_TEMPLATE_NAME);
+    }
+
+    @Override
+    protected byte[] systemKey() {
+        return systemKey;
+    }
+
+    @Override
+    protected int maximumNumberOfShards() {
+        return 3;
     }
 
     private Settings commonSettings(IndexNameResolver.Rollover rollover) {
@@ -106,14 +203,14 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
                 .build();
     }
 
-    private Settings remoteSettings(String address, int port, String clusterName) {
+    static Settings remoteSettings(String address, int port, String clusterName) {
         return Settings.builder()
                 .put("xpack.security.audit.index.client.hosts", address + ":" + port)
                 .put("xpack.security.audit.index.client.cluster.name", clusterName)
                 .build();
     }
 
-    private Settings levelSettings(String[] includes, String[] excludes) {
+    static Settings levelSettings(String[] includes, String[] excludes) {
         Settings.Builder builder = Settings.builder();
         if (includes != null) {
             builder.putArray("xpack.security.audit.index.events.include", includes);
@@ -132,90 +229,31 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
     }
 
     private Client getClient() {
-        return remoteIndexing ? remoteClient : client();
+        return remoteIndexing ? remoteCluster.client() : client();
     }
 
-    private void initialize(String... excludes) throws IOException, InterruptedException {
-        initialize(null, excludes);
+    private void initialize() throws IOException, InterruptedException {
+        initialize(null, null);
     }
 
     private void initialize(String[] includes, String[] excludes) throws IOException, InterruptedException {
         rollover = randomFrom(HOURLY, DAILY, WEEKLY, MONTHLY);
         numReplicas = numberOfReplicas();
         numShards = numberOfShards();
-        Settings settings = settings(rollover, includes, excludes);
-        remoteIndexing = randomBoolean();
-
+        Settings.Builder builder = Settings.builder();
         if (remoteIndexing) {
-            // create another cluster
-            String cluster2Name = clusterName(Scope.SUITE.name(), randomLong());
-
-            // Setup a second test cluster with randomization for number of nodes, shield enabled, and SSL
-            final int numNodes = randomIntBetween(1, 2);
-            final boolean useShield = randomBoolean();
-            final boolean useSSL = useShield && randomBoolean();
-            logger.info("--> remote indexing enabled. shield enabled: [{}], SSL enabled: [{}]", useShield, useSSL);
-            ShieldSettingsSource cluster2SettingsSource = new ShieldSettingsSource(numNodes, useSSL, systemKey(), createTempDir(),
-                    Scope.SUITE) {
-                    @Override
-                    public Settings nodeSettings(int nodeOrdinal) {
-                        Settings.Builder builder = Settings.builder()
-                                .put(super.nodeSettings(nodeOrdinal))
-                                .put(XPackPlugin.featureEnabledSetting(Security.NAME), useShield);
-                        return builder.build();
-                    }
-            };
-            cluster2 = new InternalTestCluster("network", randomLong(), createTempDir(), numNodes, numNodes, cluster2Name,
-                    cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(),
-                    useShield ? getClientWrapper() : Function.identity());
-            cluster2.beforeTest(random(), 0.5);
-            remoteClient = cluster2.client();
-
-            NodesInfoResponse response = remoteClient.admin().cluster().prepareNodesInfo().execute().actionGet();
-            TransportInfo info = response.getNodes()[0].getTransport();
-            InetSocketTransportAddress inet = (InetSocketTransportAddress) info.address().publishAddress();
-
-            Settings.Builder builder = Settings.builder()
-                    .put(settings)
-                    .put(XPackPlugin.featureEnabledSetting(Security.NAME), useShield)
-                    .put(remoteSettings(NetworkAddress.format(inet.address().getAddress()), inet.address().getPort(), cluster2Name))
-                    .put("xpack.security.audit.index.client." + Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD);
-
-            if (useSSL) {
-                for (Map.Entry<String, String> entry : cluster2SettingsSource.getClientSSLSettings().getAsMap().entrySet()) {
-                    builder.put("xpack.security.audit.index.client." + entry.getKey(), entry.getValue());
-                }
-            }
-            settings = builder.build();
+            builder.put(remoteSettings);
         }
 
-        settings = Settings.builder().put(settings).put("path.home", createTempDir()).build();
+        Settings settings = builder.put(settings(rollover, includes, excludes)).build();
         logger.info("--> settings: [{}]", settings.getAsMap().toString());
         Transport transport = mock(Transport.class);
         BoundTransportAddress boundTransportAddress = new BoundTransportAddress(new TransportAddress[]{DummyTransportAddress.INSTANCE},
                 DummyTransportAddress.INSTANCE);
         when(transport.boundAddress()).thenReturn(boundTransportAddress);
-
         threadPool = new ThreadPool("index audit trail tests");
         auditor = new IndexAuditTrail(settings, transport, Providers.of(internalClient()), threadPool, mock(ClusterService.class));
         auditor.start(true);
-    }
-
-    @After
-    public void afterTest() {
-        if (threadPool != null) {
-            threadPool.shutdown();
-        }
-        if (auditor != null) {
-            auditor.close();
-        }
-
-        cluster().wipe(Collections.singleton(IndexAuditTrail.INDEX_TEMPLATE_NAME));
-        if (remoteIndexing && cluster2 != null) {
-            cluster2.wipe(Collections.singleton(IndexAuditTrail.INDEX_TEMPLATE_NAME));
-            remoteClient.close();
-            cluster2.close();
-        }
     }
 
     public void testAnonymousAccessDeniedTransport() throws Exception {
@@ -242,18 +280,6 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    public void testAnonymousAccessDeniedTransportMuted() throws Exception {
-        initialize("anonymous_access_denied");
-        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        auditor.anonymousAccessDenied("_action", message);
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
-    }
-
     public void testAnonymousAccessDeniedRest() throws Exception {
         initialize();
         RestRequest request = mockRestRequest();
@@ -268,18 +294,6 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertThat("_uri", equalTo(sourceMap.get("uri")));
         assertThat(sourceMap.get("origin_type"), is("rest"));
         assertThat(sourceMap.get("request_body"), notNullValue());
-    }
-
-    public void testAnonymousAccessDeniedRestMuted() throws Exception {
-        initialize("anonymous_access_denied");
-        RestRequest request = mockRestRequest();
-        auditor.anonymousAccessDenied(request);
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
     }
 
     public void testAuthenticationFailedTransport() throws Exception {
@@ -330,30 +344,6 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    public void testAuthenticationFailed_Transport_Muted() throws Exception {
-        initialize("authentication_failed");
-        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        auditor.authenticationFailed(new MockToken(), "_action", message);
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
-    }
-
-    public void testAuthenticationFailedTransportNoTokenMuted() throws Exception {
-        initialize("authentication_failed");
-        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        auditor.authenticationFailed("_action", message);
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
-    }
-
     public void testAuthenticationFailedRest() throws Exception {
         initialize();
         RestRequest request = mockRestRequest();
@@ -388,30 +378,6 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertThat(sourceMap.get("request_body"), notNullValue());
     }
 
-    public void testAuthenticationFailedRestMuted() throws Exception {
-        initialize("authentication_failed");
-        RestRequest request = mockRestRequest();
-        auditor.authenticationFailed(new MockToken(), request);
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
-    }
-
-    public void testAuthenticationFailedRestNoTokenMuted() throws Exception {
-        initialize("authentication_failed");
-        RestRequest request = mockRestRequest();
-        auditor.authenticationFailed(request);
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
-    }
-
     public void testAuthenticationFailedTransportRealm() throws Exception {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
@@ -440,18 +406,6 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    public void testAuthenticationFailedTransportRealmMuted() throws Exception {
-        initialize("authentication_failed");
-        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        auditor.authenticationFailed("_realm", new MockToken(), "_action", message);
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
-    }
-
     public void testAuthenticationFailedRestRealm() throws Exception {
         initialize();
         RestRequest request = mockRestRequest();
@@ -467,18 +421,6 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertEquals("_realm", sourceMap.get("realm"));
         assertThat(sourceMap.get("origin_type"), is("rest"));
         assertThat(sourceMap.get("request_body"), notNullValue());
-    }
-
-    public void testAuthenticationFailedRestRealmMuted() throws Exception {
-        initialize("authentication_failed");
-        RestRequest request = mockRestRequest();
-        auditor.authenticationFailed("_realm", new MockToken(), request);
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
     }
 
     public void testAccessGranted() throws Exception {
@@ -513,17 +455,6 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    public void testAccessGrantedMuted() throws Exception {
-        initialize("access_granted");
-        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        auditor.accessGranted(new User("_username", "r1"), "_action", message);
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
-    }
     public void testSystemAccessGranted() throws Exception {
         initialize(new String[] { "system_access_granted" }, null);
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
@@ -537,18 +468,6 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertEquals(SystemUser.INSTANCE.principal(), sourceMap.get("principal"));
         assertEquals("internal:_action", sourceMap.get("action"));
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
-    }
-
-    public void testSystemAccessGrantedMuted() throws Exception {
-        initialize();
-        TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
-        auditor.accessGranted(SystemUser.INSTANCE, "internal:_action", message);
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
     }
 
     public void testAccessDenied() throws Exception {
@@ -581,18 +500,6 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
             assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
         }
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
-    }
-
-    public void testAccessDenied_Muted() throws Exception {
-        initialize("access_denied");
-        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        auditor.accessDenied(new User("_username", "r1"), "_action", message);
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
     }
 
     public void testTamperedRequestRest() throws Exception {
@@ -655,32 +562,6 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    public void testTamperedRequestMuted() throws Exception {
-        initialize("tampered_request");
-        TransportRequest message = new RemoteHostMockTransportRequest();
-        final int type = randomIntBetween(0, 2);
-        switch (type) {
-            case 0:
-                auditor.tamperedRequest(new User("_username", new String[]{"r1"}), "_action", message);
-                break;
-            case 1:
-                auditor.tamperedRequest("_action", message);
-                break;
-            case 2:
-                auditor.tamperedRequest(mockRestRequest());
-                break;
-            default:
-                throw new IllegalStateException("invalid value for type: " + type);
-        }
-
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
-    }
-
     public void testConnectionGranted() throws Exception {
         initialize();
         InetAddress inetAddress = InetAddress.getLoopbackAddress();
@@ -696,19 +577,6 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertEquals("default", sourceMap.get("transport_profile"));
     }
 
-    public void testConnectionGrantedMuted() throws Exception {
-        initialize("connection_granted");
-        InetAddress inetAddress = InetAddress.getLoopbackAddress();
-        ShieldIpFilterRule rule = IPFilter.DEFAULT_PROFILE_ACCEPT_ALL;
-        auditor.connectionGranted(inetAddress, "default", rule);
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
-    }
-
     public void testConnectionDenied() throws Exception {
         initialize();
         InetAddress inetAddress = InetAddress.getLoopbackAddress();
@@ -722,19 +590,6 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         Map<String, Object> sourceMap = hit.sourceAsMap();
         assertEquals("deny _all", sourceMap.get("rule"));
         assertEquals("default", sourceMap.get("transport_profile"));
-    }
-
-    public void testConnectionDeniedMuted() throws Exception {
-        initialize("connection_denied");
-        InetAddress inetAddress = InetAddress.getLoopbackAddress();
-        ShieldIpFilterRule rule = new ShieldIpFilterRule(false, "_all");
-        auditor.connectionDenied(inetAddress, "default", rule);
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
     }
 
     public void testRunAsGranted() throws Exception {
@@ -754,18 +609,6 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
-    public void testRunAsGrantedMuted() throws Exception {
-        initialize("run_as_granted");
-        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        auditor.runAsGranted(new User("_username", new String[]{"r1"}, new User("running as", new String[]{"r2"})), "_action", message);
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
-    }
-
     public void testRunAsDenied() throws Exception {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
@@ -781,18 +624,6 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         assertThat(sourceMap.get("run_as_principal"), is("running as"));
         assertEquals("_action", sourceMap.get("action"));
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
-    }
-
-    public void testRunAsDeniedMuted() throws Exception {
-        initialize("run_as_denied");
-        TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
-        auditor.runAsDenied(new User("_username", new String[]{"r1"}, new User("running as", new String[]{"r2"})), "_action", message);
-        try {
-            getClient().prepareSearch(resolveIndexName()).setSize(0).setTerminateAfter(1).execute().actionGet();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
     }
 
     private void assertAuditMessage(SearchHit hit, String layer, String type) {
@@ -901,10 +732,11 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
     }
 
     private void awaitAuditDocumentCreation(final String indexName) throws InterruptedException {
+        ensureYellow(indexName);
         boolean found = awaitBusy(() -> {
             try {
                 SearchResponse searchResponse = getClient().prepareSearch(indexName).setSize(0).setTerminateAfter(1).execute().actionGet();
-                return searchResponse.getHits().totalHits() > 0;
+                return searchResponse.getHits().totalHits() > 0L;
             } catch (Exception e) {
                 return false;
             }
@@ -914,6 +746,26 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         GetSettingsResponse response = getClient().admin().indices().prepareGetSettings(indexName).execute().actionGet();
         assertThat(response.getSetting(indexName, "index.number_of_shards"), is(Integer.toString(numShards)));
         assertThat(response.getSetting(indexName, "index.number_of_replicas"), is(Integer.toString(numReplicas)));
+    }
+
+    @Override
+    public ClusterHealthStatus ensureYellow(String... indices) {
+        if (remoteIndexing == false) {
+            return super.ensureYellow(indices);
+        }
+
+        // pretty ugly but just a rip of ensureYellow that uses a different client
+        ClusterHealthResponse actionGet = getClient().admin().cluster().health(Requests.clusterHealthRequest(indices)
+                .waitForRelocatingShards(0).waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
+        if (actionGet.isTimedOut()) {
+            logger.info("ensureYellow timed out, cluster state:\n{}\n{}",
+                    getClient().admin().cluster().prepareState().get().getState().prettyPrint(),
+                    getClient().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+            assertThat("timed out waiting for yellow", actionGet.isTimedOut(), equalTo(false));
+        }
+
+        logger.debug("indices {} are yellow", indices.length == 0 ? "[_all]" : indices);
+        return actionGet.getStatus();
     }
 
     private String resolveIndexName() {

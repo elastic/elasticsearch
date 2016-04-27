@@ -35,4 +35,8 @@ public class XPackUser extends ReservedUser {
     public static boolean is(User user) {
         return INSTANCE.equals(user);
     }
+
+    public static boolean is(String principal) {
+        return NAME.equals(principal);
+    }
 }

@@ -317,7 +317,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
         if (values == null || values.isEmpty()) {
-            return Queries.newMatchNoDocsQuery("No terms supplied for " + getName());
+            return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
         return handleTermsQuery(values, fieldName, context);
     }

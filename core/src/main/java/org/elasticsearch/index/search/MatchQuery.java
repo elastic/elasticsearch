@@ -287,7 +287,7 @@ public class MatchQuery {
 
     protected Query zeroTermsQuery() {
         if (zeroTermsQuery == DEFAULT_ZERO_TERMS_QUERY) {
-            return Queries.newMatchNoDocsQuery("No query supplied in match query");
+            return Queries.newMatchNoDocsQuery("Matching no documents because no terms present.");
         }
 
         return Queries.newMatchAllQuery();

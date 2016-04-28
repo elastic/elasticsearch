@@ -93,7 +93,7 @@ public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBu
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return Queries.newMatchNoDocsQuery("User requested " + this.getName());
+        return Queries.newMatchNoDocsQuery("User requested \"" + this.getName() + "\" query.");
     }
 
     @Override

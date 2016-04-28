@@ -17,6 +17,8 @@ import org.elasticsearch.shield.authz.store.NativeRolesStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
+
 /**
  *
  */
@@ -37,7 +39,7 @@ public class TransportClearRolesCacheAction extends TransportNodesAction<ClearRo
 
     @Override
     protected ClearRolesCacheResponse newResponse(ClearRolesCacheRequest request,
-                                                  ClearRolesCacheResponse.Node[] responses, FailedNodeException[] failures) {
+                                                  List<ClearRolesCacheResponse.Node> responses, List<FailedNodeException> failures) {
         return new ClearRolesCacheResponse(clusterName, responses, failures);
     }
 

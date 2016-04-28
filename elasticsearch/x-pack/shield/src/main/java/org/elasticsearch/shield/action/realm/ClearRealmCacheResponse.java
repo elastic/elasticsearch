@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  *
@@ -26,28 +27,26 @@ public class ClearRealmCacheResponse extends BaseNodesResponse<ClearRealmCacheRe
     public ClearRealmCacheResponse() {
     }
 
-    public ClearRealmCacheResponse(ClusterName clusterName, Node[] nodes, FailedNodeException[] failures) {
+    public ClearRealmCacheResponse(ClusterName clusterName, List<Node> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        nodes = in.readArray(Node[]::new, Node::readNodeResponse);
+        nodes = in.readList(Node::readNodeResponse);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeArray(nodes);
+        out.writeStreamableList(nodes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        super.toInnerXContent(builder, params);
-
         builder.startObject("nodes");
-        for (ClearRealmCacheResponse.Node node: getNodes()) {
+        for (ClearRealmCacheResponse.Node node : getNodes()) {
             builder.startObject(node.getNode().getId());
             builder.field("name", node.getNode().getName());
             builder.endObject();

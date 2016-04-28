@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * The response object that will be returned when clearing the cache of native roles
@@ -26,26 +27,24 @@ public class ClearRolesCacheResponse extends BaseNodesResponse<ClearRolesCacheRe
     public ClearRolesCacheResponse() {
     }
 
-    public ClearRolesCacheResponse(ClusterName clusterName, Node[] nodes, FailedNodeException[] failures) {
+    public ClearRolesCacheResponse(ClusterName clusterName, List<Node> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        nodes = in.readArray(Node[]::new, Node::readNodeResponse);
+        nodes = in.readList(Node::readNodeResponse);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeArray(nodes);
+        out.writeStreamableList(nodes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        super.toInnerXContent(builder, params);
-
         builder.startObject("nodes");
         for (ClearRolesCacheResponse.Node node: getNodes()) {
             builder.startObject(node.getNode().getId());

@@ -28,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -117,12 +118,12 @@ public class SmokeTestMonitoringWithShieldIT extends ESIntegTestCase {
     }
 
     private InetSocketAddress[] httpAddresses() {
-        NodeInfo[] nodes = client().admin().cluster().prepareNodesInfo().clear().setHttp(true).get().getNodes();
-        assertThat(nodes.length, greaterThan(0));
+        List<NodeInfo> nodes = client().admin().cluster().prepareNodesInfo().clear().setHttp(true).get().getNodes();
+        assertThat(nodes.size(), greaterThan(0));
 
-        InetSocketAddress[] httpAddresses = new InetSocketAddress[nodes.length];
-        for (int i = 0; i < nodes.length; i++) {
-            httpAddresses[i] = ((InetSocketTransportAddress) nodes[i].getHttp().address().publishAddress()).address();
+        InetSocketAddress[] httpAddresses = new InetSocketAddress[nodes.size()];
+        for (int i = 0; i < nodes.size(); i++) {
+            httpAddresses[i] = ((InetSocketTransportAddress) nodes.get(i).getHttp().address().publishAddress()).address();
         }
         return httpAddresses;
     }

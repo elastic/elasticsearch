@@ -20,6 +20,8 @@ import org.elasticsearch.shield.authc.support.CachingRealm;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
+
 /**
  *
  */
@@ -41,7 +43,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<ClearRe
 
     @Override
     protected ClearRealmCacheResponse newResponse(ClearRealmCacheRequest request,
-                                                  ClearRealmCacheResponse.Node[] responses, FailedNodeException[] failures) {
+                                                  List<ClearRealmCacheResponse.Node> responses, List<FailedNodeException> failures) {
         return new ClearRealmCacheResponse(clusterName, responses, failures);
     }
 

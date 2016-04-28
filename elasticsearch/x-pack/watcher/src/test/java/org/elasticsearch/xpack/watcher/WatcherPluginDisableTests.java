@@ -81,7 +81,7 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
 
     public void testThreadPools() throws Exception {
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().setThreadPool(true).get();
-        for (NodeInfo nodeInfo : nodesInfo) {
+        for (NodeInfo nodeInfo : nodesInfo.getNodes()) {
             ThreadPoolInfo threadPoolInfo = nodeInfo.getThreadPool();
             for (ThreadPool.Info info : threadPoolInfo) {
                 assertThat(info.getName(), not(is(InternalWatchExecutor.THREAD_POOL_NAME)));

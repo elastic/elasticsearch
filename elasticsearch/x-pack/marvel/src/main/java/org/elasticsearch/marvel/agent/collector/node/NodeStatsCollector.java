@@ -76,10 +76,10 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
 
         // if there's a failure, then we failed to work with the _local node (guaranteed a single exception)
         if (response.hasFailures()) {
-            throw response.failures()[0];
+            throw response.failures().get(0);
         }
 
-        NodeStats nodeStats = response.getAt(0);
+        NodeStats nodeStats = response.getNodes().get(0);
 
         // Here we are calling directly the DiskThresholdDecider to retrieve the high watermark value
         // It would be nicer to use a settings API like documented in #6732

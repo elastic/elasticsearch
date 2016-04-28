@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -207,10 +208,10 @@ public class RunAsIntegTests extends ShieldIntegTestCase {
     // build our own here to better mimic an actual client...
     TransportClient getTransportClient(Settings extraSettings) {
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
-        NodeInfo[] nodes = nodeInfos.getNodes();
-        assertTrue(nodes.length > 0);
+        List<NodeInfo> nodes = nodeInfos.getNodes();
+        assertTrue(nodes.isEmpty() == false);
         TransportAddress publishAddress = randomFrom(nodes).getTransport().address().publishAddress();
-        String clusterName = nodeInfos.getClusterNameAsString();
+        String clusterName = nodeInfos.getClusterName().value();
 
         Settings settings = Settings.builder()
                 .put(extraSettings)

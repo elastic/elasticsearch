@@ -147,7 +147,7 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
             securityClient.clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
                 @Override
                 public void onResponse(ClearRealmCacheResponse response) {
-                    assertThat(response.getNodes().length, equalTo(internalCluster().getNodeNames().length));
+                    assertThat(response.getNodes().size(), equalTo(internalCluster().getNodeNames().length));
                     latch.countDown();
                 }
 

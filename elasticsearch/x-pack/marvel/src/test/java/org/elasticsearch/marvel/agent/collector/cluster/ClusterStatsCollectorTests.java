@@ -50,7 +50,7 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
         assertThat(clusterInfoMarvelDoc.getClusterName(),
                 equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getClusterName().value()));
         assertThat(clusterInfoMarvelDoc.getVersion(),
-                equalTo(client().admin().cluster().prepareNodesInfo().get().getNodes()[0].getVersion().toString()));
+                equalTo(client().admin().cluster().prepareNodesInfo().get().getNodes().get(0).getVersion().toString()));
 
         assertThat(clusterInfoMarvelDoc.getLicense(), notNullValue());
 

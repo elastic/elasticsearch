@@ -6,7 +6,6 @@
 package org.elasticsearch.marvel.agent.resolver.cluster;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -93,13 +92,13 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
      * @return a testing {@link ClusterStatsResponse} used to resolve a marvel document.
      */
     private ClusterStatsResponse randomClusterStats() {
-        ClusterStatsNodeResponse[] responses = {
+        List<ClusterStatsNodeResponse> responses = Collections.singletonList(
                 new ClusterStatsNodeResponse(new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE,
                         emptyMap(), emptySet(), Version.CURRENT),
                         ClusterHealthStatus.GREEN, randomNodeInfo(), randomNodeStats(), randomShardStats())
-        };
-        return new ClusterStatsResponse(Math.abs(randomLong()), ClusterName.DEFAULT, UUID.randomUUID().toString(), responses,
-                                         new FailedNodeException[0]);
+        );
+        return new ClusterStatsResponse(Math.abs(randomLong()), ClusterName.DEFAULT, UUID.randomUUID().toString(),
+                                        responses, Collections.emptyList());
     }
 
     /**

@@ -250,7 +250,7 @@ allprojects {
   // Name all the non-root projects after their path so that paths get grouped together when imported into eclipse.
   if (path != ':') {
     eclipse.project.name = path
-	if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       eclipse.project.name = eclipse.project.name.replace(':', '_')
     }
   }

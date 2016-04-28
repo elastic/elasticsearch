@@ -175,6 +175,11 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
+    public AccessControlList getObjectAcl(GetObjectAclRequest getObjectAclRequest) throws AmazonClientException, AmazonServiceException {
+        return delegate.getObjectAcl(getObjectAclRequest);
+    }
+
+    @Override
     public void setObjectAcl(String bucketName, String key, AccessControlList acl) throws AmazonClientException, AmazonServiceException {
         delegate.setObjectAcl(bucketName, key, acl);
     }
@@ -277,6 +282,16 @@ public class AmazonS3Wrapper implements AmazonS3 {
     @Override
     public void deleteBucketReplicationConfiguration(String bucketName) throws AmazonServiceException, AmazonClientException {
         delegate.deleteBucketReplicationConfiguration(bucketName);
+    }
+
+    @Override
+    public void deleteBucketReplicationConfiguration(DeleteBucketReplicationConfigurationRequest deleteBucketReplicationConfigurationRequest) throws AmazonServiceException, AmazonClientException {
+        delegate.deleteBucketReplicationConfiguration(deleteBucketReplicationConfigurationRequest);
+    }
+
+    @Override
+    public boolean doesObjectExist(String s, String s1) throws AmazonServiceException, AmazonClientException {
+        return delegate.doesObjectExist(s, s1);
     }
 
     @Override

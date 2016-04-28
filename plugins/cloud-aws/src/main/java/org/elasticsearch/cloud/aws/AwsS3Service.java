@@ -37,6 +37,7 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
         public static final String PROXY_PASSWORD = "cloud.aws.s3.proxy.password";
         public static final String SIGNER = "cloud.aws.s3.signer";
         public static final String ENDPOINT = "cloud.aws.s3.endpoint";
+        public static final String THROTTLE_RETRIES = "cloud.aws.s3.throttle_retries";
         @Deprecated
         public static final String DEPRECATED_PROXY_HOST = "cloud.aws.s3.proxy_host";
         @Deprecated

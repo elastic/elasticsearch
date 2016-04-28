@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
@@ -80,13 +81,13 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.geoDistance(geoDistance(result.geoDistance()));
         }
         if (randomBoolean()) {
-            result.unit(unit(result.unit()));
+            result.unit(ESTestCase.randomValueOtherThan(result.unit(), () -> randomFrom(DistanceUnit.values())));
         }
         if (randomBoolean()) {
             result.order(RandomSortDataGenerator.order(null));
         }
         if (randomBoolean()) {
-            result.sortMode(mode(result.sortMode()));
+            result.sortMode(ESTestCase.randomValueOtherThan(SortMode.SUM, () -> randomFrom(SortMode.values())));
         }
         if (randomBoolean()) {
             result.setNestedFilter(RandomSortDataGenerator.nestedFilter(result.getNestedFilter()));
@@ -95,7 +96,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.setNestedPath(RandomSortDataGenerator.randomAscii(result.getNestedPath()));
         }
         if (randomBoolean()) {
-            result.validation(randomFrom(GeoValidationMethod.values()));
+            result.validation(ESTestCase.randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
         }
 
         return result;
@@ -106,30 +107,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         MappedFieldType clone = GeoPointFieldMapper.Defaults.FIELD_TYPE.clone();
         clone.setName(name);
         return clone;
-    }
-
-    private static SortMode mode(SortMode original) {
-        SortMode result;
-        do {
-            result = randomFrom(SortMode.values());
-        } while (result == SortMode.SUM || result == original);
-        return result;
-    }
-
-    private static GeoValidationMethod validation(GeoValidationMethod original) {
-        GeoValidationMethod result;
-        do {
-            result = randomFrom(GeoValidationMethod.values());
-        } while (result == original);
-        return result;
-    }
-
-    private static DistanceUnit unit(DistanceUnit original) {
-        int id = -1;
-        while (id == -1 || (original != null && original.ordinal() == id)) {
-            id = randomIntBetween(0, DistanceUnit.values().length - 1);
-        }
-        return DistanceUnit.values()[id];
     }
 
     private static GeoPoint[] points(GeoPoint[] original) {
@@ -170,13 +147,15 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.geoDistance(geoDistance(original.geoDistance()));
             break;
         case 3:
-            result.unit(unit(original.unit()));
+            result.unit(ESTestCase.randomValueOtherThan(result.unit(), () -> randomFrom(DistanceUnit.values())));
             break;
         case 4:
             result.order(RandomSortDataGenerator.order(original.order()));
             break;
         case 5:
-            result.sortMode(mode(original.sortMode()));
+            result.sortMode(ESTestCase.randomValueOtherThanMany(
+                    Arrays.asList(SortMode.SUM, result.sortMode()),
+                    () -> randomFrom(SortMode.values())));
             break;
         case 6:
             result.setNestedFilter(RandomSortDataGenerator.nestedFilter(original.getNestedFilter()));
@@ -185,7 +164,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.setNestedPath(RandomSortDataGenerator.randomAscii(original.getNestedPath()));
             break;
         case 8:
-            result.validation(validation(original.validation()));
+            result.validation(ESTestCase.randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
             break;
         }
         return result;

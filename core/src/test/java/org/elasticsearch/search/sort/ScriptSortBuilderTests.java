@@ -63,7 +63,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             }
         }
         if (randomBoolean()) {
-            builder.setNestedFilter(RandomSortDataGenerator.nestedFilter(builder.getNestedFilter()));
+            builder.setNestedFilter(NestedQueryBuilderGenerator.nestedFilter(builder.getNestedFilter()));
         }
         if (randomBoolean()) {
             builder.setNestedPath(ESTestCase.randomValueOtherThan(
@@ -115,7 +115,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 }
                 break;
             case 2:
-                result.setNestedFilter(RandomSortDataGenerator.nestedFilter(original.getNestedFilter()));
+                result.setNestedFilter(NestedQueryBuilderGenerator.nestedFilter(original.getNestedFilter()));
                 break;
             case 3:
                 result.setNestedPath(original.getNestedPath() + "_some_suffix");

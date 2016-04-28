@@ -67,7 +67,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
 
         if (randomBoolean()) {
-            builder.setNestedFilter(RandomSortDataGenerator.nestedFilter(builder.getNestedFilter()));
+            builder.setNestedFilter(NestedQueryBuilderGenerator.nestedFilter(builder.getNestedFilter()));
         }
 
         if (randomBoolean()) {
@@ -90,7 +90,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                     () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
             break;
         case 1:
-            mutated.setNestedFilter(RandomSortDataGenerator.nestedFilter(mutated.getNestedFilter()));
+            mutated.setNestedFilter(NestedQueryBuilderGenerator.nestedFilter(mutated.getNestedFilter()));
             break;
         case 2:
             mutated.sortMode(ESTestCase.randomValueOtherThan(mutated.sortMode(), () -> randomFrom(SortMode.values())));

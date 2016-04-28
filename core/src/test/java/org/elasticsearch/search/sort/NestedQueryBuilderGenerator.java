@@ -25,30 +25,23 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 
-public class RandomSortDataGenerator {
-    private RandomSortDataGenerator() {
+import java.util.Arrays;
+import java.util.List;
+
+public class NestedQueryBuilderGenerator {
+    private NestedQueryBuilderGenerator() {
         // this is a helper class only, doesn't need a constructor
     }
 
-    public static QueryBuilder nestedFilter(QueryBuilder original) {
+    private static List<QueryBuilder<?>> builders = Arrays.asList(
+            new MatchAllQueryBuilder(),
+            new IdsQueryBuilder(),
+            new TermQueryBuilder(ESTestCase.randomAsciiOfLengthBetween(1, 10), ESTestCase.randomDouble()));
+
+    public static QueryBuilder<?> nestedFilter(QueryBuilder<?> original) {
         @SuppressWarnings("rawtypes")
-        QueryBuilder nested = null;
-        while (nested == null || nested.equals(original)) {
-            switch (ESTestCase.randomInt(2)) {
-            case 0:
-                nested = new MatchAllQueryBuilder();
-                break;
-            case 1:
-                nested = new IdsQueryBuilder();
-                break;
-            default:
-            case 2:
-                nested = new TermQueryBuilder(ESTestCase.randomAsciiOfLengthBetween(1, 10), ESTestCase.randomDouble());
-                break;
-            }
-            nested.boost((float) ESTestCase.randomDoubleBetween(0, 10, false));
-        }
+        QueryBuilder nested = ESTestCase.randomValueOtherThan(original, () -> ESTestCase.randomFrom(builders));
+        nested.boost((float) ESTestCase.randomDoubleBetween(0, 10, false));
         return nested;
     }
-
 }

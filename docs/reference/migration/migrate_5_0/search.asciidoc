@@ -155,6 +155,8 @@ vectors don't support distributed document frequencies anymore.
 The `reverse` parameter has been removed, in favour of explicitly
 specifying the sort order with the `order` option.
 
+The `coerce` and `ignore_malformed` parameters were deprecated in favour of `validation_method`.
+
 ==== Inner hits
 
 * The format of top level inner hits has been changed to be more readable. All options are now set on the same level.

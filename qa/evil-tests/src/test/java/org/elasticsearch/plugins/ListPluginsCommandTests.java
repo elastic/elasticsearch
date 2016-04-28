@@ -20,8 +20,11 @@
 package org.elasticsearch.plugins;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.ExitCodes;
@@ -29,6 +32,7 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.Version;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class ListPluginsCommandTests extends ESTestCase {
@@ -43,12 +47,16 @@ public class ListPluginsCommandTests extends ESTestCase {
     }
 
     static MockTerminal listPlugins(Environment env) throws Exception {
+        return listPlugins(env, new String[0]);
+    }
+    
+    static MockTerminal listPlugins(Environment env, String[] args) throws Exception {
         MockTerminal terminal = new MockTerminal();
-        String[] args = {};
         int status = new ListPluginsCommand(env).main(args, terminal);
         assertEquals(ExitCodes.OK, status);
         return terminal;
     }
+
 
     public void testPluginsDirMissing() throws Exception {
         Environment env = createEnv();
@@ -79,5 +87,39 @@ public class ListPluginsCommandTests extends ESTestCase {
         String output = terminal.getOutput();
         assertTrue(output, output.contains("fake1"));
         assertTrue(output, output.contains("fake2"));
+    }
+    
+    public void testPluginWithVerbose() throws Exception {
+        Environment env = createEnv();
+        Files.createDirectory(env.pluginsFile().resolve("fake1"));
+        Path configFile = Files.createFile(env.pluginsFile().resolve("fake1").resolve(PluginInfo.ES_PLUGIN_PROPERTIES));
+        List<String> config = Arrays.asList("description=fake plugin",
+                "version=" + Version.CURRENT.toString(), "name=fake_plugin", "name=fake_plugin",
+                "elasticsearch.version=" + Version.CURRENT.toString(), "java.version=1.8", "classname=org.fake");
+        Files.write(configFile, config, Charset.forName("UTF-8"));
+        String[] params = { "-v" };
+        MockTerminal terminal = listPlugins(env, params);
+        String output = terminal.getOutput();
+        assertTrue(output, output.contains("Plugin information"));
+    }
+    
+    public void testPluginWithVerboseMultiplePlugins() throws Exception {
+        Environment env = createEnv();
+        Files.createDirectory(env.pluginsFile().resolve("fake1"));
+        Files.createDirectory(env.pluginsFile().resolve("fake2"));
+        Files.createDirectory(env.pluginsFile().resolve("fake3"));
+        Path configFile = Files.createFile(env.pluginsFile().resolve("fake1").resolve(PluginInfo.ES_PLUGIN_PROPERTIES));
+        Path configFile2 = Files.createFile(env.pluginsFile().resolve("fake2").resolve(PluginInfo.ES_PLUGIN_PROPERTIES));
+        Path configFile3 = Files.createFile(env.pluginsFile().resolve("fake3").resolve(PluginInfo.ES_PLUGIN_PROPERTIES));
+        List<String> config = Arrays.asList("description=fake plugin",
+                "version=" + Version.CURRENT.toString(), "name=fake_plugin", "name=fake_plugin",
+                "elasticsearch.version=" + Version.CURRENT.toString(), "java.version=1.8", "classname=org.fake");
+        Files.write(configFile, config, Charset.forName("UTF-8"));
+        Files.write(configFile2, config, Charset.forName("UTF-8"));
+        Files.write(configFile3, config, Charset.forName("UTF-8"));
+        String[] params = { "-v" };
+        MockTerminal terminal = listPlugins(env, params);
+        String output = terminal.getOutput();
+        assertTrue(output, output.split("Plugin information").length == 4);
     }
 }

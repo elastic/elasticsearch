@@ -51,6 +51,18 @@ class ListPluginsCommand extends Command {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(env.pluginsFile())) {
             for (Path plugin : stream) {
                 terminal.println(plugin.getFileName().toString());
+                PluginInfo info = null;
+                try { 
+                    info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin.toAbsolutePath()));
+                    terminal.println(Terminal.Verbosity.VERBOSE, info.toString());
+                }
+                catch(IOException ex) {
+                    terminal.println(Terminal.Verbosity.VERBOSE, "Plugin properties file missing for plugin");
+                }
+                catch (Exception ex){
+                    terminal.println(Terminal.Verbosity.VERBOSE, "Unable to retrieve plugin information."
+                            + " Please verify that this plugin is compatible with your current version");
+                }
             }
         }
     }

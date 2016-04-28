@@ -61,7 +61,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     private HyperLogLogPlusPlus counts;
 
     private Collector collector;
-    private ValueFormatter formatter;
     private boolean sumDirectly;
 
     public CardinalityAggregator(String name, ValuesSource valuesSource, int precision,
@@ -154,14 +153,14 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         // this Aggregator (and its HLL++ counters) is released.
         HyperLogLogPlusPlus copy = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
         copy.merge(0, counts, owningBucketOrdinal);
-        final InternalCardinality internalCardinality = new InternalCardinality(name, copy, formatter, pipelineAggregators(), metaData());
+        final InternalCardinality internalCardinality = new InternalCardinality(name, copy, pipelineAggregators(), metaData());
         internalCardinality.setSumDirectly(sumDirectly);
         return internalCardinality;
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        final InternalCardinality internalCardinality = new InternalCardinality(name, null, formatter, pipelineAggregators(), metaData());
+        final InternalCardinality internalCardinality = new InternalCardinality(name, null, pipelineAggregators(), metaData());
         internalCardinality.setSumDirectly(sumDirectly);
         return internalCardinality;
     }

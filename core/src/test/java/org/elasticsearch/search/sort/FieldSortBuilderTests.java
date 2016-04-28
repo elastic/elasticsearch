@@ -25,6 +25,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -51,7 +52,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
 
         if (randomBoolean()) {
-            builder.sortMode(RandomSortDataGenerator.mode(builder.sortMode()));
+            builder.sortMode(ESTestCase.randomValueOtherThan(builder.sortMode(), () -> randomFrom(SortMode.values())));
         }
 
         if (randomBoolean()) {
@@ -77,7 +78,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             mutated.setNestedFilter(RandomSortDataGenerator.nestedFilter(mutated.getNestedFilter()));
             break;
         case 2:
-            mutated.sortMode(RandomSortDataGenerator.mode(mutated.sortMode()));
+            mutated.sortMode(ESTestCase.randomValueOtherThan(mutated.sortMode(), () -> randomFrom(SortMode.values())));
             break;
         case 3:
             mutated.unmappedType(RandomSortDataGenerator.randomAscii(mutated.unmappedType()));

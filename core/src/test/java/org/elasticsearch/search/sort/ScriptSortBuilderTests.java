@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
@@ -52,13 +53,13 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         }
         if (randomBoolean()) {
             if (type == ScriptSortType.NUMBER) {
-                builder.sortMode(RandomSortDataGenerator.mode(builder.sortMode()));
+                builder.sortMode(ESTestCase.randomValueOtherThan(builder.sortMode(), () -> randomFrom(SortMode.values())));
             } else {
                 Set<SortMode> exceptThis = new HashSet<>();
                 exceptThis.add(SortMode.SUM);
                 exceptThis.add(SortMode.AVG);
                 exceptThis.add(SortMode.MEDIAN);
-                builder.sortMode(RandomSortDataGenerator.mode(exceptThis));
+                builder.sortMode(ESTestCase.randomValueOtherThanMany(exceptThis, () -> randomFrom(SortMode.values())));
             }
         }
         if (randomBoolean()) {
@@ -101,7 +102,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 break;
             case 1:
                 if (original.type() == ScriptSortType.NUMBER) {
-                    result.sortMode(RandomSortDataGenerator.mode(original.sortMode()));
+                    result.sortMode(ESTestCase.randomValueOtherThan(result.sortMode(), () -> randomFrom(SortMode.values())));
                 } else {
                     // script sort type String only allows MIN and MAX, so we only switch
                     if (original.sortMode() == SortMode.MIN) {

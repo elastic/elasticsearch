@@ -63,20 +63,6 @@ public class RandomSortDataGenerator {
         return nestedPath;
     }
 
-    public static SortMode mode(SortMode original) {
-        Set<SortMode> set = new HashSet<>();
-        set.add(original);
-        return mode(set);
-    }
-
-    public static SortMode mode(Set<SortMode> except) {
-        SortMode mode = ESTestCase.randomFrom(SortMode.values());
-        while (except.contains(mode)) {
-            mode = ESTestCase.randomFrom(SortMode.values());
-        }
-        return mode;
-    }
-
     public static Object missing(Object original) {
         Object missing = null;
         Object otherMissing = original;

@@ -418,6 +418,17 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * helper to get a random value in a certain range that's different from the input
+     */
+    public static <T> T randomValueOtherThanMany(Collection<T> input, Supplier<T> randomSupplier) {
+        T randomValue = null;
+        do {
+            randomValue = randomSupplier.get();
+        } while (input.contains(randomValue));
+        return randomValue;
+    }
+
+    /**
      * Runs the code block for 10 seconds waiting for no assertion to trip.
      */
     public static void assertBusy(Runnable codeBlock) throws Exception {

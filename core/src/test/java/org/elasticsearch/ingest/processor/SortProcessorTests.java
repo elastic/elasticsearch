@@ -28,9 +28,11 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SortProcessorTests extends ESTestCase {
@@ -266,6 +268,42 @@ public class SortProcessorTests extends ESTestCase {
         Processor processor = new SortProcessor(randomAsciiOfLength(10), fieldName, order);
         processor.execute(ingestDocument);
         assertEquals(ingestDocument.getFieldValue(fieldName, List.class), expectedResult);
+    }
+
+    public void testSortNonListField() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        ingestDocument.setFieldValue(fieldName, randomAsciiOfLengthBetween(1, 10));
+        SortOrder order = randomBoolean() ? SortOrder.ASCENDING : SortOrder.DESCENDING;
+        Processor processor = new SortProcessor(randomAsciiOfLength(10), fieldName, order);
+        try {
+            processor.execute(ingestDocument);
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field [" + fieldName + "] of type [java.lang.String] cannot be cast to [java.util.List]"));
+        }
+    }
+
+    public void testSortNonExistingField() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        SortOrder order = randomBoolean() ? SortOrder.ASCENDING : SortOrder.DESCENDING;
+        Processor processor = new SortProcessor(randomAsciiOfLength(10), fieldName, order);
+        try {
+            processor.execute(ingestDocument);
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
+        }
+    }
+
+    public void testSortNullValue() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
+        SortOrder order = randomBoolean() ? SortOrder.ASCENDING : SortOrder.DESCENDING;
+        Processor processor = new SortProcessor(randomAsciiOfLength(10), "field", order);
+        try {
+            processor.execute(ingestDocument);
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field [field] is null, cannot sort."));
+        }
     }
 
 

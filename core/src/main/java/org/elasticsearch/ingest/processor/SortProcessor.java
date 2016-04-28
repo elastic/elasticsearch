@@ -119,15 +119,18 @@ public final class SortProcessor extends AbstractProcessor {
         @Override
         public SortProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, FIELD);
-            SortOrder direction = SortOrder.fromString(
+            try {
+                SortOrder direction = SortOrder.fromString(
                     ConfigurationUtils.readStringProperty(
-                            TYPE,
-                            processorTag,
-                            config,
-                            ORDER,
+                        TYPE,
+                        processorTag,
+                        config,
+                        ORDER,
                         DEFAULT_ORDER));
-
-            return new SortProcessor(processorTag, field, direction);
+                return new SortProcessor(processorTag, field, direction);
+            } catch (IllegalArgumentException e) {
+                throw ConfigurationUtils.newConfigurationException(TYPE, processorTag, ORDER, e.getMessage());
+            }
         }
     }
 }

@@ -93,7 +93,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        valueFormatter = ValueFormatterStreams.readOptional(in);
+        format = in.readValueFormat();
         if(isSumDirectly()){
             if (in.readBoolean()) {
                 primitiveCounts = in.readLong();
@@ -111,7 +111,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(valueFormatter, out);
+        out.writeValueFormat(format);
         if(isSumDirectly()){
             if (counts != null) {
                 out.writeBoolean(true);
@@ -134,12 +134,13 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         InternalCardinality reduced = null;
         if(isSumDirectly()){
             reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(HyperLogLogPlusPlus.MIN_PRECISION,
-                                BigArrays.NON_RECYCLING_INSTANCE, 1), this.valueFormatter, pipelineAggregators(), getMetaData());
+                                BigArrays.NON_RECYCLING_INSTANCE, 1), pipelineAggregators(), getMetaData());
             long allCnts = 0;
             for (InternalAggregation aggregation : aggregations) {
                 allCnts += ((InternalCardinality)aggregation).primitiveCounts;
             }
             reduced.primitiveCounts = allCnts;
+            reduced.setSumDirectly(true);
             return reduced;
         }else{
             for (InternalAggregation aggregation : aggregations) {
@@ -147,7 +148,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
                 if (cardinality.counts != null) {
                     if (reduced == null) {
                         reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(),
-                                BigArrays.NON_RECYCLING_INSTANCE, 1), this.valueFormatter, pipelineAggregators(), getMetaData());
+                                BigArrays.NON_RECYCLING_INSTANCE, 1), pipelineAggregators(), getMetaData());
                     }
                     reduced.merge(cardinality);
                 }

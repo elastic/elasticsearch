@@ -126,6 +126,7 @@ in favour of `query` and `no_match_query`.
 
 * The `exists` query will now fail if the `_field_names` field is disabled.
 
+* Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoPolygonQuery. Use parameter validation_method instead.
 
 ==== Top level `filter` parameter
 

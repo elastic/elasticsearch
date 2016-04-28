@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -65,6 +67,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             .settings(Settings.builder()
                     .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                     .put(IndexMetaData.SETTING_INDEX_UUID, "uuid"))
+            .putActiveAllocationIds(0, new HashSet<String>(Arrays.asList("aid1", "aid2")))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
@@ -111,6 +114,9 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         Float nodeWeight = randomFloat();
         Set<String> activeAllocationIds = new HashSet<>();
         activeAllocationIds.add("eggplant");
+        ShardRouting primaryStartedShard = ShardRouting.newUnassigned(i, 0, null, true,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "foo"));
+        assertTrue(primaryStartedShard.allocatedPostIndexCreate(indexMetaData));
 
         IndicesShardStoresResponse.StoreStatus storeStatus = new IndicesShardStoresResponse.StoreStatus(node, 42, "eggplant",
                 IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY, e);
@@ -123,6 +129,11 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                 null, "", activeAllocationIds);
         assertExplanations(ne, "the shard can be assigned",
                 ClusterAllocationExplanation.FinalDecision.YES, ClusterAllocationExplanation.StoreCopy.NONE);
+
+        ne = TransportClusterAllocationExplainAction.calculateNodeExplanation(primaryStartedShard, indexMetaData, node, yesDecision,
+                nodeWeight, null, "", activeAllocationIds);
+        assertExplanations(ne, "there is no copy of the shard available",
+                ClusterAllocationExplanation.FinalDecision.NO, ClusterAllocationExplanation.StoreCopy.NONE);
 
         ne = TransportClusterAllocationExplainAction.calculateNodeExplanation(primaryShard, indexMetaData, node, noDecision, nodeWeight,
                 null, "", activeAllocationIds);
@@ -147,6 +158,13 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                 IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY, null);
         ne = TransportClusterAllocationExplainAction.calculateNodeExplanation(primaryShard, indexMetaData, node, yesDecision, nodeWeight,
                 storeStatus, "", activeAllocationIds);
+        assertExplanations(ne, "the shard can be assigned",
+                ClusterAllocationExplanation.FinalDecision.YES, ClusterAllocationExplanation.StoreCopy.STALE);
+
+        storeStatus = new IndicesShardStoresResponse.StoreStatus(node, 42, "banana",
+                IndicesShardStoresResponse.StoreStatus.AllocationStatus.PRIMARY, null);
+        ne = TransportClusterAllocationExplainAction.calculateNodeExplanation(primaryStartedShard, indexMetaData, node, yesDecision,
+                nodeWeight, storeStatus, "", activeAllocationIds);
         assertExplanations(ne, "the copy of the shard is stale, allocation ids do not match",
                 ClusterAllocationExplanation.FinalDecision.NO, ClusterAllocationExplanation.StoreCopy.STALE);
 

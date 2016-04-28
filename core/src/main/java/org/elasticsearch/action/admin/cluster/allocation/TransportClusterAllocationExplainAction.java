@@ -171,8 +171,13 @@ public class TransportClusterAllocationExplainAction
         if (node.getId().equals(assignedNodeId)) {
             finalDecision = ClusterAllocationExplanation.FinalDecision.ALREADY_ASSIGNED;
             finalExplanation = "the shard is already assigned to this node";
-        } else if (shard.primary() && shard.unassigned() && storeCopy == ClusterAllocationExplanation.StoreCopy.STALE) {
+        } else if (shard.primary() && shard.unassigned() && shard.allocatedPostIndexCreate(indexMetaData) &&
+                storeCopy == ClusterAllocationExplanation.StoreCopy.STALE) {
             finalExplanation = "the copy of the shard is stale, allocation ids do not match";
+            finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
+        } else if (shard.primary() && shard.unassigned() && shard.allocatedPostIndexCreate(indexMetaData) &&
+                storeCopy == ClusterAllocationExplanation.StoreCopy.NONE) {
+            finalExplanation = "there is no copy of the shard available";
             finalDecision = ClusterAllocationExplanation.FinalDecision.NO;
         } else if (shard.primary() && shard.unassigned() && storeCopy == ClusterAllocationExplanation.StoreCopy.CORRUPT) {
             finalExplanation = "the copy of the shard is corrupt";

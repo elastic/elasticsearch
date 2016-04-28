@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
@@ -94,10 +95,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.setNestedPath(RandomSortDataGenerator.randomAscii(result.getNestedPath()));
         }
         if (randomBoolean()) {
-            result.coerce(! result.coerce());
-        }
-        if (randomBoolean()) {
-            result.ignoreMalformed(! result.ignoreMalformed());
+            result.validation(randomFrom(GeoValidationMethod.values()));
         }
 
         return result;
@@ -115,6 +113,14 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         do {
             result = randomFrom(SortMode.values());
         } while (result == SortMode.SUM || result == original);
+        return result;
+    }
+
+    private static GeoValidationMethod validation(GeoValidationMethod original) {
+        GeoValidationMethod result;
+        do {
+            result = randomFrom(GeoValidationMethod.values());
+        } while (result == original);
         return result;
     }
 
@@ -149,7 +155,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     @Override
     protected GeoDistanceSortBuilder mutate(GeoDistanceSortBuilder original) throws IOException {
         GeoDistanceSortBuilder result = new GeoDistanceSortBuilder(original);
-        int parameter = randomIntBetween(0, 9);
+        int parameter = randomIntBetween(0, 8);
         switch (parameter) {
         case 0:
             while (Arrays.deepEquals(original.points(), result.points())) {
@@ -179,12 +185,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.setNestedPath(RandomSortDataGenerator.randomAscii(original.getNestedPath()));
             break;
         case 8:
-            result.coerce(! original.coerce());
-            break;
-        case 9:
-            // ignore malformed will only be set if coerce is set to true
-            result.coerce(false);
-            result.ignoreMalformed(! original.ignoreMalformed());
+            result.validation(validation(original.validation()));
             break;
         }
         return result;
@@ -262,13 +263,55 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
         try {
           GeoDistanceSortBuilder item = GeoDistanceSortBuilder.fromXContent(context, "");
-          item.ignoreMalformed(false);
+          item.validation(GeoValidationMethod.STRICT);
           item.build(createMockShardContext());
 
           fail("adding reverse sorting option should fail with an exception");
         } catch (ElasticsearchParseException e) {
             assertEquals("illegal latitude value [269.384765625] for [GeoDistanceSort] for field [reverse].", e.getMessage());
         }
+    }
+    
+    public void testCoerceIsDeprecated() throws IOException {
+        String json = "{\n" +
+                "  \"testname\" : [ {\n" +
+                "    \"lat\" : -6.046997540714173,\n" +
+                "    \"lon\" : -51.94128329747579\n" +
+                "  } ],\n" +
+                "  \"unit\" : \"m\",\n" +
+                "  \"distance_type\" : \"sloppy_arc\",\n" +
+                "  \"mode\" : \"SUM\",\n" +
+                "  \"coerce\" : true\n" +
+                "}";
+        XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
+        itemParser.nextToken();
+
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GeoDistanceSortBuilder.fromXContent(context, ""));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+        
+    }
+
+    public void testIgnoreMalformedIsDeprecated() throws IOException {
+        String json = "{\n" +
+                "  \"testname\" : [ {\n" +
+                "    \"lat\" : -6.046997540714173,\n" +
+                "    \"lon\" : -51.94128329747579\n" +
+                "  } ],\n" +
+                "  \"unit\" : \"m\",\n" +
+                "  \"distance_type\" : \"sloppy_arc\",\n" +
+                "  \"mode\" : \"SUM\",\n" +
+                "  \"ignore_malformed\" : true\n" +
+                "}";
+        XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
+        itemParser.nextToken();
+
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GeoDistanceSortBuilder.fromXContent(context, ""));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+        
     }
 
     public void testSortModeSumIsRejectedInJSON() throws IOException {
@@ -279,9 +322,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "  } ],\n" +
                 "  \"unit\" : \"m\",\n" +
                 "  \"distance_type\" : \"sloppy_arc\",\n" +
-                "  \"mode\" : \"SUM\",\n" +
-                "  \"coerce\" : false,\n" +
-                "  \"ignore_malformed\" : false\n" +
+                "  \"mode\" : \"SUM\"\n" +
                 "}";
         XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
         itemParser.nextToken();
@@ -306,8 +347,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "        \"boost\" : 5.711116\n" +
                 "      }\n" +
                 "    },\n" +
-                "    \"coerce\" : false,\n" +
-                "    \"ignore_malformed\" : true\n" +
+                "    \"validation_method\" : \"STRICT\"\n" +
                 "  }";
         XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
         itemParser.nextToken();

@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -314,7 +315,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
                 .setSource(
                         new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, 2.0, 2.0)
                                 .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE)
-                                .ignoreMalformed(true).coerce(true))).execute().actionGet();
+                                .validation(GeoValidationMethod.COERCE))).execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
     }
 

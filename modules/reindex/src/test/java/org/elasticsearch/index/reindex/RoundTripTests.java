@@ -19,12 +19,14 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,6 +36,8 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -50,6 +54,13 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  * Round trip tests for all Streamable things declared in this plugin.
  */
 public class RoundTripTests extends ESTestCase {
+    private Version version;
+
+    @Before
+    public void randomizeVersion() {
+        version = VersionUtils.randomVersionBetween(random(), Version.V_2_3_0, Version.CURRENT);
+    }
+
     public void testReindexRequest() throws IOException {
         ReindexRequest reindex = new ReindexRequest(new SearchRequest(), new IndexRequest());
         randomRequest(reindex);
@@ -93,14 +104,21 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(request.getScript(), tripped.getScript());
         assertEquals(request.getRetryBackoffInitialTime(), tripped.getRetryBackoffInitialTime());
         assertEquals(request.getMaxRetries(), tripped.getMaxRetries());
-        assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0d);
+        if (version.onOrAfter(Version.V_2_4_0)) {
+            assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0d);
+        } else {
+            assertEquals(0, tripped.getRequestsPerSecond(), 0d);
+        }
     }
 
     public void testBulkByTaskStatus() throws IOException {
         BulkByScrollTask.Status status = randomStatus();
         BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(version);
         status.writeTo(out);
-        BulkByScrollTask.Status tripped = new BulkByScrollTask.Status(out.bytes().streamInput());
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(version);
+        BulkByScrollTask.Status tripped = new BulkByScrollTask.Status(in);
         assertTaskStatusEquals(status, tripped);
     }
 
@@ -143,8 +161,11 @@ public class RoundTripTests extends ESTestCase {
 
     private void roundTrip(Streamable example, Streamable empty) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(version);
         example.writeTo(out);
-        empty.readFrom(out.bytes().streamInput());
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(version);
+        empty.readFrom(in);
     }
 
     private Script randomScript() {
@@ -201,6 +222,10 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(expected.getThrottled(), actual.getThrottled());
         assertEquals(expected.getRequestsPerSecond(), actual.getRequestsPerSecond(), 0f);
         assertEquals(expected.getReasonCancelled(), actual.getReasonCancelled());
-        assertEquals(expected.getThrottledUntil(), actual.getThrottledUntil());
+        if (version.onOrAfter(Version.V_2_4_0)) {
+            assertEquals(expected.getThrottledUntil(), actual.getThrottledUntil());
+        } else {
+            assertEquals(timeValueMillis(0), actual.getThrottledUntil());
+        }
     }
 }

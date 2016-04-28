@@ -79,7 +79,7 @@
                                     <arguments>
                                         <argument>kill</argument>
                                     </arguments>
-                                    <!-- Use the test scop to pick up log4j configuration -->
+                                    <!-- Use the test scope to pick up log4j configuration -->
                                     <classpathScope>test</classpathScope>
                                 </configuration>
                             </execution>

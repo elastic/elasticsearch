@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -149,7 +150,11 @@ public class BulkByScrollTask extends CancellableTask {
             throttled = TimeValue.readTimeValue(in);
             requestsPerSecond = in.readFloat();
             reasonCancelled = in.readOptionalString();
-            throttledUntil = TimeValue.readTimeValue(in);
+            if (in.getVersion().onOrAfter(Version.V_2_4_0)) {
+                throttledUntil = TimeValue.readTimeValue(in);
+            } else {
+                throttledUntil = timeValueNanos(0);
+            }
         }
 
         @Override
@@ -165,7 +170,9 @@ public class BulkByScrollTask extends CancellableTask {
             throttled.writeTo(out);
             out.writeFloat(requestsPerSecond);
             out.writeOptionalString(reasonCancelled);
-            throttledUntil.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_2_4_0)) {
+                throttledUntil.writeTo(out);
+            }
         }
 
         @Override

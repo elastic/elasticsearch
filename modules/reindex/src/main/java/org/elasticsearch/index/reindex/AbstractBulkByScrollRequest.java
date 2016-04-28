@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -318,7 +319,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         consistency = WriteConsistencyLevel.fromId(in.readByte());
         retryBackoffInitialTime = TimeValue.readTimeValue(in);
         maxRetries = in.readVInt();
-        requestsPerSecond = in.readFloat();
+        if (in.getVersion().onOrAfter(Version.V_2_4_0)) {
+            requestsPerSecond = in.readFloat();
+        }
     }
 
     @Override
@@ -332,7 +335,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeByte(consistency.id());
         retryBackoffInitialTime.writeTo(out);
         out.writeVInt(maxRetries);
-        out.writeFloat(requestsPerSecond);
+        if (out.getVersion().onOrAfter(Version.V_2_4_0)) {
+            out.writeFloat(requestsPerSecond);
+        }
     }
 
     /**

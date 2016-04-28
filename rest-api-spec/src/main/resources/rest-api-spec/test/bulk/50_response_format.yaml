@@ -63,6 +63,7 @@
   - length: { items: 1 }
   - match: { items.0.update._index: idx }  # this one is an error so it'll come back regardless of response_format
   - match: { items.0.update._id: "doesn't exist" }
+  - match: { items.0.update.ordinal: 2 }
   - match: { items.0.update.status: 404 }
   - match: { items.0.update.error.type: "document_missing_exception" }
   - match: { items.0.update.error.reason: "[test][doesn't exist]: document missing" }

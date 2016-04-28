@@ -135,14 +135,20 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         builder.field("errors", hasFailures());
         int successes = 0;
         builder.startArray("items"); {
+            int ordinal = 0;
             for (BulkItemResponse itemResponse : this) {
                 if (false == itemResponse.isFailed()) {
                     successes += 1;
                     if (skipSuccesses) continue;
                 }
                 builder.startObject();
+                if (skipSuccesses) {
+                    // The ordinal is implied by the position in the array if we aren't skipping successes.
+                    builder.field("ordinal", ordinal);
+                }
                 itemResponse.toXContent(builder, params);
                 builder.endObject();
+                ordinal++;
             }
         }
         builder.endArray();

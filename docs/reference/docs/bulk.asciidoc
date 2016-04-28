@@ -287,9 +287,9 @@ The order is preserved *and* the objects contain `_index`, `_type`, and
 bulk response item.
 
 If you add `response_format=short` to the request then it'll drop the
-successful items. In that case you'll need to use the `_index`, _type`,
-and `_id` to pair up any returned failures with the bulk request item.
-For example, this bulk request:
+successful items and include an `ordinal` field on each failure that
+is the (0 based) index of the request that caused the failure. For
+example, this bulk request:
 
 [source,js]
 --------------------------------------------------
@@ -313,6 +313,7 @@ Returns this response:
   "took" : 111,
   "errors" : true,
   "items" : [ {
+    "ordinal": 2,
     "update" : {
       "_index" : "test",
       "_type" : "type1",

@@ -19,15 +19,11 @@
 
 package org.elasticsearch.search.sort;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.HashSet;
-import java.util.Set;
 
 public class RandomSortDataGenerator {
     private RandomSortDataGenerator() {
@@ -55,33 +51,4 @@ public class RandomSortDataGenerator {
         return nested;
     }
 
-    public static Object missing(Object original) {
-        Object missing = null;
-        Object otherMissing = original;
-
-        while (missing == null || missing.equals(otherMissing)) {
-          int missingId = ESTestCase.randomIntBetween(0, 4);
-          switch (missingId) {
-          case 0:
-              missing = ("_last");
-              break;
-          case 1:
-              missing = ("_first");
-              break;
-          case 2:
-              missing = ESTestCase.randomAsciiOfLength(10);
-              break;
-          case 3:
-              missing = ESTestCase.randomUnicodeOfCodepointLengthBetween(5, 15);
-              break;
-          case 4:
-              missing = ESTestCase.randomInt();
-              break;
-          default:
-              throw new IllegalStateException("Unknown missing type.");
-
-          }
-        }
-        return missing;
-    }
 }

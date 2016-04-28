@@ -28,6 +28,8 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder> {
 
@@ -36,7 +38,14 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         return randomFieldSortBuilder();
     }
 
-    public static FieldSortBuilder randomFieldSortBuilder() {
+    private List<Object> missingContent = Arrays.asList(
+            "_last",
+            "_first",
+            ESTestCase.randomAsciiOfLength(10), ESTestCase.randomUnicodeOfCodepointLengthBetween(5, 15),
+            ESTestCase.randomInt());
+
+
+    public FieldSortBuilder randomFieldSortBuilder() {
         String fieldName = rarely() ? FieldSortBuilder.DOC_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
         FieldSortBuilder builder = new FieldSortBuilder(fieldName);
         if (randomBoolean()) {
@@ -44,7 +53,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
 
         if (randomBoolean()) {
-            builder.missing(RandomSortDataGenerator.missing(builder.missing()));
+            builder.missing(ESTestCase.randomValueOtherThan(builder.missing(), () -> randomFrom(missingContent)));
         }
 
         if (randomBoolean()) {
@@ -92,7 +101,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                     () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
             break;
         case 4:
-            mutated.missing(RandomSortDataGenerator.missing(mutated.missing()));
+            mutated.missing(ESTestCase.randomValueOtherThan(mutated.missing(), () -> randomFrom(missingContent)));
             break;
         case 5:
             mutated.order(ESTestCase.randomValueOtherThan(mutated.order(), () -> randomFrom(SortOrder.values())));

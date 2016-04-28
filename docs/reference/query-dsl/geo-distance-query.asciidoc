@@ -162,10 +162,11 @@ The following are options allowed on the filter:
 
     Optional name field to identify the query
 
-`ignore_malformed`::
+`validation_method`::
 
-    Set to `true` to accept geo points with invalid latitude or
-    longitude (default is `false`).
+    Set to `IGNORE_MALFORMED` to accept geo points with invalid latitude or
+    longitude, set to `COERCE` to additionally try and infer correct
+    coordinates (default is `STRICT`).
 
 [float]
 ==== geo_point Type

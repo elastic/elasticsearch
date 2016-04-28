@@ -219,8 +219,13 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(expected.getVersionConflicts(), actual.getVersionConflicts());
         assertEquals(expected.getNoops(), actual.getNoops());
         assertEquals(expected.getRetries(), actual.getRetries());
-        assertEquals(expected.getThrottled(), actual.getThrottled());
-        assertEquals(expected.getRequestsPerSecond(), actual.getRequestsPerSecond(), 0f);
+        if (version.onOrAfter(Version.V_2_4_0)) {
+            assertEquals(expected.getThrottled(), actual.getThrottled());
+            assertEquals(expected.getRequestsPerSecond(), actual.getRequestsPerSecond(), 0f);
+        } else {
+            assertEquals(timeValueMillis(0), actual.getThrottled());
+            assertEquals(Float.POSITIVE_INFINITY, actual.getRequestsPerSecond(), 0f);
+        }
         assertEquals(expected.getReasonCancelled(), actual.getReasonCancelled());
         if (version.onOrAfter(Version.V_2_4_0)) {
             assertEquals(expected.getThrottledUntil(), actual.getThrottledUntil());

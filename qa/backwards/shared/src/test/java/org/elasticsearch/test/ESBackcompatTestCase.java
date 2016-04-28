@@ -32,9 +32,9 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
 
 import java.io.IOException;
@@ -43,6 +43,7 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Random;
 
@@ -200,6 +201,11 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
             @Override
             public Settings transportClientSettings() {
                 throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Collection<Class<? extends Plugin>> transportClientPlugins() {
+                return ESBackcompatTestCase.this.transportClientPlugins();
             }
         });
         return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), externalNode,

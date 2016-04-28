@@ -31,6 +31,11 @@
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.elasticsearch.module</groupId>
+            <artifactId>reindex</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!-- These are automatically a dependency with test scope - but we need
             them in compile scope. -->
         <dependency>

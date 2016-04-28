@@ -147,8 +147,13 @@ public class BulkByScrollTask extends CancellableTask {
             versionConflicts = in.readVLong();
             noops = in.readVLong();
             retries = in.readVLong();
-            throttled = TimeValue.readTimeValue(in);
-            requestsPerSecond = in.readFloat();
+            if (in.getVersion().onOrAfter(Version.V_2_4_0)) {
+                throttled = TimeValue.readTimeValue(in);
+                requestsPerSecond = in.readFloat();
+            } else {
+                throttled = timeValueNanos(0);
+                requestsPerSecond = Float.POSITIVE_INFINITY;
+            }
             reasonCancelled = in.readOptionalString();
             if (in.getVersion().onOrAfter(Version.V_2_4_0)) {
                 throttledUntil = TimeValue.readTimeValue(in);
@@ -167,8 +172,10 @@ public class BulkByScrollTask extends CancellableTask {
             out.writeVLong(versionConflicts);
             out.writeVLong(noops);
             out.writeVLong(retries);
-            throttled.writeTo(out);
-            out.writeFloat(requestsPerSecond);
+            if (out.getVersion().onOrAfter(Version.V_2_4_0)) {
+                throttled.writeTo(out);
+                out.writeFloat(requestsPerSecond);
+            }
             out.writeOptionalString(reasonCancelled);
             if (out.getVersion().onOrAfter(Version.V_2_4_0)) {
                 throttledUntil.writeTo(out);

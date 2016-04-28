@@ -134,7 +134,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
                 (FieldNamesFieldMapper.FieldNamesFieldType)context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
             // can only happen when no types exist, so no docs exist either
-            return Queries.newMatchNoDocsQuery();
+            return Queries.newMatchNoDocsQuery("Missing types in \"" + NAME + "\" query.");
         }
 
         final Collection<String> fields;

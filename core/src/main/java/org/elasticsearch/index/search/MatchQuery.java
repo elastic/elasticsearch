@@ -286,7 +286,11 @@ public class MatchQuery {
     }
 
     protected Query zeroTermsQuery() {
-        return zeroTermsQuery == DEFAULT_ZERO_TERMS_QUERY ? Queries.newMatchNoDocsQuery() : Queries.newMatchAllQuery();
+        if (zeroTermsQuery == DEFAULT_ZERO_TERMS_QUERY) {
+            return Queries.newMatchNoDocsQuery("Matching no documents because no terms present.");
+        }
+
+        return Queries.newMatchAllQuery();
     }
 
     private class MatchQueryBuilder extends QueryBuilder {

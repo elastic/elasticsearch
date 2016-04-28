@@ -64,7 +64,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
@@ -88,8 +87,8 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
          *  not running on Linux, or we hit an exception trying), True means the device possibly spins and False means it does not. */
         public final Boolean spins;
 
-        public final Integer majorDeviceNumber;
-        public final Integer minorDeviceNumber;
+        public final int majorDeviceNumber;
+        public final int minorDeviceNumber;
 
         public NodePath(Path path) throws IOException {
             this.path = path;
@@ -97,12 +96,12 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
             this.fileStore = Environment.getFileStore(path);
             if (fileStore.supportsFileAttributeView("lucene")) {
                 this.spins = (Boolean) fileStore.getAttribute("lucene:spins");
-                this.majorDeviceNumber = (Integer) fileStore.getAttribute("lucene:major_device_number");
-                this.minorDeviceNumber = (Integer) fileStore.getAttribute("lucene:minor_device_number");
+                this.majorDeviceNumber = (int) fileStore.getAttribute("lucene:major_device_number");
+                this.minorDeviceNumber = (int) fileStore.getAttribute("lucene:minor_device_number");
             } else {
                 this.spins = null;
-                this.majorDeviceNumber = null;
-                this.minorDeviceNumber = null;
+                this.majorDeviceNumber = -1;
+                this.minorDeviceNumber = -1;
             }
         }
 

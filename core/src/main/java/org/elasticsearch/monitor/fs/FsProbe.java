@@ -59,7 +59,7 @@ public class FsProbe extends AbstractComponent {
         if (Constants.LINUX) {
             Set<Tuple<Integer, Integer>> devicesNumbers = new HashSet<>();
             for (int i = 0; i < dataLocations.length; i++) {
-                if (dataLocations[i].majorDeviceNumber != null && dataLocations[i].minorDeviceNumber != null) {
+                if (dataLocations[i].majorDeviceNumber != -1 && dataLocations[i].minorDeviceNumber != -1) {
                     devicesNumbers.add(Tuple.tuple(dataLocations[i].majorDeviceNumber, dataLocations[i].minorDeviceNumber));
                 }
             }

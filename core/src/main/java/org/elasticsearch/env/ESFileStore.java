@@ -248,7 +248,9 @@ class ESFileStore extends FileStore {
     @Override
     public Object getAttribute(String attribute) throws IOException {
         switch(attribute) {
+            // for the device
             case "lucene:spins": return spins;
+            // for the partition
             case "lucene:major_device_number": return majorDeviceNumber;
             case "lucene:minor_device_number": return minorDeviceNumber;
             default: return in.getAttribute(attribute);

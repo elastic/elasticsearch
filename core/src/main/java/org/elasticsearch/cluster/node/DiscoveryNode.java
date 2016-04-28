@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -89,7 +88,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
 
     private final String nodeName;
     private final String processId;
-    private final String persistentNodeId;
+    private final String nodeId;
     private final String hostName;
     private final String hostAddress;
     private final TransportAddress address;
@@ -127,15 +126,15 @@ public class DiscoveryNode implements Writeable, ToXContent {
      * </p>
      *
      * @param processId        the nodes unique process id
-     * @param persistentNodeId the nodes unique persistent id
+     * @param nodeId the nodes unique persistent id
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
      * @param version          the version of the node
      */
-    public DiscoveryNode(String processId, String persistentNodeId, TransportAddress address, Map<String, String> attributes,
+    public DiscoveryNode(String processId, String nodeId, TransportAddress address, Map<String, String> attributes,
                          Set<Role> roles, Version version) {
-        this("", processId, persistentNodeId, address.getHost(), address.getAddress(), address, attributes, roles, version);
+        this("", processId, nodeId, address.getHost(), address.getAddress(), address, attributes, roles, version);
     }
 
     /**
@@ -149,15 +148,15 @@ public class DiscoveryNode implements Writeable, ToXContent {
      *
      * @param nodeName         the nodes name
      * @param processId        the nodes unique process id
-     * @param persistentNodeId the nodes unique persistent id
+     * @param nodeId the nodes unique persistent id
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
      * @param version          the version of the node
      */
-    public DiscoveryNode(String nodeName, String processId, String persistentNodeId, TransportAddress address,
+    public DiscoveryNode(String nodeName, String processId, String nodeId, TransportAddress address,
                          Map<String, String> attributes, Set<Role> roles, Version version) {
-        this(nodeName, processId, persistentNodeId, address.getHost(), address.getAddress(), address, attributes, roles, version);
+        this(nodeName, processId, nodeId, address.getHost(), address.getAddress(), address, attributes, roles, version);
     }
 
     /**
@@ -171,14 +170,14 @@ public class DiscoveryNode implements Writeable, ToXContent {
      *
      * @param nodeName         the nodes name
      * @param processId        the nodes unique process id
-     * @param persistentNodeId the nodes unique persistent id
+     * @param nodeId the nodes unique persistent id
      * @param hostAddress      the nodes host address
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
      * @param version          the version of the node
      */
-    public DiscoveryNode(String nodeName, String processId, String persistentNodeId, String hostName, String hostAddress,
+    public DiscoveryNode(String nodeName, String processId, String nodeId, String hostName, String hostAddress,
                          TransportAddress address, Map<String, String> attributes, Set<Role> roles, Version version) {
         if (nodeName != null) {
             this.nodeName = nodeName.intern();
@@ -186,7 +185,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
             this.nodeName = "";
         }
         this.processId = processId.intern();
-        this.persistentNodeId = persistentNodeId.intern();
+        this.nodeId = nodeId.intern();
         this.hostName = hostName.intern();
         this.hostAddress = hostAddress.intern();
         this.address = address;
@@ -217,7 +216,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
     public DiscoveryNode(StreamInput in) throws IOException {
         this.nodeName = in.readString().intern();
         this.processId = in.readString().intern();
-        this.persistentNodeId = in.readString().intern();
+        this.nodeId = in.readString().intern();
         this.hostName = in.readString().intern();
         this.hostAddress = in.readString().intern();
         this.address = TransportAddressSerializers.addressFromStream(in);
@@ -242,7 +241,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeName);
         out.writeString(processId);
-        out.writeString(persistentNodeId);
+        out.writeString(nodeId);
         out.writeString(hostName);
         out.writeString(hostAddress);
         addressToStream(out, address);
@@ -275,8 +274,8 @@ public class DiscoveryNode implements Writeable, ToXContent {
     /**
      * The unique process id of the node.
      */
-    public String getPersistentNodeId() {
-        return persistentNodeId;
+    public String getNodeId() {
+        return nodeId;
     }
 
     /**
@@ -344,7 +343,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
             return false;
         }
 
-        if (!persistentNodeId.equals(other.persistentNodeId)) {
+        if (!nodeId.equals(other.nodeId)) {
             return false;
         }
         if (!nodeName.equals(other.nodeName)) {
@@ -395,7 +394,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
             sb.append('{').append(nodeName).append('}');
         }
         sb.append('{').append(processId).append('}');
-        sb.append('{').append(persistentNodeId).append('}');
+        sb.append('{').append(nodeId).append('}');
         sb.append('{').append(hostName).append('}');
         sb.append('{').append(address).append('}');
         if (!attributes.isEmpty()) {
@@ -408,7 +407,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getId());
         builder.field("name", getName());
-        builder.field("persistent_id", getPersistentNodeId());
+        builder.field("node_id", getNodeId());
         builder.field("transport_address", getAddress().toString());
 
         builder.startObject("attributes");

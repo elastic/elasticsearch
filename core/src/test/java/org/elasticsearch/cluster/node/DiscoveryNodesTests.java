@@ -41,7 +41,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
         DiscoveryNode[] nodes = discoveryNodes.getNodes().values().toArray(DiscoveryNode.class);
         DiscoveryNode node = randomFrom(nodes);
-        DiscoveryNode resolvedNode = discoveryNodes.resolveNode(randomFrom(node.getId(), node.getPersistentNodeId(), node.getName()));
+        DiscoveryNode resolvedNode = discoveryNodes.resolveNode(randomFrom(node.getId(), node.getNodeId(), node.getName()));
         assertThat(resolvedNode.getId(), equalTo(node.getId()));
     }
 

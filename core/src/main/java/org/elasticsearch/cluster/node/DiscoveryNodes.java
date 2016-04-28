@@ -282,7 +282,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 } else {
                     boolean matchedPersistentNodeId = false;
                     for (DiscoveryNode node : this) {
-                        if (node.getPersistentNodeId().equals(nodeId)) {
+                        if (node.getNodeId().equals(nodeId)) {
                             matchedPersistentNodeId = true;
                             resolvedNodesIds.add(node.getId());
                             break; // persistent node id is unique
@@ -586,7 +586,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         public Builder put(DiscoveryNode node) {
             assert nodes.get(node.getId()) == null : "node with process id " + node.getId() + " already exists";
             assert nodeWithSameAddress(node) == null : "node with address " + node.getAddress() + " already exists";
-            assert nodeWithSamePersistentId(node) == null : "node with persistent id " + node.getPersistentNodeId() + " already exists";
+            assert nodeWithSamePersistentId(node) == null : "node with persistent id " + node.getNodeId() + " already exists";
             nodes.put(node.getId(), node);
             return this;
         }
@@ -619,7 +619,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         public DiscoveryNode nodeWithSamePersistentId(DiscoveryNode node) {
             for (ObjectCursor<DiscoveryNode> cursor : nodes.values()) {
                 final DiscoveryNode existingNode = cursor.value;
-                if (node.getPersistentNodeId().equals(existingNode.getPersistentNodeId())) {
+                if (node.getNodeId().equals(existingNode.getNodeId())) {
                     return existingNode;
                 }
             }

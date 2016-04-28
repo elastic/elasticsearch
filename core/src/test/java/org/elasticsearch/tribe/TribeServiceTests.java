@@ -19,15 +19,18 @@
 
 package org.elasticsearch.tribe;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+
+import static org.elasticsearch.env.NodeEnvironment.NODE_ID_SEED_SETTING;
 
 public class TribeServiceTests extends ESTestCase {
     public void testMinimalSettings() {
         Settings globalSettings = Settings.builder()
             .put("node.name", "nodename")
             .put("path.home", "some/path").build();
-        Settings clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, Settings.EMPTY);
+        Settings clientSettings = TribeService.buildClientSettings("tribe1", "dummyNodeId", globalSettings, Settings.EMPTY);
         assertEquals("some/path", clientSettings.get("path.home"));
         assertEquals("nodename/tribe1", clientSettings.get("node.name"));
         assertEquals("tribe1", clientSettings.get("tribe.name"));
@@ -47,7 +50,7 @@ public class TribeServiceTests extends ESTestCase {
             .put("path.plugins", "plugins/path")
             .put("path.scripts", "scripts/path")
             .put("path.logs", "logs/path").build();
-        Settings clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, Settings.EMPTY);
+        Settings clientSettings = TribeService.buildClientSettings("tribe1", "dummyNodeId", globalSettings, Settings.EMPTY);
         assertEquals("some/path", clientSettings.get("path.home"));
         assertEquals("conf/path", clientSettings.get("path.conf"));
         assertEquals("plugins/path", clientSettings.get("path.plugins"));
@@ -57,7 +60,7 @@ public class TribeServiceTests extends ESTestCase {
         Settings tribeSettings = Settings.builder()
             .put("path.home", "alternate/path").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            TribeService.buildClientSettings("tribe1", globalSettings, tribeSettings);
+            TribeService.buildClientSettings("tribe1", "dummyNodeId", globalSettings, tribeSettings);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("Setting [path.home] not allowed in tribe client"));
     }
@@ -72,7 +75,7 @@ public class TribeServiceTests extends ESTestCase {
             .put("transport.host", "3.3.3.3")
             .put("transport.bind_host", "4.4.4.4")
             .put("transport.publish_host", "5.5.5.5").build();
-        Settings clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, Settings.EMPTY);
+        Settings clientSettings = TribeService.buildClientSettings("tribe1", "dummyNodeId", globalSettings, Settings.EMPTY);
         assertEquals("0.0.0.0", clientSettings.get("network.host"));
         assertEquals("1.1.1.1", clientSettings.get("network.bind_host"));
         assertEquals("2.2.2.2", clientSettings.get("network.publish_host"));
@@ -88,12 +91,37 @@ public class TribeServiceTests extends ESTestCase {
             .put("transport.host", "6.6.6.6")
             .put("transport.bind_host", "7.7.7.7")
             .put("transport.publish_host", "8.8.8.8").build();
-        clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, tribeSettings);
+        clientSettings = TribeService.buildClientSettings("tribe1", "dummyNodeId", globalSettings, tribeSettings);
         assertEquals("3.3.3.3", clientSettings.get("network.host"));
         assertEquals("4.4.4.4", clientSettings.get("network.bind_host"));
         assertEquals("5.5.5.5", clientSettings.get("network.publish_host"));
         assertEquals("6.6.6.6", clientSettings.get("transport.host"));
         assertEquals("7.7.7.7", clientSettings.get("transport.bind_host"));
         assertEquals("8.8.8.8", clientSettings.get("transport.publish_host"));
+    }
+
+    public void testNodeIdSettings() {
+        Settings globalSettings = Settings.builder()
+            .put("node.name", "nodename")
+            .put("path.home", "some/path").build();
+        String parentNodeId = randomAsciiOfLengthBetween(5, 10);
+        String tribe1Name = randomAsciiOfLengthBetween(5, 10);
+        Settings client1Settings = TribeService.buildClientSettings(tribe1Name, parentNodeId, globalSettings, Settings.EMPTY);
+        assertTrue(NODE_ID_SEED_SETTING.exists(client1Settings));
+        assertFalse(DiscoveryNode.nodeRequiresLocalStorage(client1Settings));
+
+        // node id of tribe client node is deterministic
+        assertEquals(NODE_ID_SEED_SETTING.get(client1Settings),
+            NODE_ID_SEED_SETTING.get(TribeService.buildClientSettings(tribe1Name, parentNodeId, globalSettings, Settings.EMPTY)));
+
+        // tribe client node with different id gets a different node id
+        String tribe2Name = randomAsciiOfLengthBetween(5, 10);
+        Settings client2Settings = TribeService.buildClientSettings(tribe2Name, parentNodeId, globalSettings, Settings.EMPTY);
+        assertNotEquals(NODE_ID_SEED_SETTING.get(client1Settings), NODE_ID_SEED_SETTING.get(client2Settings));
+
+        // tribe client node for a different parent gets a different node id
+        assertNotEquals(NODE_ID_SEED_SETTING.get(client1Settings),
+            NODE_ID_SEED_SETTING.get(TribeService.buildClientSettings(tribe1Name, randomAsciiOfLengthBetween(5, 10), globalSettings,
+                Settings.EMPTY)));
     }
 }

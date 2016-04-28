@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tribe;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -52,6 +54,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
@@ -128,6 +131,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     // internal settings only
     public static final Setting<String> TRIBE_NAME_SETTING = Setting.simpleString("tribe.name", Property.NodeScope);
     private final ClusterService clusterService;
+    private final NodeEnvironment nodeEnvironment;
     private final String[] blockIndicesWrite;
     private final String[] blockIndicesRead;
     private final String[] blockIndicesMetadata;
@@ -176,14 +180,15 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     private final List<Node> nodes = new CopyOnWriteArrayList<>();
 
     @Inject
-    public TribeService(Settings settings, ClusterService clusterService) {
+    public TribeService(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnvironment) {
         super(settings);
         this.clusterService = clusterService;
+        this.nodeEnvironment = nodeEnvironment;
         Map<String, Settings> nodesSettings = new HashMap<>(settings.getGroups("tribe", true));
         nodesSettings.remove("blocks"); // remove prefix settings that don't indicate a client
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
-            Settings clientSettings = buildClientSettings(entry.getKey(), settings, entry.getValue());
+            Settings clientSettings = buildClientSettings(entry.getKey(), nodeEnvironment.nodeId(), settings, entry.getValue());
             nodes.add(new TribeClientNode(clientSettings));
         }
 
@@ -208,7 +213,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
      * Builds node settings for a tribe client node from the tribe node's global settings,
      * combined with tribe specific settings.
      */
-    static Settings buildClientSettings(String tribeName, Settings globalSettings, Settings tribeSettings) {
+    static Settings buildClientSettings(String tribeName, String parentNodeId, Settings globalSettings, Settings tribeSettings) {
         for (String tribeKey : tribeSettings.getAsMap().keySet()) {
             if (tribeKey.startsWith("path.")) {
                 throw new IllegalArgumentException("Setting [" + tribeKey + "] not allowed in tribe client [" + tribeName + "]");
@@ -241,7 +246,10 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         sb.put(Node.NODE_DATA_SETTING.getKey(), false);
         sb.put(Node.NODE_MASTER_SETTING.getKey(), false);
         sb.put(Node.NODE_INGEST_SETTING.getKey(), false);
-        sb.put(Node.NODE_LOCAL_STORAGE_SETTING.getKey(), false);
+        // node id of a tribe client node is determined by node id of parent node and tribe name
+        int nodeIdSeed = StringHelper.murmurhash3_x86_32(new BytesRef(parentNodeId + "/" + tribeName), 0);
+        sb.put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), nodeIdSeed);
+        sb.put(Node.NODE_LOCAL_STORAGE_SETTING.getKey(), false); // ensures node id is not persisted for tribe client node
         return sb.build();
     }
 

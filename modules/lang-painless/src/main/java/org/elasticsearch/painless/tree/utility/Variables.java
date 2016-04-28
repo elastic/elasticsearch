@@ -97,7 +97,7 @@ public class Variables {
         return null;
     }
 
-    public void addVariable(final Definition definition, final String location, final String typestr, final String name) {
+    public Variable addVariable(final Definition definition, final String location, final String typestr, final String name) {
         if (getVariable(null, name) != null) {
             throw new IllegalArgumentException("Error " + location + ": Variable [" + name + "] already defined.");
         }
@@ -126,6 +126,8 @@ public class Variables {
         final Variable variable = new Variable(location, name, type);
         final List<Variable> variables = scopes.get(scopesIndex).peek();
         variables.add(variable);
+
+        return variable;
     }
 
     public void removeSpecial(final String... names) {

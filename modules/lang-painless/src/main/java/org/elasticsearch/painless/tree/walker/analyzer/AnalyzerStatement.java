@@ -20,8 +20,10 @@
 package org.elasticsearch.painless.tree.walker.analyzer;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.tree.node.Node;
 import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.tree.utility.Variables.Variable;
 
 import static org.elasticsearch.painless.tree.node.Type.ACONSTANT;
 import static org.elasticsearch.painless.tree.node.Type.DECLARATION;
@@ -140,6 +142,8 @@ class AnalyzerStatement {
         }
 
         whilems.statementCount = 1;
+
+        whil.data.put("escape", whilems.allEscape);
 
         variables.decrementScope();
     }
@@ -276,6 +280,8 @@ class AnalyzerStatement {
 
         frms.statementCount = 1;
 
+        fr.data.put("escape", frms.allEscape);
+
         variables.decrementScope();
     }
 
@@ -308,7 +314,7 @@ class AnalyzerStatement {
         final Node expression = rtn.children.get(0);
         final MetadataExpression expressionme = new MetadataExpression();
 
-        expressionme.expected = definition.booleanType;
+        expressionme.expected = definition.objectType;
         analyzer.visit(expression, expressionme);
         rtn.children.set(0, caster.markCast(expression, expressionme));
 
@@ -319,201 +325,152 @@ class AnalyzerStatement {
     }
 
     void visitTry(final Node ty, final MetadataStatement tyms) {
-        final BlockContext blockctx = ctx.block();
-        final MetadataStatement blocksmd = metadata.createStatementMetadata(blockctx);
-        blocksmd.lastSource = trysmd.lastSource;
-        blocksmd.inLoop = trysmd.inLoop;
-        blocksmd.lastLoop = trysmd.lastLoop;
-        utility.incrementScope();
-        analyzer.visit(blockctx);
-        utility.decrementScope();
+        final Node tyblock = ty.children.get(0);
+        final MetadataStatement tyblockms = new MetadataStatement();
 
-        trysmd.methodEscape = blocksmd.methodEscape;
-        trysmd.loopEscape = blocksmd.loopEscape;
-        trysmd.allLast = blocksmd.allLast;
-        trysmd.anyContinue = blocksmd.anyContinue;
-        trysmd.anyBreak = blocksmd.anyBreak;
+        tyblockms.lastSource = tyms.lastSource;
+        tyblockms.inLoop = tyms.inLoop;
+        tyblockms.lastLoop = tyms.lastLoop;
 
-        int trapcount = 0;
+        variables.incrementScope();
+        analyzer.visit(tyblock, tyblockms);
+        variables.decrementScope();
 
-        for (final TrapContext trapctx : ctx.trap()) {
-            final MetadataStatement trapsmd = metadata.createStatementMetadata(trapctx);
-            trapsmd.lastSource = trysmd.lastSource;
-            trapsmd.inLoop = trysmd.inLoop;
-            trapsmd.lastLoop = trysmd.lastLoop;
-            utility.incrementScope();
-            analyzer.visit(trapctx);
-            utility.decrementScope();
+        tyms.methodEscape = tyblockms.methodEscape;
+        tyms.loopEscape = tyblockms.loopEscape;
+        tyms.allEscape = tyblockms.allEscape;
+        tyms.anyContinue = tyblockms.anyContinue;
+        tyms.anyBreak = tyblockms.anyBreak;
 
-            trysmd.methodEscape &= trapsmd.methodEscape;
-            trysmd.loopEscape &= trapsmd.loopEscape;
-            trysmd.allLast &= trapsmd.allLast;
-            trysmd.anyContinue |= trapsmd.anyContinue;
-            trysmd.anyBreak |= trapsmd.anyBreak;
+        int statementCount = 0;
 
-            trapcount = Math.max(trapcount, trapsmd.count);
+        for (int trapCount = 1; trapCount < ty.children.size(); ++trapCount) {
+            final Node trap = ty.children.get(trapCount);
+            final MetadataStatement trapms = new MetadataStatement();
+
+            trapms.lastSource = tyms.lastSource;
+            trapms.inLoop = tyms.inLoop;
+            trapms.lastLoop = tyms.lastLoop;
+
+            variables.incrementScope();
+            analyzer.visit(trap, trapms);
+            variables.decrementScope();
+
+            tyms.methodEscape &= trapms.methodEscape;
+            tyms.loopEscape &= trapms.loopEscape;
+            tyms.allEscape &= trapms.allEscape;
+            tyms.anyContinue |= trapms.anyContinue;
+            tyms.anyBreak |= trapms.anyBreak;
+
+            statementCount = Math.max(statementCount, trapms.statementCount);
         }
 
-        trysmd.count = blocksmd.count + trapcount;
+        tyms.statementCount = tyblockms.statementCount + statementCount;
     }
 
-    void visitThrow(final ThrowContext ctx) {
-        final MetadataStatement throwsmd = metadata.getStatementMetadata(ctx);
+    void visitThrow(final Node thro, final MetadataStatement throms) {
+        final Node expression = thro.children.get(0);
+        final MetadataExpression expressionme = new MetadataExpression();
 
-        final ExpressionContext exprctx = AnalyzerUtility.updateExpressionTree(ctx.expression());
-        final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
-        expremd.to = definition.exceptionType;
-        analyzer.visit(exprctx);
-        caster.markCast(expremd);
+        expressionme.expected = definition.exceptionType;
+        analyzer.visit(expression, expressionme);
+        thro.children.set(0, caster.markCast(expression, expressionme));
 
-        throwsmd.methodEscape = true;
-        throwsmd.loopEscape = true;
-        throwsmd.allLast = true;
-
-        throwsmd.count = 1;
+        throms.methodEscape = true;
+        throms.loopEscape = true;
+        throms.allEscape = true;
+        throms.statementCount = 1;
     }
 
-    void visitExpr(final ExprContext ctx) {
-        final MetadataStatement exprsmd = metadata.getStatementMetadata(ctx);
-        final ExpressionContext exprctx = AnalyzerUtility.updateExpressionTree(ctx.expression());
-        final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
-        expremd.read = exprsmd.lastSource;
-        analyzer.visit(exprctx);
+    void visitExpr(final Node expr, final MetadataStatement exprms) {
+        final Node expression = expr.children.get(0);
+        final MetadataExpression expressionme = new MetadataExpression();
 
-        if (!expremd.statement && !exprsmd.lastSource) {
-            throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Not a statement.");
+        expressionme.read = exprms.lastSource;
+        analyzer.visit(expression, expressionme);
+
+        if (!expressionme.statement && !exprms.lastSource) {
+            throw new IllegalArgumentException(expr.error("Not a statement."));
         }
 
-        final boolean rtn = exprsmd.lastSource && expremd.from.sort != Sort.VOID;
-        exprsmd.methodEscape = rtn;
-        exprsmd.loopEscape = rtn;
-        exprsmd.allLast = rtn;
-        expremd.to = rtn ? definition.objectType : expremd.from;
-        caster.markCast(expremd);
+        final boolean rtn = exprms.lastSource && expressionme.actual.sort != Sort.VOID;
 
-        exprsmd.count = 1;
+        expressionme.expected = rtn ? definition.objectType : expressionme.actual;
+        expr.children.set(0, caster.markCast(expression, expressionme));
+
+        exprms.methodEscape = rtn;
+        exprms.loopEscape = rtn;
+        exprms.allEscape = rtn;
+        exprms.statementCount = 1;
     }
 
-    void visitMultiple(final MultipleContext ctx) {
-        final MetadataStatement multiplesmd = metadata.getStatementMetadata(ctx);
-        final List<StatementContext> statectxs = ctx.statement();
-        final StatementContext lastctx = statectxs.get(statectxs.size() - 1);
+    void visitBlock(final Node block, final MetadataStatement blockms) {
+        final Node last = block.children.get(block.children.size() - 1);
 
-        for (StatementContext statectx : statectxs) {
-            if (multiplesmd.allLast) {
-                throw new IllegalArgumentException(AnalyzerUtility.error(statectx) +
-                    "Statement will never be executed because all prior paths escape.");
+        for (final Node child : block.children) {
+            if (blockms.allEscape) {
+                throw new IllegalArgumentException(child.error("Unreachable statement."));
             }
 
-            final MetadataStatement statesmd = metadata.createStatementMetadata(statectx);
-            statesmd.lastSource = multiplesmd.lastSource && statectx == lastctx;
-            statesmd.inLoop = multiplesmd.inLoop;
-            statesmd.lastLoop = (multiplesmd.beginLoop || multiplesmd.lastLoop) && statectx == lastctx;
-            analyzer.visit(statectx);
+            final MetadataStatement childms = new MetadataStatement();
+            childms.inLoop = blockms.inLoop;
+            childms.lastSource = child == last;
+            childms.lastLoop = (childms.beginLoop || childms.lastLoop) && child == last;
+            analyzer.visit(child, childms);
 
-            multiplesmd.methodEscape = statesmd.methodEscape;
-            multiplesmd.loopEscape = statesmd.loopEscape;
-            multiplesmd.allLast = statesmd.allLast;
-            multiplesmd.anyContinue |= statesmd.anyContinue;
-            multiplesmd.anyBreak |= statesmd.anyBreak;
-
-            multiplesmd.count += statesmd.count;
+            blockms.methodEscape = childms.methodEscape;
+            blockms.loopEscape = childms.loopEscape;
+            blockms.allEscape = childms.allEscape;
+            blockms.anyContinue |= childms.anyContinue;
+            blockms.anyBreak |= childms.anyBreak;
+            blockms.statementCount += childms.statementCount;
         }
     }
 
-    void visitSingle(final SingleContext ctx) {
-        final MetadataStatement singlesmd = metadata.getStatementMetadata(ctx);
+    void visitDeclaration(final Node declaration, final MetadataStatement declarationms) {
+        for (final Node child : declaration.children) {
+            final String type = (String)child.data.get("type");
+            final String symbol = (String)child.data.get("symbol");
 
-        final StatementContext statectx = ctx.statement();
-        final MetadataStatement statesmd = metadata.createStatementMetadata(statectx);
-        statesmd.lastSource = singlesmd.lastSource;
-        statesmd.inLoop = singlesmd.inLoop;
-        statesmd.lastLoop = singlesmd.beginLoop || singlesmd.lastLoop;
-        analyzer.visit(statectx);
+            final Variable variable = variables.addVariable(definition, child.location, type, symbol);
 
-        singlesmd.methodEscape = statesmd.methodEscape;
-        singlesmd.loopEscape = statesmd.loopEscape;
-        singlesmd.allLast = statesmd.allLast;
-        singlesmd.anyContinue = statesmd.anyContinue;
-        singlesmd.anyBreak = statesmd.anyBreak;
-
-        singlesmd.count = statesmd.count;
-    }
-
-    void visitDeclaration(final DeclarationContext ctx) {
-        final DecltypeContext decltypectx = ctx.decltype();
-        final ExpressionMetadata decltypeemd = metadata.createExpressionMetadata(decltypectx);
-        analyzer.visit(decltypectx);
-
-        for (final DeclvarContext declvarctx : ctx.declvar()) {
-            final ExpressionMetadata declvaremd = metadata.createExpressionMetadata(declvarctx);
-            declvaremd.to = decltypeemd.from;
-            analyzer.visit(declvarctx);
+            child.data.put("variable", variable);
         }
+
+        declarationms.statementCount = declaration.children.size();
     }
 
-    void visitDecltype(final DecltypeContext ctx) {
-        final ExpressionMetadata decltypeemd = metadata.getExpressionMetadata(ctx);
-        final IdentifierContext idctx = ctx.identifier();
-        final String type = ctx.getText();
+    void visitTrap(final Node trap, final MetadataStatement trapms) {
+        final String type = (String)trap.data.get("type");
+        final String symbol = (String)trap.data.get("symbol");
 
-        utility.isValidType(idctx, true);
-        decltypeemd.from = definition.getType(type);
-    }
-
-    void visitDeclvar(final DeclvarContext ctx) {
-        final ExpressionMetadata declvaremd = metadata.getExpressionMetadata(ctx);
-        final IdentifierContext idctx = ctx.identifier();
-        final String identifier = idctx.getText();
-
-        utility.isValidIdentifier(idctx, true);
-        declvaremd.postConst = utility.addVariable(ctx, identifier, declvaremd.to).slot;
-
-        final ExpressionContext exprctx = AnalyzerUtility.updateExpressionTree(ctx.expression());
-
-        if (exprctx != null) {
-            final ExpressionMetadata expremd = metadata.createExpressionMetadata(exprctx);
-            expremd.to = declvaremd.to;
-            analyzer.visit(exprctx);
-            caster.markCast(expremd);
-        }
-    }
-
-    void visitTrap(final TrapContext ctx) {
-        final MetadataStatement trapsmd = metadata.getStatementMetadata(ctx);
-
-        final IdentifierContext idctx0 = ctx.identifier(0);
-        final String type = idctx0.getText();
-        utility.isValidType(idctx0, true);
-        trapsmd.exception = definition.getType(type);
+        final Variable exception = variables.addVariable(definition, trap.location, type, symbol);
 
         try {
-            trapsmd.exception.clazz.asSubclass(Exception.class);
-        } catch (final ClassCastException exception) {
-            throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Invalid exception type [" + trapsmd.exception.name + "].");
+            exception.type.clazz.asSubclass(Exception.class);
+        } catch (final ClassCastException cce) {
+            throw new IllegalArgumentException(trap.error("Not an exception type [" + exception.type.name + "]."));
         }
 
-        final IdentifierContext idctx1 = ctx.identifier(1);
-        final String identifier = idctx1.getText();
-        utility.isValidIdentifier(idctx1, true);
-        trapsmd.slot = utility.addVariable(ctx, identifier, trapsmd.exception).slot;
+        trap.data.put("variable", exception);
 
-        final BlockContext blockctx = ctx.block();
+        final Node block = trap.children.get(0);
 
-        if (blockctx != null) {
-            final MetadataStatement blocksmd = metadata.createStatementMetadata(blockctx);
-            blocksmd.lastSource = trapsmd.lastSource;
-            blocksmd.inLoop = trapsmd.inLoop;
-            blocksmd.lastLoop = trapsmd.lastLoop;
-            analyzer.visit(blockctx);
+        if (block != null) {
+            final MetadataStatement blockms = new MetadataStatement();
 
-            trapsmd.methodEscape = blocksmd.methodEscape;
-            trapsmd.loopEscape = blocksmd.loopEscape;
-            trapsmd.allLast = blocksmd.allLast;
-            trapsmd.anyContinue = blocksmd.anyContinue;
-            trapsmd.anyBreak = blocksmd.anyBreak;
-        } else if (ctx.emptyscope() == null) {
-            throw new IllegalStateException(AnalyzerUtility.error(ctx) + "Unexpected state.");
+            blockms.lastSource = trapms.lastSource;
+            blockms.inLoop = trapms.inLoop;
+            blockms.lastLoop = trapms.lastLoop;
+
+            analyzer.visit(block, blockms);
+
+            trapms.methodEscape = blockms.methodEscape;
+            trapms.loopEscape = blockms.loopEscape;
+            trapms.allEscape = blockms.allEscape;
+            trapms.anyContinue = blockms.anyContinue;
+            trapms.anyBreak = blockms.anyBreak;
+            trapms.statementCount = blockms.statementCount;
         }
     }
 }

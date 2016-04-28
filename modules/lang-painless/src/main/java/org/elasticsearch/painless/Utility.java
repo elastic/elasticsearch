@@ -790,11 +790,11 @@ public class Utility {
     }
 
     public static boolean checkEquals(final Object left, final Object right) {
-        if (left != null && right != null) {
+        if (left != null) {
             return left.equals(right);
         }
 
-        return left == null && right == null;
+        return right == null || right.equals(null);
     }
 
     private Utility() {}

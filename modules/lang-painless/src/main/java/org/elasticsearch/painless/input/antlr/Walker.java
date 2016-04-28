@@ -318,10 +318,13 @@ public class Walker extends PainlessParserBaseVisitor<Node> {
         final Node node = new Node(location(ctx), DECLARATION);
 
         final String type = ctx.decltype().identifier().getText();
-        node.data.put("type", type);
 
         for (final DeclvarContext declvar : ctx.declvar()) {
-            node.children.add(visit(declvar));
+            final Node var = visit(declvar);
+
+            var.data.put("type", type);
+
+            node.children.add(var);
         }
 
         return node;

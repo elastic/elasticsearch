@@ -34,7 +34,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class FieldStatsRequestTests extends ESTestCase {
 
     public void testFieldsParsing() throws Exception {
-        byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/fieldstats/fieldstats-index-constraints-request.json");
+        byte[] data =
+            StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/fieldstats/" +
+                "fieldstats-index-constraints-request.json");
         FieldStatsRequest request = new FieldStatsRequest();
         request.source(new BytesArray(data));
 

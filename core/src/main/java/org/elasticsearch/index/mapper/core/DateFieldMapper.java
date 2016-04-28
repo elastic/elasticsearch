@@ -20,12 +20,12 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.XPointValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -319,6 +319,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+            failIfNotIndexed();
             long baseLo = parseToMilliseconds(value, false, null, dateMathParser);
             long baseHi = parseToMilliseconds(value, true, null, dateMathParser);
             long delta;
@@ -333,16 +334,19 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            failIfNotIndexed();
             return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null);
         }
 
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
                 @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
+            failIfNotIndexed();
             return new LateParsingQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser);
         }
 
         Query innerRangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
                 @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
+            failIfNotIndexed();
             DateMathParser parser = forcedDateParser == null
                     ? dateMathParser
                     : forcedDateParser;
@@ -394,17 +398,16 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         @Override
         public FieldStats.Date stats(IndexReader reader) throws IOException {
             String field = name();
-            long size = PointValues.size(reader, field);
+            long size = XPointValues.size(reader, field);
             if (size == 0) {
-                return null;
+                return new FieldStats.Date(reader.maxDoc(), isSearchable(), isAggregatable(), dateTimeFormatter());
             }
-            int docCount = PointValues.getDocCount(reader, field);
-            byte[] min = PointValues.getMinPackedValue(reader, field);
-            byte[] max = PointValues.getMaxPackedValue(reader, field);
+            int docCount = XPointValues.getDocCount(reader, field);
+            byte[] min = XPointValues.getMinPackedValue(reader, field);
+            byte[] max = XPointValues.getMaxPackedValue(reader, field);
             return new FieldStats.Date(reader.maxDoc(),docCount, -1L, size,
-                    LongPoint.decodeDimension(min, 0),
-                    LongPoint.decodeDimension(max, 0),
-                    dateTimeFormatter());
+                isSearchable(), isAggregatable(),
+                dateTimeFormatter(), LongPoint.decodeDimension(min, 0), LongPoint.decodeDimension(max, 0));
         }
 
         @Override
@@ -416,13 +419,13 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
                 dateParser = this.dateMathParser;
             }
 
-            if (PointValues.size(reader, name()) == 0) {
+            if (XPointValues.size(reader, name()) == 0) {
                 // no points, so nothing matches
                 return Relation.DISJOINT;
             }
 
-            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
-            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
+            long minValue = LongPoint.decodeDimension(XPointValues.getMinPackedValue(reader, name()), 0);
+            long maxValue = LongPoint.decodeDimension(XPointValues.getMaxPackedValue(reader, name()), 0);
 
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {

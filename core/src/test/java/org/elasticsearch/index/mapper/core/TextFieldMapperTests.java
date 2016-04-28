@@ -410,7 +410,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper disabledMapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, disabledMapper.mappingSource().toString());
-        IllegalStateException e = expectThrows(IllegalStateException.class,
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> disabledMapper.mappers().getMapper("field").fieldType().fielddataBuilder());
         assertThat(e.getMessage(), containsString("Fielddata is disabled"));
 

@@ -129,6 +129,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean isSearchable() {
+            // The _id field is always searchable.
+            return true;
+        }
+
+        @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
             if (indexOptions() != IndexOptions.NONE || context == null) {
                 return super.termQuery(value, context);

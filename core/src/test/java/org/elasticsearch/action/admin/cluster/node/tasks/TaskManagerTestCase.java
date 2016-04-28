@@ -68,7 +68,7 @@ import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 public abstract class TaskManagerTestCase extends ESTestCase {
 
     protected static ThreadPool threadPool;
-    public static final ClusterName clusterName = new ClusterName("test-cluster");
+    public static final ClusterName CLUSTER_NAME = new ClusterName("test-cluster");
     protected TestNode[] testNodes;
     protected int nodesCount;
 
@@ -203,10 +203,10 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                     emptyMap(), emptySet(), Version.CURRENT);
             IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
             ActionFilters actionFilters = new ActionFilters(emptySet());
-            transportListTasksAction = new TransportListTasksAction(settings, clusterName, threadPool, clusterService, transportService,
+            transportListTasksAction = new TransportListTasksAction(settings, CLUSTER_NAME, threadPool, clusterService, transportService,
                     actionFilters, indexNameExpressionResolver);
-            transportCancelTasksAction = new TransportCancelTasksAction(settings, clusterName, threadPool, clusterService, transportService,
-                    actionFilters, indexNameExpressionResolver);
+            transportCancelTasksAction = new TransportCancelTasksAction(settings, CLUSTER_NAME, threadPool, clusterService,
+                    transportService, actionFilters, indexNameExpressionResolver);
             transportService.acceptIncomingRequests();
         }
 

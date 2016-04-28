@@ -26,7 +26,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.XInetAddressPoint;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.XPointValues;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -164,6 +164,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
 
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
+            failIfNotIndexed();
             if (value instanceof InetAddress) {
                 return InetAddressPoint.newExactQuery(name(), (InetAddress) value);
             } else {
@@ -188,6 +189,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            failIfNotIndexed();
             InetAddress lower;
             if (lowerTerm == null) {
                 lower = XInetAddressPoint.MIN_VALUE;
@@ -219,6 +221,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+            failIfNotIndexed();
             InetAddress base = parse(value);
             int mask = fuzziness.asInt();
             return XInetAddressPoint.newPrefixQuery(name(), base, mask);
@@ -227,16 +230,16 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
         @Override
         public FieldStats.Ip stats(IndexReader reader) throws IOException {
             String field = name();
-            long size = PointValues.size(reader, field);
+            long size = XPointValues.size(reader, field);
             if (size == 0) {
-                return null;
+                return new FieldStats.Ip(reader.maxDoc(), isSearchable(), isAggregatable());
             }
-            int docCount = PointValues.getDocCount(reader, field);
-            byte[] min = PointValues.getMinPackedValue(reader, field);
-            byte[] max = PointValues.getMaxPackedValue(reader, field);
-            return new FieldStats.Ip(reader.maxDoc(),docCount, -1L, size,
-                    InetAddressPoint.decode(min),
-                    InetAddressPoint.decode(max));
+            int docCount = XPointValues.getDocCount(reader, field);
+            byte[] min = XPointValues.getMinPackedValue(reader, field);
+            byte[] max = XPointValues.getMaxPackedValue(reader, field);
+            return new FieldStats.Ip(reader.maxDoc(), docCount, -1L, size,
+                isSearchable(), isAggregatable(),
+                InetAddressPoint.decode(min), InetAddressPoint.decode(max));
         }
 
         @Override

@@ -50,7 +50,6 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
         //Have very low pool and queue sizes to overwhelm internal pools easily
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("threadpool.generic.max", 4)
                 // don't mess with this one! It's quite sensitive to a low queue size
                 // (see also ThreadedActionListener which is happily spawning threads even when we already got rejected)
                 //.put("threadpool.listener.queue_size", 1)

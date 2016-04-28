@@ -478,7 +478,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             } else if (fielddata) {
                 return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
             } else {
-                throw new IllegalStateException("Fielddata is disabled on analyzed string fields by default. Set fielddata=true on ["
+                throw new IllegalArgumentException("Fielddata is disabled on analyzed string fields by default. Set fielddata=true on ["
                         + name() + "] in order to load fielddata in memory by uninverting the inverted index. Note that this can however "
                         + "use significant memory.");
             }

@@ -23,10 +23,13 @@ import java.util.Locale;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.joda.DateMathParser;
@@ -113,6 +116,11 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         doTestIsFieldWithinQuery(ft, reader, null, alternateFormat);
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, null);
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, alternateFormat);
+
+        // Fields with no value indexed.
+        DateFieldType ft2 = new DateFieldType();
+        ft2.setName("my_date2");
+        assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", false, false, null, null));
         IOUtils.close(reader, w, dir);
     }
 
@@ -138,5 +146,36 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         String date = "2015-10-12T12:09:55.000Z";
         long instant = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
         assertEquals(date, ft.valueForSearch(instant));
+    }
+
+    public void testTermQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        String date = "2015-10-12T14:10:55";
+        long instant = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertEquals(LongPoint.newExactQuery("field", instant), ft.termQuery(date, null));
+
+        ft.setIndexOptions(IndexOptions.NONE);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> ft.termQuery(date, null));
+        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+    }
+
+    public void testRangeQuery() throws IOException {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        String date1 = "2015-10-12T14:10:55";
+        String date2 = "2016-04-28T11:33:52";
+        long instant1 = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date1).getMillis();
+        long instant2 = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date2).getMillis();
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertEquals(LongPoint.newRangeQuery("field", instant1, instant2),
+                ft.rangeQuery(date1, date2, true, true).rewrite(new MultiReader()));
+
+        ft.setIndexOptions(IndexOptions.NONE);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> ft.rangeQuery(date1, date2, true, true));
+        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 }

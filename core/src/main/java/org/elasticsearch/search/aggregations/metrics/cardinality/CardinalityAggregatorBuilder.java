@@ -40,6 +40,10 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
 
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
 
+    public static final ParseField SUMDIRECTLY_FIELD = new ParseField("is_sum_directly");
+
+    private Boolean isSumDirectly = false;
+
     private Long precisionThreshold = null;
 
     public CardinalityAggregatorBuilder(String name, ValueType targetValueType) {
@@ -58,6 +62,13 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
         this.precisionThreshold = precisionThreshold;
         return this;
     }
+
+    public CardinalityAggregatorBuilder sumDirectly(boolean isSumDirectly){
+        this.isSumDirectly = isSumDirectly;
+        return  this;
+    }
+
+    public Boolean isSumDirectly(){ return isSumDirectly; }
 
     /**
      * Get the precision threshold. Higher values improve accuracy but also
@@ -89,6 +100,7 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
         if (in.readBoolean()) {
             factory.precisionThreshold = in.readLong();
         }
+        isSumDirectly = in.readBoolean();
         return factory;
     }
 
@@ -99,6 +111,7 @@ public final class CardinalityAggregatorBuilder extends ValuesSourceAggregatorBu
         if (hasPrecisionThreshold) {
             out.writeLong(precisionThreshold);
         }
+        out.writeBoolean(isSumDirectly);
     }
 
     @Override

@@ -69,16 +69,16 @@ public class DeviceStatsTests extends ESTestCase {
                 relativeTime + elapsed,
                 previous);
         final long scale = TimeUnit.SECONDS.toNanos(1);
-        assertThat(current.iops(), equalTo(scale * 3072f / elapsed));
-        assertThat(current.readsPerSecond(), equalTo(scale * 1024f / elapsed));
-        assertThat(current.writesPerSecond(), equalTo(scale * 2048f / elapsed));
-        assertThat(current.readKilobytesPerSecond(), equalTo(scale * 8192f / elapsed));
-        assertThat(current.writeKilobytesPerSecond(), equalTo(scale * 16384f / elapsed));
-        assertThat(current.averageRequestSizeInKilobytes(), equalTo(8f));
-        assertThat(current.averageResidentRequests(), equalTo(scale * 12288f / elapsed / 1000));
-        assertThat(current.averageAwaitTimeInMilliseconds(), equalTo(2f));
-        assertThat(current.averageReadAwaitTimeInMilliseconds(), equalTo(2f));
-        assertThat(current.averageWriteAwaitTimeInMilliseconds(), equalTo(2f));
+        assertThat(current.iops(), equalTo(scale * 3072d / elapsed));
+        assertThat(current.readsPerSecond(), equalTo(scale * 1024d / elapsed));
+        assertThat(current.writesPerSecond(), equalTo(scale * 2048d / elapsed));
+        assertThat(current.readKilobytesPerSecond(), equalTo(scale * 8192d / elapsed));
+        assertThat(current.writeKilobytesPerSecond(), equalTo(scale * 16384d / elapsed));
+        assertThat(current.averageRequestSizeInKilobytes(), equalTo(8d));
+        assertThat(current.averageResidentRequests(), equalTo(scale * 12288d / elapsed / 1000));
+        assertThat(current.averageAwaitTimeInMilliseconds(), equalTo(2d));
+        assertThat(current.averageReadAwaitTimeInMilliseconds(), equalTo(2d));
+        assertThat(current.averageWriteAwaitTimeInMilliseconds(), equalTo(2d));
     }
 
 }

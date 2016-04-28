@@ -336,7 +336,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             return (currentReadsCompleted - previousReadsCompleted) + (currentWritesCompleted - previousWritesCompleted);
         }
 
-        public float iops() {
+        public double iops() {
             if (previousReadsCompleted == -1 || previousWritesCompleted == -1 || previousRelativeTime == -1) return -1;
 
             return rateOfChange(
@@ -346,40 +346,40 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
                     currentRelativeTime);
         }
 
-        public float readsPerSecond() {
+        public double readsPerSecond() {
             if (previousReadsCompleted == -1 || previousRelativeTime == -1) return -1;
 
             return rateOfChange(previousReadsCompleted, currentReadsCompleted, previousRelativeTime, currentRelativeTime);
         }
 
-        public float writesPerSecond() {
+        public double writesPerSecond() {
             if (previousWritesCompleted == -1 || previousRelativeTime == -1) return -1;
 
             return rateOfChange(previousWritesCompleted, currentWritesCompleted, previousRelativeTime, currentRelativeTime);
         }
 
-        public float readKilobytesPerSecond() {
+        public double readKilobytesPerSecond() {
             if (previousSectorsRead == -1 || previousRelativeTime == -1) return -1;
 
             return rateOfChange(previousSectorsRead, currentSectorsRead, previousRelativeTime, currentRelativeTime) / 2;
         }
 
-        public float writeKilobytesPerSecond() {
+        public double writeKilobytesPerSecond() {
             if (previousSectorsWritten == -1 || previousRelativeTime == -1) return -1;
 
             return rateOfChange(previousSectorsWritten, currentSectorsWritten, previousRelativeTime, currentRelativeTime) / 2;
         }
 
-        public float averageRequestSizeInKilobytes() {
+        public double averageRequestSizeInKilobytes() {
             if (previousReadsCompleted == -1 || previousWritesCompleted == -1 || previousSectorsRead == -1) return -1;
 
             final long totalOperationsCompleted = totalOperationsCompleted();
             if (totalOperationsCompleted == 0) return 0;
             return ((currentSectorsRead - previousSectorsRead) + (currentSectorsWritten - previousSectorsWritten))
-                    / (float)totalOperationsCompleted / 2;
+                    / (double)totalOperationsCompleted / 2;
         }
 
-        public float averageResidentRequests() {
+        public double averageResidentRequests() {
             if (previousWeightedMilliseconds == -1 || previousRelativeTime == -1) return -1;
 
             return rateOfChange(
@@ -389,29 +389,29 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
                     currentRelativeTime) / 1000;
         }
 
-        public float averageAwaitTimeInMilliseconds() {
+        public double averageAwaitTimeInMilliseconds() {
             if (previousReadMilliseconds == -1 || previousReadsCompleted == -1) return -1;
 
             final long totalOperationsCompleted = totalOperationsCompleted();
             if (totalOperationsCompleted == 0) return 0;
             return ((currentReadMilliseconds - previousReadMilliseconds) + (currentWriteMilliseconds - previousWriteMilliseconds))
-                    / (float) totalOperationsCompleted;
+                    / (double) totalOperationsCompleted;
         }
 
-        public float averageReadAwaitTimeInMilliseconds() {
+        public double averageReadAwaitTimeInMilliseconds() {
             if (previousReadMilliseconds == -1 || previousReadsCompleted == -1) return -1;
 
             final long readOperationsCompleted = currentReadsCompleted - previousReadsCompleted;
             if (readOperationsCompleted == 0) return 0;
-            return (currentReadMilliseconds - previousReadMilliseconds) / (float)readOperationsCompleted;
+            return (currentReadMilliseconds - previousReadMilliseconds) / (double)readOperationsCompleted;
         }
 
-        public float averageWriteAwaitTimeInMilliseconds() {
+        public double averageWriteAwaitTimeInMilliseconds() {
             if (previousWriteMilliseconds == -1 || previousWritesCompleted == -1) return -1;
 
             final long writeOperationsCompleted = currentWritesCompleted - previousWritesCompleted;
             if (writeOperationsCompleted == 0) return 0;
-            return (currentWriteMilliseconds - previousWriteMilliseconds) / (float)writeOperationsCompleted;
+            return (currentWriteMilliseconds - previousWriteMilliseconds) / (double)writeOperationsCompleted;
 
         }
 
@@ -473,8 +473,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
 
     }
 
-    private static float rateOfChange(final long previous, final long current, final long t1, final long t2) {
-        return TimeUnit.SECONDS.toNanos(1) * (current - previous) / (float)(t2 - t1);
+    private static double rateOfChange(final long previous, final long current, final long t1, final long t2) {
+        return TimeUnit.SECONDS.toNanos(1) * (current - previous) / (double)(t2 - t1);
     }
 
     final long timestamp;

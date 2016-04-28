@@ -40,7 +40,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         String fieldName = rarely() ? FieldSortBuilder.DOC_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
         FieldSortBuilder builder = new FieldSortBuilder(fieldName);
         if (randomBoolean()) {
-            builder.order(RandomSortDataGenerator.order(null));
+            builder.order(randomFrom(SortOrder.values()));
         }
 
         if (randomBoolean()) {
@@ -95,7 +95,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             mutated.missing(RandomSortDataGenerator.missing(mutated.missing()));
             break;
         case 5:
-            mutated.order(RandomSortDataGenerator.order(mutated.order()));
+            mutated.order(ESTestCase.randomValueOtherThan(mutated.order(), () -> randomFrom(SortOrder.values())));
             break;
         default:
             throw new IllegalStateException("Unsupported mutation.");

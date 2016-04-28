@@ -49,7 +49,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         ScriptSortBuilder builder = new ScriptSortBuilder(new Script(randomAsciiOfLengthBetween(5, 10)),
                 type);
         if (randomBoolean()) {
-                builder.order(RandomSortDataGenerator.order(null));
+                builder.order(randomFrom(SortOrder.values()));
         }
         if (randomBoolean()) {
             if (type == ScriptSortType.NUMBER) {

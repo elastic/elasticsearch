@@ -83,7 +83,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.unit(unit(result.unit()));
         }
         if (randomBoolean()) {
-            result.order(RandomSortDataGenerator.order(null));
+            result.order(randomFrom(SortOrder.values()));
         }
         if (randomBoolean()) {
             result.sortMode(mode(result.sortMode()));
@@ -171,7 +171,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.unit(unit(original.unit()));
             break;
         case 4:
-            result.order(RandomSortDataGenerator.order(original.order()));
+            result.order(ESTestCase.randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
             break;
         case 5:
             result.sortMode(mode(original.sortMode()));

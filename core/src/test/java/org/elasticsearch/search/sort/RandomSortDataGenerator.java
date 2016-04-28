@@ -84,19 +84,4 @@ public class RandomSortDataGenerator {
         }
         return missing;
     }
-
-    /**
-     * return a random {@link SortOrder} settings, except the one provided by parameter if set
-     */
-    public static SortOrder order(@Nullable SortOrder original) {
-        if (original == null) {
-            return ESTestCase.randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
-        }
-        if (original.equals(SortOrder.ASC)) {
-            return SortOrder.DESC;
-        } else {
-            return SortOrder.ASC;
-        }
-    }
-
 }

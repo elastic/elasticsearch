@@ -18,28 +18,24 @@
  */
 package org.elasticsearch.client;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.Map;
+import java.net.URI;
 
-public final class RestClient implements Closeable {
+/**
+ * Allows to send DELETE requests providing a body (not supported out of the box)
+ */
+final class HttpDeleteWithEntity extends HttpEntityEnclosingRequestBase {
 
-    private final Transport transport;
+    final static String METHOD_NAME = HttpDelete.METHOD_NAME;
 
-    public RestClient(CloseableHttpClient client, ConnectionPool<? extends Connection> connectionPool, long maxRetryTimeout) {
-        this.transport = new Transport<>(client, connectionPool, maxRetryTimeout);
-    }
-
-    public ElasticsearchResponse performRequest(Verb verb, String endpoint, Map<String, Object> params, HttpEntity entity)
-            throws IOException {
-        return transport.performRequest(verb, endpoint, params, entity);
+    public HttpDeleteWithEntity(final URI uri) {
+        setURI(uri);
     }
 
     @Override
-    public void close() throws IOException {
-        transport.close();
+    public String getMethod() {
+        return METHOD_NAME;
     }
 }

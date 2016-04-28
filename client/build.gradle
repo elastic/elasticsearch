@@ -30,10 +30,11 @@ dependencies {
   //compile "org.apache.httpcomponents:httpasyncclient:4.1.1"
   compile "commons-codec:commons-codec:1.9"
   compile "commons-logging:commons-logging:1.2"
+  compile "com.fasterxml.jackson.core:jackson-core:2.7.3"
 
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
-  testCompile 'org.hamcrest:hamcrest-all:1.3'
+  testCompile "org.hamcrest:hamcrest-all:1.3"
   testCompile "org.apache.lucene:lucene-test-framework:${versions.lucene}"
   testCompile "org.apache.lucene:lucene-core:${versions.lucene}"
   testCompile "org.apache.lucene:lucene-codecs:${versions.lucene}"

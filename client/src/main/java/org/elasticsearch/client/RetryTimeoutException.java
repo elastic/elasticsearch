@@ -16,30 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.client;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-
-import java.io.Closeable;
 import java.io.IOException;
-import java.util.Map;
 
-public final class RestClient implements Closeable {
+public class RetryTimeoutException extends IOException {
 
-    private final Transport transport;
-
-    public RestClient(CloseableHttpClient client, ConnectionPool<? extends Connection> connectionPool, long maxRetryTimeout) {
-        this.transport = new Transport<>(client, connectionPool, maxRetryTimeout);
-    }
-
-    public ElasticsearchResponse performRequest(Verb verb, String endpoint, Map<String, Object> params, HttpEntity entity)
-            throws IOException {
-        return transport.performRequest(verb, endpoint, params, entity);
-    }
-
-    @Override
-    public void close() throws IOException {
-        transport.close();
+    RetryTimeoutException(String message) {
+        super(message);
     }
 }

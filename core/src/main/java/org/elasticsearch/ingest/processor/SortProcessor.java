@@ -38,8 +38,8 @@ import java.util.stream.Collectors;
 public final class SortProcessor extends AbstractProcessor {
 
     public static final String TYPE = "sort";
-    public static final ParseField FIELD = new ParseField("field");
-    public static final ParseField ORDER = new ParseField("order");
+    public static final String FIELD = "field";
+    public static final String ORDER = "order";
     public static final String DEFAULT_ORDER = "asc";
 
     public enum SortOrder {
@@ -118,13 +118,13 @@ public final class SortProcessor extends AbstractProcessor {
 
         @Override
         public SortProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, FIELD.getPreferredName());
+            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, FIELD);
             SortOrder direction = SortOrder.fromString(
                     ConfigurationUtils.readStringProperty(
                             TYPE,
                             processorTag,
                             config,
-                            ORDER.getPreferredName(),
+                            ORDER,
                         DEFAULT_ORDER));
 
             return new SortProcessor(processorTag, field, direction);

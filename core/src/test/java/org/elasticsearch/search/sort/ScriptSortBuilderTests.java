@@ -66,7 +66,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             builder.setNestedFilter(RandomSortDataGenerator.nestedFilter(builder.getNestedFilter()));
         }
         if (randomBoolean()) {
-            builder.setNestedPath(RandomSortDataGenerator.randomAscii(builder.getNestedPath()));
+            builder.setNestedPath(ESTestCase.randomValueOtherThan(
+                    builder.getNestedPath(),
+                    () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
         }
         return builder;
     }

@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
@@ -91,7 +92,10 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.setNestedFilter(RandomSortDataGenerator.nestedFilter(result.getNestedFilter()));
         }
         if (randomBoolean()) {
-            result.setNestedPath(RandomSortDataGenerator.randomAscii(result.getNestedPath()));
+            result.setNestedPath(
+                    ESTestCase.randomValueOtherThan(
+                            result.getNestedPath(),
+                            () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
         }
         if (randomBoolean()) {
             result.coerce(! result.coerce());
@@ -176,7 +180,9 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.setNestedFilter(RandomSortDataGenerator.nestedFilter(original.getNestedFilter()));
             break;
         case 7:
-            result.setNestedPath(RandomSortDataGenerator.randomAscii(original.getNestedPath()));
+            result.setNestedPath(ESTestCase.randomValueOtherThan(
+                    result.getNestedPath(),
+                    () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
             break;
         case 8:
             result.coerce(! original.coerce());

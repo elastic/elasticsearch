@@ -48,7 +48,9 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
 
         if (randomBoolean()) {
-            builder.unmappedType(RandomSortDataGenerator.randomAscii(builder.unmappedType()));
+            builder.unmappedType(ESTestCase.randomValueOtherThan(
+                    builder.unmappedType(),
+                    () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
         }
 
         if (randomBoolean()) {
@@ -60,7 +62,9 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
 
         if (randomBoolean()) {
-            builder.setNestedPath(RandomSortDataGenerator.randomAscii(builder.getNestedPath()));
+            builder.setNestedPath(ESTestCase.randomValueOtherThan(
+                    builder.getNestedPath(),
+                    () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
         }
 
         return builder;
@@ -72,7 +76,9 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         int parameter = randomIntBetween(0, 5);
         switch (parameter) {
         case 0:
-            mutated.setNestedPath(RandomSortDataGenerator.randomAscii(mutated.getNestedPath()));
+            mutated.setNestedPath(ESTestCase.randomValueOtherThan(
+                    mutated.getNestedPath(),
+                    () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
             break;
         case 1:
             mutated.setNestedFilter(RandomSortDataGenerator.nestedFilter(mutated.getNestedFilter()));
@@ -81,7 +87,9 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             mutated.sortMode(ESTestCase.randomValueOtherThan(mutated.sortMode(), () -> randomFrom(SortMode.values())));
             break;
         case 3:
-            mutated.unmappedType(RandomSortDataGenerator.randomAscii(mutated.unmappedType()));
+            mutated.unmappedType(ESTestCase.randomValueOtherThan(
+                    mutated.unmappedType(),
+                    () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
             break;
         case 4:
             mutated.missing(RandomSortDataGenerator.missing(mutated.missing()));

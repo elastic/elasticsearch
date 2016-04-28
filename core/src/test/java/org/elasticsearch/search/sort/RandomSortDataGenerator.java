@@ -55,14 +55,6 @@ public class RandomSortDataGenerator {
         return nested;
     }
 
-    public static String randomAscii(String original) {
-        String nestedPath = ESTestCase.randomAsciiOfLengthBetween(1, 10);
-        while (nestedPath.equals(original)) {
-            nestedPath = ESTestCase.randomAsciiOfLengthBetween(1, 10);
-        }
-        return nestedPath;
-    }
-
     public static Object missing(Object original) {
         Object missing = null;
         Object otherMissing = original;

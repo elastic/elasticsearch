@@ -131,6 +131,8 @@ in favour of `query` and `no_match_query`.
 * Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoDistanceRangeQuery. Use parameter validation_method instead.
 
 * Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoDistanceQuery. Use parameter validation_method instead.
+
+* Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoBoundingBoxQuery. Use parameter validation_method instead.
 ==== Top level `filter` parameter
 
 Removed support for the deprecated top level `filter` in the search api,

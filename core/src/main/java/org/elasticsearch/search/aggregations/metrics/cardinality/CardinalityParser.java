@@ -45,38 +45,20 @@ public class CardinalityParser extends AnyValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory parse(String name, XContentParser parser, SearchContext context) throws IOException {
-
-        ValuesSourceParser vsParser = ValuesSourceParser.any(name, InternalCardinality.TYPE, context).formattable(false).build();
-
-        long precisionThreshold = -1;
-        Boolean rehash = null;
-        boolean isSumDirectly = false;
-
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (vsParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else if (token.isValue()) {
-                if ("rehash".equals(currentFieldName)) {
-                    rehash = parser.booleanValue();
-                } else if (context.parseFieldMatcher().match(currentFieldName, PRECISION_THRESHOLD)) {
-                    precisionThreshold = parser.longValue();
-                } else if("isSumDirectly".equals(currentFieldName)){
-                    isSumDirectly = parser.booleanValue();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + name + "]: [" + currentFieldName
-                            + "].", parser.getTokenLocation());
-                }
-            } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + name + "].", parser.getTokenLocation());
-            }
+    protected CardinalityAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                         ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        CardinalityAggregatorBuilder factory = new CardinalityAggregatorBuilder(aggregationName, targetValueType);
+        Long precisionThreshold = (Long) otherOptions.get(CardinalityAggregatorBuilder.PRECISION_THRESHOLD_FIELD);
+        if (precisionThreshold != null) {
+            factory.precisionThreshold(precisionThreshold);
+        }
+        Boolean isSumDirectly = (Boolean)otherOptions.get(CardinalityAggregatorBuilder.SUMDIRECTLY_FIELD);
+        if (isSumDirectly != null){
+            factory.sumDirectly(isSumDirectly);
         }
         return factory;
     }
+
 
     @Override
     protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
@@ -88,11 +70,11 @@ public class CardinalityParser extends AnyValuesSourceParser {
             } else if (parseFieldMatcher.match(currentFieldName, REHASH)) {
                 // ignore
                 return true;
+            } else if(parseFieldMatcher.match(currentFieldName, CardinalityAggregatorBuilder.SUMDIRECTLY_FIELD)){
+                otherOptions.put(CardinalityAggregatorBuilder.SUMDIRECTLY_FIELD,parser.booleanValue());
             }
         }
-        final CardinalityAggregatorFactory cardinalityAggregatorFactory = new CardinalityAggregatorFactory(name, config, precisionThreshold, rehash);
-        cardinalityAggregatorFactory.setSumDirectly(isSumDirectly);
-        return cardinalityAggregatorFactory;
+        return false;
 
     }
 

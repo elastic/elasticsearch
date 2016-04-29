@@ -72,7 +72,7 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
     public void testDynamicObjectCopyTo() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("doc").startObject("properties")
             .startObject("foo")
-                .field("type", "string")
+                .field("type", "text")
                 .field("copy_to", "root.top.child")
             .endObject()
             .endObject().endObject().endObject().string();
@@ -96,13 +96,14 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
                 .startObject().startObject("template_raw")
                 .field("match", "*_raw")
                 .field("match_mapping_type", "string")
-                .startObject("mapping").field("type", "string").field("index", "not_analyzed").endObject()
+                .startObject("mapping").field("type", "keyword").endObject()
                 .endObject().endObject()
 
                 .startObject().startObject("template_all")
                 .field("match", "*")
                 .field("match_mapping_type", "string")
-                .startObject("mapping").field("type", "string").field("copy_to", "{name}_raw").endObject()
+                .startObject("mapping").field("type", "text").field("fielddata", true)
+                .field("copy_to", "{name}_raw").endObject()
                 .endObject().endObject()
 
                 .endArray();

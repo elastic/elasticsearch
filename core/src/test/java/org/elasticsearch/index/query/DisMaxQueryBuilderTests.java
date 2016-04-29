@@ -26,10 +26,16 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBuilder> {
     /**
@@ -68,7 +74,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     @Override
     protected Map<String, DisMaxQueryBuilder> getAlternateVersions() {
         Map<String, DisMaxQueryBuilder> alternateVersions = new HashMap<>();
-        QueryBuilder innerQuery = createTestQueryBuilder().innerQueries().get(0);
+        QueryBuilder<?> innerQuery = createTestQueryBuilder().innerQueries().get(0);
         DisMaxQueryBuilder expectedQuery = new DisMaxQueryBuilder();
         expectedQuery.add(innerQuery);
         String contentString = "{\n" +
@@ -145,26 +151,26 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"dis_max\" : {\n" + 
-                "    \"tie_breaker\" : 0.7,\n" + 
-                "    \"queries\" : [ {\n" + 
-                "      \"term\" : {\n" + 
-                "        \"age\" : {\n" + 
-                "          \"value\" : 34,\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    }, {\n" + 
-                "      \"term\" : {\n" + 
-                "        \"age\" : {\n" + 
-                "          \"value\" : 35,\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    } ],\n" + 
-                "    \"boost\" : 1.2\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"dis_max\" : {\n" +
+                "    \"tie_breaker\" : 0.7,\n" +
+                "    \"queries\" : [ {\n" +
+                "      \"term\" : {\n" +
+                "        \"age\" : {\n" +
+                "          \"value\" : 34,\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }, {\n" +
+                "      \"term\" : {\n" +
+                "        \"age\" : {\n" +
+                "          \"value\" : 35,\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    } ],\n" +
+                "    \"boost\" : 1.2\n" +
+                "  }\n" +
                 "}";
 
         DisMaxQueryBuilder parsed = (DisMaxQueryBuilder) parseQuery(json);

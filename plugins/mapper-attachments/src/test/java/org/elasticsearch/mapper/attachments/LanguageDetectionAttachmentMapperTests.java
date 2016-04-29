@@ -19,6 +19,7 @@
 
 package org.elasticsearch.mapper.attachments;
 
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.MapperTestUtils;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -50,12 +52,12 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
 
     public void setupMapperParser(boolean langDetect) throws IOException {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(),
-            Settings.settingsBuilder().put("index.mapping.attachment.detect_language", langDetect).build(),
+            Settings.builder().put("index.mapping.attachment.detect_language", langDetect).build(),
             getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/language/language-mapping.json");
-        docMapper = mapperParser.parse(mapping);
+        docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
 
-        assertThat(docMapper.mappers().getMapper("file.language"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.language"), instanceOf(TextFieldMapper.class));
     }
 
     private void testLanguage(String filename, String expected, String... forcedLanguage) throws IOException {
@@ -76,7 +78,7 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
         ParseContext.Document doc =  docMapper.parse("person", "person", "1", xcb.bytes()).rootDoc();
 
         // Our mapping should be kept as a String
-        assertThat(doc.get(docMapper.mappers().getMapper("file.language").fieldType().names().indexName()), equalTo(expected));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.language").fieldType().name()), equalTo(expected));
     }
 
     public void testFrDetection() throws Exception {
@@ -121,6 +123,6 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
         ParseContext.Document doc =  docMapper.parse("person", "person", "1", xcb.bytes()).rootDoc();
 
         // Our mapping should be kept as a String
-        assertThat(doc.get(docMapper.mappers().getMapper("file.language").fieldType().names().indexName()), equalTo("en"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file.language").fieldType().name()), equalTo("en"));
     }
 }

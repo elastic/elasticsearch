@@ -22,7 +22,7 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.Project
-import org.gradle.api.Task
+import org.gradle.api.artifacts.Dependency
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Zip
 
@@ -51,6 +51,11 @@ public class PluginBuildPlugin extends BuildPlugin {
                 project.integTest.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
                 project.tasks.run.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
             }
+
+            project.namingConventions {
+                // Plugins decalare extensions of ESIntegTestCase as "Tests" instead of IT.
+                skipIntegTestInDisguise = true
+            }
         }
         createIntegTestTask(project)
         createBundleTask(project)
@@ -60,15 +65,13 @@ public class PluginBuildPlugin extends BuildPlugin {
     private static void configureDependencies(Project project) {
         project.dependencies {
             provided "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
-            testCompile "org.elasticsearch:test-framework:${project.versions.elasticsearch}"
+            testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
-            provided "com.spatial4j:spatial4j:${project.versions.spatial4j}"
+            provided "org.locationtech.spatial4j:spatial4j:${project.versions.spatial4j}"
             provided "com.vividsolutions:jts:${project.versions.jts}"
-            provided "com.github.spullara.mustache.java:compiler:${project.versions.mustache}"
             provided "log4j:log4j:${project.versions.log4j}"
             provided "log4j:apache-log4j-extras:${project.versions.log4j}"
-            provided "org.slf4j:slf4j-api:${project.versions.slf4j}"
             provided "net.java.dev.jna:jna:${project.versions.jna}"
         }
     }
@@ -108,8 +111,8 @@ public class PluginBuildPlugin extends BuildPlugin {
                 include 'config/**'
                 include 'bin/**'
             }
-            from('src/site') {
-                include '_site/**'
+            if (project.path.startsWith(':modules:') == false) {
+                into('elasticsearch')
             }
         }
         project.assemble.dependsOn(bundle)

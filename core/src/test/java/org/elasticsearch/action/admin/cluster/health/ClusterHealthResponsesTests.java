@@ -33,7 +33,9 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.allOf;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ClusterHealthResponsesTests extends ESTestCase {
 
@@ -68,7 +70,6 @@ public class ClusterHealthResponsesTests extends ESTestCase {
     private void assertClusterHealth(ClusterHealthResponse clusterHealth) {
         ClusterStateHealth clusterStateHealth = clusterHealth.getClusterStateHealth();
 
-        assertThat(clusterHealth.getValidationFailures(), Matchers.equalTo(clusterStateHealth.getValidationFailures()));
         assertThat(clusterHealth.getActiveShards(), Matchers.equalTo(clusterStateHealth.getActiveShards()));
         assertThat(clusterHealth.getRelocatingShards(), Matchers.equalTo(clusterStateHealth.getRelocatingShards()));
         assertThat(clusterHealth.getActivePrimaryShards(), Matchers.equalTo(clusterStateHealth.getActivePrimaryShards()));

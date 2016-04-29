@@ -44,6 +44,7 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/genericstore/test-data.json");
         ParsedDocument parsedDoc = docMapper.parse("test", "person", "1", new BytesArray(json));
         client().admin().indices().preparePutMapping("test").setType("person").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
+        docMapper = index.mapperService().documentMapper("person");
         Document doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");
@@ -54,9 +55,11 @@ public class GenericStoreDynamicTemplateTests extends ESSingleNodeTestCase {
         FieldMapper fieldMapper = docMapper.mappers().getMapper("name");
         assertThat(fieldMapper.fieldType().stored(), equalTo(true));
 
-        f = doc.getField("age");
-        assertThat(f.name(), equalTo("age"));
-        assertThat(f.fieldType().stored(), equalTo(true));
+        boolean stored = false;
+        for (IndexableField field : doc.getFields("age")) {
+            stored |=  field.fieldType().stored();
+        }
+        assertTrue(stored);
 
         fieldMapper = docMapper.mappers().getMapper("age");
         assertThat(fieldMapper.fieldType().stored(), equalTo(true));

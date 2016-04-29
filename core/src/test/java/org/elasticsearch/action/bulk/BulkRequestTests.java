@@ -37,7 +37,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class BulkRequestTests extends ESTestCase {
     public void testSimpleBulk1() throws Exception {
@@ -105,7 +110,7 @@ public class BulkRequestTests extends ESTestCase {
 
     public void testBulkAddIterable() {
         BulkRequest bulkRequest = Requests.bulkRequest();
-        List<ActionRequest> requests = new ArrayList<>();
+        List<ActionRequest<?>> requests = new ArrayList<>();
         requests.add(new IndexRequest("test", "test", "id").source("field", "value"));
         requests.add(new UpdateRequest("test", "test", "id").doc("field", "value"));
         requests.add(new DeleteRequest("test", "test", "id"));
@@ -145,9 +150,9 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         try {
             bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
-            fail("should have thrown an exception about the unknown paramater _foo");
+            fail("should have thrown an exception about the unknown parameter _foo");
         } catch (IllegalArgumentException e) {
-            assertThat("message contains error about the unknown paramater _foo: " + e.getMessage(),
+            assertThat("message contains error about the unknown parameter _foo: " + e.getMessage(),
                     e.getMessage().contains("Action/metadata line [3] contains an unknown parameter [_foo]"), equalTo(true));
         }
     }

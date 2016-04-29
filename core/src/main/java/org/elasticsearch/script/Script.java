@@ -25,8 +25,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -38,7 +38,7 @@ import java.util.Map;
 /**
  * Script holds all the parameters necessary to compile or find in cache and then execute a script.
  */
-public class Script implements ToXContent, Streamable {
+public class Script implements ToXContent, Writeable {
 
     public static final ScriptType DEFAULT_TYPE = ScriptType.INLINE;
     private static final ScriptParser PARSER = new ScriptParser();
@@ -47,12 +47,6 @@ public class Script implements ToXContent, Streamable {
     private @Nullable ScriptType type;
     private @Nullable String lang;
     private @Nullable Map<String, Object> params;
-
-    /**
-     * For Serialization
-     */
-    Script() {
-    }
 
     /**
      * Constructor for simple inline script. The script will have no lang or
@@ -74,7 +68,7 @@ public class Script implements ToXContent, Streamable {
 
     /**
      * Constructor for Script.
-     * 
+     *
      * @param script
      *            The cache key of the script to be compiled/executed. For
      *            inline scripts this is the actual script source code. For
@@ -100,45 +94,7 @@ public class Script implements ToXContent, Streamable {
         this.params = (Map<String, Object>)params;
     }
 
-    /**
-     * Method for getting the script.
-     * @return The cache key of the script to be compiled/executed.  For dynamic scripts this is the actual
-     *         script source code.  For indexed scripts this is the id used in the request.  For on disk scripts
-     *         this is the file name.
-     */
-    public String getScript() {
-        return script;
-    }
-
-    /**
-     * Method for getting the type.
-     * 
-     * @return The type of script -- inline, indexed, or file.
-     */
-    public ScriptType getType() {
-        return type == null ? DEFAULT_TYPE : type;
-    }
-
-    /**
-     * Method for getting language.
-     * 
-     * @return The language of the script to be compiled/executed.
-     */
-    public String getLang() {
-        return lang;
-    }
-
-    /**
-     * Method for getting the parameters.
-     * 
-     * @return The map of parameters the script will be executed with.
-     */
-    public Map<String, Object> getParams() {
-        return params;
-    }
-
-    @Override
-    public final void readFrom(StreamInput in) throws IOException {
+    public Script(StreamInput in) throws IOException {
         script = in.readString();
         if (in.readBoolean()) {
             type = ScriptType.readFrom(in);
@@ -147,11 +103,6 @@ public class Script implements ToXContent, Streamable {
         if (in.readBoolean()) {
             params = in.readMap();
         }
-        doReadFrom(in);
-    }
-
-    protected void doReadFrom(StreamInput in) throws IOException {
-        // For sub-classes to Override
     }
 
     @Override
@@ -170,9 +121,44 @@ public class Script implements ToXContent, Streamable {
         }
         doWriteTo(out);
     }
+    
+    protected void doWriteTo(StreamOutput out) throws IOException {};
 
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        // For sub-classes to Override
+    /**
+     * Method for getting the script.
+     * @return The cache key of the script to be compiled/executed.  For dynamic scripts this is the actual
+     *         script source code.  For indexed scripts this is the id used in the request.  For on disk scripts
+     *         this is the file name.
+     */
+    public String getScript() {
+        return script;
+    }
+
+    /**
+     * Method for getting the type.
+     *
+     * @return The type of script -- inline, indexed, or file.
+     */
+    public ScriptType getType() {
+        return type == null ? DEFAULT_TYPE : type;
+    }
+
+    /**
+     * Method for getting language.
+     *
+     * @return The language of the script to be compiled/executed.
+     */
+    public String getLang() {
+        return lang;
+    }
+
+    /**
+     * Method for getting the parameters.
+     *
+     * @return The map of parameters the script will be executed with.
+     */
+    public Map<String, Object> getParams() {
+        return params;
     }
 
     @Override
@@ -199,12 +185,6 @@ public class Script implements ToXContent, Streamable {
         return builder;
     }
 
-    public static Script readScript(StreamInput in) throws IOException {
-        Script script = new Script();
-        script.readFrom(in);
-        return script;
-    }
-
     public static Script parse(Map<String, Object> config, boolean removeMatchedEntries, ParseFieldMatcher parseFieldMatcher) {
         return PARSER.parse(config, removeMatchedEntries, parseFieldMatcher);
     }
@@ -226,30 +206,26 @@ public class Script implements ToXContent, Streamable {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
+        if (this == obj) return true;
+        if (obj == null) return false;
+        if (getClass() != obj.getClass()) return false;
         Script other = (Script) obj;
         if (lang == null) {
-            if (other.lang != null)
-                return false;
-        } else if (!lang.equals(other.lang))
-            return false;
+            if (other.lang != null) return false;
+        } else {
+            if (!lang.equals(other.lang)) return false;
+        }
         if (params == null) {
-            if (other.params != null)
-                return false;
-        } else if (!params.equals(other.params))
-            return false;
+            if (other.params != null) return false;
+        } else {
+            if (!params.equals(other.params)) return false;
+        }
         if (script == null) {
-            if (other.script != null)
-                return false;
-        } else if (!script.equals(other.script))
-            return false;
-        if (type != other.type)
-            return false;
+            if (other.script != null) return false;
+        } else {
+            if (!script.equals(other.script)) return false;
+        }
+        if (type != other.type) return false;
         return true;
     }
 

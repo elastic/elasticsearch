@@ -17,7 +17,8 @@
  * under the License.
  */
 
-subprojects {
+// only configure immediate children of plugins dir
+configure(subprojects.findAll { it.parent.path == project.path }) {
   group = 'org.elasticsearch.plugin'
 
   apply plugin: 'elasticsearch.esplugin'

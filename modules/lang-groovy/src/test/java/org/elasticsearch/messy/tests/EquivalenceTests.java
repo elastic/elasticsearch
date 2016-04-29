@@ -20,7 +20,6 @@
 package org.elasticsearch.messy.tests;
 
 import com.carrotsearch.hppc.IntHashSet;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -37,7 +36,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
-import org.elasticsearch.search.aggregations.bucket.range.RangeBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
@@ -78,7 +77,7 @@ public class EquivalenceTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported
     // Duel with filters
     public void testRandomRanges() throws Exception {
@@ -123,7 +122,7 @@ public class EquivalenceTests extends ESIntegTestCase {
             }
         }
 
-        RangeBuilder query = range("range").field("values");
+        RangeAggregatorBuilder query = range("range").field("values");
         for (int i = 0; i < ranges.length; ++i) {
             String key = Integer.toString(i);
             if (ranges[i][0] == Double.NEGATIVE_INFINITY) {
@@ -144,7 +143,7 @@ public class EquivalenceTests extends ESIntegTestCase {
             if (ranges[i][1] != Double.POSITIVE_INFINITY){
                 filter = filter.to(ranges[i][1]);
             }
-            reqBuilder = reqBuilder.addAggregation(filter("filter" + i).filter(filter));
+            reqBuilder = reqBuilder.addAggregation(filter("filter" + i, filter));
         }
 
         SearchResponse resp = reqBuilder.execute().actionGet();
@@ -189,15 +188,11 @@ public class EquivalenceTests extends ESIntegTestCase {
                         .startObject("type")
                         .startObject("properties")
                         .startObject("string_values")
-                        .field("type", "string")
-                        .field("index", "not_analyzed")
+                        .field("type", "keyword")
                         .startObject("fields")
                             .startObject("doc_values")
-                                .field("type", "string")
-                                .field("index", "no")
-                                .startObject("fielddata")
-                                    .field("format", "doc_values")
-                                .endObject()
+                                .field("type", "keyword")
+                                .field("index", false)
                             .endObject()
                         .endObject()
                         .endObject()
@@ -239,15 +234,16 @@ public class EquivalenceTests extends ESIntegTestCase {
 
         assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
-        TermsAggregatorFactory.ExecutionMode[] globalOrdinalModes = new TermsAggregatorFactory.ExecutionMode[]{
-                TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS_HASH,
-                TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS
+        TermsAggregatorFactory.ExecutionMode[] globalOrdinalModes = new TermsAggregatorFactory.ExecutionMode[] {
+                TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS_HASH, TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS
         };
 
         SearchResponse resp = client().prepareSearch("idx")
                 .addAggregation(terms("long").field("long_values").size(maxNumTerms).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(min("min").field("num")))
                 .addAggregation(terms("double").field("double_values").size(maxNumTerms).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(max("max").field("num")))
-                .addAggregation(terms("string_map").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms).subAggregation(stats("stats").field("num")))
+                .addAggregation(terms("string_map").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms)
+                        .subAggregation(stats("stats").field("num")))
                 .addAggregation(terms("string_global_ordinals").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
                 .addAggregation(terms("string_global_ordinals_doc_values").field("string_values.doc_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
                 .execute().actionGet();
@@ -336,7 +332,7 @@ public class EquivalenceTests extends ESIntegTestCase {
         createIndex("idx");
 
         final int numDocs = scaledRandomIntBetween(2500, 5000);
-        logger.info("Indexing [" + numDocs +"] docs");
+        logger.info("Indexing [{}] docs", numDocs);
         List<IndexRequestBuilder> indexingRequests = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
             indexingRequests.add(client().prepareIndex("idx", "type", Integer.toString(i)).setSource("double_value", randomDouble()));
@@ -348,14 +344,14 @@ public class EquivalenceTests extends ESIntegTestCase {
         assertEquals(numDocs, response.getHits().getTotalHits());
     }
 
-    // https://github.com/elasticsearch/elasticsearch/issues/6435
+    // https://github.com/elastic/elasticsearch/issues/6435
     public void testReduce() throws Exception {
         createIndex("idx");
         final int value = randomIntBetween(0, 10);
         indexRandom(true, client().prepareIndex("idx", "type").setSource("f", value));
         ensureYellow("idx"); // only one document let's make sure all shards have an active primary
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(filter("filter").filter(QueryBuilders.matchAllQuery())
+                .addAggregation(filter("filter", QueryBuilders.matchAllQuery())
                 .subAggregation(range("range")
                         .field("f")
                         .addUnboundedTo(6)

@@ -33,6 +33,7 @@ The result of the above index operation is:
 --------------------------------------------------
 
 The `_shards` header provides information about the replication process of the index operation.
+
 * `total` - Indicates to how many shard copies (primary and replica shards) the index operation should be executed on.
 * `successful`- Indicates the number of shard copies the index operation succeeded on.
 * `failures` - An array that contains replication related errors in the case an index operation failed on a replica shard.
@@ -257,6 +258,8 @@ specified using the `routing` parameter.
 [[index-timestamp]]
 === Timestamp
 
+deprecated[2.0.0,The `_timestamp` field is deprecated.  Instead, use a normal <<date,`date`>> field and set its value explicitly]
+
 A document can be indexed with a `timestamp` associated with it. The
 `timestamp` value of a document can be set using the `timestamp`
 parameter. For example:
@@ -278,6 +281,8 @@ page>>.
 [float]
 [[index-ttl]]
 === TTL
+
+deprecated[2.0.0,The current `_ttl` implementation is deprecated and will be replaced with a different implementation in a future version]
 
 
 A document can be indexed with a `ttl` (time to live) associated with

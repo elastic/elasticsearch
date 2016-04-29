@@ -72,27 +72,27 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
 
     public void testFromJson() throws IOException {
         String query =
-                "{\n" + 
-                "  \"boosting\" : {\n" + 
-                "    \"positive\" : {\n" + 
-                "      \"term\" : {\n" + 
-                "        \"field1\" : {\n" + 
-                "          \"value\" : \"value1\",\n" + 
-                "          \"boost\" : 5.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"negative\" : {\n" + 
-                "      \"term\" : {\n" + 
-                "        \"field2\" : {\n" + 
-                "          \"value\" : \"value2\",\n" + 
-                "          \"boost\" : 8.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"negative_boost\" : 23.0,\n" + 
-                "    \"boost\" : 42.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"boosting\" : {\n" +
+                "    \"positive\" : {\n" +
+                "      \"term\" : {\n" +
+                "        \"field1\" : {\n" +
+                "          \"value\" : \"value1\",\n" +
+                "          \"boost\" : 5.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"negative\" : {\n" +
+                "      \"term\" : {\n" +
+                "        \"field2\" : {\n" +
+                "          \"value\" : \"value2\",\n" +
+                "          \"boost\" : 8.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"negative_boost\" : 23.0,\n" +
+                "    \"boost\" : 42.0\n" +
+                "  }\n" +
                 "}";
 
         BoostingQueryBuilder queryBuilder = (BoostingQueryBuilder) parseQuery(query);
@@ -102,5 +102,18 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         assertEquals(query, 23, queryBuilder.negativeBoost(), 0.00001);
         assertEquals(query, 8, queryBuilder.negativeQuery().boost(), 0.00001);
         assertEquals(query, 5, queryBuilder.positiveQuery().boost(), 0.00001);
+    }
+
+    public void testRewrite() throws IOException {
+        QueryBuilder positive = randomBoolean() ? new MatchAllQueryBuilder() : new WrapperQueryBuilder(new TermQueryBuilder("pos", "bar").toString());
+        QueryBuilder negative = randomBoolean() ? new MatchAllQueryBuilder() : new WrapperQueryBuilder(new TermQueryBuilder("neg", "bar").toString());
+        BoostingQueryBuilder qb = new BoostingQueryBuilder(positive, negative);
+        QueryBuilder<?> rewrite = qb.rewrite(createShardContext());
+        if (positive instanceof MatchAllQueryBuilder && negative instanceof MatchAllQueryBuilder) {
+            assertSame(rewrite, qb);
+        } else {
+            assertNotSame(rewrite, qb);
+            assertEquals(new BoostingQueryBuilder(positive.rewrite(createShardContext()), negative.rewrite(createShardContext())), rewrite);
+        }
     }
 }

@@ -20,82 +20,84 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.EnumSet;
-
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.hamcrest.collection.IsArrayContainingInAnyOrder.arrayContainingInAnyOrder;
 
 public class ParseFieldTests extends ESTestCase {
     public void testParse() {
-        String[] values = new String[]{"foo_bar", "fooBar"};
-        ParseField field = new ParseField(randomFrom(values));
-        String[] deprecated = new String[]{"barFoo", "bar_foo"};
-        ParseField withDeprecations = field.withDeprecation("Foobar", randomFrom(deprecated));
+        String name = "foo_bar";
+        ParseField field = new ParseField(name);
+        String[] deprecated = new String[]{"barFoo", "bar_foo", "Foobar"};
+        ParseField withDeprecations = field.withDeprecation(deprecated);
         assertThat(field, not(sameInstance(withDeprecations)));
-        assertThat(field.match(randomFrom(values), ParseField.EMPTY_FLAGS), is(true));
-        assertThat(field.match("foo bar", ParseField.EMPTY_FLAGS), is(false));
-        assertThat(field.match(randomFrom(deprecated), ParseField.EMPTY_FLAGS), is(false));
-        assertThat(field.match("barFoo", ParseField.EMPTY_FLAGS), is(false));
-
-        assertThat(withDeprecations.match(randomFrom(values), ParseField.EMPTY_FLAGS), is(true));
-        assertThat(withDeprecations.match("foo bar", ParseField.EMPTY_FLAGS), is(false));
-        assertThat(withDeprecations.match(randomFrom(deprecated), ParseField.EMPTY_FLAGS), is(true));
-        assertThat(withDeprecations.match("barFoo", ParseField.EMPTY_FLAGS), is(true));
-
-        // now with strict mode
-        EnumSet<ParseField.Flag> flags = EnumSet.of(ParseField.Flag.STRICT);
-        assertThat(field.match(randomFrom(values), flags), is(true));
-        assertThat(field.match("foo bar", flags), is(false));
-        assertThat(field.match(randomFrom(deprecated), flags), is(false));
-        assertThat(field.match("barFoo", flags), is(false));
-
-        assertThat(withDeprecations.match(randomFrom(values), flags), is(true));
-        assertThat(withDeprecations.match("foo bar", flags), is(false));
-        try {
-            withDeprecations.match(randomFrom(deprecated), flags);
-            fail();
-        } catch (IllegalArgumentException ex) {
-
+        assertThat(field.match(name, false), is(true));
+        assertThat(field.match("foo bar", false), is(false));
+        for (String deprecatedName : deprecated) {
+            assertThat(field.match(deprecatedName, false), is(false));
         }
 
-        try {
-            withDeprecations.match("barFoo", flags);
-            fail();
-        } catch (IllegalArgumentException ex) {
+        assertThat(withDeprecations.match(name, false), is(true));
+        assertThat(withDeprecations.match("foo bar", false), is(false));
+        for (String deprecatedName : deprecated) {
+            assertThat(withDeprecations.match(deprecatedName, false), is(true));
+        }
 
+        // now with strict mode
+        assertThat(field.match(name, true), is(true));
+        assertThat(field.match("foo bar", true), is(false));
+        for (String deprecatedName : deprecated) {
+            assertThat(field.match(deprecatedName, true), is(false));
+        }
+
+        assertThat(withDeprecations.match(name, true), is(true));
+        assertThat(withDeprecations.match("foo bar", true), is(false));
+        for (String deprecatedName : deprecated) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+                withDeprecations.match(deprecatedName, true);
+            });
+            assertThat(e.getMessage(), containsString("used, expected [foo_bar] instead"));
         }
     }
 
     public void testAllDeprecated() {
-        String[] values = new String[]{"like_text", "likeText"};
+        String name = "like_text";
 
         boolean withDeprecatedNames = randomBoolean();
         String[] deprecated = new String[]{"text", "same_as_text"};
-        String[] allValues = values;
+        String[] allValues;
         if (withDeprecatedNames) {
-            String[] newArray = new String[allValues.length + deprecated.length];
-            System.arraycopy(allValues, 0, newArray, 0, allValues.length);
-            System.arraycopy(deprecated, 0, newArray, allValues.length, deprecated.length);
+            String[] newArray = new String[1 + deprecated.length];
+            newArray[0] = name;
+            System.arraycopy(deprecated, 0, newArray, 1, deprecated.length);
             allValues = newArray;
+        } else {
+            allValues = new String[] {name};
         }
 
-        ParseField field = new ParseField(randomFrom(values));
+        ParseField field;
         if (withDeprecatedNames) {
-            field = field.withDeprecation(deprecated);
+            field = new ParseField(name).withDeprecation(deprecated).withAllDeprecated("like");
+        } else {
+            field = new ParseField(name).withAllDeprecated("like");
         }
-        field = field.withAllDeprecated("like");
 
         // strict mode off
-        assertThat(field.match(randomFrom(allValues), ParseField.EMPTY_FLAGS), is(true));
-        assertThat(field.match("not a field name", ParseField.EMPTY_FLAGS), is(false));
+        assertThat(field.match(randomFrom(allValues), false), is(true));
+        assertThat(field.match("not a field name", false), is(false));
 
         // now with strict mode
-        EnumSet<ParseField.Flag> flags = EnumSet.of(ParseField.Flag.STRICT);
-        try {
-            field.match(randomFrom(allValues), flags);
-            fail();
-        } catch (IllegalArgumentException ex) {
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> field.match(randomFrom(allValues), true));
+        assertThat(e.getMessage(), containsString(" used, replaced by [like]"));
+    }
+
+    public void testGetAllNamesIncludedDeprecated() {
+        ParseField parseField = new ParseField("terms", "in");
+        assertThat(parseField.getAllNamesIncludedDeprecated(), arrayContainingInAnyOrder("terms", "in"));
+
+        parseField = new ParseField("more_like_this", "mlt");
+        assertThat(parseField.getAllNamesIncludedDeprecated(), arrayContainingInAnyOrder("more_like_this", "mlt"));
     }
 }

@@ -43,7 +43,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import java.util.HashMap;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -61,13 +60,13 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         boolean autoCreateIndex = randomBoolean();
         logger.info("auto_create_index set to {}", autoCreateIndex);
 
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("discovery.type", "zen")
                 .put("action.auto_create_index", autoCreateIndex)
                 .put("discovery.zen.minimum_master_nodes", 2)
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
-                .put(DiscoverySettings.NO_MASTER_BLOCK, "all")
+                .put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all")
                 .build();
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
@@ -213,13 +212,13 @@ public class NoMasterNodeIT extends ESIntegTestCase {
     }
 
     public void testNoMasterActionsWriteMasterBlock() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("discovery.type", "zen")
                 .put("action.auto_create_index", false)
                 .put("discovery.zen.minimum_master_nodes", 2)
-                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
+                .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
-                .put(DiscoverySettings.NO_MASTER_BLOCK, "write")
+                .put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "write")
                 .build();
 
         internalCluster().startNode(settings);
@@ -235,7 +234,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         ensureSearchable("test1", "test2");
 
         ClusterStateResponse clusterState = client().admin().cluster().prepareState().get();
-        logger.info("Cluster state:\n" + clusterState.getState().prettyPrint());
+        logger.info("Cluster state:\n{}", clusterState.getState().prettyPrint());
 
         internalCluster().stopRandomDataNode();
         assertTrue(awaitBusy(() -> {
@@ -248,10 +247,10 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         assertExists(getResponse);
 
         SearchResponse countResponse = client().prepareSearch("test1").setSize(0).get();
-        assertHitCount(countResponse, 1l);
+        assertHitCount(countResponse, 1L);
 
         SearchResponse searchResponse = client().prepareSearch("test1").get();
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
 
         countResponse = client().prepareSearch("test2").setSize(0).get();
         assertThat(countResponse.getTotalShards(), equalTo(2));

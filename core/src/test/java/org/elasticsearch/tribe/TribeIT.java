@@ -21,23 +21,24 @@ package org.elasticsearch.tribe;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
@@ -48,8 +49,10 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -77,7 +80,12 @@ public class TribeIT extends ESIntegTestCase {
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder().put(Node.HTTP_ENABLED, false).build();
+                return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).build();
+            }
+
+            @Override
+            public Collection<Class<? extends Plugin>> nodePlugins() {
+                return Collections.emptyList();
             }
 
             @Override
@@ -87,9 +95,9 @@ public class TribeIT extends ESIntegTestCase {
 
         };
         cluster2 = new InternalTestCluster(InternalTestCluster.configuredNodeMode(), randomLong(), createTempDir(), 2, 2,
-                Strings.randomBase64UUID(getRandom()), nodeConfigurationSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, true);
+                UUIDs.randomBase64UUID(random()), nodeConfigurationSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, Collections.emptyList(), Function.identity());
 
-        cluster2.beforeTest(getRandom(), 0.1);
+        cluster2.beforeTest(random(), 0.1);
         cluster2.ensureAtLeastNumDataNodes(2);
     }
 
@@ -124,18 +132,20 @@ public class TribeIT extends ESIntegTestCase {
         Settings.Builder tribe1Defaults = Settings.builder();
         Settings.Builder tribe2Defaults = Settings.builder();
         for (Map.Entry<String, String> entry : asMap.entrySet()) {
+            if (entry.getKey().startsWith("path.")) {
+                continue;
+            }
             tribe1Defaults.put("tribe.t1." + entry.getKey(), entry.getValue());
             tribe2Defaults.put("tribe.t2." + entry.getKey(), entry.getValue());
         }
         // give each tribe it's unicast hosts to connect to
-        tribe1Defaults.putArray("tribe.t1." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS, getUnicastHosts(internalCluster().client()));
-        tribe1Defaults.putArray("tribe.t2." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS, getUnicastHosts(cluster2.client()));
+        tribe1Defaults.putArray("tribe.t1." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), getUnicastHosts(internalCluster().client()));
+        tribe1Defaults.putArray("tribe.t2." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), getUnicastHosts(cluster2.client()));
 
         Settings merged = Settings.builder()
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
                 .put("tribe.blocks.write", false)
-                .put("tribe.blocks.read", false)
                 .put(settings)
                 .put(tribe1Defaults.build())
                 .put(tribe2Defaults.build())
@@ -143,9 +153,7 @@ public class TribeIT extends ESIntegTestCase {
                 .put("node.name", "tribe_node") // make sure we can identify threads from this node
                 .build();
 
-        tribeNode = NodeBuilder.nodeBuilder()
-                .settings(merged)
-                .node();
+        tribeNode = new Node(merged).start();
         tribeClient = tribeNode.client();
     }
 
@@ -237,8 +245,8 @@ public class TribeIT extends ESIntegTestCase {
         logger.info("wait till test1 and test2 exists in the tribe node state");
         awaitIndicesInClusterState("test1", "test2");
 
-        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test1").getSettings().get(TribeService.TRIBE_NAME), equalTo("t1"));
-        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test2").getSettings().get(TribeService.TRIBE_NAME), equalTo("t2"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test1").getSettings().get("tribe.name"), equalTo("t1"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test2").getSettings().get("tribe.name"), equalTo("t2"));
         assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().hasIndex("conflict"), equalTo(false));
     }
 
@@ -264,9 +272,9 @@ public class TribeIT extends ESIntegTestCase {
         logger.info("wait till test1 and test2 exists in the tribe node state");
         awaitIndicesInClusterState("test1", "test2", "conflict");
 
-        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test1").getSettings().get(TribeService.TRIBE_NAME), equalTo("t1"));
-        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test2").getSettings().get(TribeService.TRIBE_NAME), equalTo("t2"));
-        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("conflict").getSettings().get(TribeService.TRIBE_NAME), equalTo(tribe));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test1").getSettings().get("tribe.name"), equalTo("t1"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test2").getSettings().get("tribe.name"), equalTo("t2"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("conflict").getSettings().get("tribe.name"), equalTo(tribe));
     }
 
     public void testTribeOnOneCluster() throws Exception {
@@ -291,8 +299,8 @@ public class TribeIT extends ESIntegTestCase {
         tribeClient.admin().indices().prepareRefresh().get();
 
         logger.info("verify they are there");
-        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 2l);
-        assertHitCount(tribeClient.prepareSearch().get(), 2l);
+        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 2L);
+        assertHitCount(tribeClient.prepareSearch().get(), 2L);
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -310,8 +318,8 @@ public class TribeIT extends ESIntegTestCase {
 
 
         logger.info("verify they are there");
-        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 4l);
-        assertHitCount(tribeClient.prepareSearch().get(), 4l);
+        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 4L);
+        assertHitCount(tribeClient.prepareSearch().get(), 4L);
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -419,8 +427,8 @@ public class TribeIT extends ESIntegTestCase {
             @Override
             public void run() {
                 DiscoveryNodes tribeNodes = tribeNode.client().admin().cluster().prepareState().get().getState().getNodes();
-                assertThat(countDataNodesForTribe("t1", tribeNodes), equalTo(internalCluster().client().admin().cluster().prepareState().get().getState().getNodes().dataNodes().size()));
-                assertThat(countDataNodesForTribe("t2", tribeNodes), equalTo(cluster2.client().admin().cluster().prepareState().get().getState().getNodes().dataNodes().size()));
+                assertThat(countDataNodesForTribe("t1", tribeNodes), equalTo(internalCluster().client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size()));
+                assertThat(countDataNodesForTribe("t2", tribeNodes), equalTo(cluster2.client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size()));
             }
         });
     }
@@ -428,10 +436,10 @@ public class TribeIT extends ESIntegTestCase {
     private int countDataNodesForTribe(String tribeName, DiscoveryNodes nodes) {
         int count = 0;
         for (DiscoveryNode node : nodes) {
-            if (!node.dataNode()) {
+            if (!node.isDataNode()) {
                 continue;
             }
-            if (tribeName.equals(node.getAttributes().get(TribeService.TRIBE_NAME))) {
+            if (tribeName.equals(node.getAttributes().get("tribe.name"))) {
                 count++;
             }
         }

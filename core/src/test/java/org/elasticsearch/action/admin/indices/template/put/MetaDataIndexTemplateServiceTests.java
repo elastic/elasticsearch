@@ -30,7 +30,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -43,7 +48,7 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
 
         Map<String, Object> map = new HashMap<>();
         map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
-        request.settings(Settings.settingsBuilder().put(map).build());
+        request.settings(Settings.builder().put(map).build());
 
         List<Throwable> throwables = putTemplate(request);
         assertEquals(throwables.size(), 1);
@@ -57,7 +62,7 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
 
         Map<String, Object> map = new HashMap<>();
         map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
-        request.settings(Settings.settingsBuilder().put(map).build());
+        request.settings(Settings.builder().put(map).build());
 
         List<Throwable> throwables = putTemplate(request);
         assertEquals(throwables.size(), 1);
@@ -88,7 +93,7 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
                 null,
                 new HashSet<>(),
                 null,
-                null);
+                null, null);
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService, new AliasValidator(Settings.EMPTY));
 
         final List<Throwable> throwables = new ArrayList<>();

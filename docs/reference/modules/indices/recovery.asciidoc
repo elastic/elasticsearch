@@ -3,12 +3,6 @@
 
 The following _expert_ settings can be set to manage the recovery policy.
 
-`indices.recovery.concurrent_streams`::
-    Defaults to `3`.
-
-`indices.recovery.concurrent_small_file_streams`::
-    Defaults to `2`.
-
 `indices.recovery.file_chunk_size`::
     Defaults to `512kb`.
 

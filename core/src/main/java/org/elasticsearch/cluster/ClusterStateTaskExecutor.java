@@ -38,6 +38,13 @@ public interface ClusterStateTaskExecutor<T> {
     }
 
     /**
+     * Callback invoked after new cluster state is published. Note that
+     * this method is not invoked if the cluster state was not updated.
+     */
+    default void clusterStatePublished(ClusterState newClusterState) {
+    }
+
+    /**
      * Represents the result of a batched execution of cluster state update tasks
      * @param <T> the type of the cluster state update task
      */
@@ -113,7 +120,12 @@ public interface ClusterStateTaskExecutor<T> {
         }
 
         public boolean isSuccess() {
-            return failure != null;
+            return this == SUCCESS;
+        }
+
+        public Throwable getFailure() {
+            assert !isSuccess();
+            return failure;
         }
 
         /**

@@ -19,25 +19,27 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
-import java.util.*;
-
-import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
 
     public final static Type TYPE = new Type("percentiles_bucket");
+    public final ParseField PERCENTS_FIELD = new ParseField("percents");
 
     public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
         @Override
@@ -60,7 +62,7 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
     }
 
     protected PercentilesBucketPipelineAggregator(String name, double[] percents, String[] bucketsPaths, GapPolicy gapPolicy,
-                                                  ValueFormatter formatter, Map<String, Object> metaData) {
+                                                  DocValueFormat formatter, Map<String, Object> metaData) {
         super(name, bucketsPaths, gapPolicy, formatter, metaData);
         this.percents = percents;
     }
@@ -101,55 +103,17 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
 
         // todo need postCollection() to clean up temp sorted data?
 
-        return new InternalPercentilesBucket(name(), percents, percentiles, formatter, pipelineAggregators, metadata);
+        return new InternalPercentilesBucket(name(), percents, percentiles, format, pipelineAggregators, metadata);
     }
 
     @Override
-    public void doReadFrom(StreamInput in) throws IOException {
-        super.doReadFrom(in);
+    public void innerReadFrom(StreamInput in) throws IOException {
         percents = in.readDoubleArray();
     }
 
     @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        super.doWriteTo(out);
+    public void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDoubleArray(percents);
-    }
-
-    public static class Factory extends PipelineAggregatorFactory {
-
-        private final ValueFormatter formatter;
-        private final GapPolicy gapPolicy;
-        private final double[] percents;
-
-        public Factory(String name, String[] bucketsPaths, GapPolicy gapPolicy, ValueFormatter formatter, double[] percents) {
-            super(name, TYPE.name(), bucketsPaths);
-            this.gapPolicy = gapPolicy;
-            this.formatter = formatter;
-            this.percents = percents;
-        }
-
-        @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new PercentilesBucketPipelineAggregator(name, percents, bucketsPaths, gapPolicy, formatter, metaData);
-        }
-
-        @Override
-        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories,
-                               List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
-            if (bucketsPaths.length != 1) {
-                throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                        + " must contain a single entry for aggregation [" + name + "]");
-            }
-
-            for (Double p : percents) {
-                if (p == null || p < 0.0 || p > 100.0) {
-                    throw new IllegalStateException(PercentilesBucketParser.PERCENTS.getPreferredName()
-                            + " must only contain non-null doubles from 0.0-100.0 inclusive");
-                }
-            }
-        }
-
     }
 
 }

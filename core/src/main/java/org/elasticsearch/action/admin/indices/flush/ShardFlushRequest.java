@@ -31,7 +31,7 @@ public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
     private FlushRequest request = new FlushRequest();
 
     public ShardFlushRequest(FlushRequest request, ShardId shardId) {
-        super(request, shardId);
+        super(shardId);
         this.request = request;
     }
 

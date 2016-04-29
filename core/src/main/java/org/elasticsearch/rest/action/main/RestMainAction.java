@@ -19,15 +19,24 @@
 
 package org.elasticsearch.rest.action.main;
 
-import org.elasticsearch.Build;
-import org.elasticsearch.Version;
+import org.elasticsearch.action.main.MainAction;
+import org.elasticsearch.action.main.MainRequest;
+import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -37,54 +46,34 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  */
 public class RestMainAction extends BaseRestHandler {
 
-    private final Version version;
-    private final ClusterName clusterName;
-    private final ClusterService clusterService;
-
     @Inject
-    public RestMainAction(Settings settings, Version version, RestController controller, ClusterName clusterName, Client client, ClusterService clusterService) {
-        super(settings, controller, client);
-        this.version = version;
-        this.clusterName = clusterName;
-        this.clusterService = clusterService;
+    public RestMainAction(Settings settings, RestController controller, Client client) {
+        super(settings, client);
         controller.registerHandler(GET, "/", this);
         controller.registerHandler(HEAD, "/", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, RestChannel channel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
+        client.execute(MainAction.INSTANCE, new MainRequest(), new RestBuilderListener<MainResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(MainResponse mainResponse, XContentBuilder builder) throws Exception {
+                return convertMainResponse(mainResponse, request, builder);
+            }
+        });
+    }
 
-        RestStatus status = RestStatus.OK;
-        if (clusterService.state().blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
-            status = RestStatus.SERVICE_UNAVAILABLE;
-        }
+    static BytesRestResponse convertMainResponse(MainResponse response, RestRequest request, XContentBuilder builder) throws IOException {
+        RestStatus status = response.isAvailable() ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
         if (request.method() == RestRequest.Method.HEAD) {
-            channel.sendResponse(new BytesRestResponse(status));
-            return;
+            return new BytesRestResponse(status);
         }
-
-        XContentBuilder builder = channel.newBuilder();
 
         // Default to pretty printing, but allow ?pretty=false to disable
-        if (!request.hasParam("pretty")) {
+        if (request.hasParam("pretty") == false) {
             builder.prettyPrint().lfAtEnd();
         }
-
-        builder.startObject();
-        if (settings.get("name") != null) {
-            builder.field("name", settings.get("name"));
-        }
-        builder.field("cluster_name", clusterName.value());
-        builder.startObject("version")
-                .field("number", version.number())
-                .field("build_hash", Build.CURRENT.shortHash())
-                .field("build_date", Build.CURRENT.date())
-                .field("build_snapshot", version.snapshot)
-                .field("lucene_version", version.luceneVersion.toString())
-                .endObject();
-        builder.field("tagline", "You Know, for Search");
-        builder.endObject();
-
-        channel.sendResponse(new BytesRestResponse(status, builder));
+        response.toXContent(builder, request);
+        return new BytesRestResponse(status, builder);
     }
 }

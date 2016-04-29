@@ -19,13 +19,13 @@
 
 package org.elasticsearch.script.expression;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.lucene.expressions.Expression;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptException;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * A bridge to evaluate an {@link Expression} against a map of variables in the context
@@ -89,10 +89,5 @@ public class ExpressionExecutableScript implements ExecutableScript {
         } catch (Exception exception) {
             throw new ScriptException("Error evaluating " + compiledScript, exception);
         }
-    }
-
-    @Override
-    public Object unwrap(Object value) {
-        return value;
     }
 }

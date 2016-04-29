@@ -50,11 +50,11 @@ public class ScriptQuerySearchTests extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+    public Settings indexSettings() {
+        return Settings.builder().put(super.indexSettings())
                 // aggressive filter caching so that we can assert on the number of iterations of the script filters
-                .put(IndexModule.QUERY_CACHE_TYPE, IndexModule.INDEX_QUERY_CACHE)
-                .put(IndexModule.QUERY_CACHE_EVERYTHING, true)
+                .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), true)
+                .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
                 .build();
     }
 
@@ -78,11 +78,11 @@ public class ScriptQuerySearchTests extends ESIntegTestCase {
                 .setQuery(scriptQuery(new Script("doc['num1'].value > 1"))).addSort("num1", SortOrder.ASC)
                 .addScriptField("sNum1", new Script("doc['num1'].value")).execute().actionGet();
 
-        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().totalHits(), equalTo(2L));
         assertThat(response.getHits().getAt(0).id(), equalTo("2"));
-        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(2.0));
+        assertThat(response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(2.0));
         assertThat(response.getHits().getAt(1).id(), equalTo("3"));
-        assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat(response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(3.0));
 
         Map<String, Object> params = new HashMap<>();
         params.put("param1", 2);
@@ -93,9 +93,9 @@ public class ScriptQuerySearchTests extends ESIntegTestCase {
                 .setQuery(scriptQuery(new Script("doc['num1'].value > param1", ScriptType.INLINE, null, params)))
                 .addSort("num1", SortOrder.ASC).addScriptField("sNum1", new Script("doc['num1'].value")).execute().actionGet();
 
-        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().totalHits(), equalTo(1L));
         assertThat(response.getHits().getAt(0).id(), equalTo("3"));
-        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat(response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(3.0));
 
         params = new HashMap<>();
         params.put("param1", -1);
@@ -106,13 +106,13 @@ public class ScriptQuerySearchTests extends ESIntegTestCase {
                         scriptQuery(new Script("doc['num1'].value > param1", ScriptType.INLINE, null, params)))
                 .addSort("num1", SortOrder.ASC).addScriptField("sNum1", new Script("doc['num1'].value")).execute().actionGet();
 
-        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().totalHits(), equalTo(3L));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
-        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
+        assertThat(response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
         assertThat(response.getHits().getAt(1).id(), equalTo("2"));
-        assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
+        assertThat(response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
         assertThat(response.getHits().getAt(2).id(), equalTo("3"));
-        assertThat((Double) response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat(response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
     }
 
     private static AtomicInteger scriptCounter = new AtomicInteger(0);

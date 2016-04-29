@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -26,13 +27,11 @@ import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.index.mapper.ip.IpFieldMapper.MAX_IP;
 
 /**
  *
@@ -77,27 +76,27 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, I
     public static class Bucket extends InternalRange.Bucket {
 
         public Bucket(boolean keyed) {
-            super(keyed, ValueFormatter.IPv4);
+            super(keyed, DocValueFormat.IP);
         }
 
         public Bucket(String key, double from, double to, long docCount, List<InternalAggregation> aggregations, boolean keyed) {
-            super(key, from, to, docCount, new InternalAggregations(aggregations), keyed, ValueFormatter.IPv4);
+            super(key, from, to, docCount, new InternalAggregations(aggregations), keyed, DocValueFormat.IP);
         }
 
         public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed) {
-            super(key, from, to, docCount, aggregations, keyed, ValueFormatter.IPv4);
+            super(key, from, to, docCount, aggregations, keyed, DocValueFormat.IP);
         }
 
         @Override
         public String getFromAsString() {
             double from = ((Number) this.from).doubleValue();
-            return Double.isInfinite(from) ? null : from == 0 ? null : ValueFormatter.IPv4.format(from);
+            return Double.isInfinite(from) ? null : from == 0 ? null : DocValueFormat.IP.format(from);
         }
 
         @Override
         public String getToAsString() {
             double to = ((Number) this.to).doubleValue();
-            return Double.isInfinite(to) ? null : MAX_IP == to ? null : ValueFormatter.IPv4.format(to);
+            return Double.isInfinite(to) ? null : MAX_IP == to ? null : DocValueFormat.IP.format(to);
         }
 
         @Override
@@ -113,12 +112,17 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, I
     public static class Factory extends InternalRange.Factory<InternalIPv4Range.Bucket, InternalIPv4Range> {
 
         @Override
-        public String type() {
-            return TYPE.name();
+        public Type type() {
+            return TYPE;
         }
 
         @Override
-        public InternalIPv4Range create(String name, List<Bucket> ranges, ValueFormatter formatter, boolean keyed,
+        public ValueType getValueType() {
+            return ValueType.IP;
+        }
+
+        @Override
+        public InternalIPv4Range create(String name, List<Bucket> ranges, DocValueFormat formatter, boolean keyed,
                 List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
             return new InternalIPv4Range(name, ranges, keyed, pipelineAggregators, metaData);
         }
@@ -130,7 +134,7 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, I
 
         @Override
         public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
-                ValueFormatter formatter) {
+                DocValueFormat formatter) {
             return new Bucket(key, from, to, docCount, aggregations, keyed);
         }
 
@@ -145,7 +149,7 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, I
 
     public InternalIPv4Range(String name, List<InternalIPv4Range.Bucket> ranges, boolean keyed, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
-        super(name, ranges, ValueFormatter.IPv4, keyed, pipelineAggregators, metaData);
+        super(name, ranges, DocValueFormat.IP, keyed, pipelineAggregators, metaData);
     }
 
     @Override

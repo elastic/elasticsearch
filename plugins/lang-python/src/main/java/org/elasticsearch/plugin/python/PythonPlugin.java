@@ -20,6 +20,7 @@
 package org.elasticsearch.plugin.python;
 
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.python.PythonScriptEngineService;
 
@@ -39,6 +40,6 @@ public class PythonPlugin extends Plugin {
     }
 
     public void onModule(ScriptModule module) {
-        module.addScriptEngine(PythonScriptEngineService.class);
+        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PythonScriptEngineService.class, PythonScriptEngineService.TYPES));
     }
 }

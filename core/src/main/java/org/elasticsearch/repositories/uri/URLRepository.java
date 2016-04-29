@@ -20,11 +20,12 @@
 package org.elasticsearch.repositories.uri;
 
 import org.elasticsearch.cluster.metadata.SnapshotId;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.URIPattern;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
@@ -34,9 +35,13 @@ import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Read-only URL-based implementation of the BlobStoreRepository
@@ -51,13 +56,24 @@ public class URLRepository extends BlobStoreRepository {
 
     public final static String TYPE = "url";
 
-    public final static String[] DEFAULT_SUPPORTED_PROTOCOLS = {"http", "https", "ftp", "file", "jar"};
+    public static final Setting<List<String>> SUPPORTED_PROTOCOLS_SETTING =
+        Setting.listSetting("repositories.url.supported_protocols", Arrays.asList("http", "https", "ftp", "file", "jar"),
+            Function.identity(), Property.NodeScope);
 
-    public final static String SUPPORTED_PROTOCOLS_SETTING = "repositories.url.supported_protocols";
+    public static final Setting<List<URIPattern>> ALLOWED_URLS_SETTING =
+        Setting.listSetting("repositories.url.allowed_urls", Collections.emptyList(), URIPattern::new, Property.NodeScope);
 
-    public final static String ALLOWED_URLS_SETTING = "repositories.url.allowed_urls";
+    public static final Setting<URL> URL_SETTING = new Setting<>("url", "http:", URLRepository::parseURL, Property.NodeScope);
+    public static final Setting<URL> REPOSITORIES_URL_SETTING =
+        new Setting<>("repositories.url.url", (s) -> s.get("repositories.uri.url", "http:"), URLRepository::parseURL,
+            Property.NodeScope);
 
-    private final String[] supportedProtocols;
+    public static final Setting<Boolean> LIST_DIRECTORIES_SETTING =
+        Setting.boolSetting("list_directories", true, Property.NodeScope);
+    public static final Setting<Boolean> REPOSITORIES_LIST_DIRECTORIES_SETTING =
+        Setting.boolSetting("repositories.uri.list_directories", true, Property.NodeScope);
+
+    private final List<String> supportedProtocols;
 
     private final URIPattern[] urlWhiteList;
 
@@ -79,21 +95,16 @@ public class URLRepository extends BlobStoreRepository {
     @Inject
     public URLRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, Environment environment) throws IOException {
         super(name.getName(), repositorySettings, indexShardRepository);
-        URL url;
-        String path = repositorySettings.settings().get("url", settings.get("repositories.url.url", settings.get("repositories.uri.url")));
-        if (path == null) {
+
+        if (URL_SETTING.exists(repositorySettings.settings()) == false && REPOSITORIES_URL_SETTING.exists(settings) ==  false) {
             throw new RepositoryException(name.name(), "missing url");
-        } else {
-            url = new URL(path);
         }
-        supportedProtocols = settings.getAsArray(SUPPORTED_PROTOCOLS_SETTING, DEFAULT_SUPPORTED_PROTOCOLS);
-        String[] urlWhiteList = settings.getAsArray(ALLOWED_URLS_SETTING, Strings.EMPTY_ARRAY);
-        this.urlWhiteList = new URIPattern[urlWhiteList.length];
-        for (int i = 0; i < urlWhiteList.length; i++) {
-            this.urlWhiteList[i] = new URIPattern(urlWhiteList[i]);
-        }
+        supportedProtocols = SUPPORTED_PROTOCOLS_SETTING.get(settings);
+        urlWhiteList = ALLOWED_URLS_SETTING.get(settings).toArray(new URIPattern[]{});
         this.environment = environment;
-        listDirectories = repositorySettings.settings().getAsBoolean("list_directories", settings.getAsBoolean("repositories.uri.list_directories", true));
+        listDirectories = LIST_DIRECTORIES_SETTING.exists(repositorySettings.settings()) ? LIST_DIRECTORIES_SETTING.get(repositorySettings.settings()) : REPOSITORIES_LIST_DIRECTORIES_SETTING.get(settings);
+
+        URL url = URL_SETTING.exists(repositorySettings.settings()) ? URL_SETTING.get(repositorySettings.settings()) : REPOSITORIES_URL_SETTING.get(settings);
         URL normalizedURL = checkURL(url);
         blobStore = new URLBlobStore(settings, normalizedURL);
         basePath = BlobPath.cleanPath();
@@ -147,8 +158,8 @@ public class URLRepository extends BlobStoreRepository {
                 // We didn't match white list - try to resolve against path.repo
                 URL normalizedUrl = environment.resolveRepoURL(url);
                 if (normalizedUrl == null) {
-                    logger.warn("The specified url [{}] doesn't start with any repository paths specified by the path.repo setting: [{}] or by repositories.url.allowed_urls setting: [{}] ", url, environment.repoFiles());
-                    throw new RepositoryException(repositoryName, "file url [" + url + "] doesn't match any of the locations specified by path.repo or repositories.url.allowed_urls");
+                    logger.warn("The specified url [{}] doesn't start with any repository paths specified by the path.repo setting or by {} setting: [{}] ", url, ALLOWED_URLS_SETTING.getKey(), environment.repoFiles());
+                    throw new RepositoryException(repositoryName, "file url [" + url + "] doesn't match any of the locations specified by path.repo or " + ALLOWED_URLS_SETTING.getKey());
                 }
                 return normalizedUrl;
             }
@@ -161,4 +172,11 @@ public class URLRepository extends BlobStoreRepository {
         return true;
     }
 
+    private static URL parseURL(String s) {
+        try {
+            return new URL(s);
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Unable to parse URL repository setting", e);
+        }
+    }
 }

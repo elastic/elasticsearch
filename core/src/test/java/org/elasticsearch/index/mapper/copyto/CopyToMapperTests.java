@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.copyto;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -31,12 +32,12 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Arrays;
@@ -57,16 +58,16 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
     public void testCopyToFieldsParsing() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("copy_test")
-                .field("type", "string")
+                .field("type", "text")
                 .array("copy_to", "another_field", "cyclic_test")
                 .endObject()
 
                 .startObject("another_field")
-                .field("type", "string")
+                .field("type", "text")
                 .endObject()
 
                 .startObject("cyclic_test")
-                .field("type", "string")
+                .field("type", "text")
                 .array("copy_to", "copy_test")
                 .endObject()
 
@@ -83,7 +84,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         FieldMapper fieldMapper = docMapper.mappers().getMapper("copy_test");
 
         // Check json serialization
-        StringFieldMapper stringFieldMapper = (StringFieldMapper) fieldMapper;
+        TextFieldMapper stringFieldMapper = (TextFieldMapper) fieldMapper;
         XContentBuilder builder = jsonBuilder().startObject();
         stringFieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         builder.close();
@@ -92,7 +93,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             serializedMap = parser.map();
         }
         Map<String, Object> copyTestMap = (Map<String, Object>) serializedMap.get("copy_test");
-        assertThat(copyTestMap.get("type").toString(), is("string"));
+        assertThat(copyTestMap.get("type").toString(), is("text"));
         List<String> copyToList = (List<String>) copyTestMap.get("copy_to");
         assertThat(copyToList.size(), equalTo(2));
         assertThat(copyToList.get(0).toString(), equalTo("another_field"));
@@ -128,15 +129,16 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         assertNotNull(parsedDoc.dynamicMappingsUpdate());
         client().admin().indices().preparePutMapping("test").setType("type1").setSource(parsedDoc.dynamicMappingsUpdate().toString()).get();
 
+        docMapper = index.mapperService().documentMapper("type1");
         fieldMapper = docMapper.mappers().getMapper("new_field");
-        assertThat(fieldMapper, instanceOf(LongFieldMapper.class));
+        assertThat(fieldMapper.fieldType().typeName(), equalTo("long"));
     }
 
     public void testCopyToFieldsInnerObjectParsing() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
 
                 .startObject("copy_test")
-                .field("type", "string")
+                .field("type", "text")
                 .field("copy_to", "very.inner.field")
                 .endObject()
 
@@ -151,7 +153,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
 
                 .endObject().endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         BytesReference json = jsonBuilder().startObject()
                 .field("copy_test", "foo")
@@ -171,13 +173,13 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         String mapping = jsonBuilder().startObject().startObject("type1")
             .startObject("properties")
                 .startObject("copy_test")
-                    .field("type", "string")
+                    .field("type", "text")
                     .field("copy_to", "very.inner.field")
                 .endObject()
             .endObject()
             .endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         BytesReference json = jsonBuilder().startObject()
                 .field("copy_test", "foo")
@@ -199,7 +201,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         String mapping = jsonBuilder().startObject().startObject("type1")
             .startObject("properties")
                 .startObject("copy_test")
-                    .field("type", "string")
+                    .field("type", "text")
                     .field("copy_to", "very.far.inner.field")
                 .endObject()
                 .startObject("very")
@@ -213,7 +215,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         BytesReference json = jsonBuilder().startObject()
             .field("copy_test", "foo")
@@ -236,13 +238,13 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             .field("dynamic", "strict")
                 .startObject("properties")
                     .startObject("copy_test")
-                        .field("type", "string")
+                        .field("type", "text")
                         .field("copy_to", "very.inner.field")
                     .endObject()
                 .endObject()
             .endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         BytesReference json = jsonBuilder().startObject()
             .field("copy_test", "foo")
@@ -260,7 +262,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         String mapping = jsonBuilder().startObject().startObject("type1")
             .startObject("properties")
                 .startObject("copy_test")
-                    .field("type", "string")
+                    .field("type", "text")
                     .field("copy_to", "very.far.field")
                 .endObject()
                 .startObject("very")
@@ -276,7 +278,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         BytesReference json = jsonBuilder().startObject()
             .field("copy_test", "foo")
@@ -294,7 +296,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         String mappingBefore = jsonBuilder().startObject().startObject("type1").startObject("properties")
 
                 .startObject("copy_test")
-                .field("type", "string")
+                .field("type", "text")
                 .array("copy_to", "foo", "bar")
                 .endObject()
 
@@ -303,35 +305,21 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         String mappingAfter = jsonBuilder().startObject().startObject("type1").startObject("properties")
 
                 .startObject("copy_test")
-                .field("type", "string")
+                .field("type", "text")
                 .array("copy_to", "baz", "bar")
                 .endObject()
 
                 .endObject().endObject().endObject().string();
 
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper docMapperBefore = parser.parse(mappingBefore);
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapper docMapperBefore = mapperService.merge("type1", new CompressedXContent(mappingBefore), MapperService.MergeReason.MAPPING_UPDATE, false);
 
-        List<String> fields = docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields();
+        assertEquals(Arrays.asList("foo", "bar"), docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields());
 
-        assertThat(fields.size(), equalTo(2));
-        assertThat(fields.get(0), equalTo("foo"));
-        assertThat(fields.get(1), equalTo("bar"));
+        DocumentMapper docMapperAfter = mapperService.merge("type1", new CompressedXContent(mappingAfter), MapperService.MergeReason.MAPPING_UPDATE, false);
 
-
-        DocumentMapper docMapperAfter = parser.parse(mappingAfter);
-
-        MergeResult mergeResult = docMapperBefore.merge(docMapperAfter.mapping(), true, false);
-
-        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
-
-        docMapperBefore.merge(docMapperAfter.mapping(), false, false);
-
-        fields = docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields();
-
-        assertThat(fields.size(), equalTo(2));
-        assertThat(fields.get(0), equalTo("baz"));
-        assertThat(fields.get(1), equalTo("bar"));
+        assertEquals(Arrays.asList("baz", "bar"), docMapperAfter.mappers().getMapper("copy_test").copyTo().copyToFields());
+        assertEquals(Arrays.asList("foo", "bar"), docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields());
     }
 
     public void testCopyToNestedField() throws Exception {
@@ -376,7 +364,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             }
             mapping = mapping.endObject();
 
-            DocumentMapper mapper = parser.parse(mapping.string());
+            DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping.string()));
 
             XContentBuilder jsonDoc = XContentFactory.jsonBuilder()
                     .startObject()
@@ -450,13 +438,13 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             .endArray()
             .startObject("properties")
                 .startObject("copy_test")
-                    .field("type", "string")
+                    .field("type", "text")
                     .field("copy_to", "very.inner.field")
                 .endObject()
             .endObject()
             .endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
 
         BytesReference json = jsonBuilder().startObject()
             .field("copy_test", "foo")

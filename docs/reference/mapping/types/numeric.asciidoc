@@ -45,9 +45,9 @@ The following parameters are accepted by numeric types:
     Try to convert strings to numbers and truncate fractions for integers.
     Accepts `true` (default) and `false`.
 
-<<index-boost,`boost`>>::
+<<mapping-boost,`boost`>>::
 
-    Field-level index time boosting. Accepts a floating point number, defaults
+    Mapping field-level query time boosting. Accepts a floating point number, defaults
     to `1.0`.
 
 <<doc-values,`doc_values`>>::
@@ -65,25 +65,19 @@ The following parameters are accepted by numeric types:
 
     Whether or not the field value should be included in the
     <<mapping-all-field,`_all`>> field? Accepts `true` or `false`.  Defaults
-    to `false` if <<mapping-index,`index`>> is set to `no`, or if a parent
+    to `false` if <<mapping-index,`index`>> is set to `false`, or if a parent
     <<object,`object`>> field sets `include_in_all` to `false`.
     Otherwise defaults to `true`.
 
 <<mapping-index,`index`>>::
 
-    Should the field be searchable? Accepts `not_analyzed` (default) and `no`.
+    Should the field be searchable? Accepts `true` (default) and `false`.
 
 <<null-value,`null_value`>>::
 
     Accepts a numeric value of the same `type` as the field which is
     substituted for any explicit `null` values.  Defaults to `null`, which
     means the field is treated as missing.
-
-<<precision-step,`precision_step`>>::
-
-    Controls the number of extra terms that are indexed to make
-    <<query-dsl-range-query,`range` queries>> faster. The default depends on the
-    numeric `type`.
 
 <<mapping-store,`store`>>::
 

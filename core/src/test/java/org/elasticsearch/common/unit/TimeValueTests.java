@@ -60,7 +60,7 @@ public class TimeValueTests extends ESTestCase {
     }
 
     public void testMinusOne() {
-        assertThat(new TimeValue(-1).nanos(), lessThan(0l));
+        assertThat(new TimeValue(-1).nanos(), lessThan(0L));
     }
 
     public void testParseTimeValue() {
@@ -161,5 +161,15 @@ public class TimeValueTests extends ESTestCase {
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("Failed to parse"));
         }
+    }
+
+    public void testToStringRep() {
+        assertEquals("-1", new TimeValue(-1).getStringRep());
+        assertEquals("10ms", new TimeValue(10, TimeUnit.MILLISECONDS).getStringRep());
+        assertEquals("1533ms", new TimeValue(1533, TimeUnit.MILLISECONDS).getStringRep());
+        assertEquals("90s", new TimeValue(90, TimeUnit.SECONDS).getStringRep());
+        assertEquals("90m", new TimeValue(90, TimeUnit.MINUTES).getStringRep());
+        assertEquals("36h", new TimeValue(36, TimeUnit.HOURS).getStringRep());
+        assertEquals("1000d", new TimeValue(1000, TimeUnit.DAYS).getStringRep());
     }
 }

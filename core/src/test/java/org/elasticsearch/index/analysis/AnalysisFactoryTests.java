@@ -179,6 +179,8 @@ public class AnalysisFactoryTests extends ESTestCase {
         put("typeaspayload",             Void.class);
         // fingerprint
         put("fingerprint",               Void.class);
+        // for tee-sinks
+        put("daterecognizer",            Void.class);
     }};
     
     public void testTokenFilters() {

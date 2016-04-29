@@ -104,7 +104,10 @@ shape:
 
 ==== Spatial Relations
 
-The Query supports the following spatial relations:
+The <<spatial-strategy, geo_shape strategy>> mapping parameter determines
+which spatial relation operators may be used at search time.
+
+The following is a complete list of spatial relation operators available:
 
 * `INTERSECTS` - (default) Return all documents whose `geo_shape` field
 intersects the query geometry.
@@ -114,3 +117,12 @@ has nothing in common with the query geometry.
 is within the query geometry.
 * `CONTAINS` - Return all documents whose `geo_shape` field
 contains the query geometry.
+
+[float]
+==== Ignore Unmapped
+
+When set to `true` the `ignore_unmapped` option will ignore an unmapped field
+and will not match any documents for this query. This can be useful when
+querying multiple indexes which might have different mappings. When set to
+`false` (the default value) the query will throw an exception if the field
+is not mapped.

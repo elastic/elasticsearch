@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
+import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
@@ -28,6 +30,10 @@ import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.TransportDeleteRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
@@ -58,6 +64,8 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksAction;
 import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
+import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateAction;
+import org.elasticsearch.action.admin.cluster.validate.template.TransportRenderSearchTemplateAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistAction;
@@ -79,7 +87,9 @@ import org.elasticsearch.action.admin.indices.exists.indices.TransportIndicesExi
 import org.elasticsearch.action.admin.indices.exists.types.TransportTypesExistsAction;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
+import org.elasticsearch.action.admin.indices.flush.TransportSyncedFlushAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.TransportForceMergeAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -121,14 +131,6 @@ import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeAction;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsAction;
 import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateAction;
-import org.elasticsearch.action.admin.cluster.validate.template.TransportRenderSearchTemplateAction;
-import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerAction;
-import org.elasticsearch.action.admin.indices.warmer.delete.TransportDeleteWarmerAction;
-import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersAction;
-import org.elasticsearch.action.admin.indices.warmer.get.TransportGetWarmersAction;
-import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerAction;
-import org.elasticsearch.action.admin.indices.warmer.put.TransportPutWarmerAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
@@ -145,17 +147,28 @@ import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.action.get.TransportShardMultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.TransportIndexAction;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptAction;
-import org.elasticsearch.action.indexedscripts.delete.TransportDeleteIndexedScriptAction;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptAction;
-import org.elasticsearch.action.indexedscripts.get.TransportGetIndexedScriptAction;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
-import org.elasticsearch.action.indexedscripts.put.TransportPutIndexedScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportGetStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
+import org.elasticsearch.action.ingest.IngestActionFilter;
+import org.elasticsearch.action.ingest.IngestProxyActionFilter;
+import org.elasticsearch.action.ingest.DeletePipelineAction;
+import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.GetPipelineAction;
+import org.elasticsearch.action.ingest.GetPipelineTransportAction;
+import org.elasticsearch.action.ingest.PutPipelineAction;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.ingest.SimulatePipelineAction;
+import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
+import org.elasticsearch.action.main.MainAction;
+import org.elasticsearch.action.main.TransportMainAction;
 import org.elasticsearch.action.percolate.MultiPercolateAction;
 import org.elasticsearch.action.percolate.PercolateAction;
 import org.elasticsearch.action.percolate.TransportMultiPercolateAction;
 import org.elasticsearch.action.percolate.TransportPercolateAction;
-import org.elasticsearch.action.percolate.TransportShardMultiPercolateAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
@@ -164,14 +177,6 @@ import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
-import org.elasticsearch.action.search.type.TransportSearchDfsQueryAndFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchDfsQueryThenFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchQueryAndFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchQueryThenFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchScrollQueryAndFetchAction;
-import org.elasticsearch.action.search.type.TransportSearchScrollQueryThenFetchAction;
-import org.elasticsearch.action.suggest.SuggestAction;
-import org.elasticsearch.action.suggest.TransportSuggestAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -182,7 +187,6 @@ import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TransportMultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction;
 import org.elasticsearch.action.termvectors.TransportTermVectorsAction;
-import org.elasticsearch.action.termvectors.dfs.TransportDfsOnlyAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -202,7 +206,7 @@ public class ActionModule extends AbstractModule {
     private final Map<String, ActionEntry> actions = new HashMap<>();
     private final List<Class<? extends ActionFilter>> actionFilters = new ArrayList<>();
 
-    static class ActionEntry<Request extends ActionRequest, Response extends ActionResponse> {
+    static class ActionEntry<Request extends ActionRequest<Request>, Response extends ActionResponse> {
         public final GenericAction<Request, Response> action;
         public final Class<? extends TransportAction<Request, Response>> transportAction;
         public final Class[] supportTransportActions;
@@ -212,13 +216,13 @@ public class ActionModule extends AbstractModule {
             this.transportAction = transportAction;
             this.supportTransportActions = supportTransportActions;
         }
-
-
     }
 
+    private final boolean ingestEnabled;
     private final boolean proxy;
 
-    public ActionModule(boolean proxy) {
+    public ActionModule(boolean ingestEnabled, boolean proxy) {
+        this.ingestEnabled = ingestEnabled;
         this.proxy = proxy;
     }
 
@@ -231,7 +235,7 @@ public class ActionModule extends AbstractModule {
      * @param <Request>               The request type.
      * @param <Response>              The response type.
      */
-    public <Request extends ActionRequest, Response extends ActionResponse> void registerAction(GenericAction<Request, Response> action, Class<? extends TransportAction<Request, Response>> transportAction, Class... supportTransportActions) {
+    public <Request extends ActionRequest<Request>, Response extends ActionResponse> void registerAction(GenericAction<Request, Response> action, Class<? extends TransportAction<Request, Response>> transportAction, Class... supportTransportActions) {
         actions.put(action.name(), new ActionEntry<>(action, transportAction, supportTransportActions));
     }
 
@@ -242,6 +246,13 @@ public class ActionModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        if (proxy == false) {
+            if (ingestEnabled) {
+                registerFilter(IngestActionFilter.class);
+            } else {
+                registerFilter(IngestProxyActionFilter.class);
+            }
+        }
 
         Multibinder<ActionFilter> actionFilterMultibinder = Multibinder.newSetBinder(binder(), ActionFilter.class);
         for (Class<? extends ActionFilter> actionFilter : actionFilters) {
@@ -250,10 +261,14 @@ public class ActionModule extends AbstractModule {
         bind(ActionFilters.class).asEagerSingleton();
         bind(AutoCreateIndex.class).asEagerSingleton();
         bind(DestructiveOperations.class).asEagerSingleton();
+        registerAction(MainAction.INSTANCE, TransportMainAction.class);
         registerAction(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
         registerAction(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
         registerAction(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
+        registerAction(ListTasksAction.INSTANCE, TransportListTasksAction.class);
+        registerAction(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
 
+        registerAction(ClusterAllocationExplainAction.INSTANCE, TransportClusterAllocationExplainAction.class);
         registerAction(ClusterStatsAction.INSTANCE, TransportClusterStatsAction.class);
         registerAction(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
         registerAction(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
@@ -293,55 +308,48 @@ public class ActionModule extends AbstractModule {
         registerAction(ValidateQueryAction.INSTANCE, TransportValidateQueryAction.class);
         registerAction(RefreshAction.INSTANCE, TransportRefreshAction.class);
         registerAction(FlushAction.INSTANCE, TransportFlushAction.class);
+        registerAction(SyncedFlushAction.INSTANCE, TransportSyncedFlushAction.class);
         registerAction(ForceMergeAction.INSTANCE, TransportForceMergeAction.class);
         registerAction(UpgradeAction.INSTANCE, TransportUpgradeAction.class);
         registerAction(UpgradeStatusAction.INSTANCE, TransportUpgradeStatusAction.class);
         registerAction(UpgradeSettingsAction.INSTANCE, TransportUpgradeSettingsAction.class);
         registerAction(ClearIndicesCacheAction.INSTANCE, TransportClearIndicesCacheAction.class);
-        registerAction(PutWarmerAction.INSTANCE, TransportPutWarmerAction.class);
-        registerAction(DeleteWarmerAction.INSTANCE, TransportDeleteWarmerAction.class);
-        registerAction(GetWarmersAction.INSTANCE, TransportGetWarmersAction.class);
         registerAction(GetAliasesAction.INSTANCE, TransportGetAliasesAction.class);
         registerAction(AliasesExistAction.INSTANCE, TransportAliasesExistAction.class);
         registerAction(GetSettingsAction.INSTANCE, TransportGetSettingsAction.class);
 
         registerAction(IndexAction.INSTANCE, TransportIndexAction.class);
         registerAction(GetAction.INSTANCE, TransportGetAction.class);
-        registerAction(TermVectorsAction.INSTANCE, TransportTermVectorsAction.class,
-                TransportDfsOnlyAction.class);
+        registerAction(TermVectorsAction.INSTANCE, TransportTermVectorsAction.class);
         registerAction(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class,
                 TransportShardMultiTermsVectorAction.class);
         registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class);
-        registerAction(SuggestAction.INSTANCE, TransportSuggestAction.class);
         registerAction(UpdateAction.INSTANCE, TransportUpdateAction.class);
         registerAction(MultiGetAction.INSTANCE, TransportMultiGetAction.class,
                 TransportShardMultiGetAction.class);
         registerAction(BulkAction.INSTANCE, TransportBulkAction.class,
                 TransportShardBulkAction.class);
-        registerAction(SearchAction.INSTANCE, TransportSearchAction.class,
-                TransportSearchDfsQueryThenFetchAction.class,
-                TransportSearchQueryThenFetchAction.class,
-                TransportSearchDfsQueryAndFetchAction.class,
-                TransportSearchQueryAndFetchAction.class
-        );
-        registerAction(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class,
-                TransportSearchScrollQueryThenFetchAction.class,
-                TransportSearchScrollQueryAndFetchAction.class
-        );
+        registerAction(SearchAction.INSTANCE, TransportSearchAction.class);
+        registerAction(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
         registerAction(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
         registerAction(PercolateAction.INSTANCE, TransportPercolateAction.class);
-        registerAction(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class, TransportShardMultiPercolateAction.class);
+        registerAction(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class);
         registerAction(ExplainAction.INSTANCE, TransportExplainAction.class);
         registerAction(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
         registerAction(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
         registerAction(RenderSearchTemplateAction.INSTANCE, TransportRenderSearchTemplateAction.class);
 
         //Indexed scripts
-        registerAction(PutIndexedScriptAction.INSTANCE, TransportPutIndexedScriptAction.class);
-        registerAction(GetIndexedScriptAction.INSTANCE, TransportGetIndexedScriptAction.class);
-        registerAction(DeleteIndexedScriptAction.INSTANCE, TransportDeleteIndexedScriptAction.class);
+        registerAction(PutStoredScriptAction.INSTANCE, TransportPutStoredScriptAction.class);
+        registerAction(GetStoredScriptAction.INSTANCE, TransportGetStoredScriptAction.class);
+        registerAction(DeleteStoredScriptAction.INSTANCE, TransportDeleteStoredScriptAction.class);
 
         registerAction(FieldStatsAction.INSTANCE, TransportFieldStatsTransportAction.class);
+
+        registerAction(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
+        registerAction(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
+        registerAction(DeletePipelineAction.INSTANCE, DeletePipelineTransportAction.class);
+        registerAction(SimulatePipelineAction.INSTANCE, SimulatePipelineTransportAction.class);
 
         // register Name -> GenericAction Map that can be injected to instances.
         MapBinder<String, GenericAction> actionsBinder

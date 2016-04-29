@@ -21,7 +21,7 @@ package org.elasticsearch.messy.tests;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
-import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -38,11 +38,21 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.randomFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RandomScoreFunctionTests extends ESIntegTestCase {
 
@@ -50,7 +60,7 @@ public class RandomScoreFunctionTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     public void testConsistentHitsWithSameSeed() throws Exception {
         createIndex("test");
         ensureGreen(); // make sure we are done otherwise preference could change?
@@ -113,7 +123,7 @@ public class RandomScoreFunctionTests extends ESIntegTestCase {
     }
 
     public void testScoreAccessWithinScript() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "body", "type=string", "index",
+        assertAcked(prepareCreate("test").addMapping("type", "body", "type=text", "index",
                 "type=" + randomFrom("short", "float", "long", "integer", "double")));
         ensureYellow();
 
@@ -244,7 +254,7 @@ public class RandomScoreFunctionTests extends ESIntegTestCase {
             }
         }
     }
-    
+
     public void testSeeds() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -306,10 +316,9 @@ public class RandomScoreFunctionTests extends ESIntegTestCase {
             }
         }
 
-        System.out.println();
-        System.out.println("max repeat: " + maxRepeat);
-        System.out.println("avg repeat: " + sumRepeat / (double) filled);
-        System.out.println("distribution: " + filled / (double) count);
+        logger.info("max repeat: {}", maxRepeat);
+        logger.info("avg repeat: {}", sumRepeat / (double) filled);
+        logger.info("distribution: {}", filled / (double) count);
 
         int percentile50 = filled / 2;
         int percentile25 = (filled / 4);
@@ -323,18 +332,18 @@ public class RandomScoreFunctionTests extends ESIntegTestCase {
             }
             sum += i * matrix[i];
             if (percentile50 == 0) {
-                System.out.println("median: " + i);
+                logger.info("median: {}", i);
             } else if (percentile25 == 0) {
-                System.out.println("percentile_25: " + i);
+                logger.info("percentile_25: {}", i);
             } else if (percentile75 == 0) {
-                System.out.println("percentile_75: " + i);
+                logger.info("percentile_75: {}", i);
             }
             percentile50--;
             percentile25--;
             percentile75--;
         }
 
-        System.out.println("mean: " + sum / (double) count);
+        logger.info("mean: {}", sum / (double) count);
     }
 
 }

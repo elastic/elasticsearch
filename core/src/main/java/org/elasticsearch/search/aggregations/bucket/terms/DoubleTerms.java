@@ -18,17 +18,15 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,7 +53,7 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
     private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
         @Override
         public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
-            Bucket buckets = new Bucket(context.formatter(), (boolean) context.attributes().get("showDocCountError"));
+            Bucket buckets = new Bucket(context.format(), (boolean) context.attributes().get("showDocCountError"));
             buckets.readFrom(in);
             return buckets;
         }
@@ -66,7 +64,7 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
             Map<String, Object> attributes = new HashMap<>();
             attributes.put("showDocCountError", bucket.showDocCountError);
             context.attributes(attributes);
-            context.formatter(bucket.formatter);
+            context.format(bucket.format);
             return context;
         }
     };
@@ -80,13 +78,13 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
 
         double term;
 
-        public Bucket(ValueFormatter formatter, boolean showDocCountError) {
-            super(formatter, showDocCountError);
+        public Bucket(DocValueFormat format, boolean showDocCountError) {
+            super(format, showDocCountError);
         }
 
         public Bucket(double term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
-                ValueFormatter formatter) {
-            super(docCount, aggregations, showDocCountError, docCountError, formatter);
+                DocValueFormat format) {
+            super(docCount, aggregations, showDocCountError, docCountError, format);
             this.term = term;
         }
 
@@ -112,7 +110,7 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
 
         @Override
         Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
-            return new Bucket(term, docCount, aggs, showDocCountError, docCountError, formatter);
+            return new Bucket(term, docCount, aggs, showDocCountError, docCountError, format);
         }
 
         @Override
@@ -140,8 +138,8 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CommonFields.KEY, term);
-            if (formatter != ValueFormatter.RAW) {
-                builder.field(CommonFields.KEY_AS_STRING, formatter.format(term));
+            if (format != DocValueFormat.RAW) {
+                builder.field(CommonFields.KEY_AS_STRING, format.format(term));
             }
             builder.field(CommonFields.DOC_COUNT, getDocCount());
             if (showDocCountError) {
@@ -153,17 +151,14 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
         }
     }
 
-    private ValueFormatter formatter;
-
     DoubleTerms() {
     } // for serialization
 
-    public DoubleTerms(String name, Terms.Order order, ValueFormatter formatter, int requiredSize, int shardSize,
+    public DoubleTerms(String name, Terms.Order order, DocValueFormat format, int requiredSize, int shardSize,
             long minDocCount, List<? extends InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError,
             long otherDocCount, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, pipelineAggregators,
+        super(name, order, format, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, pipelineAggregators,
                 metaData);
-        this.formatter = formatter;
     }
 
     @Override
@@ -173,33 +168,29 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
 
     @Override
     public DoubleTerms create(List<Bucket> buckets) {
-        return new DoubleTerms(this.name, this.order, this.formatter, this.requiredSize, this.shardSize, this.minDocCount, buckets,
+        return new DoubleTerms(this.name, this.order, this.format, this.requiredSize, this.shardSize, this.minDocCount, buckets,
                 this.showTermDocCountError, this.docCountError, this.otherDocCount, this.pipelineAggregators(), this.metaData);
     }
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
         return new Bucket(prototype.term, prototype.docCount, aggregations, prototype.showDocCountError, prototype.docCountError,
-                prototype.formatter);
+                prototype.format);
     }
 
     @Override
     protected DoubleTerms create(String name, List<org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.Bucket> buckets,
             long docCountError, long otherDocCount, InternalTerms prototype) {
-        return new DoubleTerms(name, prototype.order, ((DoubleTerms) prototype).formatter, prototype.requiredSize, prototype.shardSize,
+        return new DoubleTerms(name, prototype.order, ((DoubleTerms) prototype).format, prototype.requiredSize, prototype.shardSize,
                 prototype.minDocCount, buckets, prototype.showTermDocCountError, docCountError, otherDocCount, prototype.pipelineAggregators(),
                 prototype.getMetaData());
     }
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            this.docCountError = in.readLong();
-        } else {
-            this.docCountError = -1;
-        }
+        this.docCountError = in.readLong();
         this.order = InternalOrder.Streams.readOrder(in);
-        this.formatter = ValueFormatterStreams.readOptional(in);
+        this.format = in.readNamedWriteable(DocValueFormat.class);
         this.requiredSize = readSize(in);
         this.shardSize = readSize(in);
         this.showTermDocCountError = in.readBoolean();
@@ -208,7 +199,7 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
         int size = in.readVInt();
         List<InternalTerms.Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            Bucket bucket = new Bucket(formatter, showTermDocCountError);
+            Bucket bucket = new Bucket(format, showTermDocCountError);
             bucket.readFrom(in);
             buckets.add(bucket);
         }
@@ -218,11 +209,9 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeLong(docCountError);
-        }
+        out.writeLong(docCountError);
         InternalOrder.Streams.writeOrder(order, out);
-        ValueFormatterStreams.writeOptional(formatter, out);
+        out.writeNamedWriteable(format);
         writeSize(requiredSize, out);
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);

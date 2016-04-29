@@ -19,14 +19,13 @@
 
 package org.elasticsearch.common.transport;
 
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 
 
 /**
  *
  */
-public interface TransportAddress extends Writeable<TransportAddress> {
+public interface TransportAddress extends Writeable {
 
     /**
      * Returns the host string for this transport address
@@ -46,6 +45,8 @@ public interface TransportAddress extends Writeable<TransportAddress> {
     short uniqueAddressTypeId();
 
     boolean sameHost(TransportAddress other);
+
+    boolean isLoopbackOrLinkLocalAddress();
 
     public String toString();
 }

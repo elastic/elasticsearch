@@ -19,37 +19,52 @@
 
 package org.elasticsearch.node;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClientModule;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterNameModule;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.MasterNodeChangePredicate;
+import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.env.NodeEnvironment;
@@ -58,30 +73,23 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.http.HttpServer;
-import org.elasticsearch.http.HttpServerModule;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.memory.IndexingMemoryController;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.percolator.PercolatorModule;
-import org.elasticsearch.percolator.PercolatorService;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
@@ -90,31 +98,53 @@ import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.tribe.TribeModule;
 import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.BufferedWriter;
+import java.io.Closeable;
 import java.io.IOException;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import java.util.function.Function;
 
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
  * in order to use a {@link Client} to perform actions/operations against the cluster.
- * <p>In order to create a node, the {@link NodeBuilder} can be used. When done with it, make sure to
- * call {@link #close()} on it.
  */
-public class Node implements Releasable {
+public class Node implements Closeable {
+
+    public static final Setting<Boolean> WRITE_PORTS_FIELD_SETTING =
+        Setting.boolSetting("node.portsfile", false, Property.NodeScope);
+    public static final Setting<Boolean> NODE_DATA_SETTING = Setting.boolSetting("node.data", true, Property.NodeScope);
+    public static final Setting<Boolean> NODE_MASTER_SETTING =
+        Setting.boolSetting("node.master", true, Property.NodeScope);
+    public static final Setting<Boolean> NODE_LOCAL_SETTING =
+        Setting.boolSetting("node.local", false, Property.NodeScope);
+    public static final Setting<String> NODE_MODE_SETTING =
+        new Setting<>("node.mode", "network", Function.identity(), Property.NodeScope);
+    public static final Setting<Boolean> NODE_INGEST_SETTING =
+        Setting.boolSetting("node.ingest", true, Property.NodeScope);
+    public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
+    public static final Setting<Settings> NODE_ATTRIBUTES = Setting.groupSetting("node.attr.", Property.NodeScope);
+
 
     private static final String CLIENT_TYPE = "node";
-    public static final String HTTP_ENABLED = "http.enabled";
     private final Lifecycle lifecycle = new Lifecycle();
     private final Injector injector;
     private final Settings settings;
@@ -132,18 +162,25 @@ public class Node implements Releasable {
     }
 
     protected Node(Environment tmpEnv, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
-        Settings tmpSettings = settingsBuilder().put(tmpEnv.settings())
-            .put(Client.CLIENT_TYPE_SETTING, CLIENT_TYPE).build();
+        Settings tmpSettings = Settings.builder().put(tmpEnv.settings())
+                .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
         tmpSettings = TribeService.processSettings(tmpSettings);
 
-        ESLogger logger = Loggers.getLogger(Node.class, tmpSettings.get("name"));
-        logger.info("version[{}], pid[{}], build[{}/{}]", version, JvmInfo.jvmInfo().pid(), Build.CURRENT.shortHash(), Build.CURRENT.date());
+        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(tmpSettings));
+        final String displayVersion = version + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
+        logger.info("version[{}], pid[{}], build[{}/{}]", displayVersion, JvmInfo.jvmInfo().pid(), Build.CURRENT.shortHash(), Build.CURRENT.date());
 
         logger.info("initializing ...");
 
         if (logger.isDebugEnabled()) {
             logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
-                tmpEnv.configFile(), Arrays.toString(tmpEnv.dataFiles()), tmpEnv.logsFile(), tmpEnv.pluginsFile());
+                    tmpEnv.configFile(), Arrays.toString(tmpEnv.dataFiles()), tmpEnv.logsFile(), tmpEnv.pluginsFile());
+        }
+        // TODO: Remove this in Elasticsearch 6.0.0
+        if (JsonXContent.unquotedFieldNamesSet) {
+            DeprecationLogger dLogger = new DeprecationLogger(logger);
+            dLogger.deprecated("[{}] has been set, but will be removed in Elasticsearch 6.0.0",
+                    JsonXContent.JSON_ALLOW_UNQUOTED_FIELD_NAMES);
         }
 
         this.pluginsService = new PluginsService(tmpSettings, tmpEnv.modulesFile(), tmpEnv.pluginsFile(), classpathPlugins);
@@ -158,9 +195,8 @@ public class Node implements Releasable {
             throw new IllegalStateException("Failed to created node environment", ex);
         }
         final NetworkService networkService = new NetworkService(settings);
-        final NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
-        final SettingsFilter settingsFilter = new SettingsFilter(settings);
         final ThreadPool threadPool = new ThreadPool(settings);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         boolean success = false;
         try {
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
@@ -172,38 +208,34 @@ public class Node implements Releasable {
                 modules.add(pluginModule);
             }
             modules.add(new PluginsModule(pluginsService));
-            modules.add(new SettingsModule(this.settings, settingsFilter));
-            modules.add(new NodeModule(this, nodeSettingsService, monitorService));
-            modules.add(new NetworkModule(networkService));
-            modules.add(new ScriptModule(this.settings));
+            SettingsModule settingsModule = new SettingsModule(this.settings);
+            modules.add(settingsModule);
             modules.add(new EnvironmentModule(environment));
+            modules.add(new NodeModule(this, monitorService));
+            modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
+            ScriptModule scriptModule = new ScriptModule();
+            modules.add(scriptModule);
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
             modules.add(new ClusterNameModule(this.settings));
             modules.add(new ThreadPoolModule(threadPool));
             modules.add(new DiscoveryModule(this.settings));
             modules.add(new ClusterModule(this.settings));
-            modules.add(new RestModule(this.settings));
-            modules.add(new TransportModule(settings));
-            if (settings.getAsBoolean(HTTP_ENABLED, true)) {
-                modules.add(new HttpServerModule(settings));
-            }
             modules.add(new IndicesModule());
-            modules.add(new SearchModule());
-            modules.add(new ActionModule(false));
+            modules.add(new SearchModule(settings, namedWriteableRegistry));
+            modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false));
             modules.add(new GatewayModule(settings));
             modules.add(new NodeClientModule());
-            modules.add(new PercolatorModule());
             modules.add(new ResourceWatcherModule());
             modules.add(new RepositoriesModule());
             modules.add(new TribeModule());
             modules.add(new AnalysisModule(environment));
 
             pluginsService.processModules(modules);
-
+            scriptModule.prepareSettings(settingsModule);
             injector = modules.createInjector();
 
             client = injector.getInstance(Client.class);
-            threadPool.setNodeSettingsService(injector.getInstance(NodeSettingsService.class));
+            threadPool.setClusterSettings(injector.getInstance(ClusterSettings.class));
             success = true;
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to bind service", ex);
@@ -232,6 +264,13 @@ public class Node implements Releasable {
     }
 
     /**
+     * Returns the environment of the node
+     */
+    public Environment getEnvironment() {
+        return environment;
+    }
+
+    /**
      * Start the node. If the node is already started, this method is no-op.
      */
     public Node start() {
@@ -239,7 +278,7 @@ public class Node implements Releasable {
             return this;
         }
 
-        ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("starting ...");
         // hack around dependency injection problem (for now...)
         injector.getInstance(Discovery.class).setRoutingService(injector.getInstance(RoutingService.class));
@@ -249,32 +288,102 @@ public class Node implements Releasable {
 
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
-        injector.getInstance(IndexingMemoryController.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
         injector.getInstance(IndicesTTLService.class).start();
         injector.getInstance(SnapshotsService.class).start();
         injector.getInstance(SnapshotShardsService.class).start();
-        injector.getInstance(TransportService.class).start();
-        injector.getInstance(ClusterService.class).start();
         injector.getInstance(RoutingService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(MonitorService.class).start();
         injector.getInstance(RestController.class).start();
 
+        final ClusterService clusterService = injector.getInstance(ClusterService.class);
+
+        final NodeConnectionsService nodeConnectionsService = injector.getInstance(NodeConnectionsService.class);
+        nodeConnectionsService.start();
+        clusterService.setNodeConnectionsService(nodeConnectionsService);
+
         // TODO hack around circular dependencies problems
-        injector.getInstance(GatewayAllocator.class).setReallocation(injector.getInstance(ClusterService.class), injector.getInstance(RoutingService.class));
+        injector.getInstance(GatewayAllocator.class).setReallocation(clusterService, injector.getInstance(RoutingService.class));
 
-        DiscoveryService discoService = injector.getInstance(DiscoveryService.class).start();
-        discoService.waitForInitialState();
-
-        // gateway should start after disco, so it can try and recovery from gateway on "start"
+        injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(GatewayService.class).start();
+        Discovery discovery = injector.getInstance(Discovery.class);
+        clusterService.addInitialStateBlock(discovery.getDiscoverySettings().getNoMasterBlock());
+        clusterService.setClusterStatePublisher(discovery::publish);
+
+        // start before the cluster service since it adds/removes initial Cluster state blocks
+        final TribeService tribeService = injector.getInstance(TribeService.class);
+        tribeService.start();
+
+        // Start the transport service now so the publish address will be added to the local disco node in ClusterService
+        TransportService transportService = injector.getInstance(TransportService.class);
+        transportService.start();
+
+        validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress());
+
+        DiscoveryNode localNode = injector.getInstance(DiscoveryNodeService.class)
+                .buildLocalNode(transportService.boundAddress().publishAddress());
+
+        // TODO: need to find a cleaner way to start/construct a service with some initial parameters,
+        // playing nice with the life cycle interfaces
+        clusterService.setLocalNode(localNode);
+        transportService.setLocalNode(localNode);
+        clusterService.add(transportService.getTaskManager());
+
+        clusterService.start();
+
+        // start after cluster service so the local disco is known
+        discovery.start();
+        transportService.acceptIncomingRequests();
+        discovery.startInitialJoin();
+        // tribe nodes don't have a master so we shouldn't register an observer
+        if (DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings).millis() > 0) {
+            final ThreadPool thread = injector.getInstance(ThreadPool.class);
+            ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, thread.getThreadContext());
+            if (observer.observedState().nodes().getMasterNodeId() == null) {
+                final CountDownLatch latch = new CountDownLatch(1);
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) { latch.countDown(); }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        logger.warn("timed out while waiting for initial discovery state - timeout: {}",
+                            DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings));
+                        latch.countDown();
+                    }
+                }, MasterNodeChangePredicate.INSTANCE, DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings));
+
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    throw new ElasticsearchTimeoutException("Interrupted while waiting for initial discovery state");
+                }
+            }
+        }
 
         if (settings.getAsBoolean("http.enabled", true)) {
             injector.getInstance(HttpServer.class).start();
         }
-        injector.getInstance(ResourceWatcherService.class).start();
-        injector.getInstance(TribeService.class).start();
+
+        // start nodes now, after the http server, because it may take some time
+        tribeService.startNodes();
+
+
+        if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
+            if (settings.getAsBoolean("http.enabled", true)) {
+                HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
+                writePortsFile("http", http.boundAddress());
+            }
+            TransportService transport = injector.getInstance(TransportService.class);
+            writePortsFile("transport", transport.boundAddress());
+        }
 
         logger.info("started");
 
@@ -285,7 +394,7 @@ public class Node implements Releasable {
         if (!lifecycle.moveToStopped()) {
             return this;
         }
-        ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("stopping ...");
 
         injector.getInstance(TribeService.class).stop();
@@ -299,11 +408,11 @@ public class Node implements Releasable {
         // stop any changes happening as a result of cluster state changes
         injector.getInstance(IndicesClusterStateService.class).stop();
         // we close indices first, so operations won't be allowed on it
-        injector.getInstance(IndexingMemoryController.class).stop();
         injector.getInstance(IndicesTTLService.class).stop();
         injector.getInstance(RoutingService.class).stop();
         injector.getInstance(ClusterService.class).stop();
-        injector.getInstance(DiscoveryService.class).stop();
+        injector.getInstance(Discovery.class).stop();
+        injector.getInstance(NodeConnectionsService.class).stop();
         injector.getInstance(MonitorService.class).stop();
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
@@ -313,7 +422,6 @@ public class Node implements Releasable {
         for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
             injector.getInstance(plugin).stop();
         }
-        injector.getInstance(RecoverySettings.class).close();
         // we should stop this last since it waits for resources to get released
         // if we had scroll searchers etc or recovery going on we wait for to finish.
         injector.getInstance(IndicesService.class).stop();
@@ -326,7 +434,7 @@ public class Node implements Releasable {
     // If not, the hook that is added in Bootstrap#setup() will be useless: close() might not be executed, in case another (for example api) call
     // to close() has already set some lifecycles to stopped. In this case the process will be terminated even if the first call to close() has not finished yet.
     @Override
-    public synchronized void close() {
+    public synchronized void close() throws IOException {
         if (lifecycle.started()) {
             stop();
         }
@@ -334,85 +442,80 @@ public class Node implements Releasable {
             return;
         }
 
-        ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
+        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("closing ...");
-
+        List<Closeable> toClose = new ArrayList<>();
         StopWatch stopWatch = new StopWatch("node_close");
-        stopWatch.start("tribe");
-        injector.getInstance(TribeService.class).close();
-        stopWatch.stop().start("http");
+        toClose.add(() -> stopWatch.start("tribe"));
+        toClose.add(injector.getInstance(TribeService.class));
+        toClose.add(() -> stopWatch.stop().start("node_service"));
+        toClose.add(injector.getInstance(NodeService.class));
+        toClose.add(() -> stopWatch.stop().start("http"));
         if (settings.getAsBoolean("http.enabled", true)) {
-            injector.getInstance(HttpServer.class).close();
+            toClose.add(injector.getInstance(HttpServer.class));
         }
-        stopWatch.stop().start("snapshot_service");
-        injector.getInstance(SnapshotsService.class).close();
-        injector.getInstance(SnapshotShardsService.class).close();
-        stopWatch.stop().start("client");
+        toClose.add(() -> stopWatch.stop().start("snapshot_service"));
+        toClose.add(injector.getInstance(SnapshotsService.class));
+        toClose.add(injector.getInstance(SnapshotShardsService.class));
+        toClose.add(() -> stopWatch.stop().start("client"));
         Releasables.close(injector.getInstance(Client.class));
-        stopWatch.stop().start("indices_cluster");
-        injector.getInstance(IndicesClusterStateService.class).close();
-        stopWatch.stop().start("indices");
-        injector.getInstance(IndexingMemoryController.class).close();
-        injector.getInstance(IndicesTTLService.class).close();
-        injector.getInstance(IndicesService.class).close();
+        toClose.add(() -> stopWatch.stop().start("indices_cluster"));
+        toClose.add(injector.getInstance(IndicesClusterStateService.class));
+        toClose.add(() -> stopWatch.stop().start("indices"));
+        toClose.add(injector.getInstance(IndicesTTLService.class));
+        toClose.add(injector.getInstance(IndicesService.class));
         // close filter/fielddata caches after indices
-        injector.getInstance(IndicesQueryCache.class).close();
-        injector.getInstance(IndicesFieldDataCache.class).close();
-        injector.getInstance(IndicesStore.class).close();
-        stopWatch.stop().start("routing");
-        injector.getInstance(RoutingService.class).close();
-        stopWatch.stop().start("cluster");
-        injector.getInstance(ClusterService.class).close();
-        stopWatch.stop().start("discovery");
-        injector.getInstance(DiscoveryService.class).close();
-        stopWatch.stop().start("monitor");
-        injector.getInstance(MonitorService.class).close();
-        stopWatch.stop().start("gateway");
-        injector.getInstance(GatewayService.class).close();
-        stopWatch.stop().start("search");
-        injector.getInstance(SearchService.class).close();
-        stopWatch.stop().start("rest");
-        injector.getInstance(RestController.class).close();
-        stopWatch.stop().start("transport");
-        injector.getInstance(TransportService.class).close();
-        stopWatch.stop().start("percolator_service");
-        injector.getInstance(PercolatorService.class).close();
+        toClose.add(injector.getInstance(IndicesStore.class));
+        toClose.add(() -> stopWatch.stop().start("routing"));
+        toClose.add(injector.getInstance(RoutingService.class));
+        toClose.add(() -> stopWatch.stop().start("cluster"));
+        toClose.add(injector.getInstance(ClusterService.class));
+        toClose.add(() -> stopWatch.stop().start("node_connections_service"));
+        toClose.add(injector.getInstance(NodeConnectionsService.class));
+        toClose.add(() -> stopWatch.stop().start("discovery"));
+        toClose.add(injector.getInstance(Discovery.class));
+        toClose.add(() -> stopWatch.stop().start("monitor"));
+        toClose.add(injector.getInstance(MonitorService.class));
+        toClose.add(() -> stopWatch.stop().start("gateway"));
+        toClose.add(injector.getInstance(GatewayService.class));
+        toClose.add(() -> stopWatch.stop().start("search"));
+        toClose.add(injector.getInstance(SearchService.class));
+        toClose.add(() -> stopWatch.stop().start("rest"));
+        toClose.add(injector.getInstance(RestController.class));
+        toClose.add(() -> stopWatch.stop().start("transport"));
+        toClose.add(injector.getInstance(TransportService.class));
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
-            stopWatch.stop().start("plugin(" + plugin.getName() + ")");
-            injector.getInstance(plugin).close();
+            toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getName() + ")"));
+            toClose.add(injector.getInstance(plugin));
         }
 
-        stopWatch.stop().start("script");
-        try {
-            injector.getInstance(ScriptService.class).close();
-        } catch(IOException e) {
-            logger.warn("ScriptService close failed", e);
-        }
+        toClose.add(() -> stopWatch.stop().start("script"));
+        toClose.add(injector.getInstance(ScriptService.class));
 
-        stopWatch.stop().start("thread_pool");
+        toClose.add(() -> stopWatch.stop().start("thread_pool"));
         // TODO this should really use ThreadPool.terminate()
-        injector.getInstance(ThreadPool.class).shutdown();
-        try {
-            injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
-        }
-        stopWatch.stop().start("thread_pool_force_shutdown");
-        try {
-            injector.getInstance(ThreadPool.class).shutdownNow();
-        } catch (Exception e) {
-            // ignore
-        }
-        stopWatch.stop();
+        toClose.add(() -> injector.getInstance(ThreadPool.class).shutdown());
+        toClose.add(() -> {
+            try {
+                injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                // ignore
+            }
+        });
+
+        toClose.add(() -> stopWatch.stop().start("thread_pool_force_shutdown"));
+        toClose.add(() -> injector.getInstance(ThreadPool.class).shutdownNow());
+        toClose.add(() -> stopWatch.stop());
+
+
+        toClose.add(injector.getInstance(NodeEnvironment.class));
+        toClose.add(injector.getInstance(PageCacheRecycler.class));
 
         if (logger.isTraceEnabled()) {
             logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint());
         }
-
-        injector.getInstance(NodeEnvironment.class).close();
-        injector.getInstance(PageCacheRecycler.class).close();
-
+        IOUtils.close(toClose);
         logger.info("closed");
     }
 
@@ -426,5 +529,42 @@ public class Node implements Releasable {
 
     public Injector injector() {
         return this.injector;
+    }
+
+    /**
+     * Hook for validating the node after network
+     * services are started but before the cluster service is started
+     * and before the network service starts accepting incoming network
+     * requests.
+     *
+     * @param settings              the fully-resolved settings
+     * @param boundTransportAddress the network addresses the node is
+     *                              bound and publishing to
+     */
+    @SuppressWarnings("unused")
+    protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
+    }
+
+    /** Writes a file to the logs dir containing the ports for the given transport type */
+    private void writePortsFile(String type, BoundTransportAddress boundAddress) {
+        Path tmpPortsFile = environment.logsFile().resolve(type + ".ports.tmp");
+        try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, Charset.forName("UTF-8"))) {
+            for (TransportAddress address : boundAddress.boundAddresses()) {
+                InetAddress inetAddress = InetAddress.getByName(address.getAddress());
+                if (inetAddress instanceof Inet6Address && inetAddress.isLinkLocalAddress()) {
+                    // no link local, just causes problems
+                    continue;
+                }
+                writer.write(NetworkAddress.format(new InetSocketAddress(inetAddress, address.getPort())) + "\n");
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to write ports file", e);
+        }
+        Path portsFile = environment.logsFile().resolve(type + ".ports");
+        try {
+            Files.move(tmpPortsFile, portsFile, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to rename ports file", e);
+        }
     }
 }

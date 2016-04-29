@@ -21,7 +21,8 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 
@@ -36,28 +37,28 @@ import static org.hamcrest.Matchers.nullValue;
 public class InternalSearchHitTests extends ESTestCase {
 
     public void testSerializeShardTarget() throws Exception {
-        SearchShardTarget target = new SearchShardTarget("_node_id", "_index", 0);
+        SearchShardTarget target = new SearchShardTarget("_node_id", new Index("_index", "_na_"), 0);
 
         Map<String, InternalSearchHits> innerHits = new HashMap<>();
-        InternalSearchHit innerHit1 = new InternalSearchHit(0, "_id", new StringText("_type"), null);
+        InternalSearchHit innerHit1 = new InternalSearchHit(0, "_id", new Text("_type"), null);
         innerHit1.shardTarget(target);
-        InternalSearchHit innerInnerHit2 = new InternalSearchHit(0, "_id", new StringText("_type"), null);
+        InternalSearchHit innerInnerHit2 = new InternalSearchHit(0, "_id", new Text("_type"), null);
         innerInnerHit2.shardTarget(target);
         innerHits.put("1", new InternalSearchHits(new InternalSearchHit[]{innerInnerHit2}, 1, 1f));
         innerHit1.setInnerHits(innerHits);
-        InternalSearchHit innerHit2 = new InternalSearchHit(0, "_id", new StringText("_type"), null);
+        InternalSearchHit innerHit2 = new InternalSearchHit(0, "_id", new Text("_type"), null);
         innerHit2.shardTarget(target);
-        InternalSearchHit innerHit3 = new InternalSearchHit(0, "_id", new StringText("_type"), null);
+        InternalSearchHit innerHit3 = new InternalSearchHit(0, "_id", new Text("_type"), null);
         innerHit3.shardTarget(target);
 
         innerHits = new HashMap<>();
-        InternalSearchHit hit1 = new InternalSearchHit(0, "_id", new StringText("_type"), null);
+        InternalSearchHit hit1 = new InternalSearchHit(0, "_id", new Text("_type"), null);
         innerHits.put("1", new InternalSearchHits(new InternalSearchHit[]{innerHit1, innerHit2}, 1, 1f));
         innerHits.put("2", new InternalSearchHits(new InternalSearchHit[]{innerHit3}, 1, 1f));
         hit1.shardTarget(target);
         hit1.setInnerHits(innerHits);
 
-        InternalSearchHit hit2 = new InternalSearchHit(0, "_id", new StringText("_type"), null);
+        InternalSearchHit hit2 = new InternalSearchHit(0, "_id", new Text("_type"), null);
         hit2.shardTarget(target);
 
         InternalSearchHits hits = new InternalSearchHits(new InternalSearchHit[]{hit1, hit2}, 2, 1f);

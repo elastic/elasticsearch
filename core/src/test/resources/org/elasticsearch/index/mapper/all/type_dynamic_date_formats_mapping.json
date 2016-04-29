@@ -2,7 +2,7 @@
     "dynamic_date_formats" : ["yyyy-MM-dd", "dd-MM-yyyy"],
     "properties": {
         "foo": {
-            "type": "string"
+            "type": "text"
         }
     }
 }

@@ -19,17 +19,20 @@
 
 package org.elasticsearch.script.expression;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -50,15 +53,10 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketScript;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -97,7 +95,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertEquals(1, rsp.getHits().getTotalHits());
         assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
     }
-    
+
     public void testFunction() throws Exception {
         createIndex("test");
         ensureGreen("test");
@@ -124,7 +122,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 client().prepareIndex("test", "doc", "1").setSource("text", "hello goodbye"),
                 client().prepareIndex("test", "doc", "2").setSource("text", "hello hello hello goodbye"),
                 client().prepareIndex("test", "doc", "3").setSource("text", "hello hello goodebye"));
-        ScoreFunctionBuilder score = ScoreFunctionBuilders.scriptFunction(new Script("1 / _score", ScriptType.INLINE, "expression", null));
+        ScoreFunctionBuilder<?> score = ScoreFunctionBuilders.scriptFunction(new Script("1 / _score", ScriptType.INLINE, "expression", null));
         SearchRequestBuilder req = client().prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("text", "hello"), score).boostMode(CombineFunction.REPLACE));
         req.setSearchType(SearchType.DFS_QUERY_THEN_FETCH); // make sure DF is consistent
@@ -321,7 +319,7 @@ public class MoreExpressionTests extends ESIntegTestCase {
     public void testNonNumericField() {
         client().prepareIndex("test", "doc", "1").setSource("text", "this is not a number").setRefresh(true).get();
         try {
-            buildRequest("doc['text']").get();
+            buildRequest("doc['text.keyword']").get();
             fail("Expected text field to cause execution failure");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should have contained ScriptException",
@@ -386,7 +384,11 @@ public class MoreExpressionTests extends ESIntegTestCase {
                                 .script(new Script("_value * 3", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))
                 .addAggregation(
                         AggregationBuilders.stats("double_agg").field("y")
-                                .script(new Script("_value - 1.1", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)));
+                                .script(new Script("_value - 1.1", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))
+                .addAggregation(
+                        AggregationBuilders.stats("const_agg").field("x") // specifically to test a script w/o _value
+                                .script(new Script("3.0", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null))
+                );
 
         SearchResponse rsp = req.get();
         assertEquals(3, rsp.getHits().getTotalHits());
@@ -398,11 +400,17 @@ public class MoreExpressionTests extends ESIntegTestCase {
         stats = rsp.getAggregations().get("double_agg");
         assertEquals(0.7, stats.getMax(), 0.0001);
         assertEquals(0.1, stats.getMin(), 0.0001);
+
+        stats = rsp.getAggregations().get("const_agg");
+        assertThat(stats.getMax(), equalTo(3.0));
+        assertThat(stats.getMin(), equalTo(3.0));
+        assertThat(stats.getAvg(), equalTo(3.0));
     }
 
     public void testStringSpecialValueVariable() throws Exception {
         // i.e. expression script for term aggregations, which is not allowed
-        createIndex("test");
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("doc", "text", "type=keyword").get());
         ensureGreen("test");
         indexRandom(true,
                 client().prepareIndex("test", "doc", "1").setSource("text", "hello"),
@@ -533,9 +541,10 @@ public class MoreExpressionTests extends ESIntegTestCase {
                                 .subAggregation(sum("twoSum").field("two"))
                                 .subAggregation(sum("threeSum").field("three"))
                                 .subAggregation(sum("fourSum").field("four"))
-                                .subAggregation(
-                                        bucketScript("totalSum").setBucketsPaths("twoSum", "threeSum", "fourSum").script(
-                                                new Script("_value0 + _value1 + _value2", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null)))).execute().actionGet();
+                                .subAggregation(bucketScript("totalSum",
+                                    new Script("_value0 + _value1 + _value2", ScriptType.INLINE, ExpressionScriptEngineService.NAME, null),
+                                    "twoSum", "threeSum", "fourSum")))
+                .execute().actionGet();
 
         InternalHistogram<Bucket> histogram = response.getAggregations().get("histogram");
         assertThat(histogram, notNullValue());

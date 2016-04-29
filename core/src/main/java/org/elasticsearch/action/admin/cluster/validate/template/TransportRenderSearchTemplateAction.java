@@ -22,7 +22,9 @@ package org.elasticsearch.action.admin.cluster.validate.template;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -33,15 +35,20 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
+
 public class TransportRenderSearchTemplateAction extends HandledTransportAction<RenderSearchTemplateRequest, RenderSearchTemplateResponse> {
 
     private final ScriptService scriptService;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportRenderSearchTemplateAction(ScriptService scriptService, Settings settings, ThreadPool threadPool,
-            TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+            TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+            ClusterService clusterService) {
         super(settings, RenderSearchTemplateAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, RenderSearchTemplateRequest::new);
         this.scriptService = scriptService;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -55,7 +62,8 @@ public class TransportRenderSearchTemplateAction extends HandledTransportAction<
 
             @Override
             protected void doRun() throws Exception {
-                ExecutableScript executable = scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, request);
+                ExecutableScript executable = scriptService.executable(request.template(), ScriptContext.Standard.SEARCH,
+                        Collections.emptyMap(), clusterService.state());
                 BytesReference processedTemplate = (BytesReference) executable.run();
                 RenderSearchTemplateResponse response = new RenderSearchTemplateResponse();
                 response.source(processedTemplate);

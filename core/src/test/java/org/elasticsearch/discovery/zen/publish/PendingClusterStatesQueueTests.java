@@ -28,9 +28,21 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.discovery.zen.publish.PendingClusterStatesQueue.ClusterStateContext;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class PendingClusterStatesQueueTests extends ESTestCase {
 
@@ -96,18 +108,18 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
         List<ClusterStateContext> committedContexts = randomCommitStates(queue);
         ClusterState randomCommitted = randomFrom(committedContexts).state;
         queue.markAsProcessed(randomCommitted);
-        final String processedMaster = randomCommitted.nodes().masterNodeId();
+        final String processedMaster = randomCommitted.nodes().getMasterNodeId();
 
         // now check that queue doesn't contain anything pending from another master
         for (ClusterStateContext context : queue.pendingStates) {
-            final String pendingMaster = context.state.nodes().masterNodeId();
+            final String pendingMaster = context.state.nodes().getMasterNodeId();
             assertThat("found a cluster state from [" + pendingMaster
-                            + "], after a state from [" + processedMaster + "] was proccessed",
+                            + "], after a state from [" + processedMaster + "] was processed",
                     pendingMaster, equalTo(processedMaster));
         }
         // and check all committed contexts from another master were failed
         for (ClusterStateContext context : committedContexts) {
-            if (context.state.nodes().masterNodeId().equals(processedMaster) == false) {
+            if (context.state.nodes().getMasterNodeId().equals(processedMaster) == false) {
                 assertThat(((MockListener) context.listener).failure, notNullValue());
             }
         }
@@ -127,7 +139,8 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
         // now check that queue doesn't contain superseded states
         for (ClusterStateContext context : queue.pendingStates) {
             if (context.committed()) {
-                assertFalse("found a committed cluster state, which is superseded by a failed state.\nFound:" + context.state + "\nfailed:" + toFail,
+                assertFalse("found a committed cluster state, which is superseded by a failed state.\nFound:" +
+                        context.state + "\nfailed:" + toFail,
                         toFail.supersedes(context.state));
             }
         }
@@ -145,7 +158,8 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
             assertThat("removed state is not superseded by failed state. \nRemoved state:" + context + "\nfailed: " + toFail,
                     toFail.supersedes(context.state), equalTo(true));
             assertThat("removed state was failed with wrong exception", ((MockListener) context.listener).failure, notNullValue());
-            assertThat("removed state was failed with wrong exception", ((MockListener) context.listener).failure.getMessage(), containsString("boo"));
+            assertThat("removed state was failed with wrong exception", ((MockListener) context.listener).failure.getMessage(),
+                    containsString("boo"));
         }
     }
 
@@ -158,7 +172,8 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
         assertThat(queue.getNextClusterStateToProcess(), nullValue());
         for (ClusterStateContext context : committedContexts) {
             assertThat("state was failed with wrong exception", ((MockListener) context.listener).failure, notNullValue());
-            assertThat("state was failed with wrong exception", ((MockListener) context.listener).failure.getMessage(), containsString("boo"));
+            assertThat("state was failed with wrong exception", ((MockListener) context.listener).failure.getMessage(),
+                    containsString("boo"));
         }
     }
 
@@ -180,10 +195,11 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
                 highestCommitted = context.state;
             }
         }
+        assert highestCommitted != null;
 
         queue.markAsProcessed(highestCommitted);
-        assertThat(queue.stats().getTotal(), equalTo(states.size() - committedContexts.size()));
-        assertThat(queue.stats().getPending(), equalTo(states.size() - committedContexts.size()));
+        assertThat((long)queue.stats().getTotal(), equalTo(states.size() - (1 + highestCommitted.version())));
+        assertThat((long)queue.stats().getPending(), equalTo(states.size() - (1 + highestCommitted.version())));
         assertThat(queue.stats().getCommitted(), equalTo(0));
     }
 
@@ -220,7 +236,8 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
             ClusterState state = lastClusterStatePerMaster[masterIndex];
             if (state == null) {
                 state = ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder()
-                                .put(new DiscoveryNode(masters[masterIndex], DummyTransportAddress.INSTANCE, Version.CURRENT)).masterNodeId(masters[masterIndex]).build()
+                                .put(new DiscoveryNode(masters[masterIndex], DummyTransportAddress.INSTANCE,
+                                        emptyMap(), emptySet(),Version.CURRENT)).masterNodeId(masters[masterIndex]).build()
                 ).build();
             } else {
                 state = ClusterState.builder(state).incrementVersion().build();

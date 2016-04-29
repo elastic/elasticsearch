@@ -28,22 +28,21 @@ import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -59,63 +58,59 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
     public TransportDeleteAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                  IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                  TransportCreateIndexAction createIndexAction, ActionFilters actionFilters,
-                                 IndexNameExpressionResolver indexNameExpressionResolver, MappingUpdatedAction mappingUpdatedAction,
+                                 IndexNameExpressionResolver indexNameExpressionResolver,
                                  AutoCreateIndex autoCreateIndex) {
         super(settings, DeleteAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
-                mappingUpdatedAction, actionFilters, indexNameExpressionResolver,
-                DeleteRequest::new, DeleteRequest::new, ThreadPool.Names.INDEX);
+            actionFilters, indexNameExpressionResolver,
+            DeleteRequest::new, DeleteRequest::new, ThreadPool.Names.INDEX);
         this.createIndexAction = createIndexAction;
         this.autoCreateIndex = autoCreateIndex;
     }
 
     @Override
-    protected void doExecute(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
+    protected void doExecute(Task task, final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         ClusterState state = clusterService.state();
         if (autoCreateIndex.shouldAutoCreate(request.index(), state)) {
-            createIndexAction.execute(new CreateIndexRequest(request).index(request.index()).cause("auto(delete api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(task, new CreateIndexRequest().index(request.index()).cause("auto(delete api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
-                    innerExecute(request, listener);
+                    innerExecute(task, request, listener);
                 }
 
                 @Override
                 public void onFailure(Throwable e) {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                         // we have the index, do it
-                        innerExecute(request, listener);
+                        innerExecute(task, request, listener);
                     } else {
                         listener.onFailure(e);
                     }
                 }
             });
         } else {
-            innerExecute(request, listener);
+            innerExecute(task, request, listener);
         }
     }
 
     @Override
-    protected void resolveRequest(final MetaData metaData, String concreteIndex, DeleteRequest request) {
-        request.routing(metaData.resolveIndexRouting(request.routing(), request.index()));
-        if (metaData.hasIndex(concreteIndex)) {
-            // check if routing is required, if so, do a broadcast delete
-            MappingMetaData mappingMd = metaData.index(concreteIndex).mappingOrDefault(request.type());
-            if (mappingMd != null && mappingMd.routing().required()) {
-                if (request.routing() == null) {
-                    if (request.versionType() != VersionType.INTERNAL) {
-                        // TODO: implement this feature
-                        throw new IllegalArgumentException("routing value is required for deleting documents of type [" + request.type()
-                                + "] while using version_type [" + request.versionType() + "]");
-                    }
-                    throw new RoutingMissingException(concreteIndex, request.type(), request.id());
-                }
-            }
-        }
-        ShardId shardId = clusterService.operationRouting().shardId(clusterService.state(), concreteIndex, request.id(), request.routing());
+    protected void resolveRequest(final MetaData metaData, IndexMetaData indexMetaData, DeleteRequest request) {
+        resolveAndValidateRouting(metaData, indexMetaData.getIndex().getName(), request);
+        ShardId shardId = clusterService.operationRouting().shardId(clusterService.state(),
+            indexMetaData.getIndex().getName(), request.id(), request.routing());
         request.setShardId(shardId);
     }
 
-    private void innerExecute(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
-        super.doExecute(request, listener);
+    public static void resolveAndValidateRouting(final MetaData metaData, final String concreteIndex,
+                                                 DeleteRequest request) {
+        request.routing(metaData.resolveIndexRouting(request.parent(), request.routing(), request.index()));
+        // check if routing is required, if so, throw error if routing wasn't specified
+        if (request.routing() == null && metaData.routingRequired(concreteIndex, request.type())) {
+            throw new RoutingMissingException(concreteIndex, request.type(), request.id());
+        }
+    }
+
+    private void innerExecute(Task task, final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
+        super.doExecute(task, request, listener);
     }
 
     @Override
@@ -124,7 +119,7 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
     }
 
     @Override
-    protected Tuple<DeleteResponse, DeleteRequest> shardOperationOnPrimary(MetaData metaData, DeleteRequest request) {
+    protected Tuple<DeleteResponse, DeleteRequest> shardOperationOnPrimary(DeleteRequest request) {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
         final WriteResult<DeleteResponse> result = executeDeleteRequestOnPrimary(request, indexShard);
         processAfterWrite(request.refresh(), indexShard, result.location);
@@ -140,7 +135,7 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
 
         assert request.versionType().validateVersionForWrites(request.version());
         return new WriteResult<>(
-            new DeleteResponse(indexShard.shardId().getIndex(), request.type(), request.id(), delete.version(), delete.found()),
+            new DeleteResponse(indexShard.shardId(), request.type(), request.id(), delete.version(), delete.found()),
             delete.getTranslogLocation());
     }
 

@@ -23,7 +23,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.fs.FsService;
-import org.elasticsearch.monitor.jvm.JvmMonitorService;
+import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
@@ -36,7 +36,7 @@ import java.io.IOException;
  */
 public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
 
-    private final JvmMonitorService jvmMonitorService;
+    private final JvmGcMonitorService jvmGcMonitorService;
 
     private final OsService osService;
 
@@ -48,7 +48,7 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
 
     public MonitorService(Settings settings, NodeEnvironment nodeEnvironment, ThreadPool threadPool) throws IOException {
         super(settings);
-        this.jvmMonitorService = new JvmMonitorService(settings, threadPool);
+        this.jvmGcMonitorService = new JvmGcMonitorService(settings, threadPool);
         this.osService = new OsService(settings);
         this.processService = new ProcessService(settings);
         this.jvmService = new JvmService(settings);
@@ -73,16 +73,16 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
 
     @Override
     protected void doStart() {
-        jvmMonitorService.start();
+        jvmGcMonitorService.start();
     }
 
     @Override
     protected void doStop() {
-        jvmMonitorService.stop();
+        jvmGcMonitorService.stop();
     }
 
     @Override
     protected void doClose() {
-        jvmMonitorService.close();
+        jvmGcMonitorService.close();
     }
 }

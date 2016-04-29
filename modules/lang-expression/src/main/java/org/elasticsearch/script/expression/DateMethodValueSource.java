@@ -25,7 +25,6 @@ import java.util.Objects;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
-
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -46,6 +45,7 @@ class DateMethodValueSource extends FieldDataValueSource {
     }
 
     @Override
+    @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
         AtomicFieldData leafData = fieldData.load(leaf);
         assert(leafData instanceof AtomicNumericFieldData);
@@ -55,7 +55,7 @@ class DateMethodValueSource extends FieldDataValueSource {
 
     @Override
     public String description() {
-        return methodName + ": field(" + fieldData.getFieldNames().toString() + ")";
+        return methodName + ": field(" + fieldData.getFieldName() + ")";
     }
 
     @Override

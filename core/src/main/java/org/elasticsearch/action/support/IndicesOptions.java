@@ -26,7 +26,7 @@ import org.elasticsearch.rest.RestRequest;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
 
 /**
@@ -195,8 +195,8 @@ public class IndicesOptions {
 
         //note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return fromOptions(
-                nodeBooleanValue(ignoreUnavailableString, defaultSettings.ignoreUnavailable()),
-                nodeBooleanValue(allowNoIndicesString, defaultSettings.allowNoIndices()),
+                lenientNodeBooleanValue(ignoreUnavailableString, defaultSettings.ignoreUnavailable()),
+                lenientNodeBooleanValue(allowNoIndicesString, defaultSettings.allowNoIndices()),
                 expandWildcardsOpen,
                 expandWildcardsClosed,
                 defaultSettings.allowAliasesToMultipleIndices(),

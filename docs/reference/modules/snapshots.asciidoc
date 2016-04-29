@@ -45,6 +45,15 @@ which returns:
 }
 -----------------------------------
 
+Information about multiple repositories can be fetched in one go by using a comma-delimited list of repository names.
+Star wildcards are supported as well. For example, information about repositories that start with `repo` or that contain `backup`
+can be obtained using the following command:
+
+[source,js]
+-----------------------------------
+GET /_snapshot/repo*,*backup*
+-----------------------------------
+
 If a repository name is not specified, or `_all` is used as repository name Elasticsearch will return information about
 all repositories currently registered in the cluster:
 
@@ -65,7 +74,7 @@ GET /_snapshot/_all
 
 The shared file system repository (`"type": "fs"`) uses the shared file system to store snapshots. In order to register
 the shared file system repository it is necessary to mount the same shared filesystem to the same location on all
-master and data nodes. This location (or one of its parent directories) has to be registered in the `path.repo`
+master and data nodes. This location (or one of its parent directories) must be registered in the `path.repo`
 setting on all master and data nodes.
 
 Assuming that the shared filesystem is mounted to `/mount/backups/my_backup`, the following setting should be added to
@@ -151,7 +160,7 @@ shared file system repository.
 Other repository backends are available in these official plugins:
 
 * {plugins}/repository-s3.html[repository-s3] for S3 repository support
-* https://github.com/elasticsearch/elasticsearch-hadoop/tree/master/repository-hdfs[HDFS Plugin] for Hadoop environments
+* {plugins}/repository-hdfs.html[repository-hdfs] for HDFS repository support in Hadoop environments
 * {plugins}/repository-azure.html[repository-azure] for Azure storage repositories
 
 [float]
@@ -177,7 +186,7 @@ The verification process can also be executed manually by running the following 
 
 [source,js]
 -----------------------------------
-POST /_snapshot/my_backup/_verify
+POST /_snapshot/s3_repository/_verify
 -----------------------------------
 // AUTOSENSE
 
@@ -186,7 +195,7 @@ It returns a list of nodes where repository was successfully verified or an erro
 [float]
 === Snapshot
 
-A repository can contain multiple snapshots of the same cluster. Snapshot are identified by unique names within the
+A repository can contain multiple snapshots of the same cluster. Snapshots are identified by unique names within the
 cluster. A snapshot with the name `snapshot_1` in the repository `my_backup` can be created by executing the following
 command:
 
@@ -248,6 +257,14 @@ Once a snapshot is created information about this snapshot can be obtained using
 [source,sh]
 -----------------------------------
 GET /_snapshot/my_backup/snapshot_1
+-----------------------------------
+// AUTOSENSE
+
+Similar as for repositories, information about multiple snapshots can be queried in one go, supporting wildcards as well:
+
+[source,sh]
+-----------------------------------
+GET /_snapshot/my_backup/snapshot_*,some_other_snapshot
 -----------------------------------
 // AUTOSENSE
 

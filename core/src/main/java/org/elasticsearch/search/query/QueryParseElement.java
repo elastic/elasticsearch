@@ -30,6 +30,6 @@ public class QueryParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        context.parsedQuery(context.indexShard().getQueryShardContext().parse(parser));
+        context.parsedQuery(context.getQueryShardContext().parse(parser));
     }
 }

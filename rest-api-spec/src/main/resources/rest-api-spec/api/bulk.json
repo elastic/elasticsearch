@@ -40,6 +40,10 @@
         "fields": {
           "type": "list",
           "description" : "Default comma-separated list of fields to return in the response for updates"
+        },
+        "pipeline" : {
+          "type" : "string",
+          "description" : "The pipeline id to preprocess incoming documents with"
         }
       }
     },

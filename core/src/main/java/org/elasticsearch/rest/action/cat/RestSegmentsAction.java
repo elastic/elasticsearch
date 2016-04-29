@@ -127,7 +127,7 @@ public class RestSegmentsAction extends AbstractCatAction {
                     for (Segment segment : segments) {
                         table.startRow();
 
-                        table.addCell(shardSegment.getShardRouting().getIndex());
+                        table.addCell(shardSegment.getShardRouting().getIndexName());
                         table.addCell(shardSegment.getShardRouting().getId());
                         table.addCell(shardSegment.getShardRouting().primary() ? "p" : "r");
                         table.addCell(nodes.get(shardSegment.getShardRouting().currentNodeId()).getHostAddress());

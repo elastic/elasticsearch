@@ -24,8 +24,6 @@ import org.joda.time.chrono.ISOChronology;
 import org.joda.time.convert.ConverterManager;
 import org.joda.time.convert.InstantConverter;
 
-import java.io.Serializable;
-
 /**
  * BaseDateTime is an abstract implementation of ReadableDateTime that stores
  * data in <code>long</code> and <code>Chronology</code> fields.
@@ -43,13 +41,7 @@ import java.io.Serializable;
  */
 public abstract class BaseDateTime
         extends AbstractDateTime
-        implements ReadableDateTime, Serializable {
-
-    /**
-     * Serialization lock
-     */
-    private static final long serialVersionUID = -6728882245981L;
-
+        implements ReadableDateTime {
     /**
      * The millis from 1970-01-01T00:00:00Z
      */

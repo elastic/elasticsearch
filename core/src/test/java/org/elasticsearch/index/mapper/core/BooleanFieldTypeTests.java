@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.index.mapper.core;
 
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.junit.Before;
@@ -31,5 +34,33 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
     @Before
     public void setupProperties() {
         setDummyNullValue(true);
+    }
+
+    public void testValueFormat() {
+        MappedFieldType ft = createDefaultFieldType();
+        assertEquals("false", ft.docValueFormat(null, null).format(0));
+        assertEquals("true", ft.docValueFormat(null, null).format(1));
+    }
+
+    public void testValueForSearch() {
+        MappedFieldType ft = createDefaultFieldType();
+        assertEquals(true, ft.valueForSearch("T"));
+        assertEquals(false, ft.valueForSearch("F"));
+        expectThrows(IllegalArgumentException.class, () -> ft.valueForSearch(0));
+        expectThrows(IllegalArgumentException.class, () -> ft.valueForSearch("true"));
+        expectThrows(IllegalArgumentException.class, () -> ft.valueForSearch("G"));
+    }
+
+    public void testTermQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertEquals(new TermQuery(new Term("field", "T")), ft.termQuery("true", null));
+        assertEquals(new TermQuery(new Term("field", "F")), ft.termQuery("false", null));
+
+        ft.setIndexOptions(IndexOptions.NONE);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> ft.termQuery("true", null));
+        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 }

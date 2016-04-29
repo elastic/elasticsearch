@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -31,6 +30,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -38,7 +38,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -80,8 +83,8 @@ public class RestIndicesAction extends AbstractCatAction {
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 ClusterState state = clusterStateResponse.getState();
                 final IndicesOptions concreteIndicesOptions = IndicesOptions.fromOptions(false, true, true, true);
-                final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, concreteIndicesOptions, indices);
-                final String[] openIndices = indexNameExpressionResolver.concreteIndices(state, IndicesOptions.lenientExpandOpen(), indices);
+                final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, concreteIndicesOptions, indices);
+                final String[] openIndices = indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), indices);
                 ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(openIndices);
                 clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
                 client.admin().cluster().health(clusterHealthRequest, new RestActionListener<ClusterHealthResponse>(channel) {
@@ -132,22 +135,22 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("fielddata.evictions", "sibling:pri;alias:fe,fielddataEvictions;default:false;text-align:right;desc:fielddata evictions");
         table.addCell("pri.fielddata.evictions", "default:false;text-align:right;desc:fielddata evictions");
 
-        table.addCell("query_cache.memory_size", "sibling:pri;alias:fcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
+        table.addCell("query_cache.memory_size", "sibling:pri;alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
         table.addCell("pri.query_cache.memory_size", "default:false;text-align:right;desc:used query cache");
 
-        table.addCell("query_cache.evictions", "sibling:pri;alias:fce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
+        table.addCell("query_cache.evictions", "sibling:pri;alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
         table.addCell("pri.query_cache.evictions", "default:false;text-align:right;desc:query cache evictions");
 
-        table.addCell("request_cache.memory_size", "sibling:pri;alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used request cache");
+        table.addCell("request_cache.memory_size", "sibling:pri;alias:rcm,requestCacheMemory;default:false;text-align:right;desc:used request cache");
         table.addCell("pri.request_cache.memory_size", "default:false;text-align:right;desc:used request cache");
 
-        table.addCell("request_cache.evictions", "sibling:pri;alias:qce,queryCacheEvictions;default:false;text-align:right;desc:request cache evictions");
+        table.addCell("request_cache.evictions", "sibling:pri;alias:rce,requestCacheEvictions;default:false;text-align:right;desc:request cache evictions");
         table.addCell("pri.request_cache.evictions", "default:false;text-align:right;desc:request cache evictions");
 
-        table.addCell("request_cache.hit_count", "sibling:pri;alias:qchc,queryCacheHitCount;default:false;text-align:right;desc:request cache hit count");
+        table.addCell("request_cache.hit_count", "sibling:pri;alias:rchc,requestCacheHitCount;default:false;text-align:right;desc:request cache hit count");
         table.addCell("pri.request_cache.hit_count", "default:false;text-align:right;desc:request cache hit count");
 
-        table.addCell("request_cache.miss_count", "sibling:pri;alias:qcmc,queryCacheMissCount;default:false;text-align:right;desc:request cache miss count");
+        table.addCell("request_cache.miss_count", "sibling:pri;alias:rcmc,requestCacheMissCount;default:false;text-align:right;desc:request cache miss count");
         table.addCell("pri.request_cache.miss_count", "default:false;text-align:right;desc:request cache miss count");
 
         table.addCell("flush.total", "sibling:pri;alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");
@@ -219,20 +222,8 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("merges.total_time", "sibling:pri;alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
         table.addCell("pri.merges.total_time", "default:false;text-align:right;desc:time spent in merges");
 
-        table.addCell("percolate.current", "sibling:pri;alias:pc,percolateCurrent;default:false;text-align:right;desc:number of current percolations");
-        table.addCell("pri.percolate.current", "default:false;text-align:right;desc:number of current percolations");
-
-        table.addCell("percolate.memory_size", "sibling:pri;alias:pm,percolateMemory;default:false;text-align:right;desc:memory used by percolations");
-        table.addCell("pri.percolate.memory_size", "default:false;text-align:right;desc:memory used by percolations");
-
         table.addCell("percolate.queries", "sibling:pri;alias:pq,percolateQueries;default:false;text-align:right;desc:number of registered percolation queries");
         table.addCell("pri.percolate.queries", "default:false;text-align:right;desc:number of registered percolation queries");
-
-        table.addCell("percolate.time", "sibling:pri;alias:pti,percolateTime;default:false;text-align:right;desc:time spent percolating");
-        table.addCell("pri.percolate.time", "default:false;text-align:right;desc:time spent percolating");
-
-        table.addCell("percolate.total", "sibling:pri;alias:pto,percolateTotal;default:false;text-align:right;desc:total percolations");
-        table.addCell("pri.percolate.total", "default:false;text-align:right;desc:total percolations");
 
         table.addCell("refresh.total", "sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("pri.refresh.total", "default:false;text-align:right;desc:total refreshes");
@@ -433,20 +424,8 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getTotalTime());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getTotalTime());
 
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolate().getCurrent());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolate().getCurrent());
-
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolate().getMemorySize());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolate().getMemorySize());
-
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolate().getNumQueries());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolate().getNumQueries());
-
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolate().getTime());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolate().getTime());
-
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolate().getCount());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolate().getCount());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolatorCache().getNumQueries());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolatorCache().getNumQueries());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getRefresh().getTotal());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getRefresh().getTotal());
@@ -511,14 +490,14 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(indexStats == null ? null : indexStats.getTotal().getWarmer().totalTime());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getWarmer().totalTime());
 
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getSuggest().getCurrent());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSuggest().getCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getSuggestCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getSuggestCurrent());
 
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getSuggest().getTime());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSuggest().getTime());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getSuggestTime());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getSuggestTime());
 
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getSuggest().getCount());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSuggest().getCount());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSearch().getTotal().getSuggestCount());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSearch().getTotal().getSuggestCount());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getTotalMemory());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getTotalMemory());

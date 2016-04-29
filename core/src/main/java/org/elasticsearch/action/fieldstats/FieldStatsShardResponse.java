@@ -32,17 +32,17 @@ import java.util.Map;
  */
 public class FieldStatsShardResponse extends BroadcastShardResponse {
 
-    private Map<String, FieldStats> fieldStats;
+    private Map<String, FieldStats<?>> fieldStats;
 
     public FieldStatsShardResponse() {
     }
 
-    public FieldStatsShardResponse(ShardId shardId, Map<String, FieldStats> fieldStats) {
+    public FieldStatsShardResponse(ShardId shardId, Map<String, FieldStats<?>> fieldStats) {
         super(shardId);
         this.fieldStats = fieldStats;
     }
 
-    public Map<String, FieldStats> getFieldStats() {
+    public Map<String, FieldStats<?>> getFieldStats() {
         return fieldStats;
     }
 
@@ -54,7 +54,7 @@ public class FieldStatsShardResponse extends BroadcastShardResponse {
         fieldStats = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             String key = in.readString();
-            FieldStats value = FieldStats.read(in);
+            FieldStats value = FieldStats.readFrom(in);
             fieldStats.put(key, value);
         }
     }
@@ -63,7 +63,7 @@ public class FieldStatsShardResponse extends BroadcastShardResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(fieldStats.size());
-        for (Map.Entry<String, FieldStats> entry : fieldStats.entrySet()) {
+        for (Map.Entry<String, FieldStats<?>> entry : fieldStats.entrySet()) {
             out.writeString(entry.getKey());
             entry.getValue().writeTo(out);
         }

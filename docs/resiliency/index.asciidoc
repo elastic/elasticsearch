@@ -1,7 +1,7 @@
 = Elasticsearch Resiliency Status
 
 :JIRA: https://issues.apache.org/jira/browse/LUCENE-
-:GIT:  https://github.com/elasticsearch/elasticsearch/issues/
+:GIT:  https://github.com/elastic/elasticsearch/issues/
 
 == Overview
 
@@ -11,7 +11,7 @@ system, Elasticsearch is complex and has many moving parts, each of which can
 encounter edge cases that require proper handling.  Our resiliency project is
 an ongoing effort to find and fix these edge cases. If you want to keep up
 with all this project on GitHub, see our issues list under the tag
-https://github.com/elasticsearch/elasticsearch/issues?q=label%3Aresiliency[resiliency].
+https://github.com/elastic/elasticsearch/issues?q=label%3Aresiliency[resiliency].
 
 While GitHub is great for sharing our work, it can be difficult to get an
 overview of the current state of affairs and the previous work that has been
@@ -51,32 +51,9 @@ source of information on unexpected edge cases and your bug reports
 help us make fixes that ensure that our system continues to be
 resilient.
 
-If you encounter an issue, https://github.com/elasticsearch/elasticsearch/issues[please report it]!
+If you encounter an issue, https://github.com/elastic/elasticsearch/issues[please report it]!
 
 We are committed to tracking down and fixing all the issues that are posted.
-
-[float]
-=== Use two phase commit for Cluster State publishing (STATUS: ONGOING, v3.0.0)
-
-A master node in Elasticsearch continuously https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery-zen.html#fault-detection[monitors the cluster nodes]
-and removes any node from the cluster that doesn't respond to its pings in a timely
-fashion. If the master is left with fewer nodes than the `discovery.zen.minimum_master_nodes`
-settings, it will step down and a new master election will start.
-
-When a network partition causes a master node to lose many followers, there is a short window
-in time until the node loss is detected and the master steps down. During that window, the
-master may erroneously accept and acknowledge cluster state changes. To avoid this, we introduce
-a new phase to cluster state publishing where the proposed cluster state is sent to all nodes
-but is not yet committed. Only once enough nodes (`discovery.zen.minimum_master_nodes`) actively acknowledge
-the change, it is committed and commit messages are sent to the nodes. See {GIT}13062[#13062].
-
-[float]
-=== Make index creation more user friendly (STATUS: ONGOING)
-
-Today, Elasticsearch returns as soon as a create-index request has been processed,
-but before the shards are allocated.  Users should wait for a `green` cluster health
-before continuing, but we can make this easier for users by waiting for a quorum
-of shards to be allocated before returning.  See {GIT}9126[#9126]
 
 [float]
 === Better request retry mechanism when nodes are disconnected (STATUS: ONGOING)
@@ -113,15 +90,16 @@ space.  The following issues have been identified:
 * Set a hard limit on `from`/`size` parameters {GIT}9311[#9311]. (STATUS: DONE, v2.1.0)
 * Prevent combinatorial explosion in aggregations from causing OOM {GIT}8081[#8081]. (STATUS: ONGOING)
 * Add the byte size of each hit to the request circuit breaker {GIT}9310[#9310]. (STATUS: ONGOING)
+* Limit the size of individual requests and also add a circuit breaker for the total memory used by in-flight request objects {GIT}16011[#16011]. (STATUS: ONGOING)
+
+Other safeguards are tracked in the meta-issue {GIT}11511[#11511].
+
 
 [float]
-=== Loss of documents during network partition (STATUS: ONGOING)
+=== Relocating shards omitted by reporting infrastructure (STATUS: ONGOING)
 
-If a network partition separates a node from the master, there is some window of time before the node detects it. The length of the window is dependent on the type of the partition. This window is extremely small if a socket is broken. More adversarial partitions, for example, silently dropping requests without breaking the socket can take longer (up to 3x30s using current defaults).
-
-If the node hosts a primary shard at the moment of partition, and ends up being isolated from the cluster (which could have resulted in {GIT}2488[split-brain] before), some documents that are being indexed into the primary may be lost if they fail to reach one of the allocated replicas (due to the partition) and that replica is later promoted to primary by the master. {GIT}7572[#7572]
-
-A test to replicate this condition was added in {GIT}7493[#7493].
+Indices stats and indices segments requests reach out to all nodes that have shards of that index. Shards that have relocated from a node
+while the stats request arrives will make that part of the request fail and are just ignored in the overall stats result. {GIT}13719[#13719]
 
 [float]
 === Jepsen Test Failures (STATUS: ONGOING)
@@ -133,13 +111,66 @@ We have increased our test coverage to include scenarios tested by Jepsen. We ma
 
 This status page is a start, but we can do a better job of explicitly documenting the processes at work in Elasticsearch, and what happens in the case of each type of failure. The plan is to have a test case that validates each behavior under simulated conditions. Every test will document the expected results, the associated test code and an explicit PASS or FAIL status for each simulated case.
 
-[float]
-=== Do not allow stale shards to automatically be promoted to primary (STATUS: ONGOING)
+== Unreleased
 
-In some scenarios, after the loss of all valid copies, a stale replica shard can be assigned as a primary. This can lead to
-a loss of acknowledged writes if the valid copies are not lost but are rather temporarily isolated. Work is underway
-({GIT}14671[#14671]) to prevent the automatic promotion of a stale primary and only allow such promotion to occur when
-a system operator manually intervenes.
+[float]
+=== Loss of documents during network partition (STATUS: UNRELEASED, v5.0.0)
+
+If a network partition separates a node from the master, there is some window of time before the node detects it. The length of the window is dependent on the type of the partition. This window is extremely small if a socket is broken. More adversarial partitions, for example, silently dropping requests without breaking the socket can take longer (up to 3x30s using current defaults).
+
+If the node hosts a primary shard at the moment of partition, and ends up being isolated from the cluster (which could have resulted in {GIT}2488[split-brain] before), some documents that are being indexed into the primary may be lost if they fail to reach one of the allocated replicas (due to the partition) and that replica is later promoted to primary by the master ({GIT}7572[#7572]).
+To prevent this situation, the primary needs to wait for the master to acknowledge replica shard failures before acknowledging the write to the client. {GIT}14252[#14252]
+
+[float]
+=== Safe primary relocations (STATUS: UNRELEASED, v5.0.0)
+
+When primary relocation completes, a cluster state is propagated that deactivates the old primary and marks the new primary as active. As
+cluster state changes are not applied synchronously on all nodes, there can be a time interval where the relocation target has processed the
+cluster state and believes to be the active primary and the relocation source has not yet processed the cluster state update and still
+believes itself to be the active primary. This means that an index request that gets routed to the new primary does not get replicated to
+the old primary (as it has been deactivated from point of view of the new primary). If a subsequent read request gets routed to the old
+primary, it cannot see the indexed document. {GIT}15900[#15900]
+
+In the reverse situation where a cluster state update that completes primary relocation is first applied on the relocation source and then
+on the relocation target, each of the nodes believes the other to be the active primary. This leads to the issue of indexing requests
+chasing the primary being quickly sent back and forth between the nodes, potentially making them both go OOM. {GIT}12573[#12573]
+
+[float]
+=== Do not allow stale shards to automatically be promoted to primary (STATUS: UNRELEASED, v5.0.0)
+
+In some scenarios, after the loss of all valid copies, a stale replica shard can be automatically assigned as a primary, preferring old data
+to no data at all ({GIT}14671[#14671]). This can lead to a loss of acknowledged writes if the valid copies are not lost but are rather
+temporarily unavailable. Allocation IDs ({GIT}14739[#14739]) solve this issue by tracking non-stale shard copies in the cluster and using
+this tracking information to allocate primary shards. When all shard copies are lost or only stale ones available, Elasticsearch will wait
+for one of the good shard copies to reappear. In case where all good copies are lost, a manual override command can be used to allocate a
+stale shard copy.
+
+[float]
+=== Make index creation resilient to index closing and full cluster crashes (STATUS: UNRELEASED, v5.0.0)
+
+Recovering an index requires a quorum (with an exception for 2) of shard copies to be available to allocate a primary. This means that
+a primary cannot be assigned if the cluster dies before enough shards have been allocated ({GIT}9126[#9126]). The same happens if an index
+is closed before enough shard copies were started, making it impossible to reopen the index ({GIT}15281[#15281]).
+Allocation IDs ({GIT}14739[#14739]) solve this issue by tracking allocated shard copies in the cluster. This makes it possible to safely
+recover an index in the presence of a single shard copy. Allocation IDs can also distinguish the situation where an index has been created
+but none of the shards have been started. If such an index was inadvertently closed before at least one shard could be started, a fresh
+shard will be allocated upon reopening the index.
+
+
+[float]
+=== Use two phase commit for Cluster State publishing (STATUS: UNRELEASED, v5.0.0)
+
+A master node in Elasticsearch continuously https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery-zen.html#fault-detection[monitors the cluster nodes]
+and removes any node from the cluster that doesn't respond to its pings in a timely
+fashion. If the master is left with fewer nodes than the `discovery.zen.minimum_master_nodes`
+settings, it will step down and a new master election will start.
+
+When a network partition causes a master node to lose many followers, there is a short window
+in time until the node loss is detected and the master steps down. During that window, the
+master may erroneously accept and acknowledge cluster state changes. To avoid this, we introduce
+a new phase to cluster state publishing where the proposed cluster state is sent to all nodes
+but is not yet committed. Only once enough nodes (`discovery.zen.minimum_master_nodes`) actively acknowledge
+the change, it is committed and commit messages are sent to the nodes. See {GIT}13062[#13062].
 
 == Completed
 
@@ -339,7 +370,7 @@ A hash collision makes it possible for two different files to have the same leng
 Even when minimum master nodes is set, split brain can still occur under certain conditions, e.g. disconnection between master eligible nodes, which can lead to data loss. The scenario is described in detail in {GIT}2488[issue 2488]:
 
 * Introduce a new testing infrastructure to simulate different types of node disconnections, including loss of network connection, lost messages, message delays, etc. See {GIT}5631[MockTransportService] support and {GIT}6505[service disruption] for more details. (STATUS: DONE, v1.4.0.Beta1).
-* Added tests that simulated the bug described in issue 2488. You can take a look at the https://github.com/elasticsearch/elasticsearch/commit/7bf3ffe73c44f1208d1f7a78b0629eb48836e726[original commit] of a reproduction on master. (STATUS: DONE, v1.2.0)
+* Added tests that simulated the bug described in issue 2488. You can take a look at the https://github.com/elastic/elasticsearch/commit/7bf3ffe73c44f1208d1f7a78b0629eb48836e726[original commit] of a reproduction on master. (STATUS: DONE, v1.2.0)
 * The bug described in {GIT}2488[issue 2488] is caused by an issue in our zen discovery gossip protocol. This specific issue has been fixed, and work has been done to make the algorithm more resilient. (STATUS: DONE, v1.4.0.Beta1)
 
 [float]
@@ -478,7 +509,7 @@ In order to run a more resilient cluster, we recommend running dedicated master 
 These changes include:
 
 * Improve the balancing algorithm to execute faster across large clusters / many indices. (See issue {GIT}4458[#4458] and {GIT}4459[#4459])
-* Improve cluster state publishing to not create an additional network buffer per node. (More in https://github.com/elasticsearch/elasticsearch/commit/a9e259d438c3cb1d3bef757db2d2a91cf85be609[this commit].)
+* Improve cluster state publishing to not create an additional network buffer per node. (More in https://github.com/elastic/elasticsearch/commit/a9e259d438c3cb1d3bef757db2d2a91cf85be609[this commit].)
 * Improve master handling of large scale mapping updates from data nodes by batching them into a single cluster event. (See issue {GIT}4373[#4373].)
 * Add an ack mechanism where next phase cluster updates are processed only when nodes acknowledged they received the previous cluster state. (See issues {GIT}3736[#3736], {GIT}3786[#3786], {GIT}4114[#4114], {GIT}4169[#4169], {GIT}4228[#4228] and {GIT}4421[#4421], which also include enhancements to the ack mechanism implementation.)
 
@@ -494,7 +525,7 @@ In order to best validate for resiliency in Elasticsearch, we rewrote the Elasti
 
 Each of our integration tests runs against a cluster with a random number of nodes, and indices have a random number of shards and replicas. Merge settings change for every run, indexing is done in serial or async fashion or even wrapped in a bulk operation and thread pool sizes vary to ensure that we don’t produce a deadlock no matter what happens. The list of places we use this randomization infrastructure is long, and growing every day, and has saved us headaches several times before we shipped a particular feature.
 
-At Elasticsearch, we live the philosophy that we can miss a bug once, but never a second time. We make our tests more evil as you go, introducing randomness in all the areas where we discovered bugs. We figure if our tests don’t fail, we are not trying hard enough! If you are interested in how we have evolved our test infrastructure over time check out https://github.com/elasticsearch/elasticsearch/issues?q=label%3Atest[issues labeled with ``test'' on GitHub].
+At Elasticsearch, we live the philosophy that we can miss a bug once, but never a second time. We make our tests more evil as you go, introducing randomness in all the areas where we discovered bugs. We figure if our tests don’t fail, we are not trying hard enough! If you are interested in how we have evolved our test infrastructure over time check out https://github.com/elastic/elasticsearch/issues?q=label%3Atest[issues labeled with ``test'' on GitHub].
 
 [float]
 === Lucene Loses Data On File Descriptors Failure (STATUS: DONE, v0.90.0)

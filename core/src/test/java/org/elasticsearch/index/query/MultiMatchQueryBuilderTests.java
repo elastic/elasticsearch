@@ -21,8 +21,18 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.LegacyNumericRangeQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PointRangeQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.search.MatchQuery;
 
@@ -124,7 +134,9 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
                 .or(instanceOf(FuzzyQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
                 .or(instanceOf(MatchAllDocsQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
-                .or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(PhraseQuery.class)));
+                .or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(PhraseQuery.class))
+                .or(instanceOf(LegacyNumericRangeQuery.class))
+                .or(instanceOf(PointRangeQuery.class)));
     }
 
     public void testIllegaArguments() {
@@ -219,19 +231,19 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"multi_match\" : {\n" + 
-                "    \"query\" : \"quick brown fox\",\n" + 
-                "    \"fields\" : [ \"title^1.0\", \"title.original^1.0\", \"title.shingles^1.0\" ],\n" + 
-                "    \"type\" : \"most_fields\",\n" + 
-                "    \"operator\" : \"OR\",\n" + 
-                "    \"slop\" : 0,\n" + 
-                "    \"prefix_length\" : 0,\n" + 
-                "    \"max_expansions\" : 50,\n" + 
-                "    \"lenient\" : false,\n" + 
-                "    \"zero_terms_query\" : \"NONE\",\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"multi_match\" : {\n" +
+                "    \"query\" : \"quick brown fox\",\n" +
+                "    \"fields\" : [ \"title^1.0\", \"title.original^1.0\", \"title.shingles^1.0\" ],\n" +
+                "    \"type\" : \"most_fields\",\n" +
+                "    \"operator\" : \"OR\",\n" +
+                "    \"slop\" : 0,\n" +
+                "    \"prefix_length\" : 0,\n" +
+                "    \"max_expansions\" : 50,\n" +
+                "    \"lenient\" : false,\n" +
+                "    \"zero_terms_query\" : \"NONE\",\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         MultiMatchQueryBuilder parsed = (MultiMatchQueryBuilder) parseQuery(json);

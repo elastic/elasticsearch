@@ -90,9 +90,9 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
             if (scorer == null) {
                 continue;
             }
-            final TwoPhaseIterator twoPhase = scorer.asTwoPhaseIterator();
+            final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
             if (twoPhase == null) {
-                if (scorer.advance(hitContext.docId()) == hitContext.docId()) {
+                if (scorer.iterator().advance(hitContext.docId()) == hitContext.docId()) {
                     matchedQueries.add(name);
                 }
             } else {

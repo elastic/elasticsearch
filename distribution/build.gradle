@@ -17,15 +17,14 @@
  * under the License.
  */
 
+
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.EmptyDirTask
+import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.UpdateShasTask
 import org.elasticsearch.gradle.test.RunTask
-import org.elasticsearch.gradle.EmptyDirTask
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.gradle.api.InvalidUserDataException
-import org.gradle.internal.nativeintegration.filesystem.Chmod
 
 // for deb/rpm
 buildscript {
@@ -35,19 +34,19 @@ buildscript {
     }
   }
   dependencies {
-    classpath 'com.netflix.nebula:gradle-ospackage-plugin:3.1.0'
+    classpath 'com.netflix.nebula:gradle-ospackage-plugin:3.4.0'
   }
 }
 
 // this is common configuration for distributions, but we also add it here for the license check to use
-ext.dependencyFiles = project(':core').configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
+ext.dependencyFiles = project(':core').configurations.runtime.copyRecursive()
 
 
 /*****************************************************************************
  *                                  Modules                                  *
  *****************************************************************************/
 
-task buildModules(type: Copy) {
+task buildModules(type: Sync) {
   into 'build/modules'
 } 
 
@@ -55,21 +54,31 @@ ext.restTestExpansions = [
   'expected.modules.count': 0,
 ]
 // we create the buildModules task above so the distribution subprojects can
-// depend on it, but we don't actually configure it until projects are evaluated
-// so it can depend on the bundling of plugins (ie modules must have been configured)
-project.gradle.projectsEvaluated {
-  project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each { Project module ->
-    buildModules {
-      dependsOn module.bundlePlugin
-      into(module.name) {
-        from { zipTree(module.bundlePlugin.outputs.files.singleFile) }
-      }
+// depend on it, but we don't actually configure it until here so we can do a single
+// loop over modules to also setup cross task dependencies and increment our modules counter
+project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each { Project module ->
+  buildModules {
+    dependsOn({ project(module.path).bundlePlugin })
+    into(module.name) {
+      from { zipTree(project(module.path).bundlePlugin.outputs.files.singleFile) }
     }
-    configure(subprojects.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
-      distribution.integTest.mustRunAfter(module.integTest)      
-    }
-    restTestExpansions['expected.modules.count'] += 1
   }
+  // We would like to make sure integ tests for the distribution run after
+  // integ tests for the modules included in the distribution. However, gradle
+  // has a bug where depending on a task with a finalizer can sometimes not make
+  // the finalizer task follow the original task immediately. To work around this,
+  // we make the mustRunAfter the finalizer task itself.
+  // See https://discuss.gradle.org/t/cross-project-task-dependencies-ordering-screws-up-finalizers/13190
+  project.configure(project.subprojects.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
+    distribution.afterEvaluate({
+      distribution.integTest.mustRunAfter("${module.path}:integTest#stop")
+    })
+  }
+  // also want to make sure the module's integration tests run after the integ-test-zip (ie rest tests)
+  module.afterEvaluate({
+    module.integTest.mustRunAfter(':distribution:integ-test-zip:integTest#stop')
+  })
+  restTestExpansions['expected.modules.count'] += 1
 }
 
 // make sure we have a clean task since we aren't a java project, but we have tasks that
@@ -84,10 +93,14 @@ subprojects {
    *****************************************************************************/
   apply plugin: 'elasticsearch.rest-test'
   project.integTest {
-    dependsOn(project.assemble)
+    dependsOn project.assemble
     includePackaged project.name == 'integ-test-zip'
     cluster {
       distribution = project.name
+    }
+    if (project.name != 'integ-test-zip') {
+      // see note above with module mustRunAfter about why integTest#stop is used here
+      mustRunAfter ':distribution:integ-test-zip:integTest#stop'
     }
   }
   
@@ -132,6 +145,7 @@ subprojects {
 
     configFiles = copySpec {
       from '../src/main/resources/config'
+      MavenFilteringHack.filter(it, expansions)
     }
 
     commonFiles = copySpec {
@@ -225,10 +239,13 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     dependsOn createEtc, createEtcScripts
     with configFiles
     into "${packagingFiles}/etc/elasticsearch"
+    fileMode 0640
+    dirMode 0750
     /* Explicitly declare the output files so this task doesn't consider itself
       up to date when the directory is created, which it would by default. And
       that'll happen when createEtc runs. */
     outputs.file "${packagingFiles}/etc/elasticsearch/elasticsearch.yml"
+    outputs.file "${packagingFiles}/etc/elasticsearch/jvm.options"
     outputs.file "${packagingFiles}/etc/elasticsearch/logging.yml"
   }
 
@@ -272,6 +289,15 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
       we see it. We'll add it back on to the file name though. */
     version project.version.replace('-SNAPSHOT', '')
 
+    // signing setup
+    if (project.hasProperty('signing.password') && System.getProperty('build.snapshot', 'true') == 'false') {
+      signingKeyId = project.hasProperty('signing.keyId') ? project.property('signing.keyId') : 'D88E42B4'
+      signingKeyPassphrase = project.property('signing.password')
+      signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?
+                           project.file(project.property('signing.secretKeyRingFile')) :
+                           new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
+    }
+
     String scripts = "${packagingFiles}/scripts"
     preInstall file("${scripts}/preinst")
     postInstall file("${scripts}/postinst")
@@ -279,6 +305,8 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     postUninstall file("${scripts}/postrm")
 
     into '/usr/share/elasticsearch'
+    fileMode 0644
+    dirMode 0755
     user 'root'
     permissionGroup 'root'
     with libFiles
@@ -292,6 +320,7 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     }
 
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
+    configurationFile '/etc/elasticsearch/jvm.options'
     configurationFile '/etc/elasticsearch/logging.yml'
     into('/etc') {
       from "${packagingFiles}/etc"
@@ -319,26 +348,27 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     configurationFile project.expansions['path.env']
     into(new File(project.expansions['path.env']).getParent()) {
       from "${project.packagingFiles}/env/elasticsearch"
+      fileMode 0644
+      dirMode 0755
     }
 
     /**
      * Suck up all the empty directories that we need to install into the path.
      */
-    Closure suckUpEmptyDirectories = { path ->
+    Closure suckUpEmptyDirectories = { path, u, g ->
       into(path) {
+        fileMode 0755
         from "${packagingFiles}/${path}"
         includeEmptyDirs true
         createDirectoryEntry true
-        /* All of these empty directories have this ownership. We're just
-          lucky! */
-        user 'elasticsearch'
-        permissionGroup 'elasticsearch'
+        user u
+        permissionGroup g
       }
     }
-    suckUpEmptyDirectories('/var/run')
-    suckUpEmptyDirectories('/var/log')
-    suckUpEmptyDirectories('/var/lib')
-    suckUpEmptyDirectories('/usr/share/elasticsearch')
+    suckUpEmptyDirectories('/var/run', 'elasticsearch', 'elasticsearch')
+    suckUpEmptyDirectories('/var/log', 'elasticsearch', 'elasticsearch')
+    suckUpEmptyDirectories('/var/lib', 'elasticsearch', 'elasticsearch')
+    suckUpEmptyDirectories('/usr/share/elasticsearch', 'root', 'root')
   }
 }
 
@@ -359,7 +389,7 @@ task run(type: RunTask) {}
 
 /**
  * Build some variables that are replaced in the packages. This includes both
- * scripts like bin/elasticsearch and bin/plugin that a user might run and also
+ * scripts like bin/elasticsearch and bin/elasticsearch-plugin that a user might run and also
  * scripts like postinst which are run as part of the installation.
  *
  * <dl>
@@ -371,7 +401,7 @@ task run(type: RunTask) {}
  *  <dt>path.conf</dt>
  *  <dd>The default directory from which to load configuration. This is used in
  *    the packaging scripts, but in that context it is always
- *    /etc/elasticsearch. Its also used in bin/plugin, where it is
+ *    /etc/elasticsearch. Its also used in bin/elasticsearch-plugin, where it is
  *    /etc/elasticsearch for the os packages but $ESHOME/config otherwise.</dd>
  *  <dt>path.env</dt>
  *  <dd>The env file sourced before bin/elasticsearch to set environment

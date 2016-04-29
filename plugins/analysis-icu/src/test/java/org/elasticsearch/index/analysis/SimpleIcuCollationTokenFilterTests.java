@@ -22,18 +22,18 @@ package org.elasticsearch.index.analysis;
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
-
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.StringReader;
 
-import static org.elasticsearch.index.analysis.AnalysisTestUtils.createAnalysisService;
 import static org.hamcrest.Matchers.equalTo;
 
 // Tests borrowed from Solr's Icu collation key filter factory test.
@@ -45,13 +45,12 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * Then things will sort and match correctly.
     */
     public void testBasicUsage() throws Exception {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "tr")
                 .put("index.analysis.filter.myCollator.strength", "primary")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
         assertCollatesToSame(filterFactory, "I WİLL USE TURKİSH CASING", "ı will use turkish casıng");
@@ -61,14 +60,13 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * Test usage of the decomposition option for unicode normalization.
     */
     public void testNormalization() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "tr")
                 .put("index.analysis.filter.myCollator.strength", "primary")
                 .put("index.analysis.filter.myCollator.decomposition", "canonical")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
         assertCollatesToSame(filterFactory, "I W\u0049\u0307LL USE TURKİSH CASING", "ı will use turkish casıng");
@@ -78,14 +76,13 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * Test secondary strength, for english case is not significant.
     */
     public void testSecondaryStrength() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "secondary")
                 .put("index.analysis.filter.myCollator.decomposition", "no")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
         assertCollatesToSame(filterFactory, "TESTING", "testing");
@@ -96,14 +93,13 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * to quaternary level
     */
     public void testIgnorePunctuation() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "primary")
                 .put("index.analysis.filter.myCollator.alternate", "shifted")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
         assertCollatesToSame(filterFactory, "foo-bar", "foo bar");
@@ -114,15 +110,14 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * punctuation or symbols, to quaternary level
     */
     public void testIgnoreWhitespace() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "primary")
                 .put("index.analysis.filter.myCollator.alternate", "shifted")
                 .put("index.analysis.filter.myCollator.variableTop", " ")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
         assertCollatesToSame(filterFactory, "foo bar", "foobar");
@@ -135,13 +130,12 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * foobar-9 sorts before foobar-10
     */
     public void testNumerics() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.numeric", "true")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
         assertCollation(filterFactory, "foobar-9", "foobar-10", -1);
@@ -152,14 +146,13 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * secondary and tertiary
     */
     public void testIgnoreAccentsButNotCase() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "primary")
                 .put("index.analysis.filter.myCollator.caseLevel", "true")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
         assertCollatesToSame(filterFactory, "résumé", "resume");
@@ -173,14 +166,13 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
     * before lowercase ones.
     */
     public void testUpperCaseFirst() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.language", "en")
                 .put("index.analysis.filter.myCollator.strength", "tertiary")
                 .put("index.analysis.filter.myCollator.caseFirst", "upper")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
         assertCollation(filterFactory, "Resume", "resume", -1);
@@ -203,13 +195,12 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
         RuleBasedCollator tailoredCollator = new RuleBasedCollator(baseCollator.getRules() + DIN5007_2_tailorings);
         String tailoredRules = tailoredCollator.getRules();
 
-        Settings settings = Settings.settingsBuilder()
-                .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
                 .put("index.analysis.filter.myCollator.rules", tailoredRules)
                 .put("index.analysis.filter.myCollator.strength", "primary")
                 .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("myCollator");
         assertCollatesToSame(filterFactory, "Töne", "Toene");

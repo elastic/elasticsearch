@@ -80,7 +80,7 @@ public class CollectionUtilsTests extends ESTestCase {
             array.append(new BytesRef(s));
         }
         if (randomBoolean()) {
-            Collections.shuffle(tmpList, getRandom());
+            Collections.shuffle(tmpList, random());
             for (BytesRef ref : tmpList) {
                 array.append(ref);
             }
@@ -111,7 +111,7 @@ public class CollectionUtilsTests extends ESTestCase {
             array.append(new BytesRef(s));
         }
         if (randomBoolean()) {
-            Collections.shuffle(values, getRandom());
+            Collections.shuffle(values, random());
         }
         int[] indices = new int[array.size()];
         for (int i = 0; i < indices.length; i++) {

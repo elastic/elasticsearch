@@ -20,25 +20,24 @@
 package org.elasticsearch.index.analysis;
 
 import com.ibm.icu.text.Normalizer2;
-
 import org.apache.lucene.analysis.CharFilter;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.StringReader;
 
-import static org.elasticsearch.index.analysis.AnalysisTestUtils.createAnalysisService;
 
 /**
  * Test
  */
 public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
     public void testDefaultSetting() throws Exception {
-        Settings settings = Settings.settingsBuilder()
-            .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
             .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
         CharFilterFactory charFilterFactory = analysisService.charFilter("myNormalizerChar");
 
         String input = "ʰ㌰゙5℃№㈱㌘，バッファーの正規化のテスト．㋐㋑㋒㋓㋔ｶｷｸｹｺｻﾞｼﾞｽﾞｾﾞｿﾞg̈각/각நிเกषिchkʷक्षि";
@@ -57,13 +56,12 @@ public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
     }
 
     public void testNameAndModeSetting() throws Exception {
-        Settings settings = Settings.settingsBuilder()
-            .put("path.home", createTempDir())
+        Settings settings = Settings.builder()
             .put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer")
             .put("index.analysis.char_filter.myNormalizerChar.name", "nfkc")
             .put("index.analysis.char_filter.myNormalizerChar.mode", "decompose")
             .build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings, new AnalysisICUPlugin()::onModule);
         CharFilterFactory charFilterFactory = analysisService.charFilter("myNormalizerChar");
 
         String input = "ʰ㌰゙5℃№㈱㌘，バッファーの正規化のテスト．㋐㋑㋒㋓㋔ｶｷｸｹｺｻﾞｼﾞｽﾞｾﾞｿﾞg̈각/각நிเกषिchkʷक्षि";

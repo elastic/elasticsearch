@@ -20,9 +20,14 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +50,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -53,10 +57,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             // Rebalancing is causing some checks after restore to randomly fail
             // due to https://github.com/elastic/elasticsearch/issues/9421
-            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
             .build();
     }
 
@@ -87,7 +91,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static void stopNode(final String node) throws IOException {
-        internalCluster().stopRandomNode(settings -> settings.get("name").equals(node));
+        internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
     }
 
     public void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {
@@ -132,6 +136,32 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return null;
     }
 
+    public static void blockAllDataNodes(String repository) {
+        for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            ((MockRepository)repositoriesService.repository(repository)).blockOnDataFiles(true);
+        }
+    }
+
+    public static void unblockAllDataNodes(String repository) {
+        for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            ((MockRepository)repositoriesService.repository(repository)).unblock();
+        }
+    }
+
+    public void waitForBlockOnAnyDataNode(String repository, TimeValue timeout) throws InterruptedException {
+        if (false == awaitBusy(() -> {
+            for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+                MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
+                if (mockRepository.blocked()) {
+                    return true;
+                }
+            }
+            return false;
+        }, timeout.millis(), TimeUnit.MILLISECONDS)) {
+            fail("Timeout waiting for repository block on any data node!!!");
+        }
+    }
+
     public static void unblockNode(String node) {
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository("test-repo")).unblock();
     }
@@ -171,7 +201,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         private long stopWaitingAt = -1;
 
         public BlockingClusterStateListener(ClusterService clusterService, String blockOn, String countOn, Priority passThroughPriority) {
-            this(clusterService, blockOn, countOn, passThroughPriority, TimeValue.timeValueMinutes(1));
+            // Waiting for the 70 seconds here to make sure that the last check at 65 sec mark in assertBusyPendingTasks has a chance
+            // to finish before we timeout on the cluster state block. Otherwise the last check in assertBusyPendingTasks kicks in
+            // after the cluster state block clean up takes place and it's assert doesn't reflect the actual failure
+            this(clusterService, blockOn, countOn, passThroughPriority, TimeValue.timeValueSeconds(70));
         }
 
         public BlockingClusterStateListener(ClusterService clusterService, final String blockOn, final String countOn, Priority passThroughPriority, TimeValue timeout) {

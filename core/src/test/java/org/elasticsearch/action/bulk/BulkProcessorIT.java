@@ -20,7 +20,6 @@
 package org.elasticsearch.action.bulk;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -105,7 +105,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
     public void testBulkProcessorConcurrentRequests() throws Exception {
         int bulkActions = randomIntBetween(10, 100);
         int numDocs = randomIntBetween(bulkActions, bulkActions + 100);
-        int concurrentRequests = randomIntBetween(0, 10);
+        int concurrentRequests = randomIntBetween(0, 7);
 
         int expectedBulkActions = numDocs / bulkActions;
 
@@ -141,7 +141,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
 
         Set<String> ids = new HashSet<>();
         for (BulkItemResponse bulkItemResponse : listener.bulkItems) {
-            assertThat(bulkItemResponse.isFailed(), equalTo(false));
+            assertThat(bulkItemResponse.getFailureMessage(), bulkItemResponse.isFailed(), equalTo(false));
             assertThat(bulkItemResponse.getIndex(), equalTo("test"));
             assertThat(bulkItemResponse.getType(), equalTo("test"));
             //with concurrent requests > 1 we can't rely on the order of the bulk requests
@@ -153,11 +153,11 @@ public class BulkProcessorIT extends ESIntegTestCase {
         assertMultiGetResponse(multiGetRequestBuilder.get(), numDocs);
     }
 
-    //https://github.com/elasticsearch/elasticsearch/issues/5038
+    //https://github.com/elastic/elasticsearch/issues/5038
     public void testBulkProcessorConcurrentRequestsNoNodeAvailableException() throws Exception {
         //we create a transport client with no nodes to make sure it throws NoNodeAvailableException
         Settings settings = Settings.builder()
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         Client transportClient = TransportClient.builder().settings(settings).build();
 
@@ -203,7 +203,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                 //let's make sure that the bulk action limit trips, one single execution will index all the documents
                 .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(randomIntBetween(1, 10),
-                        RandomPicks.randomFrom(getRandom(), ByteSizeUnit.values())))
+                        RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
                 .build();
 
         MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);

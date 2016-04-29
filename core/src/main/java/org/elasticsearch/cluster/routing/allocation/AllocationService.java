@@ -35,16 +35,18 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -61,14 +63,17 @@ import java.util.stream.Collectors;
 public class AllocationService extends AbstractComponent {
 
     private final AllocationDeciders allocationDeciders;
+    private final GatewayAllocator gatewayAllocator;
+    private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
-    private final ShardsAllocators shardsAllocators;
 
     @Inject
-    public AllocationService(Settings settings, AllocationDeciders allocationDeciders, ShardsAllocators shardsAllocators, ClusterInfoService clusterInfoService) {
+    public AllocationService(Settings settings, AllocationDeciders allocationDeciders, GatewayAllocator gatewayAllocator,
+                             ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
         super(settings);
         this.allocationDeciders = allocationDeciders;
-        this.shardsAllocators = shardsAllocators;
+        this.gatewayAllocator = gatewayAllocator;
+        this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
     }
 
@@ -90,11 +95,11 @@ public class AllocationService extends AbstractComponent {
         if (!changed) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
         }
-        shardsAllocators.applyStartedShards(allocation);
+        gatewayAllocator.applyStartedShards(allocation);
         if (withReroute) {
             reroute(allocation);
         }
-        final RoutingAllocation.Result result = buildChangedResult(clusterState.metaData(), routingNodes);
+        final RoutingAllocation.Result result = buildChangedResult(clusterState.metaData(), clusterState.routingTable(), routingNodes);
 
         String startedShardsAsString = firstListElementsToCommaDelimitedString(startedShards, s -> s.shardId().toString());
         logClusterHealthStateChange(
@@ -103,37 +108,45 @@ public class AllocationService extends AbstractComponent {
                 "shards started [" + startedShardsAsString + "] ..."
         );
         return result;
-    }
-
-
-    protected RoutingAllocation.Result buildChangedResult(MetaData metaData, RoutingNodes routingNodes) {
-        return buildChangedResult(metaData, routingNodes, new RoutingExplanations());
 
     }
-    protected RoutingAllocation.Result buildChangedResult(MetaData metaData, RoutingNodes routingNodes, RoutingExplanations explanations) {
-        final RoutingTable routingTable = new RoutingTable.Builder().updateNodes(routingNodes).build();
-        MetaData newMetaData = updateMetaDataWithRoutingTable(metaData,routingTable);
-        return new RoutingAllocation.Result(true, routingTable.validateRaiseException(newMetaData), newMetaData, explanations);
+
+    protected RoutingAllocation.Result buildChangedResult(MetaData oldMetaData, RoutingTable oldRoutingTable, RoutingNodes newRoutingNodes) {
+        return buildChangedResult(oldMetaData, oldRoutingTable, newRoutingNodes, new RoutingExplanations());
+
+    }
+
+    protected RoutingAllocation.Result buildChangedResult(MetaData oldMetaData, RoutingTable oldRoutingTable, RoutingNodes newRoutingNodes,
+                                                          RoutingExplanations explanations) {
+        final RoutingTable newRoutingTable = new RoutingTable.Builder().updateNodes(newRoutingNodes).build();
+        MetaData newMetaData = updateMetaDataWithRoutingTable(oldMetaData, oldRoutingTable, newRoutingTable);
+        assert newRoutingTable.validate(newMetaData); // validates the routing table is coherent with the cluster state metadata
+        return new RoutingAllocation.Result(true, newRoutingTable, newMetaData, explanations);
     }
 
     /**
-     * Updates the current {@link MetaData} based on the newly created {@link RoutingTable}.
+     * Updates the current {@link MetaData} based on the newly created {@link RoutingTable}. Specifically
+     * we update {@link IndexMetaData#getActiveAllocationIds()} and {@link IndexMetaData#primaryTerm(int)} based on
+     * the changes made during this allocation.
      *
-     * @param currentMetaData {@link MetaData} object from before the routing table was changed.
+     * @param oldMetaData     {@link MetaData} object from before the routing table was changed.
+     * @param oldRoutingTable {@link RoutingTable} from before the  change.
      * @param newRoutingTable new {@link RoutingTable} created by the allocation change
      * @return adapted {@link MetaData}, potentially the original one if no change was needed.
      */
-    static MetaData updateMetaDataWithRoutingTable(MetaData currentMetaData, RoutingTable newRoutingTable) {
-        // make sure index meta data and routing tables are in sync w.r.t active allocation ids
+    static MetaData updateMetaDataWithRoutingTable(MetaData oldMetaData, RoutingTable oldRoutingTable, RoutingTable newRoutingTable) {
         MetaData.Builder metaDataBuilder = null;
-        for (IndexRoutingTable indexRoutingTable : newRoutingTable) {
-            final IndexMetaData indexMetaData = currentMetaData.index(indexRoutingTable.getIndex());
-            if (indexMetaData == null) {
-                throw new IllegalStateException("no metadata found for index [" + indexRoutingTable.index() + "]");
+        for (IndexRoutingTable newIndexTable : newRoutingTable) {
+            final IndexMetaData oldIndexMetaData = oldMetaData.index(newIndexTable.getIndex());
+            if (oldIndexMetaData == null) {
+                throw new IllegalStateException("no metadata found for index " + newIndexTable.getIndex().getName());
             }
             IndexMetaData.Builder indexMetaDataBuilder = null;
-            for (IndexShardRoutingTable shardRoutings : indexRoutingTable) {
-                Set<String> activeAllocationIds = shardRoutings.activeShards().stream()
+            for (IndexShardRoutingTable newShardTable : newIndexTable) {
+                final ShardId shardId = newShardTable.shardId();
+
+                // update activeAllocationIds
+                Set<String> activeAllocationIds = newShardTable.activeShards().stream()
                         .map(ShardRouting::allocationId)
                         .filter(Objects::nonNull)
                         .map(AllocationId::getId)
@@ -141,19 +154,44 @@ public class AllocationService extends AbstractComponent {
                 // only update active allocation ids if there is an active shard
                 if (activeAllocationIds.isEmpty() == false) {
                     // get currently stored allocation ids
-                    Set<String> storedAllocationIds = indexMetaData.activeAllocationIds(shardRoutings.shardId().id());
+                    Set<String> storedAllocationIds = oldIndexMetaData.activeAllocationIds(shardId.id());
                     if (activeAllocationIds.equals(storedAllocationIds) == false) {
                         if (indexMetaDataBuilder == null) {
-                            indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
+                            indexMetaDataBuilder = IndexMetaData.builder(oldIndexMetaData);
                         }
-
-                        indexMetaDataBuilder.putActiveAllocationIds(shardRoutings.shardId().id(), activeAllocationIds);
+                        indexMetaDataBuilder.putActiveAllocationIds(shardId.id(), activeAllocationIds);
                     }
+                }
+
+                // update primary terms
+                final ShardRouting newPrimary = newShardTable.primaryShard();
+                if (newPrimary == null) {
+                    throw new IllegalStateException("missing primary shard for " + newShardTable.shardId());
+                }
+                final ShardRouting oldPrimary = oldRoutingTable.shardRoutingTable(shardId).primaryShard();
+                if (oldPrimary == null) {
+                    throw new IllegalStateException("missing primary shard for " + newShardTable.shardId());
+                }
+                // we update the primary term on initial assignment or when a replica is promoted. Most notably we do *not*
+                // update them when a primary relocates
+                if (newPrimary.unassigned() ||
+                        newPrimary.isSameAllocation(oldPrimary) ||
+                        // we do not use newPrimary.isTargetRelocationOf(oldPrimary) because that one enforces newPrimary to
+                        // be initializing. However, when the target shard is activated, we still want the primary term to staty
+                        // the same
+                        (oldPrimary.relocating() && newPrimary.isSameAllocation(oldPrimary.buildTargetRelocatingShard()))) {
+                    // do nothing
+                } else {
+                    // incrementing the primary term
+                    if (indexMetaDataBuilder == null) {
+                        indexMetaDataBuilder = IndexMetaData.builder(oldIndexMetaData);
+                    }
+                    indexMetaDataBuilder.primaryTerm(shardId.id(), oldIndexMetaData.primaryTerm(shardId.id()) + 1);
                 }
             }
             if (indexMetaDataBuilder != null) {
                 if (metaDataBuilder == null) {
-                    metaDataBuilder = MetaData.builder(currentMetaData);
+                    metaDataBuilder = MetaData.builder(oldMetaData);
                 }
                 metaDataBuilder.put(indexMetaDataBuilder);
             }
@@ -161,7 +199,7 @@ public class AllocationService extends AbstractComponent {
         if (metaDataBuilder != null) {
             return metaDataBuilder.build();
         } else {
-            return currentMetaData;
+            return oldMetaData;
         }
     }
 
@@ -180,16 +218,19 @@ public class AllocationService extends AbstractComponent {
         routingNodes.unassigned().shuffle();
         FailedRerouteAllocation allocation = new FailedRerouteAllocation(allocationDeciders, routingNodes, clusterState.nodes(), failedShards, clusterInfoService.getClusterInfo());
         boolean changed = false;
-        for (FailedRerouteAllocation.FailedShard failedShard : failedShards) {
+        // as failing primaries also fail associated replicas, we fail replicas first here so that their nodes are added to ignore list
+        List<FailedRerouteAllocation.FailedShard> orderedFailedShards = new ArrayList<>(failedShards);
+        orderedFailedShards.sort(Comparator.comparing(failedShard -> failedShard.shard.primary()));
+        for (FailedRerouteAllocation.FailedShard failedShard : orderedFailedShards) {
             changed |= applyFailedShard(allocation, failedShard.shard, true, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShard.message, failedShard.failure,
                     System.nanoTime(), System.currentTimeMillis()));
         }
         if (!changed) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
         }
-        shardsAllocators.applyFailedShards(allocation);
+        gatewayAllocator.applyFailedShards(allocation);
         reroute(allocation);
-        final RoutingAllocation.Result result = buildChangedResult(clusterState.metaData(), routingNodes);
+        final RoutingAllocation.Result result = buildChangedResult(clusterState.metaData(), clusterState.routingTable(), routingNodes);
         String failedShardsAsString = firstListElementsToCommaDelimitedString(failedShards, s -> s.shard.shardId().toString());
         logClusterHealthStateChange(
                 new ClusterStateHealth(clusterState),
@@ -236,7 +277,7 @@ public class AllocationService extends AbstractComponent {
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
         reroute(allocation);
-        RoutingAllocation.Result result = buildChangedResult(clusterState.metaData(), routingNodes, explanations);
+        RoutingAllocation.Result result = buildChangedResult(clusterState.metaData(), clusterState.routingTable(), routingNodes, explanations);
         logClusterHealthStateChange(
                 new ClusterStateHealth(clusterState),
                 new ClusterStateHealth(clusterState.getMetaData(), result.routingTable()),
@@ -244,6 +285,7 @@ public class AllocationService extends AbstractComponent {
         );
         return result;
     }
+
 
     /**
      * Reroutes the routing table based on the live nodes.
@@ -268,7 +310,7 @@ public class AllocationService extends AbstractComponent {
         if (!reroute(allocation)) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
         }
-        RoutingAllocation.Result result = buildChangedResult(clusterState.metaData(), routingNodes);
+        RoutingAllocation.Result result = buildChangedResult(clusterState.metaData(), clusterState.routingTable(), routingNodes);
         logClusterHealthStateChange(
                 new ClusterStateHealth(clusterState),
                 new ClusterStateHealth(clusterState.getMetaData(), result.routingTable()),
@@ -301,14 +343,10 @@ public class AllocationService extends AbstractComponent {
         if (allocation.routingNodes().unassigned().size() > 0) {
             updateLeftDelayOfUnassignedShards(allocation, settings);
 
-            changed |= shardsAllocators.allocateUnassigned(allocation);
+            changed |= gatewayAllocator.allocateUnassigned(allocation);
         }
 
-        // move shards that no longer can be allocated
-        changed |= moveShards(allocation);
-
-        // rebalance
-        changed |= shardsAllocators.rebalance(allocation);
+        changed |= shardsAllocator.allocate(allocation);
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
         return changed;
     }
@@ -317,85 +355,26 @@ public class AllocationService extends AbstractComponent {
     public static void updateLeftDelayOfUnassignedShards(RoutingAllocation allocation, Settings settings) {
         for (ShardRouting shardRouting : allocation.routingNodes().unassigned()) {
             final MetaData metaData = allocation.metaData();
-            final IndexMetaData indexMetaData = metaData.index(shardRouting.index());
+            final IndexMetaData indexMetaData = metaData.getIndexSafe(shardRouting.index());
             shardRouting.unassignedInfo().updateDelay(allocation.getCurrentNanoTime(), settings, indexMetaData.getSettings());
         }
     }
 
-    private boolean moveShards(RoutingAllocation allocation) {
-        boolean changed = false;
-
-        // create a copy of the shards interleaving between nodes, and check if they can remain
-        List<ShardRouting> shards = new ArrayList<>();
-        int index = 0;
-        boolean found = true;
-        final RoutingNodes routingNodes = allocation.routingNodes();
-        while (found) {
-            found = false;
-            for (RoutingNode routingNode : routingNodes) {
-                if (index >= routingNode.size()) {
-                    continue;
-                }
-                found = true;
-                shards.add(routingNode.get(index));
-            }
-            index++;
-        }
-        for (int i = 0; i < shards.size(); i++) {
-            ShardRouting shardRouting = shards.get(i);
-            // we can only move started shards...
-            if (!shardRouting.started()) {
-                continue;
-            }
-            final RoutingNode routingNode = routingNodes.node(shardRouting.currentNodeId());
-            Decision decision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-            if (decision.type() == Decision.Type.NO) {
-                logger.debug("[{}][{}] allocated on [{}], but can no longer be allocated on it, moving...", shardRouting.index(), shardRouting.id(), routingNode.node());
-                boolean moved = shardsAllocators.move(shardRouting, routingNode, allocation);
-                if (!moved) {
-                    logger.debug("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
-                } else {
-                    changed = true;
-                }
-            }
-        }
-        return changed;
-    }
-
     private boolean electPrimariesAndUnassignedDanglingReplicas(RoutingAllocation allocation) {
         boolean changed = false;
-        RoutingNodes routingNodes = allocation.routingNodes();
+        final RoutingNodes routingNodes = allocation.routingNodes();
         if (routingNodes.unassigned().getNumPrimaries() == 0) {
             // move out if we don't have unassigned primaries
             return changed;
         }
-
-        // go over and remove dangling replicas that are initializing for primary shards
-        List<ShardRouting> shardsToFail = new ArrayList<>();
-        for (ShardRouting shardEntry : routingNodes.unassigned()) {
-            if (shardEntry.primary()) {
-                for (ShardRouting routing : routingNodes.assignedShards(shardEntry)) {
-                    if (!routing.primary() && routing.initializing()) {
-                        shardsToFail.add(routing);
-                    }
-                }
-
-            }
-        }
-        for (ShardRouting shardToFail : shardsToFail) {
-            changed |= applyFailedShard(allocation, shardToFail, false,
-                    new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "primary failed while replica initializing",
-                            null, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
-        }
-
         // now, go over and elect a new primary if possible, not, from this code block on, if one is elected,
         // routingNodes.hasUnassignedPrimaries() will potentially be false
-
         for (ShardRouting shardEntry : routingNodes.unassigned()) {
             if (shardEntry.primary()) {
+                // remove dangling replicas that are initializing for primary shards
+                changed |= failReplicasForUnassignedPrimary(allocation, shardEntry);
                 ShardRouting candidate = allocation.routingNodes().activeReplica(shardEntry);
                 if (candidate != null) {
-                    IndexMetaData index = allocation.metaData().index(candidate.index());
                     routingNodes.swapPrimaryFlag(shardEntry, candidate);
                     if (candidate.relocatingNodeId() != null) {
                         changed = true;
@@ -410,6 +389,7 @@ public class AllocationService extends AbstractComponent {
                             }
                         }
                     }
+                    IndexMetaData index = allocation.metaData().getIndexSafe(candidate.index());
                     if (IndexMetaData.isIndexUsingShadowReplicas(index.getSettings())) {
                         routingNodes.reinitShadowPrimary(candidate);
                         changed = true;
@@ -427,7 +407,7 @@ public class AllocationService extends AbstractComponent {
      */
     private void applyNewNodes(RoutingAllocation allocation) {
         final RoutingNodes routingNodes = allocation.routingNodes();
-        for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().dataNodes().values()) {
+        for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().getDataNodes().values()) {
             DiscoveryNode node = cursor.value;
             if (!routingNodes.isKnown(node)) {
                 routingNodes.addNode(node);
@@ -439,7 +419,7 @@ public class AllocationService extends AbstractComponent {
         boolean changed = false;
         for (RoutingNodes.RoutingNodesIterator it = allocation.routingNodes().nodes(); it.hasNext(); ) {
             RoutingNode node = it.next();
-            if (allocation.nodes().dataNodes().containsKey(node.nodeId())) {
+            if (allocation.nodes().getDataNodes().containsKey(node.nodeId())) {
                 // its a live node, continue
                 continue;
             }
@@ -453,6 +433,22 @@ public class AllocationService extends AbstractComponent {
             // its a dead node, remove it, note, its important to remove it *after* we apply failed shard
             // since it relies on the fact that the RoutingNode exists in the list of nodes
             it.remove();
+        }
+        return changed;
+    }
+
+    private boolean failReplicasForUnassignedPrimary(RoutingAllocation allocation, ShardRouting primary) {
+        List<ShardRouting> replicas = new ArrayList<>();
+        for (ShardRouting routing : allocation.routingNodes().assignedShards(primary)) {
+            if (!routing.primary() && routing.initializing()) {
+                replicas.add(routing);
+            }
+        }
+        boolean changed = false;
+        for (ShardRouting routing : replicas) {
+            changed |= applyFailedShard(allocation, routing, false,
+                    new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "primary failed while replica initializing",
+                            null, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
         }
         return changed;
     }
@@ -523,7 +519,6 @@ public class AllocationService extends AbstractComponent {
             logger.debug("{} ignoring shard failure, unknown index in {} ({})", failedShard.shardId(), failedShard, unassignedInfo.shortSummary());
             return false;
         }
-
         RoutingNodes routingNodes = allocation.routingNodes();
 
         RoutingNodes.RoutingNodeIterator matchedNode = routingNodes.routingNodeIter(failedShard.currentNodeId());
@@ -546,7 +541,10 @@ public class AllocationService extends AbstractComponent {
             logger.debug("{} ignoring shard failure, unknown allocation id in {} ({})", failedShard.shardId(), failedShard, unassignedInfo.shortSummary());
             return false;
         }
-
+        if (failedShard.primary()) {
+            // fail replicas first otherwise we move RoutingNodes into an inconsistent state
+            failReplicasForUnassignedPrimary(allocation, failedShard);
+        }
         // replace incoming instance to make sure we work on the latest one. Copy it to maintain information during modifications.
         failedShard = new ShardRouting(matchedNode.current());
 
@@ -606,7 +604,7 @@ public class AllocationService extends AbstractComponent {
         return routingNodes;
     }
 
-    /** ovrride this to control time based decisions during allocation */
+    /** override this to control time based decisions during allocation */
     protected long currentNanoTime() {
         return System.nanoTime();
     }

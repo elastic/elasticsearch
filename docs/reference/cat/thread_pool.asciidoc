@@ -58,12 +58,11 @@ Currently available <<modules-threadpool,thread pools>>:
 |`index` |`i` |Thread pool used for <<docs-index_,index>>/<<docs-delete,delete>> operations
 |`management` |`ma` |Thread pool used for management of Elasticsearch (e.g. cluster management)
 |`force_merge` |`fm` |Thread pool used for <<indices-forcemerge,force merge>> operations
-|`percolate` |`p` |Thread pool used for <<search-percolate,percolator>> operations
 |`refresh` |`r` |Thread pool used for <<indices-refresh,refresh>> operations
 |`search` |`s` |Thread pool used for <<search-search,search>>/<<search-count,count>> operations
 |`snapshot` |`sn` |Thread pool used for <<modules-snapshots,snapshot>> operations
 |`suggest` |`su` |Thread pool used for <<search-suggesters,suggester>> operations
-|`warmer` |`w` |Thread pool used for <<indices-warmers,index warm-up>> operations
+|`warmer` |`w` |Thread pool used for index warm-up operations
 |=======================================================================
 
 The thread pool name (or alias) must be combined with a thread pool field below

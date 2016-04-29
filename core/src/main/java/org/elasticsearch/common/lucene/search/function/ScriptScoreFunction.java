@@ -20,6 +20,7 @@
 package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.ExplainableSearchScript;
@@ -57,18 +58,8 @@ public class ScriptScoreFunction extends ScoreFunction {
         }
 
         @Override
-        public int nextDoc() throws IOException {
+        public DocIdSetIterator iterator() {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long cost() {
-            return 1;
         }
     }
 
@@ -141,5 +132,10 @@ public class ScriptScoreFunction extends ScoreFunction {
     protected boolean doEquals(ScoreFunction other) {
         ScriptScoreFunction scriptScoreFunction = (ScriptScoreFunction) other;
         return Objects.equals(this.sScript, scriptScoreFunction.sScript);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(sScript);
     }
 }

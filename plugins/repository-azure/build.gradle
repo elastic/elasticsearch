@@ -23,7 +23,7 @@ esplugin {
 }
 
 dependencies {
-  compile 'com.microsoft.azure:azure-storage:2.0.0'
+  compile 'com.microsoft.azure:azure-storage:4.0.0'
   compile 'org.apache.commons:commons-lang3:3.3.2'
 }
 
@@ -35,6 +35,8 @@ dependencyLicenses {
   mapping from: /stax-.*/, to: 'stax'
 }
 
-compileJava.options.compilerArgs << '-Xlint:-deprecation,-serial'
-compileTestJava.options.compilerArgs << '-Xlint:-deprecation'
-
+thirdPartyAudit.excludes = [
+  // Optional and not enabled by Elasticsearch
+  'org.slf4j.Logger',
+  'org.slf4j.LoggerFactory',
+]

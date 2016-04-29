@@ -41,8 +41,6 @@ public class StartRecoveryRequest extends TransportRequest {
 
     private DiscoveryNode targetNode;
 
-    private boolean markAsRelocated;
-
     private Store.MetadataSnapshot metadataSnapshot;
 
     private RecoveryState.Type recoveryType;
@@ -56,12 +54,11 @@ public class StartRecoveryRequest extends TransportRequest {
      * @param sourceNode       The node to recover from
      * @param targetNode       The node to recover to
      */
-    public StartRecoveryRequest(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, boolean markAsRelocated, Store.MetadataSnapshot metadataSnapshot, RecoveryState.Type recoveryType, long recoveryId) {
+    public StartRecoveryRequest(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, Store.MetadataSnapshot metadataSnapshot, RecoveryState.Type recoveryType, long recoveryId) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
-        this.markAsRelocated = markAsRelocated;
         this.recoveryType = recoveryType;
         this.metadataSnapshot = metadataSnapshot;
     }
@@ -82,10 +79,6 @@ public class StartRecoveryRequest extends TransportRequest {
         return targetNode;
     }
 
-    public boolean markAsRelocated() {
-        return markAsRelocated;
-    }
-
     public RecoveryState.Type recoveryType() {
         return recoveryType;
     }
@@ -99,9 +92,8 @@ public class StartRecoveryRequest extends TransportRequest {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
-        sourceNode = DiscoveryNode.readNode(in);
-        targetNode = DiscoveryNode.readNode(in);
-        markAsRelocated = in.readBoolean();
+        sourceNode = new DiscoveryNode(in);
+        targetNode = new DiscoveryNode(in);
         metadataSnapshot = new Store.MetadataSnapshot(in);
         recoveryType = RecoveryState.Type.fromId(in.readByte());
 
@@ -114,7 +106,6 @@ public class StartRecoveryRequest extends TransportRequest {
         shardId.writeTo(out);
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
-        out.writeBoolean(markAsRelocated);
         metadataSnapshot.writeTo(out);
         out.writeByte(recoveryType.id());
     }

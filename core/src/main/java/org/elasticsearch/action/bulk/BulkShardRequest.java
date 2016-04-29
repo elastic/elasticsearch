@@ -41,7 +41,7 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
     }
 
     BulkShardRequest(BulkRequest bulkRequest, ShardId shardId, boolean refresh, BulkItemRequest[] items) {
-        super(bulkRequest, shardId);
+        super(shardId);
         this.items = items;
         this.refresh = refresh;
     }
@@ -94,6 +94,12 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
 
     @Override
     public String toString() {
-        return "shard bulk {" + super.toString() + "}";
+        // This is included in error messages so we'll try to make it somewhat user friendly.
+        StringBuilder b = new StringBuilder("BulkShardRequest to [");
+        b.append(index).append("] containing [").append(items.length).append("] requests");
+        if (refresh) {
+            b.append(" and a refresh");
+        }
+        return b.toString();
     }
 }

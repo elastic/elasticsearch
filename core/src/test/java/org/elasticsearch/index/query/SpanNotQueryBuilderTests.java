@@ -62,13 +62,13 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
 
     public void testIllegalArgument() {
         try {
-            new SpanNotQueryBuilder(null, SpanTermQueryBuilder.PROTOTYPE);
+            new SpanNotQueryBuilder(null, new SpanTermQueryBuilder("field", "value"));
             fail("cannot be null");
         } catch (IllegalArgumentException e) {
             // expected
         }
         try {
-            new SpanNotQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, null);
+            new SpanNotQueryBuilder(new SpanTermQueryBuilder("field", "value"), null);
             fail("cannot be null");
         } catch (IllegalArgumentException e) {
             // expected
@@ -185,43 +185,42 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"span_not\" : {\n" + 
-                "    \"include\" : {\n" + 
-                "      \"span_term\" : {\n" + 
-                "        \"field1\" : {\n" + 
-                "          \"value\" : \"hoya\",\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"exclude\" : {\n" + 
-                "      \"span_near\" : {\n" + 
-                "        \"clauses\" : [ {\n" + 
-                "          \"span_term\" : {\n" + 
-                "            \"field1\" : {\n" + 
-                "              \"value\" : \"la\",\n" + 
-                "              \"boost\" : 1.0\n" + 
-                "            }\n" + 
-                "          }\n" + 
-                "        }, {\n" + 
-                "          \"span_term\" : {\n" + 
-                "            \"field1\" : {\n" + 
-                "              \"value\" : \"hoya\",\n" + 
-                "              \"boost\" : 1.0\n" + 
-                "            }\n" + 
-                "          }\n" + 
-                "        } ],\n" + 
-                "        \"slop\" : 0,\n" + 
-                "        \"in_order\" : true,\n" + 
-                "        \"collect_payloads\" : true,\n" + 
-                "        \"boost\" : 1.0\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"pre\" : 0,\n" + 
-                "    \"post\" : 0,\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"span_not\" : {\n" +
+                "    \"include\" : {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field1\" : {\n" +
+                "          \"value\" : \"hoya\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"exclude\" : {\n" +
+                "      \"span_near\" : {\n" +
+                "        \"clauses\" : [ {\n" +
+                "          \"span_term\" : {\n" +
+                "            \"field1\" : {\n" +
+                "              \"value\" : \"la\",\n" +
+                "              \"boost\" : 1.0\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }, {\n" +
+                "          \"span_term\" : {\n" +
+                "            \"field1\" : {\n" +
+                "              \"value\" : \"hoya\",\n" +
+                "              \"boost\" : 1.0\n" +
+                "            }\n" +
+                "          }\n" +
+                "        } ],\n" +
+                "        \"slop\" : 0,\n" +
+                "        \"in_order\" : true,\n" +
+                "        \"boost\" : 1.0\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"pre\" : 0,\n" +
+                "    \"post\" : 0,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         SpanNotQueryBuilder parsed = (SpanNotQueryBuilder) parseQuery(json);

@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -37,19 +36,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- */
 public class SettingsTests extends ESTestCase {
-    public void testCamelCaseSupport() {
-        Settings settings = settingsBuilder()
-                .put("test.camelCase", "bar")
-                .build();
-        assertThat(settings.get("test.camelCase"), equalTo("bar"));
-        assertThat(settings.get("test.camel_case"), equalTo("bar"));
-    }
 
     public void testLoadFromDelimitedString() {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .loadFromDelimitedString("key1=value1;key2=value2", ';')
                 .build();
         assertThat(settings.get("key1"), equalTo("value1"));
@@ -57,7 +47,7 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.getAsMap().size(), equalTo(2));
         assertThat(settings.toDelimitedString(';'), equalTo("key1=value1;key2=value2;"));
 
-        settings = settingsBuilder()
+        settings = Settings.builder()
                 .loadFromDelimitedString("key1=value1;key2=value2;", ';')
                 .build();
         assertThat(settings.get("key1"), equalTo("value1"));
@@ -69,20 +59,20 @@ public class SettingsTests extends ESTestCase {
     public void testReplacePropertiesPlaceholderSystemProperty() {
         String value = System.getProperty("java.home");
         assertFalse(value.isEmpty());
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                  .put("setting1", "${java.home}")
                  .replacePropertyPlaceholders()
                  .build();
         assertThat(settings.get("setting1"), equalTo(value));
 
         assertNull(System.getProperty("_test_property_should_not_exist"));
-        settings = settingsBuilder()
+        settings = Settings.builder()
                 .put("setting1", "${_test_property_should_not_exist:defaultVal1}")
                 .replacePropertyPlaceholders()
                 .build();
         assertThat(settings.get("setting1"), equalTo("defaultVal1"));
 
-        settings = settingsBuilder()
+        settings = Settings.builder()
                 .put("setting1", "${_test_property_should_not_exist:}")
                 .replacePropertyPlaceholders()
                 .build();
@@ -90,7 +80,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testReplacePropertiesPlaceholderIgnoreEnvUnset() {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("setting1", "${env.UNSET_ENV_VAR}")
                 .replacePropertyPlaceholders()
                 .build();
@@ -98,7 +88,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testReplacePropertiesPlaceholderIgnoresPrompt() {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("setting1", "${prompt.text}")
                 .put("setting2", "${prompt.secret}")
                 .replacePropertyPlaceholders()
@@ -108,7 +98,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testUnFlattenedSettings() {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("foo", "abc")
                 .put("bar", "def")
                 .put("baz.foo", "ghi")
@@ -132,7 +122,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testFallbackToFlattenedSettings() {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("foo", "abc")
                 .put("foo.bar", "def")
                 .put("foo.baz", "ghi").build();
@@ -143,7 +133,7 @@ public class SettingsTests extends ESTestCase {
                 Matchers.<String, Object>hasEntry("foo.bar", "def"),
                 Matchers.<String, Object>hasEntry("foo.baz", "ghi")));
 
-        settings = settingsBuilder()
+        settings = Settings.builder()
                 .put("foo.bar", "def")
                 .put("foo", "abc")
                 .put("foo.baz", "ghi")
@@ -157,7 +147,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testGetAsSettings() {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("foo", "abc")
                 .put("foo.bar", "def")
                 .put("foo.baz", "ghi").build();
@@ -168,7 +158,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testNames() {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("bar", "baz")
                 .put("foo", "abc")
                 .put("foo.bar", "def")
@@ -188,114 +178,114 @@ public class SettingsTests extends ESTestCase {
 
     public void testThatArraysAreOverriddenCorrectly() throws IOException {
         // overriding a single value with an array
-        Settings settings = settingsBuilder()
-                .put(settingsBuilder().putArray("value", "1").build())
-                .put(settingsBuilder().putArray("value", "2", "3").build())
+        Settings settings = Settings.builder()
+                .put(Settings.builder().putArray("value", "1").build())
+                .put(Settings.builder().putArray("value", "2", "3").build())
                 .build();
         assertThat(settings.getAsArray("value"), arrayContaining("2", "3"));
 
-        settings = settingsBuilder()
-                .put(settingsBuilder().put("value", "1").build())
-                .put(settingsBuilder().putArray("value", "2", "3").build())
+        settings = Settings.builder()
+                .put(Settings.builder().put("value", "1").build())
+                .put(Settings.builder().putArray("value", "2", "3").build())
                 .build();
         assertThat(settings.getAsArray("value"), arrayContaining("2", "3"));
 
-        settings = settingsBuilder()
-                .put(new YamlSettingsLoader().load("value: 1"))
-                .put(new YamlSettingsLoader().load("value: [ 2, 3 ]"))
+        settings = Settings.builder()
+                .put(new YamlSettingsLoader(false).load("value: 1"))
+                .put(new YamlSettingsLoader(false).load("value: [ 2, 3 ]"))
                 .build();
         assertThat(settings.getAsArray("value"), arrayContaining("2", "3"));
 
-        settings = settingsBuilder()
-                .put(settingsBuilder().put("value.with.deep.key", "1").build())
-                .put(settingsBuilder().putArray("value.with.deep.key", "2", "3").build())
+        settings = Settings.builder()
+                .put(Settings.builder().put("value.with.deep.key", "1").build())
+                .put(Settings.builder().putArray("value.with.deep.key", "2", "3").build())
                 .build();
         assertThat(settings.getAsArray("value.with.deep.key"), arrayContaining("2", "3"));
 
         // overriding an array with a shorter array
-        settings = settingsBuilder()
-                .put(settingsBuilder().putArray("value", "1", "2").build())
-                .put(settingsBuilder().putArray("value", "3").build())
+        settings = Settings.builder()
+                .put(Settings.builder().putArray("value", "1", "2").build())
+                .put(Settings.builder().putArray("value", "3").build())
                 .build();
         assertThat(settings.getAsArray("value"), arrayContaining("3"));
 
-        settings = settingsBuilder()
-                .put(settingsBuilder().putArray("value", "1", "2", "3").build())
-                .put(settingsBuilder().putArray("value", "4", "5").build())
+        settings = Settings.builder()
+                .put(Settings.builder().putArray("value", "1", "2", "3").build())
+                .put(Settings.builder().putArray("value", "4", "5").build())
                 .build();
         assertThat(settings.getAsArray("value"), arrayContaining("4", "5"));
 
-        settings = settingsBuilder()
-                .put(settingsBuilder().putArray("value.deep.key", "1", "2", "3").build())
-                .put(settingsBuilder().putArray("value.deep.key", "4", "5").build())
+        settings = Settings.builder()
+                .put(Settings.builder().putArray("value.deep.key", "1", "2", "3").build())
+                .put(Settings.builder().putArray("value.deep.key", "4", "5").build())
                 .build();
         assertThat(settings.getAsArray("value.deep.key"), arrayContaining("4", "5"));
 
         // overriding an array with a longer array
-        settings = settingsBuilder()
-                .put(settingsBuilder().putArray("value", "1", "2").build())
-                .put(settingsBuilder().putArray("value", "3", "4", "5").build())
+        settings = Settings.builder()
+                .put(Settings.builder().putArray("value", "1", "2").build())
+                .put(Settings.builder().putArray("value", "3", "4", "5").build())
                 .build();
         assertThat(settings.getAsArray("value"), arrayContaining("3", "4", "5"));
 
-        settings = settingsBuilder()
-                .put(settingsBuilder().putArray("value.deep.key", "1", "2", "3").build())
-                .put(settingsBuilder().putArray("value.deep.key", "4", "5").build())
+        settings = Settings.builder()
+                .put(Settings.builder().putArray("value.deep.key", "1", "2", "3").build())
+                .put(Settings.builder().putArray("value.deep.key", "4", "5").build())
                 .build();
         assertThat(settings.getAsArray("value.deep.key"), arrayContaining("4", "5"));
 
         // overriding an array with a single value
-        settings = settingsBuilder()
-                .put(settingsBuilder().putArray("value", "1", "2").build())
-                .put(settingsBuilder().put("value", "3").build())
+        settings = Settings.builder()
+                .put(Settings.builder().putArray("value", "1", "2").build())
+                .put(Settings.builder().put("value", "3").build())
                 .build();
         assertThat(settings.getAsArray("value"), arrayContaining("3"));
 
-        settings = settingsBuilder()
-                .put(settingsBuilder().putArray("value.deep.key", "1", "2").build())
-                .put(settingsBuilder().put("value.deep.key", "3").build())
+        settings = Settings.builder()
+                .put(Settings.builder().putArray("value.deep.key", "1", "2").build())
+                .put(Settings.builder().put("value.deep.key", "3").build())
                 .build();
         assertThat(settings.getAsArray("value.deep.key"), arrayContaining("3"));
 
         // test that other arrays are not overridden
-        settings = settingsBuilder()
-                .put(settingsBuilder().putArray("value", "1", "2", "3").putArray("a", "b", "c").build())
-                .put(settingsBuilder().putArray("value", "4", "5").putArray("d", "e", "f").build())
+        settings = Settings.builder()
+                .put(Settings.builder().putArray("value", "1", "2", "3").putArray("a", "b", "c").build())
+                .put(Settings.builder().putArray("value", "4", "5").putArray("d", "e", "f").build())
                 .build();
         assertThat(settings.getAsArray("value"), arrayContaining("4", "5"));
         assertThat(settings.getAsArray("a"), arrayContaining("b", "c"));
         assertThat(settings.getAsArray("d"), arrayContaining("e", "f"));
 
-        settings = settingsBuilder()
-                .put(settingsBuilder().putArray("value.deep.key", "1", "2", "3").putArray("a", "b", "c").build())
-                .put(settingsBuilder().putArray("value.deep.key", "4", "5").putArray("d", "e", "f").build())
+        settings = Settings.builder()
+                .put(Settings.builder().putArray("value.deep.key", "1", "2", "3").putArray("a", "b", "c").build())
+                .put(Settings.builder().putArray("value.deep.key", "4", "5").putArray("d", "e", "f").build())
                 .build();
         assertThat(settings.getAsArray("value.deep.key"), arrayContaining("4", "5"));
         assertThat(settings.getAsArray("a"), notNullValue());
         assertThat(settings.getAsArray("d"), notNullValue());
 
         // overriding a deeper structure with an array
-        settings = settingsBuilder()
-                .put(settingsBuilder().put("value.data", "1").build())
-                .put(settingsBuilder().putArray("value", "4", "5").build())
+        settings = Settings.builder()
+                .put(Settings.builder().put("value.data", "1").build())
+                .put(Settings.builder().putArray("value", "4", "5").build())
                 .build();
         assertThat(settings.getAsArray("value"), arrayContaining("4", "5"));
 
         // overriding an array with a deeper structure
-        settings = settingsBuilder()
-                .put(settingsBuilder().putArray("value", "4", "5").build())
-                .put(settingsBuilder().put("value.data", "1").build())
+        settings = Settings.builder()
+                .put(Settings.builder().putArray("value", "4", "5").build())
+                .put(Settings.builder().put("value.data", "1").build())
                 .build();
         assertThat(settings.get("value.data"), is("1"));
         assertThat(settings.get("value"), is(nullValue()));
     }
 
     public void testPrefixNormalization() {
-        Settings settings = settingsBuilder().normalizePrefix("foo.").build();
+        Settings settings = Settings.builder().normalizePrefix("foo.").build();
 
         assertThat(settings.names().size(), equalTo(0));
 
-        settings = settingsBuilder()
+        settings = Settings.builder()
                 .put("bar", "baz")
                 .normalizePrefix("foo.")
                 .build();
@@ -305,7 +295,7 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.get("foo.bar"), equalTo("baz"));
 
 
-        settings = settingsBuilder()
+        settings = Settings.builder()
                 .put("bar", "baz")
                 .put("foo.test", "test")
                 .normalizePrefix("foo.")
@@ -316,7 +306,7 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.get("foo.bar"), equalTo("baz"));
         assertThat(settings.get("foo.test"), equalTo("test"));
 
-        settings = settingsBuilder()
+        settings = Settings.builder()
                 .put("foo.test", "test")
                 .normalizePrefix("foo.")
                 .build();

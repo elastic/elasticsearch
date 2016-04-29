@@ -40,7 +40,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
 
     public void testAllEnabled() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("mappings").startObject(TYPE).startObject("_all").field("enabled", "false").endObject().endObject().endObject().endObject();
-        XContentBuilder mappingUpdate = jsonBuilder().startObject().startObject("_all").field("enabled", "true").endObject().startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject();
+        XContentBuilder mappingUpdate = jsonBuilder().startObject().startObject("_all").field("enabled", "true").endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
         String errorMessage = "[_all] enabled is false now encountering true";
         testConflict(mapping.string(), mappingUpdate.string(), errorMessage);
     }
@@ -49,7 +49,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/all_mapping_create_index.json");
         String mappingUpdate = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/all_mapping_update_with_conflicts.json");
         String[] errorMessage = {
-                "[_all] has different [omit_norms] values",
+                "[_all] has different [norms] values",
                 "[_all] has different [store] values",
                 "[_all] has different [store_term_vector] values",
                 "[_all] has different [store_term_vector_offsets] values",
@@ -63,7 +63,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
 
     public void testAllDisabled() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("mappings").startObject(TYPE).startObject("_all").field("enabled", true).endObject().endObject().endObject().endObject();
-        XContentBuilder mappingUpdate = jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject();
+        XContentBuilder mappingUpdate = jsonBuilder().startObject().startObject("_all").field("enabled", false).endObject().startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject();
         String errorMessage = "[_all] enabled is true now encountering false";
         testConflict(mapping.string(), mappingUpdate.string(), errorMessage);
     }
@@ -84,7 +84,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         String docMappingUpdate = jsonBuilder().startObject().startObject("doc")
                 .startObject("properties")
                 .startObject("text")
-                .field("type", "string")
+                .field("type", "text")
                 .endObject()
                 .endObject()
                 .endObject()
@@ -125,7 +125,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
     }
 
     public void testDocValuesInvalidMappingOnUpdate() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject(TYPE).startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject().string();
+        String mapping = jsonBuilder().startObject().startObject(TYPE).startObject("properties").startObject("text").field("type", "text").endObject().endObject().endObject().string();
         prepareCreate(INDEX).addMapping(TYPE, mapping).get();
         String mappingUpdate = jsonBuilder().startObject().startObject(TYPE).startObject("_all").startObject("fielddata").field("format", "doc_values").endObject().endObject().endObject().endObject().string();
         GetMappingsResponse mappingsBeforeUpdateResponse = client().admin().indices().prepareGetMappings(INDEX).addTypes(TYPE).get();
@@ -167,7 +167,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
 
     private void compareMappingOnNodes(GetMappingsResponse previousMapping) {
         // make sure all nodes have same cluster state
-        for (Client client : cluster()) {
+        for (Client client : cluster().getClients()) {
             GetMappingsResponse currentMapping = client.admin().indices().prepareGetMappings(INDEX).addTypes(TYPE).setLocal(true).get();
             assertThat(previousMapping.getMappings().get(INDEX).get(TYPE).source(), equalTo(currentMapping.getMappings().get(INDEX).get(TYPE).source()));
         }

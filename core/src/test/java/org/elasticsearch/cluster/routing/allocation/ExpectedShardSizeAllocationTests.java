@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESAllocationTestCase;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -54,7 +53,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
                 return new ClusterInfo() {
                     @Override
                     public Long getShardSize(ShardRouting shardRouting) {
-                        if (shardRouting.index().equals("test") && shardRouting.shardId().getId() == 0) {
+                        if (shardRouting.getIndexName().equals("test") && shardRouting.shardId().getId() == 0) {
                             return byteSize;
                         }
                         return null;
@@ -112,7 +111,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
                 return new ClusterInfo() {
                     @Override
                     public Long getShardSize(ShardRouting shardRouting) {
-                        if (shardRouting.index().equals("test") && shardRouting.shardId().getId() == 0) {
+                        if (shardRouting.getIndexName().equals("test") && shardRouting.shardId().getId() == 0) {
                             return byteSize;
                         }
                         return null;
@@ -150,7 +149,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         } else {
             toNodeId = "node1";
         }
-        rerouteResult = allocation.reroute(clusterState, new AllocationCommands(new MoveAllocationCommand(new ShardId("test", 0), existingNodeId, toNodeId)));
+        rerouteResult = allocation.reroute(clusterState, new AllocationCommands(new MoveAllocationCommand("test", 0, existingNodeId, toNodeId)));
         assertThat(rerouteResult.changed(), equalTo(true));
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
         assertEquals(clusterState.getRoutingNodes().node(existingNodeId).get(0).state(), ShardRoutingState.RELOCATING);

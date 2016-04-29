@@ -21,16 +21,13 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -81,7 +78,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
              * and 100 afterwards so we override the positionIncrementGap if it
              * doesn't match here.
              */
-            int overridePositionIncrementGap = StringFieldMapper.Defaults.positionIncrementGap(indexSettings.getIndexVersionCreated());
+            int overridePositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
             if (analyzerFactory instanceof CustomAnalyzerProvider) {
                 ((CustomAnalyzerProvider) analyzerFactory).build(this);
                 /*
@@ -130,7 +127,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         }
         if (analyzers.containsKey("default_index")) {
             final Version createdVersion = indexSettings.getIndexVersionCreated();
-            if (createdVersion.onOrAfter(Version.V_3_0_0)) {
+            if (createdVersion.onOrAfter(Version.V_5_0_0_alpha1)) {
                 throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use [index.analysis.analyzer.default] instead for index [" + index().getName() + "]");
             } else {
                 deprecationLogger.deprecated("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] instead for index [{}]", index().getName());
@@ -158,7 +155,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                     // because analyzers are aliased, they might be closed several times
                     // an NPE is thrown in this case, so ignore....
                 } catch (Exception e) {
-                    logger.debug("failed to close analyzer " + analyzer);
+                    logger.debug("failed to close analyzer {}", analyzer);
                 }
             }
         }

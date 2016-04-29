@@ -23,12 +23,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,11 +52,10 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     private HyperLogLogPlusPlus counts;
 
-    InternalCardinality(String name, HyperLogLogPlusPlus counts, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
+    InternalCardinality(String name, HyperLogLogPlusPlus counts, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.counts = counts;
-        this.valueFormatter = formatter;
     }
 
     private InternalCardinality() {
@@ -80,7 +78,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        valueFormatter = ValueFormatterStreams.readOptional(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
         if (in.readBoolean()) {
             counts = HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
         } else {
@@ -90,7 +88,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(valueFormatter, out);
+        out.writeNamedWriteable(format);
         if (counts != null) {
             out.writeBoolean(true);
             counts.writeTo(0, out);
@@ -107,7 +105,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
             if (cardinality.counts != null) {
                 if (reduced == null) {
                     reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(),
-                            BigArrays.NON_RECYCLING_INSTANCE, 1), this.valueFormatter, pipelineAggregators(), getMetaData());
+                            BigArrays.NON_RECYCLING_INSTANCE, 1), pipelineAggregators(), getMetaData());
                 }
                 reduced.merge(cardinality);
             }
@@ -129,9 +127,6 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final long cardinality = getValue();
         builder.field(CommonFields.VALUE, cardinality);
-        if (!(valueFormatter instanceof ValueFormatter.Raw)) {
-            builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(cardinality));
-        }
         return builder;
     }
 

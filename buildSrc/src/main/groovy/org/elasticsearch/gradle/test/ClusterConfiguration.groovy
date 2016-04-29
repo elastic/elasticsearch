@@ -33,10 +33,16 @@ class ClusterConfiguration {
     int numNodes = 1
 
     @Input
-    int baseHttpPort = 9400
+    int numBwcNodes = 0
 
     @Input
-    int baseTransportPort = 9500
+    String bwcVersion = null
+
+    @Input
+    int httpPort = 0
+
+    @Input
+    int transportPort = 0
 
     @Input
     boolean daemonize = true
@@ -48,6 +54,15 @@ class ClusterConfiguration {
     String jvmArgs = System.getProperty('tests.jvm.argline', '')
 
     /**
+     * The seed nodes port file. In the case the cluster has more than one node we use a seed node
+     * to form the cluster. The file is null if there is no seed node yet available.
+     *
+     * Note: this can only be null if the cluster has only one node or if the first node is not yet
+     * configured. All nodes but the first node should see a non null value.
+     */
+    File seedNodePortsFile
+
+    /**
      * A closure to call before the cluster is considered ready. The closure is passed the node info,
      * as well as a groovy AntBuilder, to enable running ant condition checks. The default wait
      * condition is for http on the http port.
@@ -55,7 +70,7 @@ class ClusterConfiguration {
     @Input
     Closure waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://localhost:${node.httpPort()}",
+        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}",
                 dest: tmpFile.toString(),
                 ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
                 retries: 10)
@@ -116,5 +131,13 @@ class ClusterConfiguration {
             throw new GradleException('Overwriting elasticsearch.yml is not allowed, add additional settings using cluster { setting "foo", "bar" }')
         }
         extraConfigFiles.put(path, sourceFile)
+    }
+
+    /** Returns an address and port suitable for a uri to connect to this clusters seed node over transport protocol*/
+    String seedNodeTransportUri() {
+        if (seedNodePortsFile != null) {
+            return seedNodePortsFile.readLines("UTF-8").get(0)
+        }
+        return null;
     }
 }

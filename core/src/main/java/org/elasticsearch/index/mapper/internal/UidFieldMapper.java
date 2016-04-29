@@ -25,25 +25,23 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
  *
@@ -67,7 +65,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
 
             NESTED_FIELD_TYPE = FIELD_TYPE.clone();
@@ -79,14 +77,13 @@ public class UidFieldMapper extends MetadataFieldMapper {
     public static class Builder extends MetadataFieldMapper.Builder<Builder, UidFieldMapper> {
 
         public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing);
+            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
             indexName = Defaults.NAME;
         }
 
         @Override
         public UidFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            fieldType.setHasDocValues(context.indexCreatedVersion().before(Version.V_2_0_0_beta1));
             return new UidFieldMapper(fieldType, defaultFieldType, context.indexSettings());
         }
     }
@@ -94,12 +91,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-                throw new MapperParsingException(NAME + " is not configurable");
-            }
-            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
-            parseField(builder, builder.name, node, parserContext);
-            return builder;
+            throw new MapperParsingException(NAME + " is not configurable");
         }
 
         @Override
@@ -111,7 +103,6 @@ public class UidFieldMapper extends MetadataFieldMapper {
     static final class UidFieldType extends MappedFieldType {
 
         public UidFieldType() {
-            setFieldDataType(new FieldDataType("string"));
         }
 
         protected UidFieldType(UidFieldType ref) {
@@ -129,11 +120,12 @@ public class UidFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Uid value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return Uid.createUid(value.toString());
+        public IndexFieldData.Builder fielddataBuilder() {
+            // TODO: add doc values support?
+            return new PagedBytesIndexFieldData.Builder(
+                    TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
+                    TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
+                    TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
         }
     }
 
@@ -156,7 +148,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        if (context.id() == null && !context.sourceToParse().flyweight()) {
+        if (context.id() == null) {
             throw new MapperParsingException("No id found while parsing the content source");
         }
         // if we did not have the id as part of the sourceToParse, then we need to parse it here
@@ -193,10 +185,6 @@ public class UidFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public Term term(String uid) {
-        return new Term(fieldType().names().indexName(), fieldType().indexedValueForSearch(uid));
-    }
-
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
@@ -204,28 +192,11 @@ public class UidFieldMapper extends MetadataFieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (indexCreatedBefore2x == false) {
-            return builder;
-        }
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-
-        // if defaults, don't output
-        if (!includeDefaults && hasCustomFieldDataSettings() == false) {
-            return builder;
-        }
-
-        builder.startObject(CONTENT_TYPE);
-
-        if (includeDefaults || hasCustomFieldDataSettings()) {
-            builder.field("fielddata", (Map) fieldType().fieldDataType().getSettings().getAsMap());
-        }
-
-        builder.endObject();
         return builder;
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         // do nothing here, no merging, but also no exception
     }
 }

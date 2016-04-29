@@ -22,10 +22,9 @@ package org.elasticsearch.messy.tests;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -46,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,31 +60,26 @@ public class IndexedScriptTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        builder.put("script.engine.groovy.indexed.update", "off");
-        builder.put("script.engine.groovy.indexed.search", "on");
-        builder.put("script.engine.groovy.indexed.aggs", "on");
-        builder.put("script.engine.groovy.inline.aggs", "off");
-        builder.put("script.engine.expression.indexed.update", "off");
-        builder.put("script.engine.expression.indexed.search", "off");
-        builder.put("script.engine.expression.indexed.aggs", "off");
-        builder.put("script.engine.expression.indexed.mapping", "off");
+        builder.put("script.engine.groovy.stored.update", "false");
+        builder.put("script.engine.groovy.stored.search", "true");
+        builder.put("script.engine.groovy.stored.aggs", "true");
+        builder.put("script.engine.groovy.inline.aggs", "false");
         return builder.build();
     }
 
     public void testFieldIndexedScript()  throws ExecutionException, InterruptedException {
+        client().admin().cluster().preparePutStoredScript()
+                .setId("script1")
+                .setScriptLang("groovy")
+                .setSource(new BytesArray("{ \"script\" : \"2\"}"))
+                .get();
+        client().admin().cluster().preparePutStoredScript()
+                .setId("script2")
+                .setScriptLang("groovy")
+                .setSource(new BytesArray("{ \"script\" : \"factor * 2\"}"))
+                .get();
+
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "groovy", "script1").setSource("{" +
-                "\"script\":\"2\""+
-        "}").setTimeout(TimeValue.timeValueSeconds(randomIntBetween(2,10))));
-
-        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "groovy", "script2").setSource("{" +
-                "\"script\":\"factor*2\""+
-                "}"));
-
-        indexRandom(true, builders);
-
-        builders.clear();
-
         builders.add(client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "2").setSource("{\"theField\":\"foo 2\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "3").setSource("{\"theField\":\"foo 3\"}"));
@@ -98,14 +93,14 @@ public class IndexedScriptTests extends ESIntegTestCase {
                 .prepareSearch()
                 .setSource(
                         new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(1)
-                                .scriptField("test1", new Script("script1", ScriptType.INDEXED, "groovy", null))
-                                .scriptField("test2", new Script("script2", ScriptType.INDEXED, "groovy", script2Params)))
+                                .scriptField("test1", new Script("script1", ScriptType.STORED, "groovy", null))
+                                .scriptField("test2", new Script("script2", ScriptType.STORED, "groovy", script2Params)))
                 .setIndices("test").setTypes("scriptTest").get();
         assertHitCount(searchResponse, 5);
         assertTrue(searchResponse.getHits().hits().length == 1);
         SearchHit sh = searchResponse.getHits().getAt(0);
-        assertThat((Integer) sh.field("test1").getValue(), equalTo(2));
-        assertThat((Integer) sh.field("test2").getValue(), equalTo(6));
+        assertThat(sh.field("test1").getValue(), equalTo(2));
+        assertThat(sh.field("test2").getValue(), equalTo(6));
     }
 
     // Relates to #10397
@@ -117,53 +112,52 @@ public class IndexedScriptTests extends ESIntegTestCase {
 
         int iterations = randomIntBetween(2, 11);
         for (int i = 1; i < iterations; i++) {
-            PutIndexedScriptResponse response =
-                    client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "script1", "{\"script\":\"" + i + "\"}").get();
-            assertEquals(i, response.getVersion());
+            assertAcked(client().admin().cluster().preparePutStoredScript()
+                    .setScriptLang(GroovyScriptEngineService.NAME)
+                    .setId("script1")
+                    .setSource(new BytesArray("{\"script\":\"" + i + "\"}")));
             SearchResponse searchResponse = client()
                     .prepareSearch()
                     .setSource(
                             new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).scriptField("test_field",
-                                    new Script("script1", ScriptType.INDEXED, "groovy", null))).setIndices("test_index")
+                                    new Script("script1", ScriptType.STORED, "groovy", null))).setIndices("test_index")
                     .setTypes("test_type").get();
             assertHitCount(searchResponse, 1);
             SearchHit sh = searchResponse.getHits().getAt(0);
-            assertThat((Integer)sh.field("test_field").getValue(), equalTo(i));
+            assertThat(sh.field("test_field").getValue(), equalTo(i));
         }
     }
 
     public void testDisabledUpdateIndexedScriptsOnly() {
-        if (randomBoolean()) {
-            client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "script1", "{\"script\":\"2\"}").get();
-        } else {
-            client().prepareIndex(ScriptService.SCRIPT_INDEX, GroovyScriptEngineService.NAME, "script1").setSource("{\"script\":\"2\"}").get();
-        }
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(GroovyScriptEngineService.NAME)
+                .setId("script1")
+                .setSource(new BytesArray("{\"script\":\"2\"}")));
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
             client().prepareUpdate("test", "scriptTest", "1")
-                    .setScript(new Script("script1", ScriptService.ScriptType.INDEXED, GroovyScriptEngineService.NAME, null)).get();
+                    .setScript(new Script("script1", ScriptService.ScriptType.STORED, GroovyScriptEngineService.NAME, null)).get();
             fail("update script should have been rejected");
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
             assertThat(ExceptionsHelper.detailedMessage(e),
-                    containsString("scripts of type [indexed], operation [update] and lang [groovy] are disabled"));
+                    containsString("scripts of type [stored], operation [update] and lang [groovy] are disabled"));
         }
     }
 
     public void testDisabledAggsDynamicScripts() {
         //dynamic scripts don't need to be enabled for an indexed script to be indexed and later on executed
-        if (randomBoolean()) {
-            client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "script1", "{\"script\":\"2\"}").get();
-        } else {
-            client().prepareIndex(ScriptService.SCRIPT_INDEX, GroovyScriptEngineService.NAME, "script1").setSource("{\"script\":\"2\"}").get();
-        }
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(GroovyScriptEngineService.NAME)
+                .setId("script1")
+                .setSource(new BytesArray("{\"script\":\"2\"}")));
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         refresh();
         SearchResponse searchResponse = client()
                 .prepareSearch("test")
                 .setSource(
                         new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
-                                new Script("script1", ScriptType.INDEXED, null, null)))).get();
+                                new Script("script1", ScriptType.STORED, null, null)))).get();
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getAggregations().get("test"), notNullValue());
     }

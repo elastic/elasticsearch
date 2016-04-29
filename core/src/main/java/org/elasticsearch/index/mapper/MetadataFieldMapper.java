@@ -51,8 +51,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     public abstract static class Builder<T extends Builder, Y extends MetadataFieldMapper> extends FieldMapper.Builder<T, Y> {
-        public Builder(String name, MappedFieldType fieldType) {
-            super(name, fieldType);
+        public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
+            super(name, fieldType, defaultFieldType);
         }
     }
 
@@ -70,4 +70,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
      */
     public abstract void postParse(ParseContext context) throws IOException;
 
+    @Override
+    public MetadataFieldMapper merge(Mapper mergeWith, boolean updateAllTypes) {
+        return (MetadataFieldMapper) super.merge(mergeWith, updateAllTypes);
+    }
 }

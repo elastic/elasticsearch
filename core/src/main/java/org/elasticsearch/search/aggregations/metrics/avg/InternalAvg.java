@@ -21,12 +21,11 @@ package org.elasticsearch.search.aggregations.metrics.avg;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,12 +56,12 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalAvg() {} // for serialization
 
-    public InternalAvg(String name, double sum, long count, ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
+    public InternalAvg(String name, double sum, long count, DocValueFormat format, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.sum = sum;
         this.count = count;
-        this.valueFormatter = formatter;
+        this.format = format;
     }
 
     @Override
@@ -88,19 +87,19 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
             count += ((InternalAvg) aggregation).count;
             sum += ((InternalAvg) aggregation).sum;
         }
-        return new InternalAvg(getName(), sum, count, valueFormatter, pipelineAggregators(), getMetaData());
+        return new InternalAvg(getName(), sum, count, format, pipelineAggregators(), getMetaData());
     }
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        valueFormatter = ValueFormatterStreams.readOptional(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
         sum = in.readDouble();
         count = in.readVLong();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(valueFormatter, out);
+        out.writeNamedWriteable(format);
         out.writeDouble(sum);
         out.writeVLong(count);
     }
@@ -108,8 +107,8 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.VALUE, count != 0 ? getValue() : null);
-        if (count != 0 && !(valueFormatter instanceof ValueFormatter.Raw)) {
-            builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(getValue()));
+        if (count != 0 && format != DocValueFormat.RAW) {
+            builder.field(CommonFields.VALUE_AS_STRING, format.format(getValue()));
         }
         return builder;
     }

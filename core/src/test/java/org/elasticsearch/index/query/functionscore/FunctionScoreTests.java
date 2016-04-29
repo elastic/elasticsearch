@@ -24,7 +24,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -32,6 +31,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RandomApproximationQuery;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
@@ -42,6 +44,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery.FilterFunction;
+import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery.ScoreMode;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
@@ -50,16 +54,11 @@ import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionBuilder;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -82,13 +81,8 @@ public class FunctionScoreTests extends ESTestCase {
      */
     private static class IndexFieldDataStub implements IndexFieldData<AtomicFieldData> {
         @Override
-        public MappedFieldType.Names getFieldNames() {
-            return new MappedFieldType.Names("test");
-        }
-
-        @Override
-        public FieldDataType getFieldDataType() {
-            throw new UnsupportedOperationException(UNSUPPORTED);
+        public String getFieldName() {
+            return "test";
         }
 
         @Override
@@ -141,7 +135,8 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public IndexFieldData.XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, IndexFieldData.XFieldComparatorSource.Nested nested) {
+        public IndexFieldData.XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode,
+                IndexFieldData.XFieldComparatorSource.Nested nested) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
@@ -167,13 +162,8 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public MappedFieldType.Names getFieldNames() {
-            return new MappedFieldType.Names("test");
-        }
-
-        @Override
-        public FieldDataType getFieldDataType() {
-            throw new UnsupportedOperationException(UNSUPPORTED);
+        public String getFieldName() {
+            return "test";
         }
 
         @Override
@@ -235,7 +225,8 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested) {
+        public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode,
+                XFieldComparatorSource.Nested nested) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
@@ -251,10 +242,14 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     private static final ScoreFunction RANDOM_SCORE_FUNCTION = new RandomScoreFunction(0, 0, new IndexFieldDataStub());
-    private static final ScoreFunction FIELD_VALUE_FACTOR_FUNCTION = new FieldValueFactorFunction("test", 1, FieldValueFactorFunction.Modifier.LN, new Double(1), null);
-    private static final ScoreFunction GAUSS_DECAY_FUNCTION = new DecayFunctionBuilder.NumericFieldDataScoreFunction(0, 1, 0.1, 0, GaussDecayFunctionBuilder.GAUSS_DECAY_FUNCTION, new IndexNumericFieldDataStub(), MultiValueMode.MAX);
-    private static final ScoreFunction EXP_DECAY_FUNCTION = new DecayFunctionBuilder.NumericFieldDataScoreFunction(0, 1, 0.1, 0, ExponentialDecayFunctionBuilder.EXP_DECAY_FUNCTION, new IndexNumericFieldDataStub(), MultiValueMode.MAX);
-    private static final ScoreFunction LIN_DECAY_FUNCTION = new DecayFunctionBuilder.NumericFieldDataScoreFunction(0, 1, 0.1, 0, LinearDecayFunctionBuilder.LINEAR_DECAY_FUNCTION, new IndexNumericFieldDataStub(), MultiValueMode.MAX);
+    private static final ScoreFunction FIELD_VALUE_FACTOR_FUNCTION = new FieldValueFactorFunction("test", 1,
+            FieldValueFactorFunction.Modifier.LN, new Double(1), null);
+    private static final ScoreFunction GAUSS_DECAY_FUNCTION = new DecayFunctionBuilder.NumericFieldDataScoreFunction(0, 1, 0.1, 0,
+            GaussDecayFunctionBuilder.GAUSS_DECAY_FUNCTION, new IndexNumericFieldDataStub(), MultiValueMode.MAX);
+    private static final ScoreFunction EXP_DECAY_FUNCTION = new DecayFunctionBuilder.NumericFieldDataScoreFunction(0, 1, 0.1, 0,
+            ExponentialDecayFunctionBuilder.EXP_DECAY_FUNCTION, new IndexNumericFieldDataStub(), MultiValueMode.MAX);
+    private static final ScoreFunction LIN_DECAY_FUNCTION = new DecayFunctionBuilder.NumericFieldDataScoreFunction(0, 1, 0.1, 0,
+            LinearDecayFunctionBuilder.LINEAR_DECAY_FUNCTION, new IndexNumericFieldDataStub(), MultiValueMode.MAX);
     private static final ScoreFunction WEIGHT_FACTOR_FUNCTION = new WeightFactorFunction(4);
     private static final String TEXT = "The way out is through.";
     private static final String FIELD = "test";
@@ -273,7 +268,7 @@ public class FunctionScoreTests extends ESTestCase {
         d.add(new TextField("_uid", "1", Field.Store.YES));
         w.addDocument(d);
         w.commit();
-        reader = DirectoryReader.open(w, true);
+        reader = DirectoryReader.open(w);
         searcher = newSearcher(reader);
     }
 
@@ -296,22 +291,26 @@ public class FunctionScoreTests extends ESTestCase {
 
         functionExplanation = getFunctionScoreExplanation(searcher, GAUSS_DECAY_FUNCTION);
         checkFunctionScoreExplanation(functionExplanation, "Function for field test:");
-        assertThat(functionExplanation.getDetails()[0].getDetails()[0].toString(), equalTo("0.1 = exp(-0.5*pow(MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)],2.0)/0.21714724095162594)\n"));
+        assertThat(functionExplanation.getDetails()[0].getDetails()[0].toString(), equalTo("0.1 = exp(-0.5*pow(MAX[Math.max(Math.abs"
+                + "(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)],2.0)/0.21714724095162594)\n"));
         assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails().length, equalTo(0));
 
         functionExplanation = getFunctionScoreExplanation(searcher, EXP_DECAY_FUNCTION);
         checkFunctionScoreExplanation(functionExplanation, "Function for field test:");
-        assertThat(functionExplanation.getDetails()[0].getDetails()[0].toString(), equalTo("0.1 = exp(- MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)] * 2.3025850929940455)\n"));
+        assertThat(functionExplanation.getDetails()[0].getDetails()[0].toString(),
+                equalTo("0.1 = exp(- MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)] * 2.3025850929940455)\n"));
         assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails().length, equalTo(0));
 
         functionExplanation = getFunctionScoreExplanation(searcher, LIN_DECAY_FUNCTION);
         checkFunctionScoreExplanation(functionExplanation, "Function for field test:");
-        assertThat(functionExplanation.getDetails()[0].getDetails()[0].toString(), equalTo("0.1 = max(0.0, ((1.1111111111111112 - MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)])/1.1111111111111112)\n"));
+        assertThat(functionExplanation.getDetails()[0].getDetails()[0].toString(), equalTo("0.1 = max(0.0, ((1.1111111111111112"
+                + " - MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)])/1.1111111111111112)\n"));
         assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails().length, equalTo(0));
 
         functionExplanation = getFunctionScoreExplanation(searcher, WEIGHT_FACTOR_FUNCTION);
         checkFunctionScoreExplanation(functionExplanation, "product of:");
-        assertThat(functionExplanation.getDetails()[0].getDetails()[0].toString(), equalTo("1.0 = constant score 1.0 - no function provided\n"));
+        assertThat(functionExplanation.getDetails()[0].getDetails()[0].toString(),
+                equalTo("1.0 = constant score 1.0 - no function provided\n"));
         assertThat(functionExplanation.getDetails()[0].getDetails()[1].toString(), equalTo("4.0 = weight\n"));
         assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails().length, equalTo(0));
         assertThat(functionExplanation.getDetails()[0].getDetails()[1].getDetails().length, equalTo(0));
@@ -340,26 +339,30 @@ public class FunctionScoreTests extends ESTestCase {
 
         functionExplanation = getFiltersFunctionScoreExplanation(searcher, GAUSS_DECAY_FUNCTION);
         checkFiltersFunctionScoreExplanation(functionExplanation, "Function for field test:", 0);
-        assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails()[1].getDetails()[0].toString(), equalTo("0.1 = exp(-0.5*pow(MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)],2.0)/0.21714724095162594)\n"));
+        assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails()[1].getDetails()[0].toString(), equalTo("0.1 = "
+                + "exp(-0.5*pow(MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)],2.0)/0.21714724095162594)\n"));
         assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails()[1].getDetails()[0].getDetails().length, equalTo(0));
 
         functionExplanation = getFiltersFunctionScoreExplanation(searcher, EXP_DECAY_FUNCTION);
         checkFiltersFunctionScoreExplanation(functionExplanation, "Function for field test:", 0);
-        assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails()[1].getDetails()[0].toString(), equalTo("0.1 = exp(- MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)] * 2.3025850929940455)\n"));
+        assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails()[1].getDetails()[0].toString(),
+                equalTo("0.1 = exp(- MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)] * 2.3025850929940455)\n"));
         assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails()[1].getDetails()[0].getDetails().length, equalTo(0));
 
         functionExplanation = getFiltersFunctionScoreExplanation(searcher, LIN_DECAY_FUNCTION);
         checkFiltersFunctionScoreExplanation(functionExplanation, "Function for field test:", 0);
-        assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails()[1].getDetails()[0].toString(), equalTo("0.1 = max(0.0, ((1.1111111111111112 - MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)])/1.1111111111111112)\n"));
+        assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails()[1].getDetails()[0].toString(),
+                equalTo("0.1 = max(0.0, ((1.1111111111111112 - MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin)))"
+                        + " - 0.0(=offset), 0)])/1.1111111111111112)\n"));
         assertThat(functionExplanation.getDetails()[0].getDetails()[0].getDetails()[1].getDetails()[0].getDetails().length, equalTo(0));
 
         // now test all together
         functionExplanation = getFiltersFunctionScoreExplanation(searcher
-                , RANDOM_SCORE_FUNCTION
-                , FIELD_VALUE_FACTOR_FUNCTION
-                , GAUSS_DECAY_FUNCTION
-                , EXP_DECAY_FUNCTION
-                , LIN_DECAY_FUNCTION
+            , RANDOM_SCORE_FUNCTION
+            , FIELD_VALUE_FACTOR_FUNCTION
+            , GAUSS_DECAY_FUNCTION
+            , EXP_DECAY_FUNCTION
+            , LIN_DECAY_FUNCTION
         );
 
         checkFiltersFunctionScoreExplanation(functionExplanation, "random score function (seed: 0)", 0);
@@ -369,20 +372,25 @@ public class FunctionScoreTests extends ESTestCase {
         assertThat(functionExplanation.getDetails()[0].getDetails()[1].getDetails()[1].getDetails().length, equalTo(0));
 
         checkFiltersFunctionScoreExplanation(functionExplanation, "Function for field test:", 2);
-        assertThat(functionExplanation.getDetails()[0].getDetails()[2].getDetails()[1].getDetails()[0].toString(), equalTo("0.1 = exp(-0.5*pow(MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)],2.0)/0.21714724095162594)\n"));
+        assertThat(functionExplanation.getDetails()[0].getDetails()[2].getDetails()[1].getDetails()[0].toString(), equalTo("0.1 = "
+                + "exp(-0.5*pow(MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)],2.0)/0.21714724095162594)\n"));
         assertThat(functionExplanation.getDetails()[0].getDetails()[2].getDetails()[1].getDetails()[0].getDetails().length, equalTo(0));
 
         checkFiltersFunctionScoreExplanation(functionExplanation, "Function for field test:", 3);
-        assertThat(functionExplanation.getDetails()[0].getDetails()[3].getDetails()[1].getDetails()[0].toString(), equalTo("0.1 = exp(- MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)] * 2.3025850929940455)\n"));
+        assertThat(functionExplanation.getDetails()[0].getDetails()[3].getDetails()[1].getDetails()[0].toString(), equalTo(
+                "0.1 = exp(- " + "MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)] * 2.3025850929940455)\n"));
         assertThat(functionExplanation.getDetails()[0].getDetails()[3].getDetails()[1].getDetails()[0].getDetails().length, equalTo(0));
 
         checkFiltersFunctionScoreExplanation(functionExplanation, "Function for field test:", 4);
-        assertThat(functionExplanation.getDetails()[0].getDetails()[4].getDetails()[1].getDetails()[0].toString(), equalTo("0.1 = max(0.0, ((1.1111111111111112 - MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)])/1.1111111111111112)\n"));
+        assertThat(functionExplanation.getDetails()[0].getDetails()[4].getDetails()[1].getDetails()[0].toString(),
+                equalTo("0.1 = max(0.0, ((1.1111111111111112 - MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin)))"
+                        + " - 0.0(=offset), 0)])/1.1111111111111112)\n"));
         assertThat(functionExplanation.getDetails()[0].getDetails()[4].getDetails()[1].getDetails()[0].getDetails().length, equalTo(0));
     }
 
     public Explanation getFiltersFunctionScoreExplanation(IndexSearcher searcher, ScoreFunction... scoreFunctions) throws IOException {
-        FiltersFunctionScoreQuery filtersFunctionScoreQuery = getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode.AVG, CombineFunction.AVG, scoreFunctions);
+        FiltersFunctionScoreQuery filtersFunctionScoreQuery = getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode.AVG,
+                CombineFunction.AVG, scoreFunctions);
         return getExplanation(searcher, filtersFunctionScoreQuery).getDetails()[1];
     }
 
@@ -391,21 +399,25 @@ public class FunctionScoreTests extends ESTestCase {
         return weight.explain(searcher.getIndexReader().leaves().get(0), 0);
     }
 
-    public FiltersFunctionScoreQuery getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode scoreMode, CombineFunction combineFunction, ScoreFunction... scoreFunctions) {
-        FiltersFunctionScoreQuery.FilterFunction[] filterFunctions = new FiltersFunctionScoreQuery.FilterFunction[scoreFunctions.length];
+    public FiltersFunctionScoreQuery getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode scoreMode,
+            CombineFunction combineFunction, ScoreFunction... scoreFunctions) {
+        FilterFunction[] filterFunctions = new FilterFunction[scoreFunctions.length];
         for (int i = 0; i < scoreFunctions.length; i++) {
             filterFunctions[i] = new FiltersFunctionScoreQuery.FilterFunction(
-                    new TermQuery(TERM), scoreFunctions[i]);
+                new TermQuery(TERM), scoreFunctions[i]);
         }
-        return new FiltersFunctionScoreQuery(new TermQuery(TERM), scoreMode, filterFunctions, Float.MAX_VALUE, Float.MAX_VALUE * -1, combineFunction);
+        return new FiltersFunctionScoreQuery(new TermQuery(TERM), scoreMode, filterFunctions, Float.MAX_VALUE, Float.MAX_VALUE * -1,
+                combineFunction);
     }
 
     public void checkFiltersFunctionScoreExplanation(Explanation randomExplanation, String functionExpl, int whichFunction) {
         assertThat(randomExplanation.getDescription(), equalTo("min of:"));
-        assertThat(randomExplanation.getDetails()[0].getDescription(), equalTo("function score, score mode [avg]"));
-        assertThat(randomExplanation.getDetails()[0].getDetails()[whichFunction].getDescription(), equalTo("function score, product of:"));
-        assertThat(randomExplanation.getDetails()[0].getDetails()[whichFunction].getDetails()[0].getDescription(), equalTo("match filter: " + FIELD + ":" + TERM.text()));
-        assertThat(randomExplanation.getDetails()[0].getDetails()[whichFunction].getDetails()[1].getDescription(), equalTo(functionExpl));
+        Explanation explanation = randomExplanation.getDetails()[0];
+        assertThat(explanation.getDescription(), equalTo("function score, score mode [avg]"));
+        Explanation functionExplanation = randomExplanation.getDetails()[0].getDetails()[whichFunction];
+        assertThat(functionExplanation.getDescription(), equalTo("function score, product of:"));
+        assertThat(functionExplanation.getDetails()[0].getDescription(), equalTo("match filter: " + FIELD + ":" + TERM.text()));
+        assertThat(functionExplanation.getDetails()[1].getDescription(), equalTo(functionExpl));
     }
 
     private static float[] randomFloats(int size) {
@@ -455,6 +467,11 @@ public class FunctionScoreTests extends ESTestCase {
         @Override
         protected boolean doEquals(ScoreFunction other) {
             return false;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
         }
     }
 
@@ -555,9 +572,183 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testWeightOnlyCreatesBoostFunction() throws IOException {
-        FunctionScoreQuery filtersFunctionScoreQueryWithWeights = new FunctionScoreQuery(new MatchAllDocsQuery(), new WeightFactorFunction(2), 0.0f, CombineFunction.MULTIPLY, 100);
+        FunctionScoreQuery filtersFunctionScoreQueryWithWeights = new FunctionScoreQuery(new MatchAllDocsQuery(),
+                new WeightFactorFunction(2), 0.0f, CombineFunction.MULTIPLY, 100);
         TopDocs topDocsWithWeights = searcher.search(filtersFunctionScoreQueryWithWeights, 1);
         float score = topDocsWithWeights.scoreDocs[0].score;
         assertThat(score, equalTo(2.0f));
+    }
+
+    public void testMinScoreExplain() throws IOException {
+        Query query = new MatchAllDocsQuery();
+        Explanation queryExpl = searcher.explain(query, 0);
+
+        FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, 0f, null, Float.POSITIVE_INFINITY);
+        Explanation fsqExpl = searcher.explain(fsq, 0);
+        assertTrue(fsqExpl.isMatch());
+        assertEquals(queryExpl.getValue(), fsqExpl.getValue(), 0f);
+        assertEquals(queryExpl.getDescription(), fsqExpl.getDescription());
+
+        fsq = new FunctionScoreQuery(query, null, 10f, null, Float.POSITIVE_INFINITY);
+        fsqExpl = searcher.explain(fsq, 0);
+        assertFalse(fsqExpl.isMatch());
+        assertEquals("Score value is too low, expected at least 10.0 but got 1.0", fsqExpl.getDescription());
+
+        FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY,
+                0f, CombineFunction.MULTIPLY);
+        Explanation ffsqExpl = searcher.explain(ffsq, 0);
+        assertTrue(ffsqExpl.isMatch());
+        assertEquals(queryExpl.getValue(), ffsqExpl.getValue(), 0f);
+        assertEquals(queryExpl.getDescription(), ffsqExpl.getDescription());
+
+        ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY, 10f,
+                CombineFunction.MULTIPLY);
+        ffsqExpl = searcher.explain(ffsq, 0);
+        assertFalse(ffsqExpl.isMatch());
+        assertEquals("Score value is too low, expected at least 10.0 but got 1.0", ffsqExpl.getDescription());
+    }
+
+    public void testPropagatesApproximations() throws IOException {
+        Query query = new RandomApproximationQuery(new MatchAllDocsQuery(), random());
+        IndexSearcher searcher = newSearcher(reader);
+        searcher.setQueryCache(null); // otherwise we could get a cached entry that does not have approximations
+
+        FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, null, null, Float.POSITIVE_INFINITY);
+        for (boolean needsScores : new boolean[] {true, false}) {
+            Weight weight = searcher.createWeight(fsq, needsScores);
+            Scorer scorer = weight.scorer(reader.leaves().get(0));
+            assertNotNull(scorer.twoPhaseIterator());
+        }
+
+        FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY,
+                null, CombineFunction.MULTIPLY);
+        for (boolean needsScores : new boolean[] {true, false}) {
+            Weight weight = searcher.createWeight(ffsq, needsScores);
+            Scorer scorer = weight.scorer(reader.leaves().get(0));
+            assertNotNull(scorer.twoPhaseIterator());
+        }
+    }
+
+    public void testFunctionScoreHashCodeAndEquals() {
+        Float minScore = randomBoolean() ? null : 1.0f;
+        CombineFunction combineFunction = randomFrom(CombineFunction.values());
+        float maxBoost = randomBoolean() ? Float.POSITIVE_INFINITY : randomFloat();
+        ScoreFunction function = randomBoolean() ? null : new DummyScoreFunction(combineFunction);
+
+        FunctionScoreQuery q = new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), function, minScore, combineFunction, maxBoost);
+        FunctionScoreQuery q1 = new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), function, minScore, combineFunction,
+                maxBoost);
+        assertEquals(q, q);
+        assertEquals(q.hashCode(), q.hashCode());
+        assertEquals(q, q1);
+        assertEquals(q.hashCode(), q1.hashCode());
+
+        FunctionScoreQuery diffQuery = new FunctionScoreQuery(new TermQuery(new Term("foo", "baz")), function, minScore, combineFunction,
+                maxBoost);
+        FunctionScoreQuery diffMinScore = new FunctionScoreQuery(q.getSubQuery(), function, minScore == null ? 1.0f : null, combineFunction,
+                maxBoost);
+        ScoreFunction otherFunciton = function == null ? new DummyScoreFunction(combineFunction) : null;
+        FunctionScoreQuery diffFunction = new FunctionScoreQuery(q.getSubQuery(), otherFunciton, minScore, combineFunction, maxBoost);
+        FunctionScoreQuery diffMaxBoost = new FunctionScoreQuery(new TermQuery(new Term("foo", "bar")), function, minScore, combineFunction,
+                maxBoost == 1.0f ? 0.9f : 1.0f);
+        FunctionScoreQuery[] queries = new FunctionScoreQuery[] { diffFunction,
+            diffMinScore,
+            diffQuery,
+            q,
+            diffMaxBoost
+        };
+        final int numIters = randomIntBetween(20, 100);
+        for (int i = 0; i < numIters; i++) {
+            FunctionScoreQuery left = randomFrom(queries);
+            FunctionScoreQuery right = randomFrom(queries);
+            if (left == right) {
+                assertEquals(left, right);
+                assertEquals(left.hashCode(), right.hashCode());
+            } else {
+                assertNotEquals(left + " == " + right, left, right);
+            }
+        }
+
+    }
+
+    public void testFilterFunctionScoreHashCodeAndEquals() {
+        ScoreMode mode = randomFrom(ScoreMode.values());
+        CombineFunction combineFunction = randomFrom(CombineFunction.values());
+        ScoreFunction scoreFunction = new DummyScoreFunction(combineFunction);
+        Float minScore = randomBoolean() ? null : 1.0f;
+        Float maxBoost = randomBoolean() ? Float.POSITIVE_INFINITY : randomFloat();
+
+        FilterFunction function = new FilterFunction(new TermQuery(new Term("filter", "query")), scoreFunction);
+        FiltersFunctionScoreQuery q = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "bar")), mode,
+                new FilterFunction[] { function }, maxBoost, minScore, combineFunction);
+        FiltersFunctionScoreQuery q1 = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "bar")), mode,
+                new FilterFunction[] { function }, maxBoost, minScore, combineFunction);
+        assertEquals(q, q);
+        assertEquals(q.hashCode(), q.hashCode());
+        assertEquals(q, q1);
+        assertEquals(q.hashCode(), q1.hashCode());
+        FiltersFunctionScoreQuery diffCombineFunc = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "bar")), mode,
+                new FilterFunction[] { function }, maxBoost, minScore,
+                combineFunction == CombineFunction.AVG ? CombineFunction.MAX : CombineFunction.AVG);
+        FiltersFunctionScoreQuery diffQuery = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "baz")), mode,
+                new FilterFunction[] { function }, maxBoost, minScore, combineFunction);
+        FiltersFunctionScoreQuery diffMode = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "bar")),
+                mode == ScoreMode.AVG ? ScoreMode.FIRST : ScoreMode.AVG, new FilterFunction[] { function }, maxBoost, minScore,
+                combineFunction);
+        FiltersFunctionScoreQuery diffMaxBoost = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "bar")), mode,
+                new FilterFunction[] { function }, maxBoost == 1.0f ? 0.9f : 1.0f, minScore, combineFunction);
+        FiltersFunctionScoreQuery diffMinScore = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "bar")), mode,
+                new FilterFunction[] { function }, maxBoost, minScore == null ? 0.9f : null, combineFunction);
+        FilterFunction otherFunc = new FilterFunction(new TermQuery(new Term("filter", "other_query")), scoreFunction);
+        FiltersFunctionScoreQuery diffFunc = new FiltersFunctionScoreQuery(new TermQuery(new Term("foo", "bar")), mode,
+                randomBoolean() ? new FilterFunction[] { function, otherFunc } : new FilterFunction[] { otherFunc }, maxBoost, minScore,
+                combineFunction);
+
+        FiltersFunctionScoreQuery[] queries = new FiltersFunctionScoreQuery[] {
+            diffQuery,
+            diffMaxBoost,
+            diffMinScore,
+            diffMode,
+            diffFunc,
+            q,
+            diffCombineFunc
+        };
+        final int numIters = randomIntBetween(20, 100);
+        for (int i = 0; i < numIters; i++) {
+            FiltersFunctionScoreQuery left = randomFrom(queries);
+            FiltersFunctionScoreQuery right = randomFrom(queries);
+            if (left == right) {
+                assertEquals(left, right);
+                assertEquals(left.hashCode(), right.hashCode());
+            } else {
+                assertNotEquals(left + " == " + right, left, right);
+            }
+        }
+    }
+
+    private static class DummyScoreFunction extends ScoreFunction {
+        protected DummyScoreFunction(CombineFunction scoreCombiner) {
+            super(scoreCombiner);
+        }
+
+        @Override
+        public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+            return null;
+        }
+
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
+
+        @Override
+        protected boolean doEquals(ScoreFunction other) {
+            return other == this;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        };
     }
 }

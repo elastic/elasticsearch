@@ -53,11 +53,11 @@ import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.index.shard.IndexShardState.CLOSED;
 import static org.elasticsearch.index.shard.IndexShardState.CREATED;
 import static org.elasticsearch.index.shard.IndexShardState.POST_RECOVERY;
 import static org.elasticsearch.index.shard.IndexShardState.RECOVERING;
+import static org.elasticsearch.index.shard.IndexShardState.RELOCATED;
 import static org.elasticsearch.index.shard.IndexShardState.STARTED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -84,7 +84,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             @Override
             public void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
                 beforeAddedCount.incrementAndGet();
-                if (indexSettings.getAsBoolean("index.fail", false)) {
+                if (MockIndexEventListener.TestPlugin.INDEX_FAIL.get(indexSettings)) {
                     throw new ElasticsearchException("failing on purpose");
                 }
             }
@@ -130,7 +130,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
                 throw new RuntimeException("FAIL");
             }
         });
-        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("index1", 0), node1, node2)).get();
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("index1", 0, node1, node2)).get();
         ensureGreen("index1");
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         List<ShardRouting> shard = state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED);
@@ -170,24 +170,24 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         //add a node: 3 out of the 6 shards will be relocated to it
         //disable allocation before starting a new node, as we need to register the listener first
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")));
+                .setPersistentSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
         String node2 = internalCluster().startNode();
         IndexShardStateChangeListener stateChangeListenerNode2 = new IndexShardStateChangeListener();
         //add a listener that keeps track of the shard state changes
         internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node2).setNewDelegate(stateChangeListenerNode2);
         //re-enable allocation
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "all")));
+                .setPersistentSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")));
         ensureGreen();
 
         //the 3 relocated shards get closed on the first node
-        assertShardStatesMatch(stateChangeListenerNode1, 3, CLOSED);
+        assertShardStatesMatch(stateChangeListenerNode1, 3, RELOCATED, CLOSED);
         //the 3 relocated shards get created on the second node
         assertShardStatesMatch(stateChangeListenerNode2, 3, CREATED, RECOVERING, POST_RECOVERY, STARTED);
 
 
         //increase replicas from 0 to 1
-        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(builder().put(SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1)));
         ensureGreen();
 
         //3 replicas are allocated to the first node

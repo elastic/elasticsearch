@@ -20,7 +20,11 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.payloads.*;
+import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilter;
+import org.apache.lucene.analysis.payloads.FloatEncoder;
+import org.apache.lucene.analysis.payloads.IdentityEncoder;
+import org.apache.lucene.analysis.payloads.IntegerEncoder;
+import org.apache.lucene.analysis.payloads.PayloadEncoder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -32,10 +36,10 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
 
     public static final char DEFAULT_DELIMITER = '|';
     public static final PayloadEncoder DEFAULT_ENCODER = new FloatEncoder();
-    
+
     static final String ENCODING = "encoding";
     static final String DELIMITER = "delimiter";
-    
+
     char delimiter;
     PayloadEncoder encoder;
 
@@ -48,7 +52,7 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
         } else {
             delimiter = DEFAULT_DELIMITER;
         }
-            
+
         if (settings.get(ENCODING) != null) {
             if (settings.get(ENCODING).equals("float")) {
                 encoder = new FloatEncoder();
@@ -56,7 +60,7 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
                 encoder = new IntegerEncoder();
             } else if (settings.get(ENCODING).equals("identity")) {
                 encoder = new IdentityEncoder();
-            } 
+            }
         } else {
             encoder = DEFAULT_ENCODER;
         }
@@ -67,5 +71,5 @@ public class DelimitedPayloadTokenFilterFactory extends AbstractTokenFilterFacto
         DelimitedPayloadTokenFilter filter = new DelimitedPayloadTokenFilter(tokenStream, delimiter, encoder);
         return filter;
     }
-    
+
 }

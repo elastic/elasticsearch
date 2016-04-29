@@ -20,6 +20,7 @@
 package org.elasticsearch.plugin.javascript;
 
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.javascript.JavaScriptScriptEngineService;
 
@@ -44,6 +45,6 @@ public class JavaScriptPlugin extends Plugin {
     }
 
     public void onModule(ScriptModule module) {
-        module.addScriptEngine(JavaScriptScriptEngineService.class);
+        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(JavaScriptScriptEngineService.class, JavaScriptScriptEngineService.TYPES));
     }
 }

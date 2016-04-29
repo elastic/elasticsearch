@@ -19,8 +19,8 @@
 
 package org.elasticsearch.plugins.responseheader;
 
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestModule;
 
 public class TestResponseHeaderPlugin extends Plugin {
 
@@ -34,7 +34,7 @@ public class TestResponseHeaderPlugin extends Plugin {
         return "test-plugin-custom-header-desc";
     }
 
-    public void onModule(RestModule restModule) {
-        restModule.addRestAction(TestResponseHeaderRestAction.class);
+    public void onModule(NetworkModule module) {
+        module.registerRestHandler(TestResponseHeaderRestAction.class);
     }
 }

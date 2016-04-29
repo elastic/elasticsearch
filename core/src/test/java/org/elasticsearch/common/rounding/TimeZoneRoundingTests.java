@@ -101,8 +101,8 @@ public class TimeZoneRoundingTests extends ESTestCase {
         int timezoneOffset = -2;
         Rounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(DateTimeZone.forOffsetHours(timezoneOffset))
                 .build();
-        assertThat(tzRounding.round(0), equalTo(0l - TimeValue.timeValueHours(24 + timezoneOffset).millis()));
-        assertThat(tzRounding.nextRoundingValue(0l - TimeValue.timeValueHours(24 + timezoneOffset).millis()), equalTo(0l - TimeValue
+        assertThat(tzRounding.round(0), equalTo(0L - TimeValue.timeValueHours(24 + timezoneOffset).millis()));
+        assertThat(tzRounding.nextRoundingValue(0L - TimeValue.timeValueHours(24 + timezoneOffset).millis()), equalTo(0L - TimeValue
                 .timeValueHours(timezoneOffset).millis()));
 
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(DateTimeZone.forID("-08:00")).build();
@@ -135,8 +135,8 @@ public class TimeZoneRoundingTests extends ESTestCase {
     public void testTimeTimeZoneRounding() {
         // hour unit
         Rounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(DateTimeZone.forOffsetHours(-2)).build();
-        assertThat(tzRounding.round(0), equalTo(0l));
-        assertThat(tzRounding.nextRoundingValue(0l), equalTo(TimeValue.timeValueHours(1l).getMillis()));
+        assertThat(tzRounding.round(0), equalTo(0L));
+        assertThat(tzRounding.nextRoundingValue(0L), equalTo(TimeValue.timeValueHours(1L).getMillis()));
 
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(DateTimeZone.forOffsetHours(-2)).build();
         assertThat(tzRounding.round(utc("2009-02-03T01:01:01")), equalTo(utc("2009-02-03T01:00:00")));

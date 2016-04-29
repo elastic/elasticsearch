@@ -21,20 +21,16 @@ package org.elasticsearch.search.aggregations.pipeline.cumulativesum;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,12 +55,12 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
         PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    private ValueFormatter formatter;
+    private DocValueFormat formatter;
 
     public CumulativeSumPipelineAggregator() {
     }
 
-    public CumulativeSumPipelineAggregator(String name, String[] bucketsPaths, ValueFormatter formatter,
+    public CumulativeSumPipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter,
             Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
@@ -99,45 +95,11 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
 
     @Override
     public void doReadFrom(StreamInput in) throws IOException {
-        formatter = ValueFormatterStreams.readOptional(in);
+        formatter = in.readNamedWriteable(DocValueFormat.class);
     }
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(formatter, out);
-    }
-
-    public static class Factory extends PipelineAggregatorFactory {
-
-        private final ValueFormatter formatter;
-
-        public Factory(String name, String[] bucketsPaths, ValueFormatter formatter) {
-            super(name, TYPE.name(), bucketsPaths);
-            this.formatter = formatter;
-        }
-
-        @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new CumulativeSumPipelineAggregator(name, bucketsPaths, formatter, metaData);
-        }
-
-        @Override
-        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories, List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
-            if (bucketsPaths.length != 1) {
-                throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                        + " must contain a single entry for aggregation [" + name + "]");
-            }
-            if (!(parent instanceof HistogramAggregator.Factory)) {
-                throw new IllegalStateException("cumulative sum aggregation [" + name
-                        + "] must have a histogram or date_histogram as parent");
-            } else {
-                HistogramAggregator.Factory histoParent = (HistogramAggregator.Factory) parent;
-                if (histoParent.minDocCount() != 0) {
-                    throw new IllegalStateException("parent histogram of cumulative sum aggregation [" + name
-                            + "] must have min_doc_count of 0");
-                }
-            }
-        }
-
+        out.writeNamedWriteable(formatter);
     }
 }

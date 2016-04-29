@@ -94,7 +94,7 @@ public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
                 hitField = new InternalSearchHitField(field.name(), new ArrayList<>(2));
                 hitContext.hit().fields().put(field.name(), hitField);
             }
-            MappedFieldType fieldType = context.mapperService().smartNameFieldType(field.name());
+            MappedFieldType fieldType = context.mapperService().fullName(field.name());
             if (fieldType != null) {
                 AtomicFieldData data = context.fieldData().getForField(fieldType).load(hitContext.readerContext());
                 ScriptDocValues values = data.getScriptValues();

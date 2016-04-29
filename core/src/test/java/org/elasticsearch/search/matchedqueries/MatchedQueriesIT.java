@@ -53,15 +53,17 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(boolQuery().must(matchAllQuery()).filter(boolQuery().should(rangeQuery("number").lte(2).queryName("test1")).should(rangeQuery("number").gt(2).queryName("test2")))).get();
-        assertHitCount(searchResponse, 3l);
+.setQuery(boolQuery().must(matchAllQuery()).filter(boolQuery()
+                        .should(rangeQuery("number").lt(2).queryName("test1")).should(rangeQuery("number").gte(2).queryName("test2"))))
+                .get();
+        assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
-            if (hit.id().equals("1") || hit.id().equals("2")) {
-                assertThat(hit.matchedQueries().length, equalTo(1));
-                assertThat(hit.matchedQueries(), hasItemInArray("test1"));
-            } else if (hit.id().equals("3")) {
+            if (hit.id().equals("3") || hit.id().equals("2")) {
                 assertThat(hit.matchedQueries().length, equalTo(1));
                 assertThat(hit.matchedQueries(), hasItemInArray("test2"));
+            } else if (hit.id().equals("1")) {
+                assertThat(hit.matchedQueries().length, equalTo(1));
+                assertThat(hit.matchedQueries(), hasItemInArray("test1"));
             } else {
                 fail("Unexpected document returned with id " + hit.id());
             }
@@ -69,7 +71,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch()
                 .setQuery(boolQuery().should(rangeQuery("number").lte(2).queryName("test1")).should(rangeQuery("number").gt(2).queryName("test2"))).get();
-        assertHitCount(searchResponse, 3l);
+        assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2")) {
                 assertThat(hit.matchedQueries().length, equalTo(1));
@@ -97,7 +99,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
                 .setPostFilter(boolQuery().should(
                         termQuery("name", "test").queryName("name")).should(
                         termQuery("title", "title1").queryName("title"))).get();
-        assertHitCount(searchResponse, 3l);
+        assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1")) {
                 assertThat(hit.matchedQueries().length, equalTo(2));
@@ -117,7 +119,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
                         .should(termQuery("name", "test").queryName("name"))
                         .should(termQuery("title", "title1").queryName("title"))).get();
 
-        assertHitCount(searchResponse, 3l);
+        assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1")) {
                 assertThat(hit.matchedQueries().length, equalTo(2));
@@ -144,7 +146,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(boolQuery().must(matchAllQuery()).filter(termsQuery("title", "title1", "title2", "title3").queryName("title")))
                         .setPostFilter(termQuery("name", "test").queryName("name")).get();
-        assertHitCount(searchResponse, 3l);
+        assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2") || hit.id().equals("3")) {
                 assertThat(hit.matchedQueries().length, equalTo(2));
@@ -158,7 +160,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch()
                 .setQuery(termsQuery("title", "title1", "title2", "title3").queryName("title"))
                 .setPostFilter(matchQuery("name", "test").queryName("name")).get();
-        assertHitCount(searchResponse, 3l);
+        assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2") || hit.id().equals("3")) {
                 assertThat(hit.matchedQueries().length, equalTo(2));
@@ -185,7 +187,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
                                 indicesQuery(termQuery("title", "title1").queryName("title1"), "test1")
                                         .noMatchQuery(termQuery("title", "title2").queryName("title2")).queryName("indices_filter")).should(
                                 termQuery("title", "title3").queryName("title3")).queryName("or"))).get();
-        assertHitCount(searchResponse, 3l);
+        assertHitCount(searchResponse, 3L);
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1")) {
@@ -217,7 +219,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.regexpQuery("title", "title1").queryName("regex")).get();
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1")) {
@@ -238,7 +240,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.prefixQuery("title", "title").queryName("prefix")).get();
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1")) {
@@ -250,6 +252,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
     }
 
+    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     public void testFuzzyQuerySupportsName() {
         createIndex("test1");
         ensureGreen();
@@ -259,7 +262,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.fuzzyQuery("title", "titel1").queryName("fuzzy")).get();
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1")) {
@@ -280,7 +283,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.wildcardQuery("title", "titl*").queryName("wildcard")).get();
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1")) {
@@ -301,7 +304,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.spanFirstQuery(QueryBuilders.spanTermQuery("title", "title1"), 10).queryName("span")).get();
-        assertHitCount(searchResponse, 1l);
+        assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1")) {
@@ -314,7 +317,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
     }
 
     /**
-     * Test case for issue #4361: https://github.com/elasticsearch/elasticsearch/issues/4361
+     * Test case for issue #4361: https://github.com/elastic/elasticsearch/issues/4361
      */
     public void testMatchedWithShould() throws Exception {
         createIndex("test");
@@ -337,7 +340,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
                     .setPreference("_primary")
                     .get();
 
-            assertHitCount(searchResponse, 2l);
+            assertHitCount(searchResponse, 2L);
             for (SearchHit hit : searchResponse.getHits()) {
                 if (hit.id().equals("1")) {
                     assertThat(hit.matchedQueries().length, equalTo(1));
@@ -367,7 +370,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
             SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(query)
                     .get();
-            assertHitCount(searchResponse, 1l);
+            assertHitCount(searchResponse, 1L);
             assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("abc"));
         }
     }

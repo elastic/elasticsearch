@@ -162,11 +162,6 @@ The following are options allowed on the filter:
 
     Optional name field to identify the query
 
-`coerce`::
-
-    Set to `true` to normalize longitude and latitude values to a standard -180:180 / -90:90
-    coordinate system. (default is `false`).
-
 `ignore_malformed`::
 
     Set to `true` to accept geo points with invalid latitude or
@@ -185,3 +180,11 @@ The `geo_distance` filter can work with multiple locations / points per
 document. Once a single location / point matches the filter, the
 document will be included in the filter.
 
+[float]
+==== Ignore Unmapped
+
+When set to `true` the `ignore_unmapped` option will ignore an unmapped field
+and will not match any documents for this query. This can be useful when
+querying multiple indexes which might have different mappings. When set to
+`false` (the default value) the query will throw an exception if the field
+is not mapped.

@@ -14,9 +14,8 @@ Here is an example on how to create the aggregation request:
 --------------------------------------------------
 AggregationBuilder aggregation =
         AggregationBuilders
-                .geoDistance("agg")
+                .geoDistance("agg", new GeoPoint(48.84237171118314,2.33320027692004))
                 .field("address.location")
-                .point(new GeoPoint(48.84237171118314,2.33320027692004))
                 .unit(DistanceUnit.KILOMETERS)
                 .addUnboundedTo(3.0)
                 .addRange(3.0, 10.0)
@@ -57,4 +56,3 @@ key [*-3.0], from [0.0], to [3.0], doc_count [161]
 key [3.0-10.0], from [3.0], to [10.0], doc_count [460]
 key [10.0-500.0], from [10.0], to [500.0], doc_count [4925]
 --------------------------------------------------
-

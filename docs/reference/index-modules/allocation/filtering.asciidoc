@@ -14,9 +14,9 @@ attribute as follows:
 
 [source,sh]
 ------------------------
-bin/elasticsearch --node.rack rack1 --node.size big  <1>
+bin/elasticsearch -Ees.node.attr.rack=rack1 -Ees.node.attr.size=big  <1>
 ------------------------
-<1> These attribute settings can also be specfied in the `elasticsearch.yml` config file.
+<1> These attribute settings can also be specified in the `elasticsearch.yml` config file.
 
 These metadata attributes can be used with the
 `index.routing.allocation.*` settings to allocate an index to a particular

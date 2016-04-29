@@ -23,7 +23,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.concurrent.CountDownLatch;
@@ -61,7 +60,7 @@ public class ListenerActionIT extends ESIntegTestCase {
 
         latch.await();
 
-        boolean shouldBeThreaded = DiscoveryNode.clientNode(client.settings()) || TransportClient.CLIENT_TYPE.equals(client.settings().get(Client.CLIENT_TYPE_SETTING));
+        boolean shouldBeThreaded = TransportClient.CLIENT_TYPE.equals(Client.CLIENT_TYPE_SETTING_S.get(client.settings()));
         if (shouldBeThreaded) {
             assertTrue(threadName.get().contains("listener"));
         } else {

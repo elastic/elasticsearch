@@ -24,11 +24,10 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -36,39 +35,28 @@ import java.util.Map;
 public abstract class PipelineAggregator implements Streamable {
 
     /**
-     * Parses the pipeline aggregation request and creates the appropriate
-     * pipeline aggregator factory for it.
-     * 
-     * @see PipelineAggregatorFactory
+     * Parse the {@link PipelineAggregatorBuilder} from a {@link QueryParseContext}.
      */
+    @FunctionalInterface
     public static interface Parser {
-
         public static final ParseField BUCKETS_PATH = new ParseField("buckets_path");
-
         public static final ParseField FORMAT = new ParseField("format");
         public static final ParseField GAP_POLICY = new ParseField("gap_policy");
 
         /**
-         * @return The aggregation type this parser is associated with.
-         */
-        String type();
-
-        /**
          * Returns the pipeline aggregator factory with which this parser is
          * associated.
-         * 
+         *
          * @param pipelineAggregatorName
          *            The name of the pipeline aggregation
-         * @param parser
-         *            The xcontent parser
          * @param context
          *            The search context
          * @return The resolved pipeline aggregator factory
          * @throws java.io.IOException
          *             When parsing fails
          */
-        PipelineAggregatorFactory parse(String pipelineAggregatorName, XContentParser parser, SearchContext context) throws IOException;
-
+        PipelineAggregatorBuilder<?> parse(String pipelineAggregatorName, QueryParseContext context)
+                throws IOException;
     }
 
     private String name;

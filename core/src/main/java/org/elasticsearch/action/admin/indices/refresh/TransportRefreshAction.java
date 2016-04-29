@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,7 +37,7 @@ import java.util.List;
 /**
  * Refresh action.
  */
-public class TransportRefreshAction extends TransportBroadcastReplicationAction<RefreshRequest, RefreshResponse, ReplicationRequest, ActionWriteResponse> {
+public class TransportRefreshAction extends TransportBroadcastReplicationAction<RefreshRequest, RefreshResponse, BasicReplicationRequest, ReplicationResponse> {
 
     @Inject
     public TransportRefreshAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
@@ -48,13 +48,13 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
     }
 
     @Override
-    protected ActionWriteResponse newShardResponse() {
-        return new ActionWriteResponse();
+    protected ReplicationResponse newShardResponse() {
+        return new ReplicationResponse();
     }
 
     @Override
-    protected ReplicationRequest newShardRequest(RefreshRequest request, ShardId shardId) {
-        return new ReplicationRequest(request, shardId);
+    protected BasicReplicationRequest newShardRequest(RefreshRequest request, ShardId shardId) {
+        return new BasicReplicationRequest(shardId);
     }
 
     @Override

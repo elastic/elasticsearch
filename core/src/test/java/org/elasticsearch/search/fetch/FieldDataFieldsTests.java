@@ -40,7 +40,7 @@ public class FieldDataFieldsTests extends ESTestCase {
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
-        SearchContext context = new TestSearchContext();
+        SearchContext context = new TestSearchContext(null);
         parseElement.parse(parser, context);
     }
 
@@ -52,7 +52,7 @@ public class FieldDataFieldsTests extends ESTestCase {
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
-        SearchContext context = new TestSearchContext();
+        SearchContext context = new TestSearchContext(null);
         parseElement.parse(parser, context);
     }
 
@@ -69,7 +69,7 @@ public class FieldDataFieldsTests extends ESTestCase {
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
-        SearchContext context = new TestSearchContext();
+        SearchContext context = new TestSearchContext(null);
         try {
             parseElement.parse(parser, context);
             fail("Expected IllegalStateException");

@@ -39,7 +39,7 @@ public class ESHttpContentDecompressor extends HttpContentDecompressor {
             // compression is enabled so handle the request according to the headers (compressed and uncompressed)
             return super.newContentDecoder(contentEncoding);
         } else {
-            // if compression is disabled only allow "indentity" (uncompressed) requests
+            // if compression is disabled only allow "identity" (uncompressed) requests
             if (HttpHeaders.Values.IDENTITY.equals(contentEncoding)) {
                 // nothing to handle here
                 return null;

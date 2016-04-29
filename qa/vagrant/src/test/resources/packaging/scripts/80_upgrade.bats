@@ -83,7 +83,8 @@ setup() {
 }
 
 @test "[UPGRADE] start version under test" {
-    start_elasticsearch_service yellow
+    start_elasticsearch_service yellow library
+    wait_for_elasticsearch_status yellow library2
 }
 
 @test "[UPGRADE] check elasticsearch version is version under test" {

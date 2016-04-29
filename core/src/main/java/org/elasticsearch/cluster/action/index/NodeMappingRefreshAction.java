@@ -31,7 +31,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
@@ -55,11 +60,11 @@ public class NodeMappingRefreshAction extends AbstractComponent {
 
     public void nodeMappingRefresh(final ClusterState state, final NodeMappingRefreshRequest request) {
         final DiscoveryNodes nodes = state.nodes();
-        if (nodes.masterNode() == null) {
+        if (nodes.getMasterNode() == null) {
             logger.warn("can't send mapping refresh for [{}], no master known.", request.index());
             return;
         }
-        transportService.sendRequest(nodes.masterNode(), ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+        transportService.sendRequest(nodes.getMasterNode(), ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
     }
 
     private class NodeMappingRefreshTransportHandler implements TransportRequestHandler<NodeMappingRefreshRequest> {

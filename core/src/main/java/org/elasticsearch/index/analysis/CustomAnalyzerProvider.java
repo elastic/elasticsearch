@@ -22,7 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -74,7 +74,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             tokenFilters.add(tokenFilter);
         }
 
-        int positionIncrementGap = StringFieldMapper.Defaults.positionIncrementGap(indexSettings.getIndexVersionCreated());
+        int positionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
 
         if (analyzerSettings.getAsMap().containsKey("position_offset_gap")){
             if (indexSettings.getIndexVersionCreated().before(Version.V_2_0_0)){

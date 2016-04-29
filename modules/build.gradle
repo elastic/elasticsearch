@@ -35,12 +35,7 @@ subprojects {
     throw new InvalidModelException("Modules cannot contain config files") 
   }
 
-  project.afterEvaluate {
-    if (esplugin.isolated == false) {
-      throw new InvalidModelException("Modules cannot disable isolation")
-    }
-    if (esplugin.jvm == false) {
-      throw new InvalidModelException("Modules must be jvm plugins")
-    }
-  }
+  // these are implementation details of our build, no need to publish them!
+  install.enabled = false
+  uploadArchives.enabled = false
 }

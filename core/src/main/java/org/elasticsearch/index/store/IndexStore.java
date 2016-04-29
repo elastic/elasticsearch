@@ -20,7 +20,8 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.StoreRateLimiting;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
@@ -29,32 +30,23 @@ import org.elasticsearch.index.shard.ShardPath;
  *
  */
 public class IndexStore extends AbstractIndexComponent {
-
-    public static final String INDEX_STORE_THROTTLE_TYPE = "index.store.throttle.type";
-    public static final String INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC = "index.store.throttle.max_bytes_per_sec";
+    public static final Setting<IndexRateLimitingType> INDEX_STORE_THROTTLE_TYPE_SETTING =
+        new Setting<>("index.store.throttle.type", "none", IndexRateLimitingType::fromString,
+            Property.Dynamic, Property.IndexScope);
+    public static final Setting<ByteSizeValue> INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING =
+        Setting.byteSizeSetting("index.store.throttle.max_bytes_per_sec", new ByteSizeValue(0),
+            Property.Dynamic, Property.IndexScope);
 
     protected final IndexStoreConfig indexStoreConfig;
-    private volatile String rateLimitingType;
-    private volatile ByteSizeValue rateLimitingThrottle;
-    private volatile boolean nodeRateLimiting;
-
     private final StoreRateLimiting rateLimiting = new StoreRateLimiting();
+    private volatile IndexRateLimitingType type;
 
     public IndexStore(IndexSettings indexSettings, IndexStoreConfig indexStoreConfig) {
         super(indexSettings);
         this.indexStoreConfig = indexStoreConfig;
-
-        this.rateLimitingType = indexSettings.getSettings().get(INDEX_STORE_THROTTLE_TYPE, "none");
-        if (rateLimitingType.equalsIgnoreCase("node")) {
-            nodeRateLimiting = true;
-        } else {
-            nodeRateLimiting = false;
-            rateLimiting.setType(rateLimitingType);
-        }
-        this.rateLimitingThrottle = indexSettings.getSettings().getAsBytesSize(INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(0));
-        rateLimiting.setMaxRate(rateLimitingThrottle);
-
-        logger.debug("using index.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);
+        setType(indexSettings.getValue(INDEX_STORE_THROTTLE_TYPE_SETTING));
+        rateLimiting.setMaxRate(indexSettings.getValue(INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING));
+        logger.debug("using index.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimiting.getType(), rateLimiting.getRateLimiter());
     }
 
     /**
@@ -62,7 +54,7 @@ public class IndexStore extends AbstractIndexComponent {
      * the node level one (defaults to the node level one).
      */
     public StoreRateLimiting rateLimiting() {
-        return nodeRateLimiting ? indexStoreConfig.getNodeRateLimiter() : this.rateLimiting;
+        return type.useStoreLimiter() ? indexStoreConfig.getNodeRateLimiter() : this.rateLimiting;
     }
 
     /**
@@ -72,26 +64,44 @@ public class IndexStore extends AbstractIndexComponent {
         return new FsDirectoryService(indexSettings, this, path);
     }
 
-    public void onRefreshSettings(Settings settings) {
-        String rateLimitingType = settings.get(INDEX_STORE_THROTTLE_TYPE, IndexStore.this.rateLimitingType);
-        if (!rateLimitingType.equals(IndexStore.this.rateLimitingType)) {
-            logger.info("updating index.store.throttle.type from [{}] to [{}]", IndexStore.this.rateLimitingType, rateLimitingType);
-            if (rateLimitingType.equalsIgnoreCase("node")) {
-                IndexStore.this.rateLimitingType = rateLimitingType;
-                IndexStore.this.nodeRateLimiting = true;
-            } else {
-                StoreRateLimiting.Type.fromString(rateLimitingType);
-                IndexStore.this.rateLimitingType = rateLimitingType;
-                IndexStore.this.nodeRateLimiting = false;
-                IndexStore.this.rateLimiting.setType(rateLimitingType);
-            }
-        }
-
-        ByteSizeValue rateLimitingThrottle = settings.getAsBytesSize(INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, IndexStore.this.rateLimitingThrottle);
-        if (!rateLimitingThrottle.equals(IndexStore.this.rateLimitingThrottle)) {
-            logger.info("updating index.store.throttle.max_bytes_per_sec from [{}] to [{}], note, type is [{}]", IndexStore.this.rateLimitingThrottle, rateLimitingThrottle, IndexStore.this.rateLimitingType);
-            IndexStore.this.rateLimitingThrottle = rateLimitingThrottle;
-            IndexStore.this.rateLimiting.setMaxRate(rateLimitingThrottle);
+    public void setType(IndexRateLimitingType type) {
+        this.type = type;
+        if (type.useStoreLimiter() == false) {
+            rateLimiting.setType(type.type);
         }
     }
+
+    public void setMaxRate(ByteSizeValue rate) {
+        rateLimiting.setMaxRate(rate);
+    }
+
+    /**
+     * On an index level we can configure all of {@link org.apache.lucene.store.StoreRateLimiting.Type} as well as
+     * <tt>node</tt> which will then use a global rate limiter that has it's own configuration. The global one is
+     * configured in {@link IndexStoreConfig} which is managed by the per-node {@link org.elasticsearch.indices.IndicesService}
+     */
+    public static final class IndexRateLimitingType {
+        private final StoreRateLimiting.Type type;
+
+        private IndexRateLimitingType(StoreRateLimiting.Type type) {
+            this.type = type;
+        }
+
+        private boolean useStoreLimiter() {
+            return type == null;
+        }
+
+        static IndexRateLimitingType fromString(String type) {
+            if ("node".equalsIgnoreCase(type)) {
+                return new IndexRateLimitingType(null);
+            } else {
+                try {
+                    return new IndexRateLimitingType(StoreRateLimiting.Type.fromString(type));
+                } catch (IllegalArgumentException ex) {
+                    throw new IllegalArgumentException("rate limiting type [" + type + "] not valid, can be one of [all|merge|none|node]");
+                }
+            }
+        }
+    }
+
 }

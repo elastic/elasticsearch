@@ -19,48 +19,62 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.spatial4j.core.shape.Rectangle;
 import com.vividsolutions.jts.geom.Coordinate;
 
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.locationtech.spatial4j.shape.Rectangle;
 
 import java.io.IOException;
 
 public class EnvelopeBuilderTests extends AbstractShapeBuilderTestCase<EnvelopeBuilder> {
 
-    @Override
-    protected EnvelopeBuilder createTestShapeBuilder() {
-        EnvelopeBuilder envelope = new EnvelopeBuilder(randomFrom(Orientation.values()));
-        Rectangle box = RandomShapeGenerator.xRandomRectangle(getRandom(), RandomShapeGenerator.xRandomPoint(getRandom()));
-        envelope.topLeft(box.getMinX(), box.getMaxY())
-                .bottomRight(box.getMaxX(), box.getMinY());
-        return envelope;
+    public void testInvalidConstructorArgs() {
+        NullPointerException e;
+        e = expectThrows(NullPointerException.class, () -> new EnvelopeBuilder(null, new Coordinate(1.0, -1.0)));
+        assertEquals("topLeft of envelope cannot be null", e.getMessage());
+        e = expectThrows(NullPointerException.class, () -> new EnvelopeBuilder(new Coordinate(1.0, -1.0), null));
+        assertEquals("bottomRight of envelope cannot be null", e.getMessage());
     }
 
     @Override
-    protected EnvelopeBuilder mutate(EnvelopeBuilder original) throws IOException {
-        EnvelopeBuilder mutation = copyShape(original);
-        if (randomBoolean()) {
-            // toggle orientation
-            mutation.orientation = (original.orientation == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT);
-        } else {
-            // move one corner to the middle of original
-            switch (randomIntBetween(0, 3)) {
-            case 0:
-                mutation.topLeft(new Coordinate(randomDoubleBetween(-180.0, original.bottomRight.x, true), original.topLeft.y));
-                break;
-            case 1:
-                mutation.topLeft(new Coordinate(original.topLeft.x, randomDoubleBetween(original.bottomRight.y, 90.0, true)));
-                break;
-            case 2:
-                mutation.bottomRight(new Coordinate(randomDoubleBetween(original.topLeft.x, 180.0, true), original.bottomRight.y));
-                break;
-            case 3:
-                mutation.bottomRight(new Coordinate(original.bottomRight.x, randomDoubleBetween(-90.0, original.topLeft.y, true)));
-                break;
-            }
+    protected EnvelopeBuilder createTestShapeBuilder() {
+        return createRandomShape();
+    }
+
+    @Override
+    protected EnvelopeBuilder createMutation(EnvelopeBuilder original) throws IOException {
+        return mutate(original);
+    }
+
+    static EnvelopeBuilder mutate(EnvelopeBuilder original) throws IOException {
+        EnvelopeBuilder mutation = (EnvelopeBuilder) copyShape(original);
+        // move one corner to the middle of original
+        switch (randomIntBetween(0, 3)) {
+        case 0:
+            mutation = new EnvelopeBuilder(
+                    new Coordinate(randomDoubleBetween(-180.0, original.bottomRight().x, true), original.topLeft().y),
+                    original.bottomRight());
+            break;
+        case 1:
+            mutation = new EnvelopeBuilder(new Coordinate(original.topLeft().x, randomDoubleBetween(original.bottomRight().y, 90.0, true)),
+                    original.bottomRight());
+            break;
+        case 2:
+            mutation = new EnvelopeBuilder(original.topLeft(),
+                    new Coordinate(randomDoubleBetween(original.topLeft().x, 180.0, true), original.bottomRight().y));
+            break;
+        case 3:
+            mutation = new EnvelopeBuilder(original.topLeft(),
+                    new Coordinate(original.bottomRight().x, randomDoubleBetween(-90.0, original.topLeft().y, true)));
+            break;
         }
         return mutation;
+    }
+
+    static EnvelopeBuilder createRandomShape() {
+        Rectangle box = RandomShapeGenerator.xRandomRectangle(random(), RandomShapeGenerator.xRandomPoint(random()));
+        EnvelopeBuilder envelope = new EnvelopeBuilder(new Coordinate(box.getMinX(), box.getMaxY()),
+                new Coordinate(box.getMaxX(), box.getMinY()));
+        return envelope;
     }
 }

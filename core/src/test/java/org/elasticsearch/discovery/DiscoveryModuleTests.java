@@ -19,18 +19,13 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.local.LocalDiscovery;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.test.NoopDiscovery;
 
 /**
  */
@@ -45,8 +40,8 @@ public class DiscoveryModuleTests extends ModuleTestCase {
 
 
     public void testRegisterMasterElectionService() {
-        Settings settings = Settings.builder().put("node.local", false).
-                put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_KEY, "custom").build();
+        Settings settings = Settings.builder().put(Node.NODE_LOCAL_SETTING.getKey(), false).
+                put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING.getKey(), "custom").build();
         DiscoveryModule module = new DiscoveryModule(settings);
         module.addElectMasterService("custom", DummyMasterElectionService.class);
         assertBinding(module, ElectMasterService.class, DummyMasterElectionService.class);
@@ -54,8 +49,8 @@ public class DiscoveryModuleTests extends ModuleTestCase {
     }
 
     public void testLoadUnregisteredMasterElectionService() {
-        Settings settings = Settings.builder().put("node.local", false).
-                put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_KEY, "foobar").build();
+        Settings settings = Settings.builder().put(Node.NODE_LOCAL_SETTING.getKey(), false).
+                put(DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING.getKey(), "foobar").build();
         DiscoveryModule module = new DiscoveryModule(settings);
         module.addElectMasterService("custom", DummyMasterElectionService.class);
         assertBindingFailure(module, "Unknown master service type [foobar]");
@@ -63,92 +58,19 @@ public class DiscoveryModuleTests extends ModuleTestCase {
 
     public void testRegisterDefaults() {
         boolean local = randomBoolean();
-        Settings settings = Settings.builder().put("node.local", local).build();
+        Settings settings = Settings.builder().put(Node.NODE_LOCAL_SETTING.getKey(), local).build();
         DiscoveryModule module = new DiscoveryModule(settings);
         assertBinding(module, Discovery.class, local ? LocalDiscovery.class : ZenDiscovery.class);
     }
 
     public void testRegisterDiscovery() {
         boolean local = randomBoolean();
-        Settings settings = Settings.builder().put("node.local", local).
-                put(DiscoveryModule.DISCOVERY_TYPE_KEY, "custom").build();
+        Settings settings = Settings.builder().put(Node.NODE_LOCAL_SETTING.getKey(), local).
+                put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "custom").build();
         DiscoveryModule module = new DiscoveryModule(settings);
-        module.addDiscoveryType("custom", DummyDisco.class);
-        assertBinding(module, Discovery.class, DummyDisco.class);
+        module.addDiscoveryType("custom", NoopDiscovery.class);
+        assertBinding(module, Discovery.class, NoopDiscovery.class);
     }
 
 
-    public static class DummyDisco implements Discovery {
-
-
-        @Override
-        public DiscoveryNode localNode() {
-            return null;
-        }
-
-        @Override
-        public void addListener(InitialStateDiscoveryListener listener) {
-
-        }
-
-        @Override
-        public void removeListener(InitialStateDiscoveryListener listener) {
-
-        }
-
-        @Override
-        public String nodeDescription() {
-            return null;
-        }
-
-        @Override
-        public void setNodeService(@Nullable NodeService nodeService) {
-
-        }
-
-        @Override
-        public void setRoutingService(RoutingService routingService) {
-
-        }
-
-        @Override
-        public void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener) {
-
-        }
-
-        @Override
-        public DiscoveryStats stats() {
-            return null;
-        }
-
-        @Override
-        public Lifecycle.State lifecycleState() {
-            return null;
-        }
-
-        @Override
-        public void addLifecycleListener(LifecycleListener listener) {
-
-        }
-
-        @Override
-        public void removeLifecycleListener(LifecycleListener listener) {
-
-        }
-
-        @Override
-        public Discovery start() {
-            return null;
-        }
-
-        @Override
-        public Discovery stop() {
-            return null;
-        }
-
-        @Override
-        public void close() {
-
-        }
-    }
 }

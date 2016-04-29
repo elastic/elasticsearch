@@ -236,9 +236,9 @@ GET /_search/template
 }
 ------------------------------------------
 
-<1> Name of the the query template in `config/scripts/`, i.e., `storedTemplate.mustache`.
+<1> Name of the query template in `config/scripts/`, i.e., `storedTemplate.mustache`.
 
-You can also register search templates by storing it in the elasticsearch cluster in a special index named `.scripts`.
+You can also register search templates by storing it in the cluster state.
 There are REST APIs to manage these indexed templates.
 
 [source,js]
@@ -297,7 +297,7 @@ GET /_search/template
     }
 }
 ------------------------------------------
-<1> Name of the the query template stored in the `.scripts` index.
+<1> Name of the query template stored in the `.scripts` index.
 
 [float]
 ==== Validating templates
@@ -365,7 +365,7 @@ Pre-registered templates can also be rendered using
 GET /_render/template/<template_name>
 {
   "params": {
-    "...
+    "..."
   }
 }
 ------------------------------------------

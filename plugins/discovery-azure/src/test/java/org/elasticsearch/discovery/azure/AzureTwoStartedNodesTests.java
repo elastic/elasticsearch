@@ -40,17 +40,17 @@ public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCa
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11533")
     public void testTwoNodesShouldRunUsingPrivateIp() {
-        Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.SERVICE_NAME, "dummy")
-                .put(Discovery.HOST_TYPE, "private_ip");
+        Settings.Builder settings = Settings.builder()
+                .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
+                .put(Discovery.HOST_TYPE_SETTING.getKey(), "private_ip");
 
         logger.info("--> start first node");
         internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().getMasterNodeId(), notNullValue());
 
         logger.info("--> start another node");
         internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().getMasterNodeId(), notNullValue());
 
         // We expect having 2 nodes as part of the cluster, let's test that
         checkNumberOfNodes(2);
@@ -58,17 +58,17 @@ public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCa
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11533")
     public void testTwoNodesShouldRunUsingPublicIp() {
-        Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.SERVICE_NAME, "dummy")
-                .put(Discovery.HOST_TYPE, "public_ip");
+        Settings.Builder settings = Settings.builder()
+                .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
+                .put(Discovery.HOST_TYPE_SETTING.getKey(), "public_ip");
 
         logger.info("--> start first node");
         internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().getMasterNodeId(), notNullValue());
 
         logger.info("--> start another node");
         internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().getMasterNodeId(), notNullValue());
 
         // We expect having 2 nodes as part of the cluster, let's test that
         checkNumberOfNodes(2);

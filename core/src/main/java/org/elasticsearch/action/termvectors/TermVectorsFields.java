@@ -26,7 +26,10 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BoostAttribute;
-import org.apache.lucene.util.*;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -171,7 +174,7 @@ public final class TermVectorsFields extends Fields {
     public Terms terms(String field) throws IOException {
         // first, find where in the termVectors bytes the actual term vector for
         // this field is stored
-        final int keySlot = fieldMap.indexOf(field); 
+        final int keySlot = fieldMap.indexOf(field);
         if (keySlot < 0) {
             return null; // we don't have it.
         }
@@ -483,7 +486,7 @@ public final class TermVectorsFields extends Fields {
 
     // read a vInt. this is used if the integer might be negative. In this case,
     // the writer writes a 0 for -1 or value +1 and accordingly we have to
-    // substract 1 again
+    // subtract 1 again
     // adds one to mock not existing term freq
     int readPotentiallyNegativeVInt(StreamInput stream) throws IOException {
         return stream.readVInt() - 1;
@@ -491,7 +494,7 @@ public final class TermVectorsFields extends Fields {
 
     // read a vLong. this is used if the integer might be negative. In this
     // case, the writer writes a 0 for -1 or value +1 and accordingly we have to
-    // substract 1 again
+    // subtract 1 again
     // adds one to mock not existing term freq
     long readPotentiallyNegativeVLong(StreamInput stream) throws IOException {
         return stream.readVLong() - 1;

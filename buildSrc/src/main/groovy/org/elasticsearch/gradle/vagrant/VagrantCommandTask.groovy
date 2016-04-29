@@ -19,8 +19,7 @@
 package org.elasticsearch.gradle.vagrant
 
 import org.gradle.api.DefaultTask
-import org.gradle.api.tasks.*
-import org.gradle.logging.ProgressLogger
+import org.gradle.api.tasks.TaskAction
 import org.gradle.logging.ProgressLoggerFactory
 import org.gradle.process.internal.ExecAction
 import org.gradle.process.internal.ExecActionFactory

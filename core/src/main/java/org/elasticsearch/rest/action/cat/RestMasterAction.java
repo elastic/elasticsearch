@@ -27,7 +27,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
@@ -78,7 +81,7 @@ public class RestMasterAction extends AbstractCatAction {
         DiscoveryNodes nodes = state.getState().nodes();
 
         table.startRow();
-        DiscoveryNode master = nodes.get(nodes.masterNodeId());
+        DiscoveryNode master = nodes.get(nodes.getMasterNodeId());
         if (master == null) {
             table.addCell("-");
             table.addCell("-");

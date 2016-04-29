@@ -30,10 +30,17 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  */
@@ -41,7 +48,7 @@ public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
-        XContentType xContentType = XContentType.fromRestContentType(request.param("format", request.header("Content-Type")));
+        XContentType xContentType = XContentType.fromMediaTypeOrFormat(request.param("format", request.header("Accept")));
         if (xContentType != null) {
             return buildXContentBuilder(table, channel);
         }
@@ -126,7 +133,7 @@ public class RestTable {
                     }
                 }
 
-                if (dispHeader != null) {
+                if (dispHeader != null && checkOutputTimestamp(dispHeader, request)) {
                     // We know we need the header asked for:
                     display.add(dispHeader);
 
@@ -146,13 +153,27 @@ public class RestTable {
         } else {
             for (Table.Cell cell : table.getHeaders()) {
                 String d = cell.attr.get("default");
-                if (Booleans.parseBoolean(d, true)) {
+                if (Booleans.parseBoolean(d, true) && checkOutputTimestamp(cell.value.toString(), request)) {
                     display.add(new DisplayHeader(cell.value.toString(), cell.value.toString()));
                 }
             }
         }
         return display;
     }
+
+
+    static boolean checkOutputTimestamp(DisplayHeader dispHeader, RestRequest request) {
+        return checkOutputTimestamp(dispHeader.name, request);
+    }
+
+    static boolean checkOutputTimestamp(String disp, RestRequest request) {
+        if (Table.TIMESTAMP.equals(disp) || Table.EPOCH.equals(disp)) {
+            return request.paramAsBoolean("ts", true);
+        } else {
+            return true;
+        }
+    }
+
 
     /**
      * Extracts all the required fields from the RestRequest 'h' parameter. In order to support wildcards like
@@ -282,15 +303,15 @@ public class RestTable {
             String resolution = request.param("bytes");
             if ("b".equals(resolution)) {
                 return Long.toString(v.bytes());
-            } else if ("k".equals(resolution)) {
+            } else if ("k".equals(resolution) || "kb".equals(resolution)) {
                 return Long.toString(v.kb());
-            } else if ("m".equals(resolution)) {
+            } else if ("m".equals(resolution) || "mb".equals(resolution)) {
                 return Long.toString(v.mb());
-            } else if ("g".equals(resolution)) {
+            } else if ("g".equals(resolution) || "gb".equals(resolution)) {
                 return Long.toString(v.gb());
-            } else if ("t".equals(resolution)) {
+            } else if ("t".equals(resolution) || "tb".equals(resolution)) {
                 return Long.toString(v.tb());
-            } else if ("p".equals(resolution)) {
+            } else if ("p".equals(resolution) || "pb".equals(resolution)) {
                 return Long.toString(v.pb());
             } else {
                 return v.toString();
@@ -299,7 +320,7 @@ public class RestTable {
         if (value instanceof SizeValue) {
             SizeValue v = (SizeValue) value;
             String resolution = request.param("size");
-            if ("b".equals(resolution)) {
+            if ("".equals(resolution)) {
                 return Long.toString(v.singles());
             } else if ("k".equals(resolution)) {
                 return Long.toString(v.kilo());
@@ -318,7 +339,11 @@ public class RestTable {
         if (value instanceof TimeValue) {
             TimeValue v = (TimeValue) value;
             String resolution = request.param("time");
-            if ("ms".equals(resolution)) {
+            if ("nanos".equals(resolution)) {
+                return Long.toString(v.nanos());
+            } else if ("micros".equals(resolution)) {
+                return Long.toString(v.micros());
+            } else if ("ms".equals(resolution)) {
                 return Long.toString(v.millis());
             } else if ("s".equals(resolution)) {
                 return Long.toString(v.seconds());
@@ -326,6 +351,8 @@ public class RestTable {
                 return Long.toString(v.minutes());
             } else if ("h".equals(resolution)) {
                 return Long.toString(v.hours());
+            } else if ("d".equals(resolution)) {
+                return Long.toString(v.days());
             } else {
                 return v.toString();
             }

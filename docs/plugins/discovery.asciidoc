@@ -21,10 +21,6 @@ The Azure discovery plugin uses the Azure API for unicast discovery.
 
 The Google Compute Engine discovery plugin uses the GCE API for unicast discovery.
 
-<<discovery-multicast,Multicast>>::
-
-The multicast plugin sends multicast messages to discover other nodes in the cluster.
-
 [float]
 ==== Community contributed discovery plugins
 
@@ -40,6 +36,4 @@ include::discovery-ec2.asciidoc[]
 include::discovery-azure.asciidoc[]
 
 include::discovery-gce.asciidoc[]
-
-include::discovery-multicast.asciidoc[]
 

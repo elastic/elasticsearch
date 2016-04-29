@@ -27,7 +27,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -58,16 +57,12 @@ public class OperationRouting extends AbstractComponent {
     }
 
     public ShardIterator getShards(ClusterState clusterState, String index, String type, String id, @Nullable String routing, @Nullable String preference) {
-        return preferenceActiveShardIterator(shards(clusterState, index, id, routing), clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
+        return preferenceActiveShardIterator(shards(clusterState, index, id, routing), clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference);
     }
 
     public ShardIterator getShards(ClusterState clusterState, String index, int shardId, @Nullable String preference) {
         final IndexShardRoutingTable indexShard = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
-        return preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
-    }
-
-    public GroupShardsIterator broadcastDeleteShards(ClusterState clusterState, String index) {
-        return indexRoutingTable(clusterState, index).groupByShardsIt();
+        return preferenceActiveShardIterator(indexShard, clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference);
     }
 
     public int searchShardsCount(ClusterState clusterState, String[] concreteIndices, @Nullable Map<String, Set<String>> routing) {
@@ -79,7 +74,7 @@ public class OperationRouting extends AbstractComponent {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         final Set<ShardIterator> set = new HashSet<>(shards.size());
         for (IndexShardRoutingTable shard : shards) {
-            ShardIterator iterator = preferenceActiveShardIterator(shard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
+            ShardIterator iterator = preferenceActiveShardIterator(shard, clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference);
             if (iterator != null) {
                 set.add(iterator);
             }
@@ -95,13 +90,14 @@ public class OperationRouting extends AbstractComponent {
         // we use set here and not list since we might get duplicates
         for (String index : concreteIndices) {
             final IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
+            final IndexMetaData indexMetaData = indexMetaData(clusterState, index);
             final Set<String> effectiveRouting = routing.get(index);
             if (effectiveRouting != null) {
                 for (String r : effectiveRouting) {
-                    int shardId = generateShardId(clusterState, index, null, r);
+                    int shardId = generateShardId(indexMetaData, null, r);
                     IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
                     if (indexShard == null) {
-                        throw new ShardNotFoundException(new ShardId(index, shardId));
+                        throw new ShardNotFoundException(new ShardId(indexRouting.getIndex(), shardId));
                     }
                     // we might get duplicates, but that's ok, they will override one another
                     set.add(indexShard);
@@ -204,31 +200,36 @@ public class OperationRouting extends AbstractComponent {
         return indexRouting;
     }
 
-    protected IndexShardRoutingTable shards(ClusterState clusterState, String index, String id, String routing) {
-        int shardId = generateShardId(clusterState, index, id, routing);
-        return clusterState.getRoutingTable().shardRoutingTable(index, shardId);
-    }
-
-    public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
-        return new ShardId(index, generateShardId(clusterState, index, id, routing));
-    }
-
-    private int generateShardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
+    protected IndexMetaData indexMetaData(ClusterState clusterState, String index) {
         IndexMetaData indexMetaData = clusterState.metaData().index(index);
         if (indexMetaData == null) {
             throw new IndexNotFoundException(index);
         }
+        return indexMetaData;
+    }
+
+    protected IndexShardRoutingTable shards(ClusterState clusterState, String index, String id, String routing) {
+        int shardId = generateShardId(indexMetaData(clusterState, index), id, routing);
+        return clusterState.getRoutingTable().shardRoutingTable(index, shardId);
+    }
+
+    public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
+        IndexMetaData indexMetaData = indexMetaData(clusterState, index);
+        return new ShardId(indexMetaData.getIndex(), generateShardId(indexMetaData, id, routing));
+    }
+
+    private int generateShardId(IndexMetaData indexMetaData, String id, @Nullable String routing) {
         final int hash;
         if (routing == null) {
             hash = Murmur3HashFunction.hash(id);
         } else {
             hash = Murmur3HashFunction.hash(routing);
         }
-        return MathUtils.mod(hash, indexMetaData.getNumberOfShards());
+        return Math.floorMod(hash, indexMetaData.getNumberOfShards());
     }
 
     private void ensureNodeIdExists(DiscoveryNodes nodes, String nodeId) {
-        if (!nodes.dataNodes().keys().contains(nodeId)) {
+        if (!nodes.getDataNodes().keys().contains(nodeId)) {
             throw new IllegalArgumentException("No data node with id[" + nodeId + "] found");
         }
     }

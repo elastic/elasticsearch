@@ -20,17 +20,16 @@
 package org.elasticsearch.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
 
-/** Rest integration test. runs against external cluster in 'mvn verify' */
+/** Rest integration test. Runs against a cluster started by {@code gradle integTest} */
 public class RestIT extends ESRestTestCase {
     public RestIT(RestTestCandidate testCandidate) {
         super(testCandidate);
     }
-    // we run them all sequentially: start simple!
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
         return createParameters(0, 1);

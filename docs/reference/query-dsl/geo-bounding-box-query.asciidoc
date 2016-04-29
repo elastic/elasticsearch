@@ -52,9 +52,6 @@ Then the following simple query can be executed with a
 |Option |Description
 |`_name` |Optional name field to identify the filter
 
-|`coerce` |Set to `true` to normalize longitude and latitude values to a
-standard -180:180 / -90:90 coordinate system. (default is `false`).
-
 |`ignore_malformed` |Set to `true` to
 accept geo points with invalid latitude or longitude (default is `false`).
 
@@ -188,10 +185,10 @@ values separately.
         "filter" : {
             "geo_bounding_box" : {
                 "pin.location" : {
-                    "top" : -74.1,
-                    "left" : 40.73,
-                    "bottom" : -71.12,
-                    "right" : 40.01
+                    "top" : 40.73,
+                    "left" : -74.1,
+                    "bottom" : 40.01,
+                    "right" : -71.12
                 }
             }
         }
@@ -250,3 +247,11 @@ are not supported. Here is an example:
 }
 --------------------------------------------------
 
+[float]
+==== Ignore Unmapped
+
+When set to `true` the `ignore_unmapped` option will ignore an unmapped field
+and will not match any documents for this query. This can be useful when
+querying multiple indexes which might have different mappings. When set to
+`false` (the default value) the query will throw an exception if the field
+is not mapped.

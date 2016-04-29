@@ -33,10 +33,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -46,7 +43,14 @@ import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
+import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.NotDirectoryException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -58,24 +62,30 @@ import java.util.function.Supplier;
 import static org.elasticsearch.ElasticsearchException.readException;
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
+/**
+ * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
+ *
+ * This class's methods are optimized so you can put the methods that read and write a class next to each other and you can scan them
+ * visually for differences. That means that most variables should be read and written in a single line so even large objects fit both
+ * reading and writing on the screen. It also means that the methods on this class are named very similarly to {@link StreamOutput}. Finally
+ * it means that the "barrier to entry" for adding new methods to this class is relatively low even though it is a shared class with code
+ * everywhere. That being said, this class deals primarily with {@code List}s rather than Arrays. For the most part calls should adapt to
+ * lists, either by storing {@code List}s internally or just converting to and from a {@code List} when calling. This comment is repeated
+ * on {@link StreamInput}.
+ */
 public abstract class StreamInput extends InputStream {
-
-    private final NamedWriteableRegistry namedWriteableRegistry;
-
     private Version version = Version.CURRENT;
 
-    protected StreamInput() {
-        this.namedWriteableRegistry = new NamedWriteableRegistry();
-    }
-
-    protected StreamInput(NamedWriteableRegistry namedWriteableRegistry) {
-        this.namedWriteableRegistry = namedWriteableRegistry;
-    }
-
+    /**
+     * The version of the node on the other side of this stream.
+     */
     public Version getVersion() {
         return this.version;
     }
 
+    /**
+     * Set the version of the node on the other side of this stream.
+     */
     public void setVersion(Version version) {
         this.version = version;
     }
@@ -100,6 +110,19 @@ public abstract class StreamInput extends InputStream {
      */
     public BytesReference readBytesReference() throws IOException {
         int length = readVInt();
+        return readBytesReference(length);
+    }
+
+    /**
+     * Reads an optional bytes reference from this stream. It might hold an actual reference to the underlying bytes of the stream. Use this
+     * only if you must differentiate null from empty. Use {@link StreamInput#readBytesReference()} and
+     * {@link StreamOutput#writeBytesReference(BytesReference)} if you do not.
+     */
+    public BytesReference readOptionalBytesReference() throws IOException {
+        int length = readVInt() - 1;
+        if (length < 0) {
+            return null;
+        }
         return readBytesReference(length);
     }
 
@@ -256,19 +279,27 @@ public abstract class StreamInput extends InputStream {
         if (length == -1) {
             return null;
         }
-        return new StringAndBytesText(readBytesReference(length));
+        return new Text(readBytesReference(length));
     }
 
     public Text readText() throws IOException {
         // use StringAndBytes so we can cache the string if its ever converted to it
         int length = readInt();
-        return new StringAndBytesText(readBytesReference(length));
+        return new Text(readBytesReference(length));
     }
 
     @Nullable
     public String readOptionalString() throws IOException {
         if (readBoolean()) {
             return readString();
+        }
+        return null;
+    }
+
+    @Nullable
+    public Float readOptionalFloat() throws IOException {
+        if (readBoolean()) {
+            return readFloat();
         }
         return null;
     }
@@ -322,6 +353,13 @@ public abstract class StreamInput extends InputStream {
         return Double.longBitsToDouble(readLong());
     }
 
+    public final Double readOptionalDouble() throws IOException {
+        if (readBoolean()) {
+            return readDouble();
+        }
+        return null;
+    }
+
     /**
      * Reads a boolean.
      */
@@ -352,6 +390,9 @@ public abstract class StreamInput extends InputStream {
      */
     @Override
     public abstract void close() throws IOException;
+
+    @Override
+    public abstract int available() throws IOException;
 
     public String[] readStringArray() throws IOException {
         int size = readVInt();
@@ -467,6 +508,23 @@ public abstract class StreamInput extends InputStream {
         return new GeoPoint(readDouble(), readDouble());
     }
 
+    /**
+     * Read a {@linkplain DateTimeZone}.
+     */
+    public DateTimeZone readTimeZone() throws IOException {
+        return DateTimeZone.forID(readString());
+    }
+
+    /**
+     * Read an optional {@linkplain DateTimeZone}.
+     */
+    public DateTimeZone readOptionalTimeZone() throws IOException {
+        if (readBoolean()) {
+            return DateTimeZone.forID(readString());
+        }
+        return null;
+    }
+
     public int[] readIntArray() throws IOException {
         int length = readVInt();
         int[] values = new int[length];
@@ -543,6 +601,19 @@ public abstract class StreamInput extends InputStream {
         }
     }
 
+    public <T extends Writeable> T readOptionalWriteable(Writeable.Reader<T> reader) throws IOException {
+        if (readBoolean()) {
+            T t = reader.read(this);
+            if (t == null) {
+                throw new IOException("Writeable.Reader [" + reader
+                        + "] returned null which is not allowed and probably means it screwed up the stream.");
+            }
+            return t;
+        } else {
+            return null;
+        }
+    }
+
     public <T extends Throwable> T readThrowable() throws IOException {
         if (readBoolean()) {
             int key = readVInt();
@@ -592,11 +663,41 @@ public abstract class StreamInput extends InputStream {
                 case 13:
                     return (T) readStackTrace(new FileNotFoundException(readOptionalString()), this);
                 case 14:
+                    final int subclass = readVInt();
                     final String file = readOptionalString();
                     final String other = readOptionalString();
                     final String reason = readOptionalString();
                     readOptionalString(); // skip the msg - it's composed from file, other and reason
-                    return (T) readStackTrace(new NoSuchFileException(file, other, reason), this);
+                    final Throwable throwable;
+                    switch (subclass) {
+                        case 0:
+                            throwable = new NoSuchFileException(file, other, reason);
+                            break;
+                        case 1:
+                            throwable = new NotDirectoryException(file);
+                            break;
+                        case 2:
+                            throwable = new DirectoryNotEmptyException(file);
+                            break;
+                        case 3:
+                            throwable = new AtomicMoveNotSupportedException(file, other, reason);
+                            break;
+                        case 4:
+                            throwable = new FileAlreadyExistsException(file, other, reason);
+                            break;
+                        case 5:
+                            throwable = new AccessDeniedException(file, other, reason);
+                            break;
+                        case 6:
+                            throwable = new FileSystemLoopException(file);
+                            break;
+                        case 7:
+                            throwable = new FileSystemException(file, other, reason);
+                            break;
+                        default:
+                            throw new IllegalStateException("unknown FileSystemException with index " + subclass);
+                    }
+                    return (T) readStackTrace(throwable, this);
                 case 15:
                     return (T) readStackTrace(new OutOfMemoryError(readOptionalString()), this);
                 case 16:
@@ -605,6 +706,8 @@ public abstract class StreamInput extends InputStream {
                     return (T) readStackTrace(new LockObtainFailedException(readOptionalString(), readThrowable()), this);
                 case 18:
                     return (T) readStackTrace(new InterruptedException(readOptionalString()), this);
+                case 19:
+                    return (T) readStackTrace(new IOException(readOptionalString(), readThrowable()), this);
                 default:
                     assert false : "no such exception for id: " + key;
             }
@@ -618,22 +721,31 @@ public abstract class StreamInput extends InputStream {
      * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
      * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
      */
-    <C> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
+    @Nullable
+    public <C extends NamedWriteable> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }
 
     /**
-     * Reads a {@link QueryBuilder} from the current stream
+     * Reads an optional {@link NamedWriteable}.
      */
-    public QueryBuilder readQuery() throws IOException {
-        return readNamedWriteable(QueryBuilder.class);
+    public <C extends NamedWriteable> C readOptionalNamedWriteable(Class<C> categoryClass) throws IOException {
+        if (readBoolean()) {
+            return readNamedWriteable(categoryClass);
+        }
+        return null;
     }
 
     /**
-     * Reads a {@link org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder} from the current stream
+     * Reads a list of objects
      */
-    public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
-        return readNamedWriteable(ScoreFunctionBuilder.class);
+    public <T> List<T> readList(StreamInputReader<T> reader) throws IOException {
+        int count = readVInt();
+        List<T> builder = new ArrayList<>(count);
+        for (int i=0; i<count; i++) {
+            builder.add(reader.read(this));
+        }
+        return builder;
     }
 
     public static StreamInput wrap(BytesReference reference) {

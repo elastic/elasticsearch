@@ -20,6 +20,8 @@ package org.elasticsearch.watcher;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -64,6 +66,14 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         }
     }
 
+    public static final Setting<Boolean> ENABLED = Setting.boolSetting("resource.reload.enabled", true, Property.NodeScope);
+    public static final Setting<TimeValue> RELOAD_INTERVAL_HIGH =
+        Setting.timeSetting("resource.reload.interval.high", Frequency.HIGH.interval, Property.NodeScope);
+    public static final Setting<TimeValue> RELOAD_INTERVAL_MEDIUM = Setting.timeSetting("resource.reload.interval.medium",
+        Setting.timeSetting("resource.reload.interval", Frequency.MEDIUM.interval), Property.NodeScope);
+    public static final Setting<TimeValue> RELOAD_INTERVAL_LOW =
+        Setting.timeSetting("resource.reload.interval.low", Frequency.LOW.interval, Property.NodeScope);
+
     private final boolean enabled;
     private final ThreadPool threadPool;
 
@@ -78,14 +88,14 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
     @Inject
     public ResourceWatcherService(Settings settings, ThreadPool threadPool) {
         super(settings);
-        this.enabled = settings.getAsBoolean("resource.reload.enabled", true);
+        this.enabled = ENABLED.get(settings);
         this.threadPool = threadPool;
 
-        TimeValue interval = settings.getAsTime("resource.reload.interval.low", Frequency.LOW.interval);
+        TimeValue interval = RELOAD_INTERVAL_LOW.get(settings);
         lowMonitor = new ResourceMonitor(interval, Frequency.LOW);
-        interval = settings.getAsTime("resource.reload.interval.medium", settings.getAsTime("resource.reload.interval", Frequency.MEDIUM.interval));
+        interval = RELOAD_INTERVAL_MEDIUM.get(settings);
         mediumMonitor = new ResourceMonitor(interval, Frequency.MEDIUM);
-        interval = settings.getAsTime("resource.reload.interval.high", Frequency.HIGH.interval);
+        interval = RELOAD_INTERVAL_HIGH.get(settings);
         highMonitor = new ResourceMonitor(interval, Frequency.HIGH);
 
         logRemovedSetting("watcher.enabled", "resource.reload.enabled");

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io;
 
-import java.nio.charset.StandardCharsets;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.util.Callback;
 
 import java.io.BufferedReader;
@@ -30,6 +30,7 @@ import java.io.OutputStream;
 import java.io.Reader;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -68,6 +69,7 @@ public abstract class Streams {
     public static long copy(InputStream in, OutputStream out, byte[] buffer) throws IOException {
         Objects.requireNonNull(in, "No InputStream specified");
         Objects.requireNonNull(out, "No OutputStream specified");
+        boolean success = false;
         try {
             long byteCount = 0;
             int bytesRead;
@@ -76,17 +78,13 @@ public abstract class Streams {
                 byteCount += bytesRead;
             }
             out.flush();
+            success = true;
             return byteCount;
         } finally {
-            try {
-                in.close();
-            } catch (IOException ex) {
-                // do nothing
-            }
-            try {
-                out.close();
-            } catch (IOException ex) {
-                // do nothing
+            if (success) {
+                IOUtils.close(in, out);
+            } else {
+                IOUtils.closeWhileHandlingException(in, out);
             }
         }
     }
@@ -130,6 +128,7 @@ public abstract class Streams {
     public static int copy(Reader in, Writer out) throws IOException {
         Objects.requireNonNull(in, "No Reader specified");
         Objects.requireNonNull(out, "No Writer specified");
+        boolean success = false;
         try {
             int byteCount = 0;
             char[] buffer = new char[BUFFER_SIZE];
@@ -139,17 +138,13 @@ public abstract class Streams {
                 byteCount += bytesRead;
             }
             out.flush();
+            success = true;
             return byteCount;
         } finally {
-            try {
-                in.close();
-            } catch (IOException ex) {
-                // do nothing
-            }
-            try {
-                out.close();
-            } catch (IOException ex) {
-                // do nothing
+            if (success) {
+                IOUtils.close(in, out);
+            } else {
+                IOUtils.closeWhileHandlingException(in, out);
             }
         }
     }

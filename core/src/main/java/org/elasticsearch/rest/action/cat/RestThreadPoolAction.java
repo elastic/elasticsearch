@@ -63,11 +63,9 @@ public class RestThreadPoolAction extends AbstractCatAction {
             ThreadPool.Names.INDEX,
             ThreadPool.Names.MANAGEMENT,
             ThreadPool.Names.FORCE_MERGE,
-            ThreadPool.Names.PERCOLATE,
             ThreadPool.Names.REFRESH,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SNAPSHOT,
-            ThreadPool.Names.SUGGEST,
             ThreadPool.Names.WARMER
     };
 
@@ -79,11 +77,9 @@ public class RestThreadPoolAction extends AbstractCatAction {
             "i",
             "ma",
             "fm",
-            "p",
             "r",
             "s",
             "sn",
-            "su",
             "w"
     };
 
@@ -230,16 +226,16 @@ public class RestThreadPoolAction extends AbstractCatAction {
         Table table = getTableWithHeader(req);
 
         for (DiscoveryNode node : nodes) {
-            NodeInfo info = nodesInfo.getNodesMap().get(node.id());
-            NodeStats stats = nodesStats.getNodesMap().get(node.id());
+            NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
+            NodeStats stats = nodesStats.getNodesMap().get(node.getId());
             table.startRow();
 
-            table.addCell(fullId ? node.id() : Strings.substring(node.getId(), 0, 4));
+            table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
             table.addCell(info == null ? null : info.getProcess().getId());
             table.addCell(node.getHostName());
             table.addCell(node.getHostAddress());
-            if (node.address() instanceof InetSocketTransportAddress) {
-                table.addCell(((InetSocketTransportAddress) node.address()).address().getPort());
+            if (node.getAddress() instanceof InetSocketTransportAddress) {
+                table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
             } else {
                 table.addCell("-");
             }

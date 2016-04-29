@@ -2,7 +2,7 @@
     "person":{
         "_all":{
             "enabled":true,
-            "omit_norms":true
+            "norms":false
         },
         "properties":{
             "name":{
@@ -10,13 +10,12 @@
                 "dynamic":false,
                 "properties":{
                     "first":{
-                        "type":"string",
-                        "store":"yes",
+                        "type":"text",
+                        "store":true,
                         "include_in_all":false
                     },
                     "last":{
-                        "type":"string",
-                        "index":"not_analyzed",
+                        "type":"keyword",
                         "boost":2.0
                     }
                 }
@@ -28,15 +27,15 @@
                     "first":{
                         "properties":{
                             "location":{
-                                "type":"string",
-                                "store":"yes"
+                                "type":"text",
+                                "store":true
                             }
                         }
                     },
                     "last":{
                         "properties":{
                             "location":{
-                                "type":"string",
+                                "type":"text",
                                 "include_in_all":true
                             }
                         }

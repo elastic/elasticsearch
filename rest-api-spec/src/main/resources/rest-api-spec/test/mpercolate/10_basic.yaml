@@ -1,5 +1,16 @@
 ---
 "Basic multi-percolate":
+
+  - do:
+      indices.create:
+        index: percolator_index
+        body:
+          mappings:
+            queries:
+              properties:
+                query:
+                  type: percolator
+
   - do:
       index:
         index:  percolator_index
@@ -10,11 +21,14 @@
   - do:
       index:
         index: percolator_index
-        type: .percolator
+        type: queries
         id:   test_percolator
         body:
           query:
             match_all: {}
+
+  - do:
+        indices.refresh: {}
 
   - do:
       mpercolate:
@@ -33,8 +47,7 @@
               index:  percolator_index
               type:   my_type
               id:     1
-          - doc:
-              foo: bar
+          - {}
 
   - match:  { responses.0.total:     1  }
   - match:  { responses.1.error.root_cause.0.type: index_not_found_exception }

@@ -23,16 +23,16 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchModule;
 
 import java.io.IOException;
 
@@ -48,31 +48,43 @@ public class DummyQueryParserPlugin extends Plugin {
         return "dummy query";
     }
 
-    public void onModule(IndicesModule module) {
-        module.registerQueryParser(DummyQueryParser.class);
+    public void onModule(SearchModule module) {
+        module.registerQuery(DummyQueryBuilder::new, DummyQueryBuilder::fromXContent, DummyQueryBuilder.QUERY_NAME_FIELD);
     }
 
     public static class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
         private static final String NAME = "dummy";
+        private static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+
+        public DummyQueryBuilder() {
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public DummyQueryBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            // only the superclass has state
+        }
 
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(NAME).endObject();
         }
 
-        @Override
-        protected Query doToQuery(QueryShardContext context) throws IOException {
-            return new DummyQuery(context.isFilter());
-        }
-
-        @Override
-        protected DummyQueryBuilder doReadFrom(StreamInput in) throws IOException {
+        public static DummyQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+            XContentParser.Token token = parseContext.parser().nextToken();
+            assert token == XContentParser.Token.END_OBJECT;
             return new DummyQueryBuilder();
         }
 
         @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-            // Do Nothing
+        protected Query doToQuery(QueryShardContext context) throws IOException {
+            return new DummyQuery(context.isFilter());
         }
 
         @Override
@@ -88,25 +100,6 @@ public class DummyQueryParserPlugin extends Plugin {
         @Override
         public String getWriteableName() {
             return NAME;
-        }
-    }
-
-    public static class DummyQueryParser implements QueryParser<DummyQueryBuilder> {
-        @Override
-        public String[] names() {
-            return new String[]{DummyQueryBuilder.NAME};
-        }
-
-        @Override
-        public DummyQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-            XContentParser.Token token = parseContext.parser().nextToken();
-            assert token == XContentParser.Token.END_OBJECT;
-            return new DummyQueryBuilder();
-        }
-
-        @Override
-        public DummyQueryBuilder getBuilderPrototype() {
-            return new DummyQueryBuilder();
         }
     }
 

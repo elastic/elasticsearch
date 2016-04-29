@@ -93,8 +93,7 @@ curl 'localhost:9200/testidx/test/_mtermvectors' -d '{
 --------------------------------------------------
 
 Additionally, just like for the <<docs-termvectors,termvectors>>
-API, term vectors could be generated for user provided documents. The syntax
-is similar to the <<search-percolate,percolator>> API. The mapping used is
+API, term vectors could be generated for user provided documents.  The mapping used is
 determined by `_index` and `_type`.
 
 [source,js]

@@ -49,7 +49,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
     @Inject
     public RestDeleteByQueryAction(Settings settings, RestController controller, Client client,
             IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, controller, client);
+        super(settings, client);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         controller.registerHandler(DELETE, "/{index}/_query", this);
         controller.registerHandler(DELETE, "/{index}/{type}/_query", this);

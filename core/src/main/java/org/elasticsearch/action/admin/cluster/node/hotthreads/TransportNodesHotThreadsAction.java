@@ -24,8 +24,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -102,7 +102,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
         }
 
         NodeRequest(String nodeId, NodesHotThreadsRequest request) {
-            super(request, nodeId);
+            super(nodeId);
             this.request = request;
         }
 

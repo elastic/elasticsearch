@@ -42,17 +42,6 @@ public class FlushRequest extends BroadcastRequest<FlushRequest> {
     private boolean force = false;
     private boolean waitIfOngoing = false;
 
-    public FlushRequest() {
-    }
-
-    /**
-     * Copy constructor that creates a new flush request that is a copy of the one provided as an argument.
-     * The new request will inherit though headers and context from the original request that caused it.
-     */
-    public FlushRequest(ActionRequest originalRequest) {
-        super(originalRequest);
-    }
-
     /**
      * Constructs a new flush request against one or more indices. If nothing is provided, all indices will
      * be flushed.

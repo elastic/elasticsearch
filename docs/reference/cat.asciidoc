@@ -74,8 +74,8 @@ with `bulk.`.
 [[numeric-formats]]
 === Numeric formats
 
-Many commands provide a few types of numeric output, either a byte
-value or a time value.  By default, these types are human-formatted,
+Many commands provide a few types of numeric output, either a byte, size
+or a time value.  By default, these types are human-formatted,
 for example, `3.5mb` instead of `3763212`.  The human values are not
 sortable numerically, so in order to operate on these values where
 order is important, you can change it.
@@ -95,6 +95,61 @@ green wiki1 3 0 10000 413 103776272 103776272
 green foo   1 0   227   0   2065131   2065131
 --------------------------------------------------
 
+If you want to change the <<time-units,time units>>, use `time` parameter.
+
+If you want to change the <<size-units,size units>>, use `size` parameter.
+
+If you want to change the <<byte-units,byte units>>, use `bytes` parameter.
+
+[float]
+=== Response as text, json, smile, yaml or cbor
+
+[source,sh]
+--------------------------------------------------
+% curl '192.168.56.10:9200/_cat/indices?format=json' | jq .
+[
+  {
+    "pri.store.size": "650b",
+    "health": "yellow",
+    "status": "open",
+    "index": "twitter",
+    "pri": "5",
+    "rep": "1",
+    "docs.count": "0",
+    "docs.deleted": "0",
+    "store.size": "650b"
+  }
+]
+--------------------------------------------------
+
+Currently supported formats (for the `?format=` parameter):
+- text (default)
+- json
+- smile
+- yaml
+- cbor
+
+Alternatively you can set the "Accept" HTTP header to the appropriate media format.
+All formats above are supported, the GET parameter takes precedence over the header.
+For example:
+
+[source,sh]
+--------------------------------------------------
+% curl '192.168.56.10:9200/_cat/indices' -H "Accept: application/json" | jq .
+[
+  {
+    "pri.store.size": "650b",
+    "health": "yellow",
+    "status": "open",
+    "index": "twitter",
+    "pri": "5",
+    "rep": "1",
+    "docs.count": "0",
+    "docs.deleted": "0",
+    "store.size": "650b"
+  }
+]
+--------------------------------------------------
 
 --
 

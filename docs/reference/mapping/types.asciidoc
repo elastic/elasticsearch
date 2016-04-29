@@ -7,7 +7,7 @@ document:
 [float]
 === Core datatypes
 
-<<string>>::    `string`
+string::        <<text,`text`>> and <<keyword,`keyword`>>
 <<number>>::    `long`, `integer`, `short`, `byte`, `double`, `float`
 <<date>>::      `date`
 <<boolean>>::   `boolean`
@@ -21,7 +21,7 @@ document:
 <<nested>>::    `nested` for arrays of JSON objects
 
 [float]
-=== Geo dataypes
+=== Geo datatypes
 
 <<geo-point>>::     `geo_point` for lat/lon points
 <<geo-shape>>::     `geo_shape` for complex shapes like polygons
@@ -29,7 +29,7 @@ document:
 [float]
 === Specialised datatypes
 
-<<ip>>::            `ip` for IPv4 addresses
+<<ip>>::            `ip` for IPv4 and IPv6 addresses
 <<search-suggesters-completion,Completion datatype>>::
                     `completion` to provide auto-complete suggestions
 <<token-count>>::   `token_count` to count the number of tokens in a string
@@ -41,13 +41,15 @@ Attachment datatype::
     which supports indexing `attachments` like Microsoft Office formats, Open
     Document formats, ePub, HTML, etc. into an `attachment` datatype.
 
+<<percolator>>::    Accepts queries from the query-dsl
+
 [float]
 === Multi-fields
 
 It is often useful to index the same field in different ways for different
-purposes. For instance, a `string` field could be <<mapping-index,indexed>> as
-an `analyzed` field for full-text search, and as a `not_analyzed` field for
-sorting or aggregations.  Alternatively, you could index a string field with
+purposes. For instance, a `string` field could be mapped as
+a `text` field for full-text search, and as a `keyword` field for
+sorting or aggregations.  Alternatively, you could index a text field with
 the <<analysis-standard-analyzer,`standard` analyzer>>, the
 <<english-analyzer,`english`>> analyzer, and the
 <<french-analyzer,`french` analyzer>>.
@@ -69,6 +71,8 @@ include::types/geo-shape.asciidoc[]
 
 include::types/ip.asciidoc[]
 
+include::types/keyword.asciidoc[]
+
 include::types/nested.asciidoc[]
 
 include::types/numeric.asciidoc[]
@@ -77,7 +81,11 @@ include::types/object.asciidoc[]
 
 include::types/string.asciidoc[]
 
+include::types/text.asciidoc[]
+
 include::types/token-count.asciidoc[]
+
+include::types/percolator.asciidoc[]
 
 
 

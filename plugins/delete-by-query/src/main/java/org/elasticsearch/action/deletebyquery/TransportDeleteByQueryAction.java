@@ -27,7 +27,14 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
@@ -42,7 +49,10 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -100,7 +110,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
 
         void executeScan() {
             try {
-                final SearchRequest scanRequest = new SearchRequest(request)
+                final SearchRequest scanRequest = new SearchRequest()
                         .indices(request.indices())
                         .types(request.types())
                         .indicesOptions(request.indicesOptions())
@@ -150,7 +160,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         void executeScroll(final String scrollId) {
             try {
                 logger.trace("executing scroll request [{}]", scrollId);
-                scrollAction.execute(new SearchScrollRequest(request).scrollId(scrollId).scroll(request.scroll()), new ActionListener<SearchResponse>() {
+                scrollAction.execute(new SearchScrollRequest().scrollId(scrollId).scroll(request.scroll()), new ActionListener<SearchResponse>() {
                     @Override
                     public void onResponse(SearchResponse scrollResponse) {
                         deleteHits(scrollId, scrollResponse);
@@ -192,9 +202,9 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
             }
 
             // Delete the scrolled documents using the Bulk API
-            BulkRequest bulkRequest = new BulkRequest(request);
+            BulkRequest bulkRequest = new BulkRequest();
             for (SearchHit doc : docs) {
-                DeleteRequest delete = new DeleteRequest(request).index(doc.index()).type(doc.type()).id(doc.id()).version(doc.version());
+                DeleteRequest delete = new DeleteRequest().index(doc.index()).type(doc.type()).id(doc.id()).version(doc.version());
                 SearchHitField routing = doc.field("_routing");
                 if (routing != null) {
                     delete.routing((String) routing.value());
@@ -278,7 +288,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                 }
 
                 if (Strings.hasText(scrollId)) {
-                    ClearScrollRequest clearScrollRequest = new ClearScrollRequest(request);
+                    ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
                     clearScrollRequest.addScrollId(scrollId);
                     client.clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
                         @Override
@@ -307,10 +317,6 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
 
         boolean hasTimedOut() {
             return request.timeout() != null && (threadPool.estimatedTimeInMillis() >= (startTime + request.timeout().millis()));
-        }
-
-        void addShardFailure(ShardOperationFailedException failure) {
-            addShardFailures(new ShardOperationFailedException[]{failure});
         }
 
         void addShardFailures(ShardOperationFailedException[] failures) {

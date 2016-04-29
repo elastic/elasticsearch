@@ -21,6 +21,8 @@ package org.elasticsearch.discovery.zen.fd;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,11 +37,16 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  */
 public abstract class FaultDetection extends AbstractComponent {
 
-    public static final String SETTING_CONNECT_ON_NETWORK_DISCONNECT = "discovery.zen.fd.connect_on_network_disconnect";
-    public static final String SETTING_PING_INTERVAL = "discovery.zen.fd.ping_interval";
-    public static final String SETTING_PING_TIMEOUT = "discovery.zen.fd.ping_timeout";
-    public static final String SETTING_PING_RETRIES = "discovery.zen.fd.ping_retries";
-    public static final String SETTING_REGISTER_CONNECTION_LISTENER = "discovery.zen.fd.register_connection_listener";
+    public static final Setting<Boolean> CONNECT_ON_NETWORK_DISCONNECT_SETTING =
+        Setting.boolSetting("discovery.zen.fd.connect_on_network_disconnect", false, Property.NodeScope);
+    public static final Setting<TimeValue> PING_INTERVAL_SETTING =
+        Setting.positiveTimeSetting("discovery.zen.fd.ping_interval", timeValueSeconds(1), Property.NodeScope);
+    public static final Setting<TimeValue> PING_TIMEOUT_SETTING =
+        Setting.timeSetting("discovery.zen.fd.ping_timeout", timeValueSeconds(30), Property.NodeScope);
+    public static final Setting<Integer> PING_RETRIES_SETTING =
+        Setting.intSetting("discovery.zen.fd.ping_retries", 3, Property.NodeScope);
+    public static final Setting<Boolean> REGISTER_CONNECTION_LISTENER_SETTING =
+        Setting.boolSetting("discovery.zen.fd.register_connection_listener", true, Property.NodeScope);
 
     protected final ThreadPool threadPool;
     protected final ClusterName clusterName;
@@ -60,11 +67,11 @@ public abstract class FaultDetection extends AbstractComponent {
         this.transportService = transportService;
         this.clusterName = clusterName;
 
-        this.connectOnNetworkDisconnect = settings.getAsBoolean(SETTING_CONNECT_ON_NETWORK_DISCONNECT, false);
-        this.pingInterval = settings.getAsTime(SETTING_PING_INTERVAL, timeValueSeconds(1));
-        this.pingRetryTimeout = settings.getAsTime(SETTING_PING_TIMEOUT, timeValueSeconds(30));
-        this.pingRetryCount = settings.getAsInt(SETTING_PING_RETRIES, 3);
-        this.registerConnectionListener = settings.getAsBoolean(SETTING_REGISTER_CONNECTION_LISTENER, true);
+        this.connectOnNetworkDisconnect = CONNECT_ON_NETWORK_DISCONNECT_SETTING.get(settings);
+        this.pingInterval = PING_INTERVAL_SETTING.get(settings);
+        this.pingRetryTimeout = PING_TIMEOUT_SETTING.get(settings);
+        this.pingRetryCount = PING_RETRIES_SETTING.get(settings);
+        this.registerConnectionListener = REGISTER_CONNECTION_LISTENER_SETTING.get(settings);
 
         this.connectionListener = new FDConnectionListener();
         if (registerConnectionListener) {

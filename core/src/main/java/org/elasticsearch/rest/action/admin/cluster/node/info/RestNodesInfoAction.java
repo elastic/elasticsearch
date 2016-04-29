@@ -48,11 +48,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestNodesInfoAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
-    private final static Set<String> ALLOWED_METRICS = Sets.newHashSet("http", "jvm", "os", "plugins", "process", "settings", "thread_pool", "transport");
+    private final static Set<String> ALLOWED_METRICS = Sets.newHashSet("http", "jvm", "os", "plugins", "process", "settings", "thread_pool", "transport", "ingest");
 
     @Inject
     public RestNodesInfoAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {
-        super(settings, controller, client);
+        super(settings, client);
         controller.registerHandler(GET, "/_nodes", this);
         // this endpoint is used for metrics, not for nodeIds, like /_nodes/fs
         controller.registerHandler(GET, "/_nodes/{nodeId}", this);
@@ -88,7 +88,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
 
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodeIds);
         nodesInfoRequest.timeout(request.param("timeout"));
-        // shortcut, dont do checks if only all is specified
+        // shortcut, don't do checks if only all is specified
         if (metrics.size() == 1 && metrics.contains("_all")) {
             nodesInfoRequest.all();
         } else {
@@ -101,6 +101,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
             nodesInfoRequest.transport(metrics.contains("transport"));
             nodesInfoRequest.http(metrics.contains("http"));
             nodesInfoRequest.plugins(metrics.contains("plugins"));
+            nodesInfoRequest.ingest(metrics.contains("ingest"));
         }
 
         settingsFilter.addFilterSettingParams(request);

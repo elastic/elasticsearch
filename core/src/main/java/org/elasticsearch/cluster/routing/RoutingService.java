@@ -19,9 +19,13 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -96,7 +100,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().nodes().localNodeMaster()) {
+        if (event.state().nodes().isLocalNodeElectedMaster()) {
             // Figure out if an existing scheduled reroute is good enough or whether we need to cancel and reschedule.
             // If the minimum of the currently relevant delay settings is larger than something we scheduled in the past,
             // we are guaranteed that the planned schedule will happen before any of the current shard delays are expired.

@@ -21,46 +21,22 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.pl.PolishAnalyzer;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
-import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
  */
 public class PolishAnalysisTests extends ESTestCase {
     public void testDefaultsPolishAnalysis() throws IOException {
-        Index index = new Index("test");
-        Settings settings = settingsBuilder()
-                .put("path.home", createTempDir())
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .build();
-
-
-        AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
-        new AnalysisStempelPlugin().onModule(analysisModule);
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings, new SettingsFilter(settings)),
-                new EnvironmentModule(new Environment(settings)), analysisModule)
-                .createInjector();
-
-        final AnalysisService analysisService = parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, settings));
+        final AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), Settings.EMPTY, new AnalysisStempelPlugin()::onModule);
         TokenFilterFactory tokenizerFactory = analysisService.tokenFilter("polish_stem");
         MatcherAssert.assertThat(tokenizerFactory, instanceOf(PolishStemTokenFilterFactory.class));
 

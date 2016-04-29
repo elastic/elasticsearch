@@ -52,7 +52,7 @@ public class ExplainActionIT extends ESIntegTestCase {
     public void testSimple() throws Exception {
         assertAcked(prepareCreate("test")
                 .addAlias(new Alias("alias"))
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen("test");
 
         client().prepareIndex("test", "test", "1").setSource("field", "value1").get();
@@ -209,7 +209,7 @@ public class ExplainActionIT extends ESIntegTestCase {
 
     public void testExplainWithFilteredAlias() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("test", "field2", "type=string")
+                .addMapping("test", "field2", "type=text")
                 .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field2", "value2"))));
         ensureGreen("test");
 
@@ -225,7 +225,7 @@ public class ExplainActionIT extends ESIntegTestCase {
 
     public void testExplainWithFilteredAliasFetchSource() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("test", "field2", "type=string")
+                .addMapping("test", "field2", "type=text")
                 .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field2", "value2"))));
         ensureGreen("test");
 

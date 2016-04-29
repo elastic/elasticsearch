@@ -255,7 +255,7 @@ public class TermVectorsUnitTests extends ESTestCase {
             assertThat(request.positions(), equalTo(req2.positions()));
             assertThat(request.termStatistics(), equalTo(req2.termStatistics()));
             assertThat(request.preference(), equalTo(pref));
-            assertThat(request.routing(), equalTo(parent));
+            assertThat(request.routing(), equalTo(null));
 
         }
     }

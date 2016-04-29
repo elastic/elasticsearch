@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -26,12 +27,17 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -47,7 +53,7 @@ public class DanglingIndicesState extends AbstractComponent {
     private final MetaStateService metaStateService;
     private final LocalAllocateDangledIndices allocateDangledIndices;
 
-    private final Map<String, IndexMetaData> danglingIndices = ConcurrentCollections.newConcurrentMap();
+    private final Map<Index, IndexMetaData> danglingIndices = ConcurrentCollections.newConcurrentMap();
 
     @Inject
     public DanglingIndicesState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
@@ -74,7 +80,7 @@ public class DanglingIndicesState extends AbstractComponent {
     /**
      * The current set of dangling indices.
      */
-    Map<String, IndexMetaData> getDanglingIndices() {
+    Map<Index, IndexMetaData> getDanglingIndices() {
         // This might be a good use case for CopyOnWriteHashMap
         return unmodifiableMap(new HashMap<>(danglingIndices));
     }
@@ -83,10 +89,16 @@ public class DanglingIndicesState extends AbstractComponent {
      * Cleans dangling indices if they are already allocated on the provided meta data.
      */
     void cleanupAllocatedDangledIndices(MetaData metaData) {
-        for (String danglingIndex : danglingIndices.keySet()) {
-            if (metaData.hasIndex(danglingIndex)) {
-                logger.debug("[{}] no longer dangling (created), removing from dangling list", danglingIndex);
-                danglingIndices.remove(danglingIndex);
+        for (Index index : danglingIndices.keySet()) {
+            final IndexMetaData indexMetaData = metaData.index(index);
+            if (indexMetaData != null && indexMetaData.getIndex().getName().equals(index.getName())) {
+                if (indexMetaData.getIndex().getUUID().equals(index.getUUID()) == false) {
+                    logger.warn("[{}] can not be imported as a dangling index, as there is already another index " +
+                        "with the same name but a different uuid. local index will be ignored (but not deleted)", index);
+                } else {
+                    logger.debug("[{}] no longer dangling (created), removing from dangling list", index);
+                }
+                danglingIndices.remove(index);
             }
         }
     }
@@ -104,36 +116,30 @@ public class DanglingIndicesState extends AbstractComponent {
      * that have state on disk, but are not part of the provided meta data, or not detected
      * as dangled already.
      */
-    Map<String, IndexMetaData> findNewDanglingIndices(MetaData metaData) {
-        final Set<String> indices;
+    Map<Index, IndexMetaData> findNewDanglingIndices(MetaData metaData) {
+        final Set<String> excludeIndexPathIds = new HashSet<>(metaData.indices().size() + danglingIndices.size());
+        for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
+            excludeIndexPathIds.add(cursor.value.getIndex().getUUID());
+        }
+        excludeIndexPathIds.addAll(danglingIndices.keySet().stream().map(Index::getUUID).collect(Collectors.toList()));
         try {
-            indices = nodeEnv.findAllIndices();
-        } catch (Throwable e) {
+            final List<IndexMetaData> indexMetaDataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);
+            Map<Index, IndexMetaData> newIndices = new HashMap<>(indexMetaDataList.size());
+            for (IndexMetaData indexMetaData : indexMetaDataList) {
+                if (metaData.hasIndex(indexMetaData.getIndex().getName())) {
+                    logger.warn("[{}] can not be imported as a dangling index, as index with same name already exists in cluster metadata",
+                        indexMetaData.getIndex());
+                } else {
+                    logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, auto import to cluster state",
+                        indexMetaData.getIndex());
+                    newIndices.put(indexMetaData.getIndex(), indexMetaData);
+                }
+            }
+            return newIndices;
+        } catch (IOException e) {
             logger.warn("failed to list dangling indices", e);
             return emptyMap();
         }
-
-        Map<String, IndexMetaData>  newIndices = new HashMap<>();
-        for (String indexName : indices) {
-            if (metaData.hasIndex(indexName) == false && danglingIndices.containsKey(indexName) == false) {
-                try {
-                    IndexMetaData indexMetaData = metaStateService.loadIndexState(indexName);
-                    if (indexMetaData != null) {
-                        logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, auto import to cluster state", indexName);
-                        if (!indexMetaData.getIndex().equals(indexName)) {
-                            logger.info("dangled index directory name is [{}], state name is [{}], renaming to directory name", indexName, indexMetaData.getIndex());
-                            indexMetaData = IndexMetaData.builder(indexMetaData).index(indexName).build();
-                        }
-                        newIndices.put(indexName, indexMetaData);
-                    } else {
-                        logger.debug("[{}] dangling index directory detected, but no state found", indexName);
-                    }
-                } catch (Throwable t) {
-                    logger.warn("[{}] failed to load index state for detected dangled index", t, indexName);
-                }
-            }
-        }
-        return newIndices;
     }
 
     /**

@@ -20,20 +20,19 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.index.analysis.AnalysisTestUtils.createAnalysisService;
 import static org.hamcrest.Matchers.instanceOf;
 /**
  */
 public class SimpleIcuAnalysisTests extends ESTestCase {
     public void testDefaultsIcuAnalysis() throws IOException {
-        Settings settings = settingsBuilder()
-                .put("path.home", createTempDir()).build();
-        AnalysisService analysisService = createAnalysisService(settings);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"),
+            Settings.EMPTY, new AnalysisICUPlugin()::onModule);
 
         TokenizerFactory tokenizerFactory = analysisService.tokenizer("icu_tokenizer");
         assertThat(tokenizerFactory, instanceOf(IcuTokenizerFactory.class));

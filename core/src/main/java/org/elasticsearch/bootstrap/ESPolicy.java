@@ -23,6 +23,8 @@ import org.elasticsearch.common.SuppressForbidden;
 
 import java.net.SocketPermission;
 import java.net.URL;
+import java.io.FilePermission;
+import java.io.IOException;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
@@ -81,8 +83,37 @@ final class ESPolicy extends Policy {
             }
         }
 
+        // Special handling for broken Hadoop code: "let me execute or my classes will not load"
+        // yeah right, REMOVE THIS when hadoop is fixed
+        if (permission instanceof FilePermission && "<<ALL FILES>>".equals(permission.getName())) {
+            for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+                if ("org.apache.hadoop.util.Shell".equals(element.getClassName()) &&
+                      "runCommand".equals(element.getMethodName())) {
+                    // we found the horrible method: the hack begins!
+                    // force the hadoop code to back down, by throwing an exception that it catches.
+                    rethrow(new IOException("no hadoop, you cannot do this."));
+                }
+            }
+        }
+
         // otherwise defer to template + dynamic file permissions
         return template.implies(domain, permission) || dynamic.implies(permission) || system.implies(domain, permission);
+    }
+
+    /**
+     * Classy puzzler to rethrow any checked exception as an unchecked one.
+     */
+    private static class Rethrower<T extends Throwable> {
+        private void rethrow(Throwable t) throws T {
+            throw (T) t;
+        }
+    }
+
+    /**
+     * Rethrows <code>t</code> (identical object).
+     */
+    private void rethrow(Throwable t) {
+        new Rethrower<Error>().rethrow(t);
     }
 
     @Override

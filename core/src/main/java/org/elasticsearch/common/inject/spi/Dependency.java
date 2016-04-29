@@ -91,7 +91,7 @@ public final class Dependency<T> {
 
     /**
      * Returns the index of this dependency in the injection point's parameter list, or {@code -1} if
-     * this dependency does not belong to a parameter list. Only method and constuctor dependencies
+     * this dependency does not belong to a parameter list. Only method and constructor dependencies
      * are elements in a parameter list.
      */
     public int getParameterIndex() {

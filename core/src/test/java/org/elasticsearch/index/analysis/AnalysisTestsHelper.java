@@ -35,9 +35,9 @@ import java.util.Collections;
 public class AnalysisTestsHelper {
 
     public static AnalysisService createAnalysisServiceFromClassPath(Path baseDir, String resource) throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .loadFromStream(resource, AnalysisTestsHelper.class.getResourceAsStream(resource))
-                .put("path.home", baseDir.toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), baseDir.toString())
                 .build();
 
         return createAnalysisServiceFromSettings(settings);
@@ -45,11 +45,10 @@ public class AnalysisTestsHelper {
 
     public static AnalysisService createAnalysisServiceFromSettings(
             Settings settings) throws IOException {
-        Index index = new Index("test");
         if (settings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
             settings = Settings.builder().put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         }
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
         Environment environment = new Environment(settings);
         return new AnalysisRegistry(new HunspellService(settings, environment, Collections.emptyMap()), environment).build(idxSettings);
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
@@ -36,6 +37,8 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -72,7 +75,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 public class LocalTransport extends AbstractLifecycleComponent<Transport> implements Transport {
 
     public static final String LOCAL_TRANSPORT_THREAD_NAME_PREFIX = "local_transport";
-    private final ThreadPool threadPool;
+    final ThreadPool threadPool;
     private final ThreadPoolExecutor workers;
     private final Version version;
     private volatile TransportServiceAdapter transportServiceAdapter;
@@ -82,13 +85,15 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     private static final AtomicLong transportAddressIdGenerator = new AtomicLong();
     private final ConcurrentMap<DiscoveryNode, LocalTransport> connectedNodes = newConcurrentMap();
     protected final NamedWriteableRegistry namedWriteableRegistry;
+    private final CircuitBreakerService circuitBreakerService;
 
     public static final String TRANSPORT_LOCAL_ADDRESS = "transport.local.address";
     public static final String TRANSPORT_LOCAL_WORKERS = "transport.local.workers";
     public static final String TRANSPORT_LOCAL_QUEUE = "transport.local.queue";
 
     @Inject
-    public LocalTransport(Settings settings, ThreadPool threadPool, Version version, NamedWriteableRegistry namedWriteableRegistry) {
+    public LocalTransport(Settings settings, ThreadPool threadPool, Version version,
+                          NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super(settings);
         this.threadPool = threadPool;
         this.version = version;
@@ -96,8 +101,10 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         int queueSize = this.settings.getAsInt(TRANSPORT_LOCAL_QUEUE, -1);
         logger.debug("creating [{}] workers, queue_size [{}]", workerCount, queueSize);
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(this.settings, LOCAL_TRANSPORT_THREAD_NAME_PREFIX);
-        this.workers = EsExecutors.newFixed(LOCAL_TRANSPORT_THREAD_NAME_PREFIX, workerCount, queueSize, threadFactory);
+        this.workers = EsExecutors.newFixed(LOCAL_TRANSPORT_THREAD_NAME_PREFIX, workerCount, queueSize, threadFactory,
+                threadPool.getThreadContext());
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.circuitBreakerService = circuitBreakerService;
     }
 
     @Override
@@ -173,7 +180,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             if (connectedNodes.containsKey(node)) {
                 return;
             }
-            final LocalTransport targetTransport = transports.get(node.address());
+            final LocalTransport targetTransport = transports.get(node.getAddress());
             if (targetTransport == null) {
                 throw new ConnectTransportException(node, "Failed to connect");
             }
@@ -198,8 +205,9 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
-        final Version version = Version.smallest(node.version(), this.version);
+    public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request,
+            TransportRequestOptions options) throws IOException, TransportException {
+        final Version version = Version.smallest(node.getVersion(), this.version);
 
         try (BytesStreamOutput stream = new BytesStreamOutput()) {
             stream.setVersion(version);
@@ -209,6 +217,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             status = TransportStatus.setRequest(status);
             stream.writeByte(status); // 0 for request, 1 for response.
 
+            threadPool.getThreadContext().writeTo(stream);
             stream.writeString(action);
             request.writeTo(stream);
 
@@ -220,12 +229,11 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             }
 
             final byte[] data = stream.bytes().toBytes();
-
             transportServiceAdapter.sent(data.length);
             transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
-            targetTransport.workers().execute(new Runnable() {
-                @Override
-                public void run() {
+            targetTransport.workers().execute(() -> {
+                ThreadContext threadContext = targetTransport.threadPool.getThreadContext();
+                try (ThreadContext.StoredContext context = threadContext.stashContext()) {
                     targetTransport.messageReceived(data, action, LocalTransport.this, version, requestId);
                 }
             });
@@ -236,7 +244,13 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         return this.workers;
     }
 
-    protected void messageReceived(byte[] data, String action, LocalTransport sourceTransport, Version version, @Nullable final Long sendRequestId) {
+    CircuitBreaker inFlightRequestsBreaker() {
+        // We always obtain a fresh breaker to reflect changes to the breaker configuration.
+        return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+    }
+
+    protected void messageReceived(byte[] data, String action, LocalTransport sourceTransport, Version version,
+            @Nullable final Long sendRequestId) {
         Transports.assertTransportThread();
         try {
             transportServiceAdapter.received(data.length);
@@ -246,15 +260,16 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             long requestId = stream.readLong();
             byte status = stream.readByte();
             boolean isRequest = TransportStatus.isRequest(status);
-
             if (isRequest) {
-                handleRequest(stream, requestId, sourceTransport, version);
+                ThreadContext threadContext = threadPool.getThreadContext();
+                threadContext.readHeaders(stream);
+                handleRequest(stream, requestId, data.length, sourceTransport, version);
             } else {
                 final TransportResponseHandler handler = transportServiceAdapter.onResponseReceived(requestId);
                 // ignore if its null, the adapter logs it
                 if (handler != null) {
                     if (TransportStatus.isError(status)) {
-                        handlerResponseError(stream, handler);
+                        handleResponseError(stream, handler);
                     } else {
                         handleResponse(stream, sourceTransport, handler);
                     }
@@ -262,21 +277,30 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             }
         } catch (Throwable e) {
             if (sendRequestId != null) {
-                TransportResponseHandler handler = transportServiceAdapter.onResponseReceived(sendRequestId);
+                TransportResponseHandler handler = sourceTransport.transportServiceAdapter.onResponseReceived(sendRequestId);
                 if (handler != null) {
-                    handleException(handler, new RemoteTransportException(nodeName(), localAddress, action, e));
+                    RemoteTransportException error = new RemoteTransportException(nodeName(), localAddress, action, e);
+                    sourceTransport.workers().execute(() -> {
+                        ThreadContext threadContext = sourceTransport.threadPool.getThreadContext();
+                        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                            sourceTransport.handleException(handler, error);
+                        }
+                    });
                 }
             } else {
-                logger.warn("Failed to receive message for action [" + action + "]", e);
+                logger.warn("Failed to receive message for action [{}]", e, action);
             }
         }
     }
 
-    private void handleRequest(StreamInput stream, long requestId, LocalTransport sourceTransport, Version version) throws Exception {
+    private void handleRequest(StreamInput stream, long requestId, int messageLengthBytes, LocalTransport sourceTransport,
+                               Version version) throws Exception {
         stream = new NamedWriteableAwareStreamInput(stream, namedWriteableRegistry);
         final String action = stream.readString();
         transportServiceAdapter.onRequestReceived(requestId, action);
-        final LocalTransportChannel transportChannel = new LocalTransportChannel(this, transportServiceAdapter, sourceTransport, action, requestId, version);
+        inFlightRequestsBreaker().addEstimateBytesAndMaybeBreak(messageLengthBytes, "<transport_request>");
+        final LocalTransportChannel transportChannel = new LocalTransportChannel(this, transportServiceAdapter, sourceTransport, action,
+            requestId, version, messageLengthBytes);
         try {
             final RequestHandlerRegistry reg = transportServiceAdapter.getRequestHandler(action);
             if (reg == null) {
@@ -287,13 +311,13 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             request.readFrom(stream);
             if (ThreadPool.Names.SAME.equals(reg.getExecutor())) {
                 //noinspection unchecked
-                reg.getHandler().messageReceived(request, transportChannel);
+                reg.processMessageReceived(request, transportChannel);
             } else {
                 threadPool.executor(reg.getExecutor()).execute(new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
                         //noinspection unchecked
-                        reg.getHandler().messageReceived(request, transportChannel);
+                        reg.processMessageReceived(request, transportChannel);
                     }
 
                     @Override
@@ -308,7 +332,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                             try {
                                 transportChannel.sendResponse(e);
                             } catch (Throwable e1) {
-                                logger.warn("Failed to send error message back to client for action [" + action + "]", e1);
+                                logger.warn("Failed to send error message back to client for action [{}]", e1, action);
                                 logger.warn("Actual Exception", e);
                             }
                         }
@@ -319,39 +343,38 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             try {
                 transportChannel.sendResponse(e);
             } catch (Throwable e1) {
-                logger.warn("Failed to send error message back to client for action [" + action + "]", e);
+                logger.warn("Failed to send error message back to client for action [{}]", e, action);
                 logger.warn("Actual Exception", e1);
             }
+
         }
     }
 
     protected void handleResponse(StreamInput buffer, LocalTransport sourceTransport, final TransportResponseHandler handler) {
+        buffer = new NamedWriteableAwareStreamInput(buffer, namedWriteableRegistry);
         final TransportResponse response = handler.newInstance();
         response.remoteAddress(sourceTransport.boundAddress.publishAddress());
         try {
             response.readFrom(buffer);
         } catch (Throwable e) {
-            handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
+            handleException(handler, new TransportSerializationException(
+                    "Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
             return;
         }
         handleParsedResponse(response, handler);
     }
 
     protected void handleParsedResponse(final TransportResponse response, final TransportResponseHandler handler) {
-        threadPool.executor(handler.executor()).execute(new Runnable() {
-            @SuppressWarnings({"unchecked"})
-            @Override
-            public void run() {
-                try {
-                    handler.handleResponse(response);
-                } catch (Throwable e) {
-                    handleException(handler, new ResponseHandlerFailureTransportException(e));
-                }
+        threadPool.executor(handler.executor()).execute(() -> {
+            try {
+                handler.handleResponse(response);
+            } catch (Throwable e) {
+                handleException(handler, new ResponseHandlerFailureTransportException(e));
             }
         });
     }
 
-    private void handlerResponseError(StreamInput buffer, final TransportResponseHandler handler) {
+    private void handleResponseError(StreamInput buffer, final TransportResponseHandler handler) {
         Throwable error;
         try {
             error = buffer.readThrowable();

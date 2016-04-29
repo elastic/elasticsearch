@@ -28,9 +28,9 @@ import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             List<String> rules = Analysis.getWordList(env, settings, "synonyms");
             StringBuilder sb = new StringBuilder();
             for (String line : rules) {
-                sb.append(line).append(System.getProperty("line.separator"));
+                sb.append(line).append(System.lineSeparator());
             }
             rulesReader = new FastStringReader(sb.toString());
         } else if (settings.get("synonyms_path") != null) {

@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class QueryPhaseTests extends ESTestCase {
 
     private void countTestCase(Query query, IndexReader reader, boolean shouldCollect) throws Exception {
-        TestSearchContext context = new TestSearchContext();
+        TestSearchContext context = new TestSearchContext(null);
         context.parsedQuery(new ParsedQuery(query));
         context.setSize(0);
 
@@ -73,7 +73,7 @@ public class QueryPhaseTests extends ESTestCase {
     private void countTestCase(boolean withDeletions) throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE);
-        RandomIndexWriter w = new RandomIndexWriter(getRandom(), dir, iwc);
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
         final int numDocs = scaledRandomIntBetween(100, 200);
         for (int i = 0; i < numDocs; ++i) {
             Document doc = new Document();
@@ -120,7 +120,7 @@ public class QueryPhaseTests extends ESTestCase {
     }
 
     public void testPostFilterDisablesCountOptimization() throws Exception {
-        TestSearchContext context = new TestSearchContext();
+        TestSearchContext context = new TestSearchContext(null);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(0);
 
@@ -143,7 +143,7 @@ public class QueryPhaseTests extends ESTestCase {
     }
 
     public void testMinScoreDisablesCountOptimization() throws Exception {
-        TestSearchContext context = new TestSearchContext();
+        TestSearchContext context = new TestSearchContext(null);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(0);
 

@@ -41,7 +41,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
 /**
  * Mapping configuration for a type.
@@ -50,90 +50,18 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
     public static final MappingMetaData PROTO = new MappingMetaData();
 
-    public static class Id {
-
-        public static final Id EMPTY = new Id(null);
-
-        private final String path;
-
-        private final String[] pathElements;
-
-        public Id(String path) {
-            this.path = path;
-            if (path == null) {
-                pathElements = Strings.EMPTY_ARRAY;
-            } else {
-                pathElements = Strings.delimitedListToStringArray(path, ".");
-            }
-        }
-
-        public boolean hasPath() {
-            return path != null;
-        }
-
-        public String path() {
-            return this.path;
-        }
-
-        public String[] pathElements() {
-            return this.pathElements;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Id id = (Id) o;
-
-            if (path != null ? !path.equals(id.path) : id.path != null) return false;
-            if (!Arrays.equals(pathElements, id.pathElements)) return false;
-
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            int result = path != null ? path.hashCode() : 0;
-            result = 31 * result + (pathElements != null ? Arrays.hashCode(pathElements) : 0);
-            return result;
-        }
-    }
-
     public static class Routing {
 
-        public static final Routing EMPTY = new Routing(false, null);
+        public static final Routing EMPTY = new Routing(false);
 
         private final boolean required;
 
-        private final String path;
-
-        private final String[] pathElements;
-
-        public Routing(boolean required, String path) {
+        public Routing(boolean required) {
             this.required = required;
-            this.path = path;
-            if (path == null) {
-                pathElements = Strings.EMPTY_ARRAY;
-            } else {
-                pathElements = Strings.delimitedListToStringArray(path, ".");
-            }
         }
 
         public boolean required() {
             return required;
-        }
-
-        public boolean hasPath() {
-            return path != null;
-        }
-
-        public String path() {
-            return this.path;
-        }
-
-        public String[] pathElements() {
-            return this.pathElements;
         }
 
         @Override
@@ -143,19 +71,12 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
             Routing routing = (Routing) o;
 
-            if (required != routing.required) return false;
-            if (path != null ? !path.equals(routing.path) : routing.path != null) return false;
-            if (!Arrays.equals(pathElements, routing.pathElements)) return false;
-
-            return true;
+            return required == routing.required;
         }
 
         @Override
         public int hashCode() {
-            int result = (required ? 1 : 0);
-            result = 31 * result + (path != null ? path.hashCode() : 0);
-            result = 31 * result + (pathElements != null ? Arrays.hashCode(pathElements) : 0);
-            return result;
+            return getClass().hashCode() + (required ? 1 : 0);
         }
     }
 
@@ -163,35 +84,21 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
         private static final FormatDateTimeFormatter EPOCH_MILLIS_PARSER = Joda.forPattern("epoch_millis");
 
-        public static String parseStringTimestamp(String timestampAsString, FormatDateTimeFormatter dateTimeFormatter,
-                                                  Version version) throws TimestampParsingException {
+        public static String parseStringTimestamp(String timestampAsString, FormatDateTimeFormatter dateTimeFormatter) throws TimestampParsingException {
             try {
-                // no need for unix timestamp parsing in 2.x
-                FormatDateTimeFormatter formatter = version.onOrAfter(Version.V_2_0_0_beta1) ? dateTimeFormatter : EPOCH_MILLIS_PARSER;
-                return Long.toString(formatter.parser().parseMillis(timestampAsString));
+                return Long.toString(dateTimeFormatter.parser().parseMillis(timestampAsString));
             } catch (RuntimeException e) {
-                if (version.before(Version.V_2_0_0_beta1)) {
-                    try {
-                        return Long.toString(dateTimeFormatter.parser().parseMillis(timestampAsString));
-                    } catch (RuntimeException e1) {
-                        throw new TimestampParsingException(timestampAsString, e1);
-                    }
-                }
                 throw new TimestampParsingException(timestampAsString, e);
             }
         }
 
 
-        public static final Timestamp EMPTY = new Timestamp(false, null, TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT,
+        public static final Timestamp EMPTY = new Timestamp(false, TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT,
                 TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP, null);
 
         private final boolean enabled;
 
-        private final String path;
-
         private final String format;
-
-        private final String[] pathElements;
 
         private final FormatDateTimeFormatter dateTimeFormatter;
 
@@ -199,14 +106,8 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
         private final Boolean ignoreMissing;
 
-        public Timestamp(boolean enabled, String path, String format, String defaultTimestamp, Boolean ignoreMissing) {
+        public Timestamp(boolean enabled, String format, String defaultTimestamp, Boolean ignoreMissing) {
             this.enabled = enabled;
-            this.path = path;
-            if (path == null) {
-                pathElements = Strings.EMPTY_ARRAY;
-            } else {
-                pathElements = Strings.delimitedListToStringArray(path, ".");
-            }
             this.format = format;
             this.dateTimeFormatter = Joda.forPattern(format);
             this.defaultTimestamp = defaultTimestamp;
@@ -215,18 +116,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
         public boolean enabled() {
             return enabled;
-        }
-
-        public boolean hasPath() {
-            return path != null;
-        }
-
-        public String path() {
-            return this.path;
-        }
-
-        public String[] pathElements() {
-            return this.pathElements;
         }
 
         public String format() {
@@ -258,10 +147,8 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
             if (enabled != timestamp.enabled) return false;
             if (format != null ? !format.equals(timestamp.format) : timestamp.format != null) return false;
-            if (path != null ? !path.equals(timestamp.path) : timestamp.path != null) return false;
             if (defaultTimestamp != null ? !defaultTimestamp.equals(timestamp.defaultTimestamp) : timestamp.defaultTimestamp != null) return false;
             if (ignoreMissing != null ? !ignoreMissing.equals(timestamp.ignoreMissing) : timestamp.ignoreMissing != null) return false;
-            if (!Arrays.equals(pathElements, timestamp.pathElements)) return false;
 
             return true;
         }
@@ -269,9 +156,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         @Override
         public int hashCode() {
             int result = (enabled ? 1 : 0);
-            result = 31 * result + (path != null ? path.hashCode() : 0);
             result = 31 * result + (format != null ? format.hashCode() : 0);
-            result = 31 * result + (pathElements != null ? Arrays.hashCode(pathElements) : 0);
             result = 31 * result + (dateTimeFormatter != null ? dateTimeFormatter.hashCode() : 0);
             result = 31 * result + (defaultTimestamp != null ? defaultTimestamp.hashCode() : 0);
             result = 31 * result + (ignoreMissing != null ? ignoreMissing.hashCode() : 0);
@@ -283,7 +168,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
     private final CompressedXContent source;
 
-    private Id id;
     private Routing routing;
     private Timestamp timestamp;
     private boolean hasParentField;
@@ -291,9 +175,8 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     public MappingMetaData(DocumentMapper docMapper) {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
-        this.id = new Id(docMapper.idFieldMapper().path());
-        this.routing = new Routing(docMapper.routingFieldMapper().required(), docMapper.routingFieldMapper().path());
-        this.timestamp = new Timestamp(docMapper.timestampFieldMapper().enabled(), docMapper.timestampFieldMapper().path(),
+        this.routing = new Routing(docMapper.routingFieldMapper().required());
+        this.timestamp = new Timestamp(docMapper.timestampFieldMapper().enabled(),
                 docMapper.timestampFieldMapper().fieldType().dateTimeFormatter().format(), docMapper.timestampFieldMapper().defaultTimestamp(),
                 docMapper.timestampFieldMapper().ignoreMissing());
         this.hasParentField = docMapper.parentFieldMapper().active();
@@ -337,60 +220,40 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     }
 
     private void initMappers(Map<String, Object> withoutType) {
-        if (withoutType.containsKey("_id")) {
-            String path = null;
-            Map<String, Object> routingNode = (Map<String, Object>) withoutType.get("_id");
-            for (Map.Entry<String, Object> entry : routingNode.entrySet()) {
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
-                Object fieldNode = entry.getValue();
-                if (fieldName.equals("path")) {
-                    path = fieldNode.toString();
-                }
-            }
-            this.id = new Id(path);
-        } else {
-            this.id = Id.EMPTY;
-        }
         if (withoutType.containsKey("_routing")) {
             boolean required = false;
-            String path = null;
             Map<String, Object> routingNode = (Map<String, Object>) withoutType.get("_routing");
             for (Map.Entry<String, Object> entry : routingNode.entrySet()) {
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("required")) {
-                    required = nodeBooleanValue(fieldNode);
-                } else if (fieldName.equals("path")) {
-                    path = fieldNode.toString();
+                    required = lenientNodeBooleanValue(fieldNode);
                 }
             }
-            this.routing = new Routing(required, path);
+            this.routing = new Routing(required);
         } else {
             this.routing = Routing.EMPTY;
         }
         if (withoutType.containsKey("_timestamp")) {
             boolean enabled = false;
-            String path = null;
             String format = TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT;
             String defaultTimestamp = TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP;
             Boolean ignoreMissing = null;
             Map<String, Object> timestampNode = (Map<String, Object>) withoutType.get("_timestamp");
             for (Map.Entry<String, Object> entry : timestampNode.entrySet()) {
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    enabled = nodeBooleanValue(fieldNode);
-                } else if (fieldName.equals("path")) {
-                    path = fieldNode.toString();
+                    enabled = lenientNodeBooleanValue(fieldNode);
                 } else if (fieldName.equals("format")) {
                     format = fieldNode.toString();
                 } else if (fieldName.equals("default") && fieldNode != null) {
                     defaultTimestamp = fieldNode.toString();
                 } else if (fieldName.equals("ignore_missing")) {
-                    ignoreMissing = nodeBooleanValue(fieldNode);
+                    ignoreMissing = lenientNodeBooleanValue(fieldNode);
                 }
             }
-            this.timestamp = new Timestamp(enabled, path, format, defaultTimestamp, ignoreMissing);
+            this.timestamp = new Timestamp(enabled, format, defaultTimestamp, ignoreMissing);
         } else {
             this.timestamp = Timestamp.EMPTY;
         }
@@ -401,19 +264,15 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         }
     }
 
-    public MappingMetaData(String type, CompressedXContent source, Id id, Routing routing, Timestamp timestamp, boolean hasParentField) {
+    public MappingMetaData(String type, CompressedXContent source, Routing routing, Timestamp timestamp, boolean hasParentField) {
         this.type = type;
         this.source = source;
-        this.id = id;
         this.routing = routing;
         this.timestamp = timestamp;
         this.hasParentField = hasParentField;
     }
 
     void updateDefaultMapping(MappingMetaData defaultMapping) {
-        if (id == Id.EMPTY) {
-            id = defaultMapping.id();
-        }
         if (routing == Routing.EMPTY) {
             routing = defaultMapping.routing();
         }
@@ -453,10 +312,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         return sourceAsMap();
     }
 
-    public Id id() {
-        return this.id;
-    }
-
     public Routing routing() {
         return this.routing;
     }
@@ -465,114 +320,14 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         return this.timestamp;
     }
 
-    public ParseContext createParseContext(@Nullable String id, @Nullable String routing, @Nullable String timestamp) {
-        // We parse the routing even if there is already a routing key in the request in order to make sure that
-        // they are the same
-        return new ParseContext(
-                id == null && id().hasPath(),
-                routing().hasPath(),
-                timestamp == null && timestamp().hasPath()
-        );
-    }
-
-    public void parse(XContentParser parser, ParseContext parseContext) throws IOException {
-        innerParse(parser, parseContext);
-    }
-
-    private void innerParse(XContentParser parser, ParseContext context) throws IOException {
-        if (!context.parsingStillNeeded()) {
-            return;
-        }
-
-        XContentParser.Token token = parser.currentToken();
-        if (token == null) {
-            token = parser.nextToken();
-        }
-        if (token == XContentParser.Token.START_OBJECT) {
-            token = parser.nextToken();
-        }
-        String idPart = context.idParsingStillNeeded() ? id().pathElements()[context.locationId] : null;
-        String routingPart = context.routingParsingStillNeeded() ? routing().pathElements()[context.locationRouting] : null;
-        String timestampPart = context.timestampParsingStillNeeded() ? timestamp().pathElements()[context.locationTimestamp] : null;
-
-        for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
-            // Must point to field name
-            String fieldName = parser.currentName();
-            // And then the value...
-            token = parser.nextToken();
-            boolean incLocationId = false;
-            boolean incLocationRouting = false;
-            boolean incLocationTimestamp = false;
-            if (context.idParsingStillNeeded() && fieldName.equals(idPart)) {
-                if (context.locationId + 1 == id.pathElements().length) {
-                    if (!token.isValue()) {
-                        throw new MapperParsingException("id field must be a value but was either an object or an array");
-                    }
-                    context.id = parser.textOrNull();
-                    context.idResolved = true;
-                } else {
-                    incLocationId = true;
-                }
-            }
-            if (context.routingParsingStillNeeded() && fieldName.equals(routingPart)) {
-                if (context.locationRouting + 1 == routing.pathElements().length) {
-                    context.routing = parser.textOrNull();
-                    context.routingResolved = true;
-                } else {
-                    incLocationRouting = true;
-                }
-            }
-            if (context.timestampParsingStillNeeded() && fieldName.equals(timestampPart)) {
-                if (context.locationTimestamp + 1 == timestamp.pathElements().length) {
-                    context.timestamp = parser.textOrNull();
-                    context.timestampResolved = true;
-                } else {
-                    incLocationTimestamp = true;
-                }
-            }
-
-            if (incLocationId || incLocationRouting || incLocationTimestamp) {
-                if (token == XContentParser.Token.START_OBJECT) {
-                    context.locationId += incLocationId ? 1 : 0;
-                    context.locationRouting += incLocationRouting ? 1 : 0;
-                    context.locationTimestamp += incLocationTimestamp ? 1 : 0;
-                    innerParse(parser, context);
-                    context.locationId -= incLocationId ? 1 : 0;
-                    context.locationRouting -= incLocationRouting ? 1 : 0;
-                    context.locationTimestamp -= incLocationTimestamp ? 1 : 0;
-                }
-            } else {
-                parser.skipChildren();
-            }
-
-            if (!context.parsingStillNeeded()) {
-                return;
-            }
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(type());
         source().writeTo(out);
-        // id
-        if (id().hasPath()) {
-            out.writeBoolean(true);
-            out.writeString(id().path());
-        } else {
-            out.writeBoolean(false);
-        }
         // routing
         out.writeBoolean(routing().required());
-        if (routing().hasPath()) {
-            out.writeBoolean(true);
-            out.writeString(routing().path());
-        } else {
-            out.writeBoolean(false);
-        }
         // timestamp
         out.writeBoolean(timestamp().enabled());
-        out.writeOptionalString(timestamp().path());
         out.writeString(timestamp().format());
         out.writeOptionalString(timestamp().defaultTimestamp());
         out.writeOptionalBoolean(timestamp().ignoreMissing());
@@ -586,7 +341,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
         MappingMetaData that = (MappingMetaData) o;
 
-        if (!id.equals(that.id)) return false;
         if (!routing.equals(that.routing)) return false;
         if (!source.equals(that.source)) return false;
         if (!timestamp.equals(that.timestamp)) return false;
@@ -599,7 +353,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     public int hashCode() {
         int result = type.hashCode();
         result = 31 * result + source.hashCode();
-        result = 31 * result + id.hashCode();
         result = 31 * result + routing.hashCode();
         result = 31 * result + timestamp.hashCode();
         return result;
@@ -608,142 +361,20 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     public MappingMetaData readFrom(StreamInput in) throws IOException {
         String type = in.readString();
         CompressedXContent source = CompressedXContent.readCompressedString(in);
-        // id
-        Id id = new Id(in.readBoolean() ? in.readString() : null);
         // routing
-        Routing routing = new Routing(in.readBoolean(), in.readBoolean() ? in.readString() : null);
+        Routing routing = new Routing(in.readBoolean());
         // timestamp
 
         boolean enabled = in.readBoolean();
-        String path = in.readOptionalString();
         String format = in.readString();
         String defaultTimestamp = in.readOptionalString();
         Boolean ignoreMissing = null;
 
         ignoreMissing = in.readOptionalBoolean();
 
-        final Timestamp timestamp = new Timestamp(enabled, path, format, defaultTimestamp, ignoreMissing);
+        final Timestamp timestamp = new Timestamp(enabled, format, defaultTimestamp, ignoreMissing);
         final boolean hasParentField = in.readBoolean();
-        return new MappingMetaData(type, source, id, routing, timestamp, hasParentField);
+        return new MappingMetaData(type, source, routing, timestamp, hasParentField);
     }
 
-    public static class ParseContext {
-        final boolean shouldParseId;
-        final boolean shouldParseRouting;
-        final boolean shouldParseTimestamp;
-
-        int locationId = 0;
-        int locationRouting = 0;
-        int locationTimestamp = 0;
-        boolean idResolved;
-        boolean routingResolved;
-        boolean timestampResolved;
-        String id;
-        String routing;
-        String timestamp;
-
-        public ParseContext(boolean shouldParseId, boolean shouldParseRouting, boolean shouldParseTimestamp) {
-            this.shouldParseId = shouldParseId;
-            this.shouldParseRouting = shouldParseRouting;
-            this.shouldParseTimestamp = shouldParseTimestamp;
-        }
-
-        /**
-         * The id value parsed, <tt>null</tt> if does not require parsing, or not resolved.
-         */
-        public String id() {
-            return id;
-        }
-
-        /**
-         * Does id parsing really needed at all?
-         */
-        public boolean shouldParseId() {
-            return shouldParseId;
-        }
-
-        /**
-         * Has id been resolved during the parsing phase.
-         */
-        public boolean idResolved() {
-            return idResolved;
-        }
-
-        /**
-         * Is id parsing still needed?
-         */
-        public boolean idParsingStillNeeded() {
-            return shouldParseId && !idResolved;
-        }
-
-        /**
-         * The routing value parsed, <tt>null</tt> if does not require parsing, or not resolved.
-         */
-        public String routing() {
-            return routing;
-        }
-
-        /**
-         * Does routing parsing really needed at all?
-         */
-        public boolean shouldParseRouting() {
-            return shouldParseRouting;
-        }
-
-        /**
-         * Has routing been resolved during the parsing phase.
-         */
-        public boolean routingResolved() {
-            return routingResolved;
-        }
-
-        /**
-         * Is routing parsing still needed?
-         */
-        public boolean routingParsingStillNeeded() {
-            return shouldParseRouting && !routingResolved;
-        }
-
-        /**
-         * The timestamp value parsed, <tt>null</tt> if does not require parsing, or not resolved.
-         */
-        public String timestamp() {
-            return timestamp;
-        }
-
-        /**
-         * Does timestamp parsing really needed at all?
-         */
-        public boolean shouldParseTimestamp() {
-            return shouldParseTimestamp;
-        }
-
-        /**
-         * Has timestamp been resolved during the parsing phase.
-         */
-        public boolean timestampResolved() {
-            return timestampResolved;
-        }
-
-        /**
-         * Is timestamp parsing still needed?
-         */
-        public boolean timestampParsingStillNeeded() {
-            return shouldParseTimestamp && !timestampResolved;
-        }
-
-        /**
-         * Do we really need parsing?
-         */
-        public boolean shouldParse() {
-            return shouldParseId || shouldParseRouting || shouldParseTimestamp;
-        }
-
-        /**
-         * Is parsing still needed?
-         */
-        public boolean parsingStillNeeded() {
-            return idParsingStillNeeded() || routingParsingStillNeeded() || timestampParsingStillNeeded();
-        }
-    }
 }

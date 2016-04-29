@@ -10,8 +10,9 @@ The core mapper plugins are:
 
 <<mapper-attachments>>::
 
-The mapper-attachments integrates http://lucene.apache.org/tika/[Apache Tika] to provide a new field
-type `attachment` to allow indexing of documents such as PDFs and Microsoft Word.
+deprecated[5.0.0,The `mapper-attachments` plugin has been replaced by the <<ingest-attachment, `ingest-attachment`>> plugin]:
+The mapper-attachments integrates http://lucene.apache.org/tika/[Apache Tika] to provide a new field type `attachment`
+to allow indexing of documents such as PDFs and Microsoft Word.
 
 <<mapper-size>>::
 

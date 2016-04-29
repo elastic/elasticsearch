@@ -93,6 +93,11 @@ public class WeightFactorFunction extends ScoreFunction {
                 Objects.equals(this.scoreFunction, weightFactorFunction.scoreFunction);
     }
 
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(weight, scoreFunction);
+    }
+
     private static class ScoreOne extends ScoreFunction {
 
         protected ScoreOne(CombineFunction scoreCombiner) {
@@ -122,6 +127,11 @@ public class WeightFactorFunction extends ScoreFunction {
         @Override
         protected boolean doEquals(ScoreFunction other) {
             return true;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
         }
     }
 }

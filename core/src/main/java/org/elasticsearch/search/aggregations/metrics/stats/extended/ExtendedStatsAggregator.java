@@ -19,11 +19,13 @@
 package org.elasticsearch.search.aggregations.metrics.stats.extended;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -32,9 +34,6 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,8 +44,10 @@ import java.util.Map;
  */
 public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
 
+    public static final ParseField SIGMA_FIELD = new ParseField("sigma");
+
     final ValuesSource.Numeric valuesSource;
-    final ValueFormatter formatter;
+    final DocValueFormat format;
     final double sigma;
 
     LongArray counts;
@@ -55,13 +56,13 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     DoubleArray maxes;
     DoubleArray sumOfSqrs;
 
-    public ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource, ValueFormatter formatter,
+    public ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter,
             AggregationContext context, Aggregator parent, double sigma, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData)
             throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
-        this.formatter = formatter;
+        this.format = formatter;
         this.sigma = sigma;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
@@ -139,20 +140,34 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
 
     @Override
     public double metric(String name, long owningBucketOrd) {
+        if (valuesSource == null || owningBucketOrd >= counts.size()) {
+            switch(InternalExtendedStats.Metrics.resolve(name)) {
+                case count: return 0;
+                case sum: return 0;
+                case min: return Double.POSITIVE_INFINITY;
+                case max: return Double.NEGATIVE_INFINITY;
+                case avg: return Double.NaN;
+                case sum_of_squares: return 0;
+                case variance: return Double.NaN;
+                case std_deviation: return Double.NaN;
+                case std_upper: return Double.NaN;
+                case std_lower: return Double.NaN;
+                default:
+                    throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
+            }
+        }
         switch(InternalExtendedStats.Metrics.resolve(name)) {
-            case count: return valuesSource == null ? 0 : counts.get(owningBucketOrd);
-            case sum: return valuesSource == null ? 0 : sums.get(owningBucketOrd);
-            case min: return valuesSource == null ? Double.POSITIVE_INFINITY : mins.get(owningBucketOrd);
-            case max: return valuesSource == null ? Double.NEGATIVE_INFINITY : maxes.get(owningBucketOrd);
-            case avg: return valuesSource == null ? Double.NaN : sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
-            case sum_of_squares: return valuesSource == null ? 0 : sumOfSqrs.get(owningBucketOrd);
-            case variance: return valuesSource == null ? Double.NaN : variance(owningBucketOrd);
-            case std_deviation: return valuesSource == null ? Double.NaN : Math.sqrt(variance(owningBucketOrd));
+            case count: return counts.get(owningBucketOrd);
+            case sum: return sums.get(owningBucketOrd);
+            case min: return mins.get(owningBucketOrd);
+            case max: return maxes.get(owningBucketOrd);
+            case avg: return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
+            case sum_of_squares: return sumOfSqrs.get(owningBucketOrd);
+            case variance: return variance(owningBucketOrd);
+            case std_deviation: return Math.sqrt(variance(owningBucketOrd));
             case std_upper:
-                if (valuesSource == null) { return Double.NaN; }
                 return (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) + (Math.sqrt(variance(owningBucketOrd)) * this.sigma);
             case std_lower:
-                if (valuesSource == null) { return Double.NaN; }
                 return (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) - (Math.sqrt(variance(owningBucketOrd)) * this.sigma);
             default:
                 throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
@@ -166,51 +181,23 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (valuesSource == null) {
-            return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, 0d, formatter,
-                    pipelineAggregators(), metaData());
+    public InternalAggregation buildAggregation(long bucket) {
+        if (valuesSource == null || bucket >= counts.size()) {
+            return buildEmptyAggregation();
         }
-        assert owningBucketOrdinal < counts.size();
-        return new InternalExtendedStats(name, counts.get(owningBucketOrdinal), sums.get(owningBucketOrdinal),
-                mins.get(owningBucketOrdinal), maxes.get(owningBucketOrdinal), sumOfSqrs.get(owningBucketOrdinal), sigma, formatter,
+        return new InternalExtendedStats(name, counts.get(bucket), sums.get(bucket),
+                mins.get(bucket), maxes.get(bucket), sumOfSqrs.get(bucket), sigma, format,
                 pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, 0d, formatter, pipelineAggregators(),
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, sigma, format, pipelineAggregators(),
                 metaData());
     }
 
     @Override
     public void doClose() {
         Releasables.close(counts, maxes, mins, sumOfSqrs, sums);
-    }
-
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
-
-        private final double sigma;
-
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig, double sigma) {
-            super(name, InternalExtendedStats.TYPE.name(), valuesSourceConfig);
-
-            this.sigma = sigma;
-        }
-
-        @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new ExtendedStatsAggregator(name, null, config.formatter(), aggregationContext, parent, sigma, pipelineAggregators,
-                    metaData);
-        }
-
-        @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
-                boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                throws IOException {
-            return new ExtendedStatsAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, sigma,
-                    pipelineAggregators, metaData);
-        }
     }
 }

@@ -19,10 +19,18 @@
 
 package org.elasticsearch.mapper.attachments;
 
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 
 public class MapperAttachmentsPlugin extends Plugin {
+
+
+    private static ESLogger logger = ESLoggerFactory.getLogger("mapper.attachment");
+    private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     @Override
     public String name() {
@@ -32,6 +40,13 @@ public class MapperAttachmentsPlugin extends Plugin {
     @Override
     public String description() {
         return "Adds the attachment type allowing to parse difference attachment formats";
+    }
+
+    public void onModule(SettingsModule settingsModule) {
+        deprecationLogger.deprecated("[mapper-attachments] plugin has been deprecated and will be replaced by [ingest-attachment] plugin.");
+        settingsModule.registerSetting(AttachmentMapper.INDEX_ATTACHMENT_DETECT_LANGUAGE_SETTING);
+        settingsModule.registerSetting(AttachmentMapper.INDEX_ATTACHMENT_IGNORE_ERRORS_SETTING);
+        settingsModule.registerSetting(AttachmentMapper.INDEX_ATTACHMENT_INDEXED_CHARS_SETTING);
     }
 
     public void onModule(IndicesModule indicesModule) {

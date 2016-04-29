@@ -25,14 +25,18 @@ import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Set;
 
 /**
- *
+ * A class that allows to filter settings objects by simple regular expression patterns or full settings keys.
+ * It's used for response filtering on the rest layer to for instance filter out sensitive information like access keys.
  */
 public final class SettingsFilter extends AbstractComponent {
     /**
@@ -40,50 +44,62 @@ public final class SettingsFilter extends AbstractComponent {
      */
     public static String SETTINGS_FILTER_PARAM = "settings_filter";
 
-    private final CopyOnWriteArrayList<String> patterns = new CopyOnWriteArrayList<>();
+    private final Set<String> patterns;
+    private final String patternString;
 
-    public SettingsFilter(Settings settings) {
+    public SettingsFilter(Settings settings, Collection<String> patterns) {
         super(settings);
+        HashSet<String> set = new HashSet<>();
+        for (String pattern : patterns) {
+            if (isValidPattern(pattern) == false) {
+                throw new IllegalArgumentException("invalid pattern: " + pattern);
+            }
+        }
+        this.patterns = Collections.unmodifiableSet(new HashSet<>(patterns));
+        patternString = Strings.collectionToDelimitedString(patterns, ",");
     }
 
     /**
-     * Adds a new simple pattern to the list of filters
+     * Returns a set of patterns
      */
-    public void addFilter(String pattern) {
-        patterns.add(pattern);
+    public Set<String> getPatterns() {
+        return patterns;
     }
 
     /**
-     * Removes a simple pattern from the list of filters
+     * Returns <code>true</code> iff the given string is either a valid settings key pattern or a simple regular expression
+     * @see Regex
+     * @see AbstractScopedSettings#isValidKey(String)
      */
-    public void removeFilter(String pattern) {
-        patterns.remove(pattern);
-    }
-
-    public String getPatterns() {
-        return Strings.collectionToDelimitedString(patterns, ",");
+    public static boolean isValidPattern(String pattern) {
+        return AbstractScopedSettings.isValidKey(pattern) || Regex.isSimpleMatchPattern(pattern);
     }
 
     public void addFilterSettingParams(RestRequest request) {
         if (patterns.isEmpty() == false) {
-            request.params().put(SETTINGS_FILTER_PARAM, getPatterns());
+            request.params().put(SETTINGS_FILTER_PARAM, patternString);
         }
     }
 
     public static Settings filterSettings(Params params, Settings settings) {
         String patterns = params.param(SETTINGS_FILTER_PARAM);
-        Settings filteredSettings = settings;
+        final Settings filteredSettings;
         if (patterns != null && patterns.isEmpty() == false) {
-            filteredSettings = SettingsFilter.filterSettings(patterns, filteredSettings);
+            filteredSettings = filterSettings(Strings.commaDelimitedListToSet(patterns), settings);
+        } else {
+            filteredSettings = settings;
         }
         return filteredSettings;
     }
 
-    public static Settings filterSettings(String patterns, Settings settings) {
-        String[] patternArray = Strings.delimitedListToStringArray(patterns, ",");
-        Settings.Builder builder = Settings.settingsBuilder().put(settings);
+    public Settings filter(Settings settings) {
+        return filterSettings(patterns, settings);
+    }
+
+    private static Settings filterSettings(Iterable<String> patterns, Settings settings) {
+        Settings.Builder builder = Settings.builder().put(settings);
         List<String> simpleMatchPatternList = new ArrayList<>();
-        for (String pattern : patternArray) {
+        for (String pattern : patterns) {
             if (Regex.isSimpleMatchPattern(pattern)) {
                 simpleMatchPatternList.add(pattern);
             } else {

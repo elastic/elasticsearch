@@ -22,6 +22,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
@@ -29,7 +30,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,7 +41,7 @@ import java.util.Map;
  */
 public class DoubleTermsAggregator extends LongTermsAggregator {
 
-    public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, ValueFormat format,
+    public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
             Terms.Order order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent,
             SubAggCollectionMode collectionMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
@@ -69,7 +69,7 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
     private static DoubleTerms.Bucket convertToDouble(InternalTerms.Bucket bucket) {
         final long term = ((Number) bucket.getKey()).longValue();
         final double value = NumericUtils.sortableLongToDouble(term);
-        return new DoubleTerms.Bucket(value, bucket.docCount, bucket.aggregations, bucket.showDocCountError, bucket.docCountError, bucket.formatter);
+        return new DoubleTerms.Bucket(value, bucket.docCount, bucket.aggregations, bucket.showDocCountError, bucket.docCountError, bucket.format);
     }
 
     private static DoubleTerms convertToDouble(LongTerms terms) {
@@ -77,7 +77,7 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
         for (int i = 0; i < buckets.length; ++i) {
             buckets[i] = convertToDouble(buckets[i]);
         }
-        return new DoubleTerms(terms.getName(), terms.order, terms.formatter, terms.requiredSize, terms.shardSize, terms.minDocCount,
+        return new DoubleTerms(terms.getName(), terms.order, terms.format, terms.requiredSize, terms.shardSize, terms.minDocCount,
                 Arrays.asList(buckets), terms.showTermDocCountError, terms.docCountError, terms.otherDocCount, terms.pipelineAggregators(),
                 terms.getMetaData());
     }

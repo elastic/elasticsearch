@@ -21,30 +21,38 @@
 //// These are mock objects and test management that we allow test framework libs
 //// to provide on our behalf. But tests themselves cannot do this stuff!
 
-grant codeBase "${codebase.securemock-1.1.jar}" {
+grant codeBase "${codebase.securemock-1.2.jar}" {
   // needed to access ReflectionFactory (see below)
   permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
   // needed to support creation of mocks
   permission java.lang.RuntimePermission "reflectionFactoryAccess";
   // needed for spy interception, etc
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${codebase.lucene-test-framework-5.4.0-snapshot-1715952.jar}" {
+grant codeBase "${codebase.lucene-test-framework-6.0.0.jar}" {
   // needed by RamUsageTester
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${codebase.randomizedtesting-runner-2.2.0.jar}" {
+grant codeBase "${codebase.randomizedtesting-runner-2.3.2.jar}" {
   // optionally needed for access to private test methods (e.g. beforeClass)
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed to fail tests on uncaught exceptions from other threads
   permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
   // needed for top threads handling
   permission org.elasticsearch.ThreadPermission "modifyArbitraryThreadGroup";
+  // needed for TestClass creation
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
-grant codeBase "${codebase.junit4-ant-2.2.0.jar}" {
+grant codeBase "${codebase.junit4-ant-2.3.2.jar}" {
   // needed for stream redirection
   permission java.lang.RuntimePermission "setIO";
+};
+
+grant codeBase "${codebase.junit-4.11.jar}" {
+  // needed for TestClass creation
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
 };

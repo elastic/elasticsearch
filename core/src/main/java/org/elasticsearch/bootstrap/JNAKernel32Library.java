@@ -19,9 +19,12 @@
 
 package org.elasticsearch.bootstrap;
 
-import com.sun.jna.*;
+import com.sun.jna.IntegerType;
+import com.sun.jna.Native;
+import com.sun.jna.NativeLong;
+import com.sun.jna.Pointer;
+import com.sun.jna.Structure;
 import com.sun.jna.win32.StdCallLibrary;
-
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;

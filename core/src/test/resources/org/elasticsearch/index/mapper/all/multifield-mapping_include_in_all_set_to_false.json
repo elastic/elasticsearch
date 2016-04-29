@@ -6,13 +6,12 @@
                 "include_in_all": false,
                 "properties": {
                     "bar": {
-                        "type": "string",
-                        "index": "not_analyzed",
+                        "type": "keyword",
                         "include_in_all": false,
                         "fields": {
                             "lower": {
                                 "analyzer": "standard",
-                                "type": "string"
+                                "type": "text"
                             }
                         }
                     }

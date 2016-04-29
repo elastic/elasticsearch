@@ -20,13 +20,12 @@ package org.elasticsearch.search.highlight.vectorhighlight;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -56,15 +55,15 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
         SourceLookup sourceLookup = searchContext.lookup().source();
         sourceLookup.setSegmentAndDocument((LeafReaderContext) reader.getContext(), docId);
 
-        List<Object> values = sourceLookup.extractRawValues(hitContext.getSourcePath(mapper.fieldType().names().fullName()));
+        List<Object> values = sourceLookup.extractRawValues(hitContext.getSourcePath(mapper.fieldType().name()));
         if (values.isEmpty()) {
             return EMPTY_FIELDS;
         }
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
-            fields[i] = new Field(mapper.fieldType().names().indexName(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
+            fields[i] = new Field(mapper.fieldType().name(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
         }
         return fields;
     }
-    
+
 }

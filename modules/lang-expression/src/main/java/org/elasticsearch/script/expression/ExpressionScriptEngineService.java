@@ -32,10 +32,11 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDateFieldMapper;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -50,6 +51,8 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.text.ParseException;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -59,6 +62,8 @@ import java.util.Map;
 public class ExpressionScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     public static final String NAME = "expression";
+
+    public static final List<String> TYPES = Collections.singletonList(NAME);
 
     protected static final String GET_YEAR_METHOD         = "getYear";
     protected static final String GET_MONTH_METHOD        = "getMonth";
@@ -80,22 +85,22 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public String[] types() {
-        return new String[]{NAME};
+    public List<String> getTypes() {
+        return TYPES;
     }
 
     @Override
-    public String[] extensions() {
-        return new String[]{NAME};
+    public List<String> getExtensions() {
+        return TYPES;
     }
 
     @Override
-    public boolean sandboxed() {
+    public boolean isSandboxed() {
         return true;
     }
 
     @Override
-    public Object compile(String script) {
+    public Object compile(String script, Map<String, String> params) {
         // classloader created here
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -184,17 +189,17 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                         throw new ScriptException("Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()");
                     }
 
-                    MappedFieldType fieldType = mapper.smartNameFieldType(fieldname);
+                    MappedFieldType fieldType = mapper.fullName(fieldname);
 
                     if (fieldType == null) {
                         throw new ScriptException("Field [" + fieldname + "] used in expression does not exist in mappings");
                     }
-                    if (fieldType.isNumeric() == false) {
+
+                    IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField(fieldType);
+                    if (fieldData instanceof IndexNumericFieldData == false) {
                         // TODO: more context (which expression?)
                         throw new ScriptException("Field [" + fieldname + "] used in expression must be numeric");
                     }
-
-                    IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField((NumberFieldMapper.NumberFieldType) fieldType);
                     if (methodname == null) {
                         bindings.add(variable, new FieldDataValueSource(fieldData, MultiValueMode.MIN));
                     } else {
@@ -242,7 +247,8 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     protected ValueSource getDateMethodValueSource(MappedFieldType fieldType, IndexFieldData<?> fieldData, String fieldName, String methodName, int calendarType) {
-        if (!(fieldType instanceof DateFieldMapper.DateFieldType)) {
+        if (fieldType instanceof LegacyDateFieldMapper.DateFieldType == false
+                && fieldType instanceof DateFieldMapper.DateFieldType == false) {
             throw new IllegalArgumentException("Member method [" + methodName + "] can only be used with a date field type, not the field [" + fieldName + "].");
         }
 

@@ -23,12 +23,13 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -38,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class SimpleDataNodesIT extends ESIntegTestCase {
     public void testDataNodes() throws Exception {
-        internalCluster().startNode(settingsBuilder().put("node.data", false).build());
+        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
         client().admin().indices().create(createIndexRequest("test")).actionGet();
         try {
             client().index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test")).timeout(timeValueSeconds(1))).actionGet();
@@ -47,7 +48,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
             // all is well
         }
 
-        internalCluster().startNode(settingsBuilder().put("node.data", false).build());
+        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
         assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").setLocal(true).execute().actionGet().isTimedOut(), equalTo(false));
 
         // still no shard should be allocated
@@ -59,7 +60,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
         }
 
         // now, start a node data, and see that it gets with shards
-        internalCluster().startNode(settingsBuilder().put("node.data", true).build());
+        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), true).build());
         assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("3").setLocal(true).execute().actionGet().isTimedOut(), equalTo(false));
 
         IndexResponse indexResponse = client().index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
@@ -68,6 +69,6 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
     }
 
     private String source(String id, String nameValue) {
-        return "{ type1 : { \"id\" : \"" + id + "\", \"name\" : \"" + nameValue + "\" } }";
+        return "{ \"type1\" : { \"id\" : \"" + id + "\", \"name\" : \"" + nameValue + "\" } }";
     }
 }

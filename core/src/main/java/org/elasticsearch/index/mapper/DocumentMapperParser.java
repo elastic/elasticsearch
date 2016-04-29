@@ -25,30 +25,29 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.index.mapper.MapperBuilders.doc;
 
 public class DocumentMapperParser {
 
-    private final Settings indexSettings;
     final MapperService mapperService;
     final AnalysisService analysisService;
-    private static final ESLogger logger = Loggers.getLogger(DocumentMapperParser.class);
     private final SimilarityService similarityService;
+    private final Supplier<QueryShardContext> queryShardContextSupplier;
 
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
 
@@ -59,47 +58,27 @@ public class DocumentMapperParser {
     private final Map<String, MetadataFieldMapper.TypeParser> rootTypeParsers;
 
     public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, AnalysisService analysisService,
-                                SimilarityService similarityService, MapperRegistry mapperRegistry) {
-        this.indexSettings = indexSettings.getSettings();
-        this.parseFieldMatcher = new ParseFieldMatcher(this.indexSettings);
+                                SimilarityService similarityService, MapperRegistry mapperRegistry,
+                                Supplier<QueryShardContext> queryShardContextSupplier) {
+        this.parseFieldMatcher = new ParseFieldMatcher(indexSettings.getSettings());
         this.mapperService = mapperService;
         this.analysisService = analysisService;
         this.similarityService = similarityService;
+        this.queryShardContextSupplier = queryShardContextSupplier;
         this.typeParsers = mapperRegistry.getMapperParsers();
         this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers();
         indexVersionCreated = indexSettings.getIndexVersionCreated();
     }
 
     public Mapper.TypeParser.ParserContext parserContext(String type) {
-        return new Mapper.TypeParser.ParserContext(type, analysisService, similarityService::getSimilarity, mapperService, typeParsers::get, indexVersionCreated, parseFieldMatcher);
+        return new Mapper.TypeParser.ParserContext(type, analysisService, similarityService::getSimilarity, mapperService, typeParsers::get, indexVersionCreated, parseFieldMatcher, queryShardContextSupplier.get());
     }
 
-    public DocumentMapper parse(String source) throws MapperParsingException {
-        return parse(null, source);
-    }
-
-    public DocumentMapper parse(@Nullable String type, String source) throws MapperParsingException {
+    public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
         return parse(type, source, null);
     }
 
-    public DocumentMapper parse(@Nullable String type, String source, String defaultSource) throws MapperParsingException {
-        Map<String, Object> mapping = null;
-        if (source != null) {
-            Tuple<String, Map<String, Object>> t = extractMapping(type, source);
-            type = t.v1();
-            mapping = t.v2();
-        }
-        if (mapping == null) {
-            mapping = new HashMap<>();
-        }
-        return parse(type, mapping, defaultSource);
-    }
-
-    public DocumentMapper parseCompressed(@Nullable String type, CompressedXContent source) throws MapperParsingException {
-        return parseCompressed(type, source, null);
-    }
-
-    public DocumentMapper parseCompressed(@Nullable String type, CompressedXContent source, String defaultSource) throws MapperParsingException {
+    public DocumentMapper parse(@Nullable String type, CompressedXContent source, String defaultSource) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
             Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true).v2();
@@ -129,12 +108,12 @@ public class DocumentMapperParser {
 
         Mapper.TypeParser.ParserContext parserContext = parserContext(type);
         // parse RootObjectMapper
-        DocumentMapper.Builder docBuilder = doc(indexSettings, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
+        DocumentMapper.Builder docBuilder = new DocumentMapper.Builder((RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);
         Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
         // parse DocumentMapper
         while(iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
-            String fieldName = Strings.toUnderscoreCase(entry.getKey());
+            String fieldName = entry.getKey();
             Object fieldNode = entry.getValue();
 
             MetadataFieldMapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
@@ -156,26 +135,22 @@ public class DocumentMapperParser {
 
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
 
-        return docBuilder.build(mapperService, this);
+        return docBuilder.build(mapperService);
     }
 
-    public static void checkNoRemainingFields(String fieldName, Map<String, Object> fieldNodeMap, Version indexVersionCreated) {
+    public static void checkNoRemainingFields(String fieldName, Map<?, ?> fieldNodeMap, Version indexVersionCreated) {
         checkNoRemainingFields(fieldNodeMap, indexVersionCreated, "Mapping definition for [" + fieldName + "] has unsupported parameters: ");
     }
 
-    public static void checkNoRemainingFields(Map<String, Object> fieldNodeMap, Version indexVersionCreated, String message) {
+    public static void checkNoRemainingFields(Map<?, ?> fieldNodeMap, Version indexVersionCreated, String message) {
         if (!fieldNodeMap.isEmpty()) {
-            if (indexVersionCreated.onOrAfter(Version.V_2_0_0_beta1)) {
-                throw new MapperParsingException(message + getRemainingFields(fieldNodeMap));
-            } else {
-                logger.debug(message + "{}", getRemainingFields(fieldNodeMap));
-            }
+            throw new MapperParsingException(message + getRemainingFields(fieldNodeMap));
         }
     }
 
-    private static String getRemainingFields(Map<String, ?> map) {
+    private static String getRemainingFields(Map<?, ?> map) {
         StringBuilder remainingFields = new StringBuilder();
-        for (String key : map.keySet()) {
+        for (Object key : map.keySet()) {
             remainingFields.append(" [").append(key).append(" : ").append(map.get(key)).append("]");
         }
         return remainingFields.toString();

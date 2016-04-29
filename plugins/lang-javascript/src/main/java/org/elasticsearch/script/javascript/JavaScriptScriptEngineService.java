@@ -27,14 +27,27 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.ClassPermission;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.ScoreAccessor;
+import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.script.javascript.support.NativeList;
 import org.elasticsearch.script.javascript.support.NativeMap;
 import org.elasticsearch.script.javascript.support.ScriptValueConverter;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.mozilla.javascript.*;
+import org.mozilla.javascript.Context;
+import org.mozilla.javascript.ContextFactory;
+import org.mozilla.javascript.GeneratedClassLoader;
+import org.mozilla.javascript.PolicySecurityController;
 import org.mozilla.javascript.Script;
+import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.ScriptableObject;
+import org.mozilla.javascript.SecurityController;
+import org.mozilla.javascript.WrapFactory;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -44,6 +57,8 @@ import java.security.AccessController;
 import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.cert.Certificate;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -52,6 +67,8 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  */
 public class JavaScriptScriptEngineService extends AbstractComponent implements ScriptEngineService {
+
+    public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("js", "javascript"));
 
     private final AtomicLong counter = new AtomicLong();
 
@@ -62,7 +79,7 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     // one time initialization of rhino security manager integration
     private static final CodeSource DOMAIN;
     private static final int OPTIMIZATION_LEVEL = 1;
-    
+
     static {
         try {
             DOMAIN = new CodeSource(new URL("file:" + BootstrapInfo.UNTRUSTED_CODEBASE), (Certificate[]) null);
@@ -110,7 +127,7 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
                 if (securityDomain != DOMAIN) {
                     throw new SecurityException("illegal securityDomain: " + securityDomain);
                 }
-                
+
                 return super.createClassLoader(parent, securityDomain);
             }
         });
@@ -142,22 +159,22 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public String[] types() {
-        return new String[]{"js", "javascript"};
+    public List<String> getTypes() {
+        return TYPES;
     }
 
     @Override
-    public String[] extensions() {
-        return new String[]{"js"};
+    public List<String> getExtensions() {
+        return Collections.unmodifiableList(Arrays.asList("js"));
     }
 
     @Override
-    public boolean sandboxed() {
+    public boolean isSandboxed() {
         return false;
     }
 
     @Override
-    public Object compile(String script) {
+    public Object compile(String script, Map<String, String> params) {
         Context ctx = Context.enter();
         try {
             return ctx.compileString(script, generateScriptName(), 1, DOMAIN);
@@ -335,12 +352,14 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
             setJavaPrimitiveWrap(false); // RingoJS does that..., claims its annoying...
         }
 
-        public Scriptable wrapAsJavaObject(Context cx, Scriptable scope, Object javaObject, Class staticType) {
+        @Override
+        @SuppressWarnings("unchecked")
+        public Scriptable wrapAsJavaObject(Context cx, Scriptable scope, Object javaObject, Class<?> staticType) {
             if (javaObject instanceof Map) {
-                return NativeMap.wrap(scope, (Map) javaObject);
+                return NativeMap.wrap(scope, (Map<Object, Object>) javaObject);
             }
             if (javaObject instanceof List) {
-                return NativeList.wrap(scope, (List) javaObject, staticType);
+                return NativeList.wrap(scope, (List<Object>) javaObject, staticType);
             }
             return super.wrapAsJavaObject(cx, scope, javaObject, staticType);
         }

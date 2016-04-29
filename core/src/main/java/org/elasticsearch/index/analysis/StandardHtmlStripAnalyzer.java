@@ -19,17 +19,15 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.standard.StandardFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.analysis.standard.std40.StandardTokenizer40;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.util.StopwordAnalyzerBase;
-import org.apache.lucene.util.Version;
 
 public class StandardHtmlStripAnalyzer extends StopwordAnalyzerBase {
 
@@ -47,12 +45,7 @@ public class StandardHtmlStripAnalyzer extends StopwordAnalyzerBase {
 
     @Override
     protected TokenStreamComponents createComponents(final String fieldName) {
-        final Tokenizer src;
-        if (getVersion().onOrAfter(Version.LUCENE_4_7_0)) {
-            src = new StandardTokenizer();
-        } else {
-            src = new StandardTokenizer40();
-        }
+        final Tokenizer src = new StandardTokenizer();
         TokenStream tok = new StandardFilter(src);
         tok = new LowerCaseFilter(tok);
         if (!stopwords.isEmpty()) {

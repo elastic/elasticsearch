@@ -26,6 +26,7 @@ import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,
@@ -38,41 +39,42 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
     }
 
     public void testOneNodeDhouldRunUsingPrivateIp() {
-        Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.SERVICE_NAME, "dummy")
-                .put(Discovery.HOST_TYPE, "private_ip");
+        Settings.Builder settings = Settings.builder()
+                .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
+                .put(Discovery.HOST_TYPE_SETTING.getKey(), "private_ip");
 
         logger.info("--> start one node");
         internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().getMasterNodeId(), notNullValue());
 
         // We expect having 1 node as part of the cluster, let's test that
         checkNumberOfNodes(1);
     }
 
     public void testOneNodeShouldRunUsingPublicIp() {
-        Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.SERVICE_NAME, "dummy")
-                .put(Discovery.HOST_TYPE, "public_ip");
+        Settings.Builder settings = Settings.builder()
+                .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
+                .put(Discovery.HOST_TYPE_SETTING.getKey(), "public_ip");
 
         logger.info("--> start one node");
         internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().getMasterNodeId(), notNullValue());
 
         // We expect having 1 node as part of the cluster, let's test that
         checkNumberOfNodes(1);
     }
 
     public void testOneNodeShouldRunUsingWrongSettings() {
-        Settings.Builder settings = Settings.settingsBuilder()
-                .put(Management.SERVICE_NAME, "dummy")
-                .put(Discovery.HOST_TYPE, "do_not_exist");
+        Settings.Builder settings = Settings.builder()
+                .put(Management.SERVICE_NAME_SETTING.getKey(), "dummy")
+                .put(Discovery.HOST_TYPE_SETTING.getKey(), "do_not_exist");
 
         logger.info("--> start one node");
-        internalCluster().startNode(settings);
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
-
-        // We expect having 1 node as part of the cluster, let's test that
-        checkNumberOfNodes(1);
+        try {
+            internalCluster().startNode(settings);
+            fail("Expected IllegalArgumentException on startup");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("invalid value for host type [do_not_exist]"));
+        }
     }
 }

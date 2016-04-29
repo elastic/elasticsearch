@@ -42,6 +42,7 @@
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/CardinalityIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/CardinalityTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/child/ChildQuerySearchIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ChildQuerySearchTests.java
   renamed:    core/src/test/java/org/elasticsearch/transport/ContextAndHeaderTransportIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ContextAndHeaderTransportTests.java
+  ^^^^^ note: the methods from this test using mustache were moved to the mustache module under its messy tests package.
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/DateHistogramIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/DateHistogramTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/DateRangeIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/DateRangeTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/DoubleTermsIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/DoubleTermsTests.java
@@ -64,7 +65,6 @@
   renamed:    core/src/test/java/org/elasticsearch/percolator/PercolatorIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/PercolatorTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/functionscore/RandomScoreFunctionIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/RandomScoreFunctionTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/RangeIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/RangeTests.java
-  renamed:    core/src/test/java/org/elasticsearch/script/ScriptIndexSettingsIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ScriptIndexSettingsTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/scriptfilter/ScriptQuerySearchIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ScriptQuerySearchTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/ScriptedMetricIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ScriptedMetricTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/fields/SearchFieldsIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/SearchFieldsTests.java

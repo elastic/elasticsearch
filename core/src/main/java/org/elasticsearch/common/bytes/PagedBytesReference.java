@@ -147,7 +147,7 @@ public class PagedBytesReference implements BytesReference {
         bytearray.get(offset, length, ref);
 
         // undo the single-page optimization by ByteArray.get(), otherwise
-        // a materialized stream will contain traling garbage/zeros
+        // a materialized stream will contain trailing garbage/zeros
         byte[] result = ref.bytes;
         if (result.length != length || ref.offset != 0) {
             result = Arrays.copyOfRange(result, ref.offset, ref.offset + length);
@@ -403,7 +403,7 @@ public class PagedBytesReference implements BytesReference {
                 return -1;
             }
 
-            final int numBytesToCopy = Math.min(len, length - pos); // copy the full lenth or the remaining part
+            final int numBytesToCopy = Math.min(len, length - pos); // copy the full length or the remaining part
 
             // current offset into the underlying ByteArray
             long byteArrayOffset = offset + pos;
@@ -443,6 +443,11 @@ public class PagedBytesReference implements BytesReference {
         @Override
         public void close() throws IOException {
             // do nothing
+        }
+
+        @Override
+        public int available() throws IOException {
+            return length - pos;
         }
 
     }

@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Map;
@@ -111,11 +110,11 @@ public final class CommitStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString GENERATION = new XContentBuilderString("generation");
-        static final XContentBuilderString USER_DATA = new XContentBuilderString("user_data");
-        static final XContentBuilderString ID = new XContentBuilderString("id");
-        static final XContentBuilderString COMMIT = new XContentBuilderString("commit");
-        static final XContentBuilderString NUM_DOCS = new XContentBuilderString("num_docs");
+        static final String GENERATION = "generation";
+        static final String USER_DATA = "user_data";
+        static final String ID = "id";
+        static final String COMMIT = "commit";
+        static final String NUM_DOCS = "num_docs";
 
     }
 

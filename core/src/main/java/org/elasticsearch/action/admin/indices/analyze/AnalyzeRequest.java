@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Strings;
@@ -45,6 +46,10 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
     private String[] charFilters = Strings.EMPTY_ARRAY;
 
     private String field;
+
+    private boolean explain = false;
+
+    private String[] attributes = Strings.EMPTY_ARRAY;
 
     public AnalyzeRequest() {
     }
@@ -86,6 +91,9 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
     }
 
     public AnalyzeRequest tokenFilters(String... tokenFilters) {
+        if (tokenFilters == null) {
+            throw new IllegalArgumentException("token filters must not be null");
+        }
         this.tokenFilters = tokenFilters;
         return this;
     }
@@ -95,6 +103,9 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
     }
 
     public AnalyzeRequest charFilters(String... charFilters) {
+        if (charFilters == null) {
+            throw new IllegalArgumentException("char filters must not be null");
+        }
         this.charFilters = charFilters;
         return this;
     }
@@ -112,17 +123,32 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         return this.field;
     }
 
+    public AnalyzeRequest explain(boolean explain) {
+        this.explain = explain;
+        return this;
+    }
+
+    public boolean explain() {
+        return this.explain;
+    }
+
+    public AnalyzeRequest attributes(String... attributes) {
+        if (attributes == null) {
+            throw new IllegalArgumentException("attributes must not be null");
+        }
+        this.attributes = attributes;
+        return this;
+    }
+
+    public String[] attributes() {
+        return this.attributes;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (text == null || text.length == 0) {
             validationException = addValidationError("text is missing", validationException);
-        }
-        if (tokenFilters == null) {
-            validationException = addValidationError("token filters must not be null", validationException);
-        }
-        if (charFilters == null) {
-            validationException = addValidationError("char filters must not be null", validationException);
         }
         return validationException;
     }
@@ -136,6 +162,10 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         tokenFilters = in.readStringArray();
         charFilters = in.readStringArray();
         field = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
+            explain = in.readBoolean();
+            attributes = in.readStringArray();
+        }
     }
 
     @Override
@@ -147,5 +177,9 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         out.writeStringArray(tokenFilters);
         out.writeStringArray(charFilters);
         out.writeOptionalString(field);
+        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+            out.writeBoolean(explain);
+            out.writeStringArray(attributes);
+        }
     }
 }

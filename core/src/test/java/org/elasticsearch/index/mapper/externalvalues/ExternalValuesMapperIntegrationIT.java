@@ -87,14 +87,13 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
                 .startObject("f")
                     .field("type", ExternalMapperPlugin.EXTERNAL_UPPER)
                     .startObject("fields")
-                        .startObject("f")
-                            .field("type", "string")
-                            .field("store", "yes")
+                        .startObject("g")
+                            .field("type", "text")
+                            .field("store", true)
                             .startObject("fields")
                                 .startObject("raw")
-                                    .field("type", "string")
-                                    .field("index", "not_analyzed")
-                                    .field("store", "yes")
+                                    .field("type", "keyword")
+                                    .field("store", true)
                                 .endObject()
                             .endObject()
                         .endObject()
@@ -107,7 +106,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse response = client().prepareSearch("test-idx")
-                .setQuery(QueryBuilders.termQuery("f.f.raw", "FOO BAR"))
+                .setQuery(QueryBuilders.termQuery("f.g.raw", "FOO BAR"))
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));

@@ -22,11 +22,11 @@ package org.elasticsearch.discovery.zen.elect;
 import com.carrotsearch.hppc.ObjectContainer;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 
@@ -41,23 +41,8 @@ import java.util.List;
  */
 public class ElectMasterService extends AbstractComponent {
 
-    public static final String DISCOVERY_ZEN_MINIMUM_MASTER_NODES = "discovery.zen.minimum_master_nodes";
-    public static final Validator DISCOVERY_ZEN_MINIMUM_MASTER_NODES_VALIDATOR = new Validator() {
-        @Override
-        public String validate(String setting, String value, ClusterState clusterState) {
-            int intValue;
-            try {
-                intValue = Integer.parseInt(value);
-            } catch (NumberFormatException ex) {
-                return "cannot parse value [" + value + "] as an integer";
-            }
-            int masterNodes = clusterState.nodes().masterNodes().size();
-            if (intValue > masterNodes) {
-                return "cannot set " + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES + " to more than the current master nodes count [" + masterNodes + "]";
-            }
-            return null;
-        }
-    };
+    public static final Setting<Integer> DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING =
+        Setting.intSetting("discovery.zen.minimum_master_nodes", -1, Property.Dynamic, Property.NodeScope);
 
     // This is the minimum version a master needs to be on, otherwise it gets ignored
     // This is based on the minimum compatible version of the current version this node is on
@@ -70,7 +55,7 @@ public class ElectMasterService extends AbstractComponent {
     public ElectMasterService(Settings settings, Version version) {
         super(settings);
         this.minMasterVersion = version.minimumCompatibilityVersion();
-        this.minimumMasterNodes = settings.getAsInt(DISCOVERY_ZEN_MINIMUM_MASTER_NODES, -1);
+        this.minimumMasterNodes = DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
         logger.debug("using minimum_master_nodes [{}]", minimumMasterNodes);
     }
 
@@ -88,7 +73,7 @@ public class ElectMasterService extends AbstractComponent {
         }
         int count = 0;
         for (DiscoveryNode node : nodes) {
-            if (node.masterNode()) {
+            if (node.isMasterNode()) {
                 count++;
             }
         }
@@ -96,7 +81,7 @@ public class ElectMasterService extends AbstractComponent {
     }
 
     /**
-     * Returns the given nodes sorted by likelyhood of being elected as master, most likely first.
+     * Returns the given nodes sorted by likelihood of being elected as master, most likely first.
      * Non-master nodes are not removed but are rather put in the end
      */
     public List<DiscoveryNode> sortByMasterLikelihood(Iterable<DiscoveryNode> nodes) {
@@ -151,7 +136,7 @@ public class ElectMasterService extends AbstractComponent {
         // clean non master nodes
         for (Iterator<DiscoveryNode> it = possibleNodes.iterator(); it.hasNext(); ) {
             DiscoveryNode node = it.next();
-            if (!node.masterNode()) {
+            if (!node.isMasterNode()) {
                 it.remove();
             }
         }
@@ -163,13 +148,13 @@ public class ElectMasterService extends AbstractComponent {
 
         @Override
         public int compare(DiscoveryNode o1, DiscoveryNode o2) {
-            if (o1.masterNode() && !o2.masterNode()) {
+            if (o1.isMasterNode() && !o2.isMasterNode()) {
                 return -1;
             }
-            if (!o1.masterNode() && o2.masterNode()) {
+            if (!o1.isMasterNode() && o2.isMasterNode()) {
                 return 1;
             }
-            return o1.id().compareTo(o2.id());
+            return o1.getId().compareTo(o2.getId());
         }
     }
 }

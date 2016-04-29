@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.test
 
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -40,8 +39,17 @@ class NodeInfo {
     /** root directory all node files and operations happen under */
     File baseDir
 
+    /** shared data directory all nodes share */
+    File sharedDir
+
     /** the pid file the node will use */
     File pidFile
+
+    /** a file written by elasticsearch containing the ports of each bound address for http */
+    File httpPortsFile
+
+    /** a file written by elasticsearch containing the ports of each bound address for transport */
+    File transportPortsFile
 
     /** elasticsearch home dir */
     File homeDir
@@ -83,15 +91,20 @@ class NodeInfo {
     ByteArrayOutputStream buffer = new ByteArrayOutputStream()
 
     /** Creates a node to run as part of a cluster for the given task */
-    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, Task task) {
+    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, Task task, String nodeVersion, File sharedDir) {
         this.config = config
         this.nodeNum = nodeNum
+        this.sharedDir = sharedDir
         clusterName = "${task.path.replace(':', '_').substring(1)}"
         baseDir = new File(project.buildDir, "cluster/${task.name} node${nodeNum}")
         pidFile = new File(baseDir, 'es.pid')
-        homeDir = homeDir(baseDir, config.distribution)
-        confDir = confDir(baseDir, config.distribution)
+        homeDir = homeDir(baseDir, config.distribution, nodeVersion)
+        confDir = confDir(baseDir, config.distribution, nodeVersion)
         configFile = new File(confDir, 'elasticsearch.yml')
+        // even for rpm/deb, the logs are under home because we dont start with real services
+        File logsDir = new File(homeDir, 'logs')
+        httpPortsFile = new File(logsDir, 'http.ports')
+        transportPortsFile = new File(logsDir, 'transport.ports')
         cwd = new File(baseDir, "cwd")
         failedMarker = new File(cwd, 'run.failed')
         startLog = new File(cwd, 'run.log')
@@ -115,17 +128,19 @@ class NodeInfo {
             args.add("${esScript}")
         }
 
-        env = [
-            'JAVA_HOME' : project.javaHome,
-            'ES_GC_OPTS': config.jvmArgs // we pass these with the undocumented gc opts so the argline can set gc, etc
-        ]
-        args.addAll(config.systemProperties.collect { key, value -> "-D${key}=${value}" })
+        env = [ 'JAVA_HOME' : project.javaHome ]
+        args.addAll("-E", "es.node.portsfile=true")
+        String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
+        String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
+        env.put('ES_JAVA_OPTS', esJavaOpts)
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
             if (property.getKey().startsWith('es.')) {
-                args.add("-D${property.getKey()}=${property.getValue()}")
+                args.add("-E")
+                args.add("${property.getKey()}=${property.getValue()}")
             }
         }
-        args.add("-Des.path.conf=${confDir}")
+        env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))
+        args.addAll("-E", "es.path.conf=${confDir}")
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             args.add('"') // end the entire command, quoted
         }
@@ -159,24 +174,24 @@ class NodeInfo {
         wrapperScript.setText("\"${esScript}\" ${argsPasser} > run.log 2>&1 ${exitMarker}", 'UTF-8')
     }
 
-    /** Returns the http port for this node */
-    int httpPort() {
-        return config.baseHttpPort + nodeNum
+    /** Returns an address and port suitable for a uri to connect to this node over http */
+    String httpUri() {
+        return httpPortsFile.readLines("UTF-8").get(0)
     }
 
-    /** Returns the transport port for this node */
-    int transportPort() {
-        return config.baseTransportPort + nodeNum
+    /** Returns an address and port suitable for a uri to connect to this node over transport protocol */
+    String transportUri() {
+        return transportPortsFile.readLines("UTF-8").get(0)
     }
 
     /** Returns the directory elasticsearch home is contained in for the given distribution */
-    static File homeDir(File baseDir, String distro) {
+    static File homeDir(File baseDir, String distro, String nodeVersion) {
         String path
         switch (distro) {
             case 'integ-test-zip':
             case 'zip':
             case 'tar':
-                path = "elasticsearch-${VersionProperties.elasticsearch}"
+                path = "elasticsearch-${nodeVersion}"
                 break
             case 'rpm':
             case 'deb':
@@ -188,12 +203,12 @@ class NodeInfo {
         return new File(baseDir, path)
     }
 
-    static File confDir(File baseDir, String distro) {
+    static File confDir(File baseDir, String distro, String nodeVersion) {
         switch (distro) {
             case 'integ-test-zip':
             case 'zip':
             case 'tar':
-                return new File(homeDir(baseDir, distro), 'config')
+                return new File(homeDir(baseDir, distro, nodeVersion), 'config')
             case 'rpm':
             case 'deb':
                 return new File(baseDir, "${distro}-extracted/etc/elasticsearch")

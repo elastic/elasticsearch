@@ -23,27 +23,23 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 
 /**
  */
-public final class ShardSearchStats {
+public final class ShardSearchStats implements SearchOperationListener {
 
-    private final SearchSlowLog slowLogSearchService;
     private final StatsHolder totalStats = new StatsHolder();
     private final CounterMetric openContexts = new CounterMetric();
     private volatile Map<String, StatsHolder> groupsStats = emptyMap();
-
-    public ShardSearchStats(Settings indexSettings) {
-        this.slowLogSearchService = new SearchSlowLog(indexSettings);
-    }
 
     /**
      * Returns the stats, including group specific stats. If the groups are null/0 length, then nothing
@@ -70,66 +66,57 @@ public final class ShardSearchStats {
         return new SearchStats(total, openContexts.count(), groupsSt);
     }
 
+    @Override
     public void onPreQueryPhase(SearchContext searchContext) {
-        totalStats.queryCurrent.inc();
-        if (searchContext.groupStats() != null) {
-            for (int i = 0; i < searchContext.groupStats().size(); i++) {
-                groupStats(searchContext.groupStats().get(i)).queryCurrent.inc();
+        computeStats(searchContext, statsHolder -> {
+            if (searchContext.hasOnlySuggest()) {
+                statsHolder.suggestCurrent.inc();
+            } else {
+                statsHolder.queryCurrent.inc();
             }
-        }
+        });
     }
 
+    @Override
     public void onFailedQueryPhase(SearchContext searchContext) {
-        totalStats.queryCurrent.dec();
-        if (searchContext.groupStats() != null) {
-            for (int i = 0; i < searchContext.groupStats().size(); i++) {
-                groupStats(searchContext.groupStats().get(i)).queryCurrent.dec();
+        computeStats(searchContext, statsHolder -> {
+            if (searchContext.hasOnlySuggest()) {
+                statsHolder.suggestCurrent.dec();
+            } else {
+                statsHolder.queryCurrent.dec();
             }
-        }
+        });
     }
 
+    @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
-        totalStats.queryMetric.inc(tookInNanos);
-        totalStats.queryCurrent.dec();
-        if (searchContext.groupStats() != null) {
-            for (int i = 0; i < searchContext.groupStats().size(); i++) {
-                StatsHolder statsHolder = groupStats(searchContext.groupStats().get(i));
+        computeStats(searchContext, statsHolder -> {
+            if (searchContext.hasOnlySuggest()) {
+                statsHolder.suggestMetric.inc(tookInNanos);
+                statsHolder.suggestCurrent.dec();
+            } else {
                 statsHolder.queryMetric.inc(tookInNanos);
                 statsHolder.queryCurrent.dec();
             }
-        }
-        slowLogSearchService.onQueryPhase(searchContext, tookInNanos);
+        });
     }
 
+    @Override
     public void onPreFetchPhase(SearchContext searchContext) {
-        totalStats.fetchCurrent.inc();
-        if (searchContext.groupStats() != null) {
-            for (int i = 0; i < searchContext.groupStats().size(); i++) {
-                groupStats(searchContext.groupStats().get(i)).fetchCurrent.inc();
-            }
-        }
+        computeStats(searchContext, statsHolder -> statsHolder.fetchCurrent.inc());
     }
 
+    @Override
     public void onFailedFetchPhase(SearchContext searchContext) {
-        totalStats.fetchCurrent.dec();
-        if (searchContext.groupStats() != null) {
-            for (int i = 0; i < searchContext.groupStats().size(); i++) {
-                groupStats(searchContext.groupStats().get(i)).fetchCurrent.dec();
-            }
-        }
+        computeStats(searchContext, statsHolder -> statsHolder.fetchCurrent.dec());
     }
 
+    @Override
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
-        totalStats.fetchMetric.inc(tookInNanos);
-        totalStats.fetchCurrent.dec();
-        if (searchContext.groupStats() != null) {
-            for (int i = 0; i < searchContext.groupStats().size(); i++) {
-                StatsHolder statsHolder = groupStats(searchContext.groupStats().get(i));
-                statsHolder.fetchMetric.inc(tookInNanos);
-                statsHolder.fetchCurrent.dec();
-            }
-        }
-        slowLogSearchService.onFetchPhase(searchContext, tookInNanos);
+        computeStats(searchContext, statsHolder -> {
+            statsHolder.fetchMetric.inc(tookInNanos);
+            statsHolder.fetchCurrent.dec();
+        });
     }
 
     public void clear() {
@@ -148,6 +135,15 @@ public final class ShardSearchStats {
         }
     }
 
+    private void computeStats(SearchContext searchContext, Consumer<StatsHolder> consumer) {
+        consumer.accept(totalStats);
+        if (searchContext.groupStats() != null) {
+            for (int i = 0; i < searchContext.groupStats().size(); i++) {
+                consumer.accept(groupStats(searchContext.groupStats().get(i)));
+            }
+        }
+    }
+
     private StatsHolder groupStats(String group) {
         StatsHolder stats = groupsStats.get(group);
         if (stats == null) {
@@ -162,51 +158,55 @@ public final class ShardSearchStats {
         return stats;
     }
 
+    @Override
     public void onNewContext(SearchContext context) {
         openContexts.inc();
     }
 
+    @Override
     public void onFreeContext(SearchContext context) {
         openContexts.dec();
     }
 
+    @Override
     public void onNewScrollContext(SearchContext context) {
         totalStats.scrollCurrent.inc();
     }
 
+    @Override
     public void onFreeScrollContext(SearchContext context) {
         totalStats.scrollCurrent.dec();
         totalStats.scrollMetric.inc(System.nanoTime() - context.getOriginNanoTime());
-    }
-
-    public void onRefreshSettings(Settings settings) {
-        slowLogSearchService.onRefreshSettings(settings);
     }
 
     final static class StatsHolder {
         public final MeanMetric queryMetric = new MeanMetric();
         public final MeanMetric fetchMetric = new MeanMetric();
         public final MeanMetric scrollMetric = new MeanMetric();
+        public final MeanMetric suggestMetric = new MeanMetric();
         public final CounterMetric queryCurrent = new CounterMetric();
         public final CounterMetric fetchCurrent = new CounterMetric();
         public final CounterMetric scrollCurrent = new CounterMetric();
+        public final CounterMetric suggestCurrent = new CounterMetric();
 
         public SearchStats.Stats stats() {
             return new SearchStats.Stats(
                     queryMetric.count(), TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()), queryCurrent.count(),
                     fetchMetric.count(), TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()), fetchCurrent.count(),
-                    scrollMetric.count(), TimeUnit.NANOSECONDS.toMillis(scrollMetric.sum()), scrollCurrent.count()
+                    scrollMetric.count(), TimeUnit.NANOSECONDS.toMillis(scrollMetric.sum()), scrollCurrent.count(),
+                    suggestMetric.count(), TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()), suggestCurrent.count()
             );
         }
 
         public long totalCurrent() {
-            return queryCurrent.count() + fetchCurrent.count() + scrollCurrent.count();
+            return queryCurrent.count() + fetchCurrent.count() + scrollCurrent.count() + suggestCurrent.count();
         }
 
         public void clear() {
             queryMetric.clear();
             fetchMetric.clear();
             scrollMetric.clear();
+            suggestMetric.clear();
         }
     }
 }

@@ -39,7 +39,7 @@ Here we configure the DFRSimilarity so it can be referenced as
 {
   "book" : {
     "properties" : {
-      "title" : { "type" : "string", "similarity" : "my_similarity" }
+      "title" : { "type" : "text", "similarity" : "my_similarity" }
     }
 }
 --------------------------------------------------
@@ -48,10 +48,10 @@ Here we configure the DFRSimilarity so it can be referenced as
 === Available similarities
 
 [float]
-[[default-similarity]]
-==== Default similarity
+[[classic-similarity]]
+==== Classic similarity
 
-The default similarity that is based on the TF/IDF model. This
+The classic similarity that is based on the TF/IDF model. This
 similarity has the following option:
 
 `discount_overlaps`::
@@ -59,7 +59,7 @@ similarity has the following option:
     0 position increment) are ignored when computing norm. By default this
     is true, meaning overlap tokens do not count when computing norms.
 
-Type name: `default`
+Type name: `classic`
 
 [float]
 [[bm25]]
@@ -108,11 +108,25 @@ All options but the first option need a normalization value.
 Type name: `DFR`
 
 [float]
+[[dfi]]
+==== DFI similarity
+
+Similarity that implements the http://trec.nist.gov/pubs/trec21/papers/irra.web.nb.pdf[divergence from independence] 
+model.
+This similarity has the following options:
+
+[horizontal]
+`independence_measure`:: Possible values `standardized`, `saturated`, `chisquared`.
+
+[float]
 [[ib]]
 ==== IB similarity.
 
 http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/IBSimilarity.html[Information
-based model] . This similarity has the following options:
+based model] . The algorithm is based on the concept that the information content in any symbolic 'distribution'
+sequence is primarily determined by the repetitive usage of its basic elements.
+For written texts this challenge would correspond to comparing the writing styles of different authors.
+This similarity has the following options:
 
 [horizontal]
 `distribution`::  Possible values: `ll` and `spl`.
@@ -138,11 +152,11 @@ Type name: `LMDirichlet`
 ==== LM Jelinek Mercer similarity.
 
 http://lucene.apache.org/core/5_2_1/core/org/apache/lucene/search/similarities/LMJelinekMercerSimilarity.html[LM
-Jelinek Mercer similarity] . This similarity has the following options:
+Jelinek Mercer similarity] . The algorithm attempts to capture important patterns in the text, while leaving out noise. This similarity has the following options:
 
 [horizontal]
 `lambda`::  The optimal value depends on both the collection and the query. The optimal value is around `0.1`
-for title queries and `0.7` for long queries. Default to `0.1`.
+for title queries and `0.7` for long queries. Default to `0.1`. When value approaches `0`, documents that match more query terms will be ranked higher than those that match fewer terms.
 
 Type name: `LMJelinekMercer`
 

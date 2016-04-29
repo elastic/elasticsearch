@@ -11,7 +11,7 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install discovery-ec2
+sudo bin/elasticsearch-plugin install discovery-ec2
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -25,7 +25,7 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove discovery-ec2
+sudo bin/elasticsearch-plugin remove discovery-ec2
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.
@@ -113,6 +113,7 @@ The available values are:
 * `ap-southeast-1`
 * `ap-southeast-2`
 * `ap-northeast` (`ap-northeast-1`)
+* `ap-northeast-2` (`ap-northeast-2`)
 * `eu-west` (`eu-west-1`)
 * `eu-central` (`eu-central-1`)
 * `sa-east` (`sa-east-1`)
@@ -204,9 +205,9 @@ as valid network host settings:
 |`_ec2:privateDns_` |The private host of the machine.
 |`_ec2:publicIpv4_` |The public IP address (ipv4) of the machine.
 |`_ec2:publicDns_` |The public host of the machine.
-|`_ec2:privateIp_` |equivalent to _ec2:privateIpv4_.
-|`_ec2:publicIp_` |equivalent to _ec2:publicIpv4_.
-|`_ec2_` |equivalent to _ec2:privateIpv4_.
+|`_ec2:privateIp_` |equivalent to `_ec2:privateIpv4_`.
+|`_ec2:publicIp_` |equivalent to `_ec2:publicIpv4_`.
+|`_ec2_` |equivalent to `_ec2:privateIpv4_`.
 |==================================================================
 
 [[discovery-ec2-permissions]]
@@ -259,3 +260,28 @@ the awareness allocation feature). In order to enable it, set `cloud.node.auto_a
 
 If you are using any EC2 api compatible service, you can set the endpoint you want to use by setting
 `cloud.aws.ec2.endpoint` to your URL provider.
+
+[[cloud-aws-best-practices]]
+==== Best Practices in AWS
+
+Collection of best practices and other information around running Elasticsearch on AWS.
+
+===== Instance/Disk
+When selecting disk please be aware of the following order of preference:
+
+* https://aws.amazon.com/efs/[EFS] - Avoid as the sacrifices made to offer durability, shared storage, and grow/shrink come at performance cost, such file systems have been known to cause corruption of indices, and due to Elasticsearch being distributed and having built-in replication, the benefits that EFS offers are not needed.
+* https://aws.amazon.com/ebs/[EBS] - Works well if running a small cluster (1-2 nodes) and cannot tolerate the loss all storage backing a node easily or if running indices with no replicas. If EBS is used, then leverage provisioned IOPS to ensure performance.
+* http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html[Instance Store] - When running clusters of larger size and with replicas the ephemeral nature of Instance Store is ideal since Elasticsearch can tolerate the loss of shards. With Instance Store one gets the performance benefit of having disk physically attached to the host running the instance and also the cost benefit of avoiding paying extra for EBS.
+
+
+Prefer https://aws.amazon.com/amazon-linux-ami/[Amazon Linux AMIs] as since Elasticsearch runs on the JVM, OS dependencies are very minimal and one can benefit from the lightweight nature, support, and performance tweaks specific to EC2 that the Amazon Linux AMIs offer. 
+
+===== Networking
+* Networking throttling takes place on smaller instance types in both the form of https://lab.getbase.com/how-we-discovered-limitations-on-the-aws-tcp-stack/[bandwidth and number of connections]. Therefore if large number of connections are needed and networking is becoming a bottleneck, avoid https://aws.amazon.com/ec2/instance-types/[instance types] with networking labeled as `Moderate` or `Low`.
+* Multicast is not supported, even when in an VPC; the aws cloud plugin which joins by performing a security group lookup.
+* When running in multiple http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html[availability zones] be sure to leverage https://www.elastic.co/guide/en/elasticsearch/reference/master/allocation-awareness.html[shard allocation awareness] so that not all copies of shard data reside in the same availability zone.
+* Do not span a cluster across regions.  If necessary, use a tribe node.
+
+===== Misc
+* If you have split your nodes into roles, consider https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html[tagging the EC2 instances] by role to make it easier to filter and view your EC2 instances in the AWS console.
+* Consider https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/terminating-instances.html#Using_ChangingDisableAPITermination[enabling termination protection] for all of your instances to avoid accidentally terminating a node in the cluster and causing a potentially disruptive reallocation.

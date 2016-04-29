@@ -12,7 +12,7 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install repository-azure
+sudo bin/elasticsearch-plugin install repository-azure
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -26,7 +26,7 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove repository-azure
+sudo bin/elasticsearch-plugin remove repository-azure
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.
@@ -64,6 +64,31 @@ cloud:
 
 `my_account1` is the default account which will be used by a repository unless you set an explicit one.
 
+You can set the client side timeout to use when making any single request. It can be defined globally, per account or both.
+It's not set by default which means that elasticsearch is using the
+http://azure.github.io/azure-storage-java/com/microsoft/azure/storage/RequestOptions.html#setTimeoutIntervalInMs(java.lang.Integer)[default value]
+set by the azure client (known as 5 minutes).
+
+[source,yaml]
+----
+cloud:
+    azure:
+        storage:
+            timeout: 10s
+            my_account1:
+                account: your_azure_storage_account1
+                key: your_azure_storage_key1
+                default: true
+            my_account2:
+                account: your_azure_storage_account2
+                key: your_azure_storage_key2
+                timeout: 30s
+----
+
+In this example, timeout will be 10s for `my_account1` and 30s for `my_account2`.
+
+[[repository-azure-repository-settings]]
+===== Repository settings
 
 The Azure repository supports following settings:
 
@@ -154,6 +179,22 @@ client.admin().cluster().preparePutRepository("my_backup_java1")
         .put(Storage.CHUNK_SIZE, new ByteSizeValue(32, ByteSizeUnit.MB))
     ).get();
 ----
+
+[[repository-azure-global-settings]]
+===== Global repositories settings
+
+All those repository settings can also be defined globally in `elasticsearch.yml` file using prefix
+`repositories.azure.`. For example:
+
+[source,yaml]
+----
+repositories.azure:
+    container: backup-container
+    base_path: backups
+    chunk_size: 32m
+    compress": true
+----
+
 
 [[repository-azure-validation]]
 ===== Repository validation rules

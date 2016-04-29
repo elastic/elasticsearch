@@ -18,11 +18,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,8 +27,12 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.RestStatus;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Information about snapshot
@@ -199,22 +198,22 @@ public class SnapshotInfo implements ToXContent, Streamable {
     }
 
     static final class Fields {
-        static final XContentBuilderString INDICES = new XContentBuilderString("indices");
-        static final XContentBuilderString STATE = new XContentBuilderString("state");
-        static final XContentBuilderString REASON = new XContentBuilderString("reason");
-        static final XContentBuilderString START_TIME = new XContentBuilderString("start_time");
-        static final XContentBuilderString START_TIME_IN_MILLIS = new XContentBuilderString("start_time_in_millis");
-        static final XContentBuilderString END_TIME = new XContentBuilderString("end_time");
-        static final XContentBuilderString END_TIME_IN_MILLIS = new XContentBuilderString("end_time_in_millis");
-        static final XContentBuilderString DURATION = new XContentBuilderString("duration");
-        static final XContentBuilderString DURATION_IN_MILLIS = new XContentBuilderString("duration_in_millis");
-        static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
-        static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString FAILED = new XContentBuilderString("failed");
-        static final XContentBuilderString SUCCESSFUL = new XContentBuilderString("successful");
-        static final XContentBuilderString VERSION_ID = new XContentBuilderString("version_id");
-        static final XContentBuilderString VERSION = new XContentBuilderString("version");
+        static final String INDICES = "indices";
+        static final String STATE = "state";
+        static final String REASON = "reason";
+        static final String START_TIME = "start_time";
+        static final String START_TIME_IN_MILLIS = "start_time_in_millis";
+        static final String END_TIME = "end_time";
+        static final String END_TIME_IN_MILLIS = "end_time_in_millis";
+        static final String DURATION = "duration";
+        static final String DURATION_IN_MILLIS = "duration_in_millis";
+        static final String FAILURES = "failures";
+        static final String SHARDS = "shards";
+        static final String TOTAL = "total";
+        static final String FAILED = "failed";
+        static final String SUCCESSFUL = "successful";
+        static final String VERSION_ID = "version_id";
+        static final String VERSION = "version";
     }
 
     @Override

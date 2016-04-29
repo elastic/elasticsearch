@@ -131,6 +131,8 @@ operation based on the `_parent` / `_routing` mapping.
 [[bulk-timestamp]]
 === Timestamp
 
+deprecated[2.0.0,The `_timestamp` field is deprecated.  Instead, use a normal <<date,`date`>> field and set its value explicitly]
+
 Each bulk item can include the timestamp value using the
 `_timestamp`/`timestamp` field. It automatically follows the behavior of
 the index operation based on the `_timestamp` mapping.
@@ -138,6 +140,8 @@ the index operation based on the `_timestamp` mapping.
 [float]
 [[bulk-ttl]]
 === TTL
+
+deprecated[2.0.0,The current `_ttl` implementation is deprecated and will be replaced with a different implementation in a future version]
 
 Each bulk item can include the ttl value using the `_ttl`/`ttl` field.
 It automatically follows the behavior of the index operation based on
@@ -157,7 +161,7 @@ For example, in a N shards with 2 replicas index, there will have to be
 at least 2 active shards within the relevant partition (`quorum`) for
 the operation to succeed. In a N shards with 1 replica scenario, there
 will need to be a single shard active (in this case, `one` and `quorum`
-is the same).
+are the same).
 
 [float]
 [[bulk-refresh]]

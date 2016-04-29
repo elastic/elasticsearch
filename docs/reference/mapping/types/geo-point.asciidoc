@@ -9,7 +9,7 @@ Fields of type `geo_point` accept latitude-longitude pairs, which can be used:
   <<query-dsl-geohash-cell-query,geohash>> cell.
 * to aggregate documents by <<search-aggregations-bucket-geohashgrid-aggregation,geographically>>
   or by <<search-aggregations-bucket-geodistance-aggregation,distance>> from a central point.
-* to integerate distance into a document's <<query-dsl-function-score-query,relevance score>>.
+* to integrate distance into a document's <<query-dsl-function-score-query,relevance score>>.
 * to <<geo-sorting,sort>> documents by distance.
 
 There are four ways that a geo-point may be specified, as demonstrated below:
@@ -100,17 +100,6 @@ format was changed early on to conform to the format used by GeoJSON.
 The following parameters are accepted by `geo_point` fields:
 
 [horizontal]
-
-<<coerce,`coerce`>>::
-
-    Normalize longitude and latitude values to a standard -180:180 / -90:90
-    coordinate system. Accepts `true` and `false` (default).
-
-<<doc-values,`doc_values`>>::
-
-    Should the field be stored on disk in a column-stride fashion, so that it
-    can later be used for sorting, aggregations, or scripting? Accepts `true`
-    (default) or `false`.
 
 <<geohash,`geohash`>>::
 

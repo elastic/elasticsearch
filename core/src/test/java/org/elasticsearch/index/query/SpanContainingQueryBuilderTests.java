@@ -40,14 +40,14 @@ public class SpanContainingQueryBuilderTests extends AbstractQueryTestCase<SpanC
 
     public void testIllegalArguments() {
         try {
-            new SpanContainingQueryBuilder(null, SpanTermQueryBuilder.PROTOTYPE);
+            new SpanContainingQueryBuilder(null, new SpanTermQueryBuilder("field", "value"));
             fail("cannot be null");
         } catch (IllegalArgumentException e) {
             // expected
         }
 
         try {
-            new SpanContainingQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, null);
+            new SpanContainingQueryBuilder(new SpanTermQueryBuilder("field", "value"), null);
             fail("cannot be null");
         } catch (IllegalArgumentException e) {
             // expected
@@ -56,41 +56,40 @@ public class SpanContainingQueryBuilderTests extends AbstractQueryTestCase<SpanC
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"span_containing\" : {\n" + 
-                "    \"big\" : {\n" + 
-                "      \"span_near\" : {\n" + 
-                "        \"clauses\" : [ {\n" + 
-                "          \"span_term\" : {\n" + 
-                "            \"field1\" : {\n" + 
-                "              \"value\" : \"bar\",\n" + 
-                "              \"boost\" : 1.0\n" + 
-                "            }\n" + 
-                "          }\n" + 
-                "        }, {\n" + 
-                "          \"span_term\" : {\n" + 
-                "            \"field1\" : {\n" + 
-                "              \"value\" : \"baz\",\n" + 
-                "              \"boost\" : 1.0\n" + 
-                "            }\n" + 
-                "          }\n" + 
-                "        } ],\n" + 
-                "        \"slop\" : 5,\n" + 
-                "        \"in_order\" : true,\n" + 
-                "        \"collect_payloads\" : true,\n" + 
-                "        \"boost\" : 1.0\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"little\" : {\n" + 
-                "      \"span_term\" : {\n" + 
-                "        \"field1\" : {\n" + 
-                "          \"value\" : \"foo\",\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"span_containing\" : {\n" +
+                "    \"big\" : {\n" +
+                "      \"span_near\" : {\n" +
+                "        \"clauses\" : [ {\n" +
+                "          \"span_term\" : {\n" +
+                "            \"field1\" : {\n" +
+                "              \"value\" : \"bar\",\n" +
+                "              \"boost\" : 1.0\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }, {\n" +
+                "          \"span_term\" : {\n" +
+                "            \"field1\" : {\n" +
+                "              \"value\" : \"baz\",\n" +
+                "              \"boost\" : 1.0\n" +
+                "            }\n" +
+                "          }\n" +
+                "        } ],\n" +
+                "        \"slop\" : 5,\n" +
+                "        \"in_order\" : true,\n" +
+                "        \"boost\" : 1.0\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"little\" : {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"field1\" : {\n" +
+                "          \"value\" : \"foo\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         SpanContainingQueryBuilder parsed = (SpanContainingQueryBuilder) parseQuery(json);

@@ -63,7 +63,22 @@ curl -XPOST 'http://localhost:9200/_aliases' -d '
 }'
 --------------------------------------------------
 
-Alternatively, you can use a glob pattern to associate an alias to
+Multiple indices can be specified for an action with the `indices` array syntax:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/_aliases' -d '
+{
+    "actions" : [
+        { "add" : { "indices" : ["test1", "test2"], "alias" : "alias1" } }
+    ]
+}'
+--------------------------------------------------
+
+To specify multiple aliases in one action, the corresponding `aliases` array
+syntax exists as well.
+
+For the example above, a glob pattern can also be used to associate an alias to
 more than one index that share a common name:
 
 [source,js]
@@ -101,8 +116,7 @@ curl -XPUT 'http://localhost:9200/test1' -d '{
     "type1": {
       "properties": {
         "user" : {
-          "type": "string",
-          "index": "not_analyzed"
+          "type": "keyword"
         }
       }
     }
@@ -178,8 +192,8 @@ curl -XPOST 'http://localhost:9200/_aliases' -d '
 As shown in the example above, search routing may contain several values
 separated by comma. Index routing can contain only a single value.
 
-If an operation that uses routing alias also has a routing parameter, an
-intersection of both alias routing and routing specified in the
+If a search operation that uses routing alias also has a routing parameter, an
+intersection of both search alias routing and routing specified in the
 parameter is used. For example the following command will use "2" as a
 routing value:
 
@@ -187,6 +201,9 @@ routing value:
 --------------------------------------------------
 curl -XGET 'http://localhost:9200/alias2/_search?q=user:kimchy&routing=2,3'
 --------------------------------------------------
+
+If an index operation that uses index routing alias also has a parent routing, the
+parent routing is ignored.
 
 [float]
 [[alias-adding]]
@@ -322,7 +339,7 @@ Possible options:
     multiple alias names separated by a comma.
 
 `ignore_unavailable`::
-    What to do is an specified index name doesn't
+    What to do if an specified index name doesn't
     exist. If set to `true` then those indices are ignored.
 
 The rest endpoint is: `/{index}/_alias/{alias}`.

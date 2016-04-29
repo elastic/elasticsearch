@@ -23,6 +23,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty.NettyHttpServerTransport.HttpChannelPipelineFactory;
 import org.elasticsearch.http.netty.pipelining.OrderedDownstreamChannelEvent;
@@ -53,7 +54,6 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.http.netty.NettyHttpClient.returnHttpResponseBodies;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
@@ -91,7 +91,7 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
     }
 
     public void testThatHttpPipeliningWorksWhenEnabled() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                                .put("http.pipelining", true)
                                .put("http.port", "0")
                                .build();
@@ -101,14 +101,14 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
 
         List<String> requests = Arrays.asList("/firstfast", "/slow?sleep=500", "/secondfast", "/slow?sleep=1000", "/thirdfast");
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
-            Collection<HttpResponse> responses = nettyHttpClient.sendRequests(transportAddress.address(), requests.toArray(new String[]{}));
+            Collection<HttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[]{}));
             Collection<String> responseBodies = returnHttpResponseBodies(responses);
             assertThat(responseBodies, contains("/firstfast", "/slow?sleep=500", "/secondfast", "/slow?sleep=1000", "/thirdfast"));
         }
     }
 
     public void testThatHttpPipeliningCanBeDisabled() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                                 .put("http.pipelining", false)
                                 .put("http.port", "0")
                                 .build();
@@ -118,7 +118,7 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
 
         List<String> requests = Arrays.asList("/slow?sleep=1000", "/firstfast", "/secondfast", "/thirdfast", "/slow?sleep=500");
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
-            Collection<HttpResponse> responses = nettyHttpClient.sendRequests(transportAddress.address(), requests.toArray(new String[]{}));
+            Collection<HttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[]{}));
             List<String> responseBodies = new ArrayList<>(returnHttpResponseBodies(responses));
             // we cannot be sure about the order of the fast requests, but the slow ones should have to be last
             assertThat(responseBodies, hasSize(5));
@@ -132,13 +132,15 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
         private final ExecutorService executorService;
 
         public CustomNettyHttpServerTransport(Settings settings) {
-            super(settings, NettyHttpServerPipeliningTests.this.networkService, NettyHttpServerPipeliningTests.this.bigArrays);
+            super(settings, NettyHttpServerPipeliningTests.this.networkService,
+                NettyHttpServerPipeliningTests.this.bigArrays, NettyHttpServerPipeliningTests.this.threadPool
+            );
             this.executorService = Executors.newFixedThreadPool(5);
         }
 
         @Override
         public ChannelPipelineFactory configureServerChannelPipelineFactory() {
-            return new CustomHttpChannelPipelineFactory(this, executorService);
+            return new CustomHttpChannelPipelineFactory(this, executorService, NettyHttpServerPipeliningTests.this.threadPool.getThreadContext());
         }
 
         @Override
@@ -152,8 +154,8 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
 
         private final ExecutorService executorService;
 
-        public CustomHttpChannelPipelineFactory(NettyHttpServerTransport transport, ExecutorService executorService) {
-            super(transport, randomBoolean());
+        public CustomHttpChannelPipelineFactory(NettyHttpServerTransport transport, ExecutorService executorService, ThreadContext threadContext) {
+            super(transport, randomBoolean(), threadContext);
             this.executorService = executorService;
         }
 
@@ -180,7 +182,7 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
-            e.getCause().printStackTrace();
+            logger.info("Caught exception", e.getCause());
             e.getChannel().close();
         }
     }

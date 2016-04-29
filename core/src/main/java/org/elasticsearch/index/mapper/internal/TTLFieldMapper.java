@@ -21,22 +21,20 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AlreadyExpiredException;
-import org.elasticsearch.index.analysis.NumericLongAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -45,7 +43,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeTimeValue;
 
 public class TTLFieldMapper extends MetadataFieldMapper {
@@ -53,7 +51,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_ttl";
     public static final String CONTENT_TYPE = "_ttl";
 
-    public static class Defaults extends LongFieldMapper.Defaults {
+    public static class Defaults extends LegacyLongFieldMapper.Defaults {
         public static final String NAME = TTLFieldMapper.CONTENT_TYPE;
 
         public static final TTLFieldType TTL_FIELD_TYPE = new TTLFieldType();
@@ -63,9 +61,9 @@ public class TTLFieldMapper extends MetadataFieldMapper {
             TTL_FIELD_TYPE.setStored(true);
             TTL_FIELD_TYPE.setTokenized(false);
             TTL_FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_64_BIT);
-            TTL_FIELD_TYPE.setIndexAnalyzer(NumericLongAnalyzer.buildNamedAnalyzer(Defaults.PRECISION_STEP_64_BIT));
-            TTL_FIELD_TYPE.setSearchAnalyzer(NumericLongAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE));
-            TTL_FIELD_TYPE.setNames(new MappedFieldType.Names(NAME));
+            TTL_FIELD_TYPE.setName(NAME);
+            TTL_FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            TTL_FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             TTL_FIELD_TYPE.freeze();
         }
 
@@ -79,7 +77,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
         private long defaultTTL = Defaults.DEFAULT;
 
         public Builder() {
-            super(Defaults.NAME, Defaults.TTL_FIELD_TYPE);
+            super(Defaults.NAME, Defaults.TTL_FIELD_TYPE, Defaults.FIELD_TYPE);
         }
 
         public Builder enabled(EnabledAttributeMapper enabled) {
@@ -96,7 +94,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
         public TTLFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             fieldType.setHasDocValues(false);
-            return new TTLFieldMapper(fieldType, enabledState, defaultTTL, fieldDataSettings, context.indexSettings());
+            return new TTLFieldMapper(fieldType, enabledState, defaultTTL, context.indexSettings());
         }
     }
 
@@ -106,10 +104,10 @@ public class TTLFieldMapper extends MetadataFieldMapper {
             Builder builder = new Builder();
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    EnabledAttributeMapper enabledState = nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
+                    EnabledAttributeMapper enabledState = lenientNodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
                     builder.enabled(enabledState);
                     iterator.remove();
                 } else if (fieldName.equals("default")) {
@@ -129,7 +127,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final class TTLFieldType extends LongFieldMapper.LongFieldType {
+    public static final class TTLFieldType extends LegacyLongFieldMapper.LongFieldType {
 
         public TTLFieldType() {
         }
@@ -153,7 +151,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
             } else {
                 now = System.currentTimeMillis();
             }
-            long val = value(value);
+            Long val = (Long) super.valueForSearch(value);
             return val - now;
         }
     }
@@ -162,11 +160,11 @@ public class TTLFieldMapper extends MetadataFieldMapper {
     private long defaultTTL;
 
     private TTLFieldMapper(Settings indexSettings) {
-        this(Defaults.TTL_FIELD_TYPE.clone(), Defaults.ENABLED_STATE, Defaults.DEFAULT, null, indexSettings);
+        this(Defaults.TTL_FIELD_TYPE.clone(), Defaults.ENABLED_STATE, Defaults.DEFAULT, indexSettings);
     }
 
     private TTLFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL,
-                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                             Settings indexSettings) {
         super(NAME, fieldType, Defaults.TTL_FIELD_TYPE, indexSettings);
         this.enabledState = enabled;
         this.defaultTTL = defaultTTL;
@@ -213,7 +211,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException, AlreadyExpiredException {
-        if (enabledState.enabled && !context.sourceToParse().flyweight()) {
+        if (enabledState.enabled) {
             long ttl = context.sourceToParse().ttl();
             if (ttl <= 0 && defaultTTL > 0) { // no ttl provided so we use the default value
                 ttl = defaultTTL;
@@ -228,7 +226,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
                     throw new AlreadyExpiredException(context.index(), context.type(), context.id(), timestamp, ttl, now);
                 }
                 // the expiration timestamp (timestamp + ttl) is set as field
-                fields.add(new LongFieldMapper.CustomLongNumericField(expire, fieldType()));
+                fields.add(new LegacyLongFieldMapper.CustomLongNumericField(expire, fieldType()));
             }
         }
     }
@@ -258,21 +256,19 @@ public class TTLFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) {
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         TTLFieldMapper ttlMergeWith = (TTLFieldMapper) mergeWith;
-        if (((TTLFieldMapper) mergeWith).enabledState != Defaults.ENABLED_STATE) {//only do something if actually something was set for the document mapper that we merge with
-            if (this.enabledState == EnabledAttributeMapper.ENABLED && ((TTLFieldMapper) mergeWith).enabledState == EnabledAttributeMapper.DISABLED) {
-                mergeResult.addConflict("_ttl cannot be disabled once it was enabled.");
+        if (ttlMergeWith.enabledState != Defaults.ENABLED_STATE) {//only do something if actually something was set for the document mapper that we merge with
+            if (this.enabledState == EnabledAttributeMapper.ENABLED && ttlMergeWith.enabledState == EnabledAttributeMapper.DISABLED) {
+                throw new IllegalArgumentException("_ttl cannot be disabled once it was enabled.");
             } else {
-                if (!mergeResult.simulate()) {
-                    this.enabledState = ttlMergeWith.enabledState;
-                }
+                this.enabledState = ttlMergeWith.enabledState;
             }
         }
         if (ttlMergeWith.defaultTTL != -1) {
             // we never build the default when the field is disabled so we should also not set it
             // (it does not make a difference though as everything that is not build in toXContent will also not be set in the cluster)
-            if (!mergeResult.simulate() && (enabledState == EnabledAttributeMapper.ENABLED)) {
+            if (enabledState == EnabledAttributeMapper.ENABLED) {
                 this.defaultTTL = ttlMergeWith.defaultTTL;
             }
         }

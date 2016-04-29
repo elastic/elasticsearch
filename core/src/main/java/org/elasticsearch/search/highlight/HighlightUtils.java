@@ -48,9 +48,9 @@ public final class HighlightUtils {
         boolean forceSource = searchContext.highlight().forceSource(field);
         List<Object> textsToHighlight;
         if (!forceSource && mapper.fieldType().stored()) {
-            CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(mapper.fieldType().names().indexName()), false);
+            CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(mapper.fieldType().name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
-            textsToHighlight = fieldVisitor.fields().get(mapper.fieldType().names().indexName());
+            textsToHighlight = fieldVisitor.fields().get(mapper.fieldType().name());
             if (textsToHighlight == null) {
                 // Can happen if the document doesn't have the field to highlight
                 textsToHighlight = Collections.emptyList();
@@ -58,7 +58,7 @@ public final class HighlightUtils {
         } else {
             SourceLookup sourceLookup = searchContext.lookup().source();
             sourceLookup.setSegmentAndDocument(hitContext.readerContext(), hitContext.docId());
-            textsToHighlight = sourceLookup.extractRawValues(hitContext.getSourcePath(mapper.fieldType().names().fullName()));
+            textsToHighlight = sourceLookup.extractRawValues(hitContext.getSourcePath(mapper.fieldType().name()));
         }
         assert textsToHighlight != null;
         return textsToHighlight;

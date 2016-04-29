@@ -51,7 +51,7 @@ public class GeoPolygonQuery extends Query {
     }
 
     public String fieldName() {
-        return indexFieldData.getFieldNames().indexName();
+        return indexFieldData.getFieldName();
     }
 
     @Override
@@ -104,7 +104,7 @@ public class GeoPolygonQuery extends Query {
     @Override
     public String toString(String field) {
         StringBuilder sb = new StringBuilder("GeoPolygonQuery(");
-        sb.append(indexFieldData.getFieldNames().indexName());
+        sb.append(indexFieldData.getFieldName());
         sb.append(", ").append(Arrays.toString(points)).append(')');
         return sb.toString();
     }
@@ -115,14 +115,14 @@ public class GeoPolygonQuery extends Query {
             return false;
         }
         GeoPolygonQuery that = (GeoPolygonQuery) obj;
-        return indexFieldData.getFieldNames().indexName().equals(that.indexFieldData.getFieldNames().indexName())
+        return indexFieldData.getFieldName().equals(that.indexFieldData.getFieldName())
                 && Arrays.equals(points, that.points);
     }
 
     @Override
     public int hashCode() {
         int h = super.hashCode();
-        h = 31 * h + indexFieldData.getFieldNames().indexName().hashCode();
+        h = 31 * h + indexFieldData.getFieldName().hashCode();
         h = 31 * h + Arrays.hashCode(points);
         return h;
     }

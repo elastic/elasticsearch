@@ -45,6 +45,7 @@ public class Build {
     static {
         final String shortHash;
         final String date;
+        final boolean isSnapshot;
 
         Path path = getElasticsearchCodebase();
         if (path.toString().endsWith(".jar")) {
@@ -52,6 +53,7 @@ public class Build {
                 Manifest manifest = jar.getManifest();
                 shortHash = manifest.getMainAttributes().getValue("Change");
                 date = manifest.getMainAttributes().getValue("Build-Date");
+                isSnapshot = "true".equals(manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Snapshot"));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -59,6 +61,7 @@ public class Build {
             // not running from a jar (unit tests, IDE)
             shortHash = "Unknown";
             date = "Unknown";
+            isSnapshot = true;
         }
         if (shortHash == null) {
             throw new IllegalStateException("Error finding the build shortHash. " +
@@ -69,8 +72,10 @@ public class Build {
                 "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
         }
 
-        CURRENT = new Build(shortHash, date);
+        CURRENT = new Build(shortHash, date, isSnapshot);
     }
+
+    private final boolean isSnapshot;
 
     /**
      * Returns path to elasticsearch codebase path
@@ -88,9 +93,10 @@ public class Build {
     private String shortHash;
     private String date;
 
-    Build(String shortHash, String date) {
+    Build(String shortHash, String date, boolean isSnapshot) {
         this.shortHash = shortHash;
         this.date = date;
+        this.isSnapshot = isSnapshot;
     }
 
     public String shortHash() {
@@ -104,16 +110,51 @@ public class Build {
     public static Build readBuild(StreamInput in) throws IOException {
         String hash = in.readString();
         String date = in.readString();
-        return new Build(hash, date);
+        boolean snapshot = in.readBoolean();
+        return new Build(hash, date, snapshot);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
         out.writeString(build.shortHash());
         out.writeString(build.date());
+        out.writeBoolean(build.isSnapshot());
+    }
+
+    public boolean isSnapshot() {
+        return isSnapshot;
     }
 
     @Override
     public String toString() {
         return "[" + shortHash + "][" + date + "]";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        Build build = (Build) o;
+
+        if (isSnapshot != build.isSnapshot) {
+            return false;
+        }
+        if (!shortHash.equals(build.shortHash)) {
+            return false;
+        }
+        return date.equals(build.date);
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = (isSnapshot ? 1 : 0);
+        result = 31 * result + shortHash.hashCode();
+        result = 31 * result + date.hashCode();
+        return result;
     }
 }

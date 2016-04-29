@@ -54,7 +54,7 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
      * test that missing "filter" element causes {@link ParsingException}
      */
     public void testFilterElement() throws IOException {
-        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {}";
+        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {} }";
         try {
             parseQuery(queryString);
             fail("Expected ParsingException");
@@ -63,13 +63,40 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         }
     }
 
-    public void testIllegalArguments() {
+    /**
+     * test that multiple "filter" elements causes {@link ParsingException}
+     */
+    public void testMultipleFilterElements() throws IOException {
+        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {\n" +
+                                    "\"filter\" : { \"term\": { \"foo\": \"a\" } },\n" +
+                                    "\"filter\" : { \"term\": { \"foo\": \"x\" } },\n" +
+                            "} }";
         try {
-            new ConstantScoreQueryBuilder(null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            // expected
+            parseQuery(queryString);
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
+            assertThat(e.getMessage(), containsString("accepts only one 'filter' element"));
         }
+    }
+
+    /**
+     * test that "filter" does not accept an array of queries, throws {@link ParsingException}
+     */
+    public void testNoArrayAsFilterElements() throws IOException {
+        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {\n" +
+                                    "\"filter\" : [ { \"term\": { \"foo\": \"a\" } },\n" +
+                                                   "{ \"term\": { \"foo\": \"x\" } } ]\n" +
+                            "} }";
+        try {
+            parseQuery(queryString);
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
+            assertThat(e.getMessage(), containsString("unexpected token [START_ARRAY]"));
+        }
+    }
+
+    public void testIllegalArguments() {
+        expectThrows(IllegalArgumentException.class, () -> new ConstantScoreQueryBuilder((QueryBuilder<?>) null));
     }
 
     @Override
@@ -79,16 +106,16 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"constant_score\" : {\n" + 
-                "    \"filter\" : {\n" + 
-                "      \"terms\" : {\n" + 
-                "        \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n" + 
-                "        \"boost\" : 42.0\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"boost\" : 23.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"constant_score\" : {\n" +
+                "    \"filter\" : {\n" +
+                "      \"terms\" : {\n" +
+                "        \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n" +
+                "        \"boost\" : 42.0\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"boost\" : 23.0\n" +
+                "  }\n" +
                 "}";
 
         ConstantScoreQueryBuilder parsed = (ConstantScoreQueryBuilder) parseQuery(json);

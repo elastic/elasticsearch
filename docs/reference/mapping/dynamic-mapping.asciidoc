@@ -33,7 +33,7 @@ purposes with:
     Custom rules to configure the mapping for dynamically added fields.
 
 TIP: <<indices-templates,Index templates>> allow you to configure the default
-mappings, settings, aliases, and warmers for new indices, whether created
+mappings, settings and aliases for new indices, whether created
 automatically or explicitly.
 
 

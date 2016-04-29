@@ -19,12 +19,15 @@
 
 package org.elasticsearch.repositories.azure;
 
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugin.repository.azure.AzureRepositoryPlugin;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
@@ -112,8 +115,13 @@ public class AzureRepositoryF {
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
-                node.close();
-                latch.countDown();
+                try {
+                    IOUtils.close(node);
+                } catch (IOException e) {
+                    throw new ElasticsearchException(e);
+                } finally {
+                    latch.countDown();
+                }
             }
         });
         node.start();

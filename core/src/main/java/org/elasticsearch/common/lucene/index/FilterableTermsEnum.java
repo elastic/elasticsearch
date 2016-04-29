@@ -28,8 +28,8 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -75,7 +75,7 @@ public class FilterableTermsEnum extends TermsEnum {
         this.docsEnumFlag = docsEnumFlag;
         if (filter == null) {
             // Important - need to use the doc count that includes deleted docs
-            // or we have this issue: https://github.com/elasticsearch/elasticsearch/issues/7951
+            // or we have this issue: https://github.com/elastic/elasticsearch/issues/7951
             numDocs = reader.maxDoc();
         }
         List<LeafReaderContext> leaves = reader.leaves();
@@ -99,11 +99,12 @@ public class FilterableTermsEnum extends TermsEnum {
             }
             BitSet bits = null;
             if (weight != null) {
-                DocIdSetIterator docs = weight.scorer(context);
-                if (docs == null) {
+                Scorer scorer = weight.scorer(context);
+                if (scorer == null) {
                     // fully filtered, none matching, no need to iterate on this
                     continue;
                 }
+                DocIdSetIterator docs = scorer.iterator();
 
                 // we want to force apply deleted docs
                 final Bits liveDocs = context.reader().getLiveDocs();
@@ -116,9 +117,7 @@ public class FilterableTermsEnum extends TermsEnum {
                     };
                 }
 
-                BitDocIdSet.Builder builder = new BitDocIdSet.Builder(context.reader().maxDoc());
-                builder.or(docs);
-                bits = builder.build().bits();
+                bits = BitSet.of(docs, context.reader().maxDoc());
 
                 // Count how many docs are in our filtered set
                 // TODO make this lazy-loaded only for those that need it?

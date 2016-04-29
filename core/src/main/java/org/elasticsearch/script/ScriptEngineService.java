@@ -23,6 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.Closeable;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,13 +31,13 @@ import java.util.Map;
  */
 public interface ScriptEngineService extends Closeable {
 
-    String[] types();
+    List<String> getTypes();
 
-    String[] extensions();
+    List<String> getExtensions();
 
-    boolean sandboxed();
+    boolean isSandboxed();
 
-    Object compile(String script);
+    Object compile(String script, Map<String, String> params);
 
     ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars);
 

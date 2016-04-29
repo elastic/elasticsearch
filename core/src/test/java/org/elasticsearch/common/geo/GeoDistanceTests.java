@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.lessThan;
  * Basic Tests for {@link GeoDistance}
  */
 public class GeoDistanceTests extends ESTestCase {
+
     public void testGeoDistanceSerialization() throws IOException  {
         // make sure that ordinals don't change, because we rely on then in serialization
         assertThat(GeoDistance.PLANE.ordinal(), equalTo(0));
@@ -46,7 +47,7 @@ public class GeoDistanceTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             geoDistance.writeTo(out);
             try (StreamInput in = StreamInput.wrap(out.bytes())) {;
-                GeoDistance copy = GeoDistance.readGeoDistanceFrom(in);
+                GeoDistance copy = GeoDistance.readFromStream(in);
                 assertEquals(copy.toString() + " vs. " + geoDistance.toString(), copy, geoDistance);
             }
         }
@@ -60,7 +61,7 @@ public class GeoDistanceTests extends ESTestCase {
                 out.writeVInt(randomIntBetween(Integer.MIN_VALUE, -1));
             }
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                GeoDistance.readGeoDistanceFrom(in);
+                GeoDistance.readFromStream(in);
             } catch (IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown GeoDistance ordinal ["));
             }

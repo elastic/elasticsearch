@@ -5,12 +5,11 @@
                 "type": "nested",
                 "properties": {
                     "bar": {
-                        "type": "string",
-                        "index": "not_analyzed",
+                        "type": "keyword",
                         "fields": {
                             "lower": {
                                 "analyzer": "standard",
-                                "type": "string"
+                                "type": "text"
                             }
                         }
                     }

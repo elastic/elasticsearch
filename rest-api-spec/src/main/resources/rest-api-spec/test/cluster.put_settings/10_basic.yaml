@@ -1,10 +1,5 @@
 ---
-setup:
-  - skip:
-      version:  "all"
-      reason:  leaves transient metadata behind, need to fix it
----
-"Test put settings":
+"Test put and reset transient settings":
   - do:
       cluster.put_settings:
         body:
@@ -19,3 +14,50 @@ setup:
         flat_settings: true
 
   - match: {transient: {discovery.zen.minimum_master_nodes: "1"}}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            discovery.zen.minimum_master_nodes: null
+        flat_settings: true
+
+  - match: {transient: {}}
+
+  - do:
+      cluster.get_settings:
+        flat_settings: true
+
+  - match: {transient: {}}
+---
+"Test put and reset persistent settings":
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.routing.allocation.disk.threshold_enabled: false
+        flat_settings: true
+
+  - match: {persistent: {cluster.routing.allocation.disk.threshold_enabled: "false"}}
+
+  - do:
+      cluster.get_settings:
+        flat_settings: true
+
+  - match: {persistent: {cluster.routing.allocation.disk.threshold_enabled: "false"}}
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.routing.allocation.disk.threshold_enabled: null
+        flat_settings: true
+
+  - match: {persistent: {}}
+
+  - do:
+      cluster.get_settings:
+        flat_settings: true
+
+  - match: {persistent: {}}
+

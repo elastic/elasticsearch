@@ -38,7 +38,7 @@ These documents would *not* match the above query:
 <3> The `user` field is missing completely.
 
 [float]
-===== `null_value` mapping
+==== `null_value` mapping
 
 If the field mapping includes the <<null-value,`null_value`>> setting
 then explicit `null` values are replaced with the specified `null_value`.  For
@@ -47,7 +47,7 @@ instance, if the `user` field were mapped as follows:
 [source,js]
 --------------------------------------------------
   "user": {
-    "type": "string",
+    "type": "text",
     "null_value": "_null_"
   }
 --------------------------------------------------
@@ -69,4 +69,22 @@ no values in the `user` field and thus would not match the `exists` filter:
 { "user": [] }
 { "foo": "bar" }
 --------------------------------------------------
+
+==== `missing` query
+
+'missing' query has been removed because it can be advantageously replaced by an `exists` query inside a must_not
+clause as follows:
+
+[source,js]
+--------------------------------------------------
+"bool": {
+    "must_not": {
+        "exists": {
+            "field": "user"
+        }
+    }
+}
+--------------------------------------------------
+
+This query returns documents that have no value in the user field.
 

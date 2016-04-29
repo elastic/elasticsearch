@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -30,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -76,7 +76,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
 
     public void allocateDangled(Collection<IndexMetaData> indices, final Listener listener) {
         ClusterState clusterState = clusterService.state();
-        DiscoveryNode masterNode = clusterState.nodes().masterNode();
+        DiscoveryNode masterNode = clusterState.nodes().getMasterNode();
         if (masterNode == null) {
             listener.onFailure(new MasterNotDiscoveredException("no master to send allocate dangled request"));
             return;
@@ -116,7 +116,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         public void messageReceived(final AllocateDangledRequest request, final TransportChannel channel) throws Exception {
             String[] indexNames = new String[request.indices.length];
             for (int i = 0; i < request.indices.length; i++) {
-                indexNames[i] = request.indices[i].getIndex();
+                indexNames[i] = request.indices[i].getIndex().getName();
             }
             clusterService.submitStateUpdateTask("allocation dangled indices " + Arrays.toString(indexNames), new ClusterStateUpdateTask() {
                 @Override
@@ -131,10 +131,10 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     boolean importNeeded = false;
                     StringBuilder sb = new StringBuilder();
                     for (IndexMetaData indexMetaData : request.indices) {
-                        if (currentState.metaData().hasIndex(indexMetaData.getIndex())) {
+                        if (currentState.metaData().hasIndex(indexMetaData.getIndex().getName())) {
                             continue;
                         }
-                        if (currentState.metaData().hasAlias(indexMetaData.getIndex())) {
+                        if (currentState.metaData().hasAlias(indexMetaData.getIndex().getName())) {
                             logger.warn("ignoring dangled index [{}] on node [{}] due to an existing alias with the same name",
                                     indexMetaData.getIndex(), request.fromNode);
                             continue;
@@ -212,7 +212,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            fromNode = DiscoveryNode.readNode(in);
+            fromNode = new DiscoveryNode(in);
             indices = new IndexMetaData[in.readVInt()];
             for (int i = 0; i < indices.length; i++) {
                 indices[i] = IndexMetaData.Builder.readFrom(in);

@@ -21,14 +21,13 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.Lucene43StopFilter;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.inject.ProvisionException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
@@ -40,12 +39,12 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class StopTokenFilterTests extends ESTokenStreamTestCase {
     public void testPositionIncrementSetting() throws IOException {
-        Builder builder = Settings.settingsBuilder().put("index.analysis.filter.my_stop.type", "stop")
+        Builder builder = Settings.builder().put("index.analysis.filter.my_stop.type", "stop")
                 .put("index.analysis.filter.my_stop.enable_position_increments", false);
         if (random().nextBoolean()) {
             builder.put("index.analysis.filter.my_stop.version", "5.0");
         }
-        builder.put("path.home", createTempDir().toString());
+        builder.put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString());
         Settings settings = builder.build();
         try {
             AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
@@ -56,53 +55,27 @@ public class StopTokenFilterTests extends ESTokenStreamTestCase {
     }
 
     public void testCorrectPositionIncrementSetting() throws IOException {
-        Builder builder = Settings.settingsBuilder().put("index.analysis.filter.my_stop.type", "stop");
-        int thingToDo = random().nextInt(3);
-        if (thingToDo == 0) {
+        Builder builder = Settings.builder().put("index.analysis.filter.my_stop.type", "stop");
+        if (random().nextBoolean()) {
             builder.put("index.analysis.filter.my_stop.version", Version.LATEST);
-        } else if (thingToDo == 1) {
-            builder.put("index.analysis.filter.my_stop.version", Version.LUCENE_4_0);
-            if (random().nextBoolean()) {
-                builder.put("index.analysis.filter.my_stop.enable_position_increments", true);
-            }
         } else {
             // don't specify
         }
-        builder.put("path.home", createTempDir().toString());
+        builder.put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString());
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(builder.build());
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");
         assertThat(tokenFilter, instanceOf(StopTokenFilterFactory.class));
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader("foo bar"));
         TokenStream create = tokenFilter.create(tokenizer);
-        if (thingToDo == 1) {
-            assertThat(create, instanceOf(Lucene43StopFilter.class));
-        } else {
-            assertThat(create, instanceOf(StopFilter.class));
-        }
-    }
-
-    public void testDeprecatedPositionIncrementSettingWithVersions() throws IOException {
-        Settings settings = Settings.settingsBuilder()
-                .put("index.analysis.filter.my_stop.type", "stop")
-                .put("index.analysis.filter.my_stop.enable_position_increments", false)
-                .put("index.analysis.filter.my_stop.version", "4.3")
-                .put("path.home", createTempDir().toString())
-                .build();
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
-        TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");
-        assertThat(tokenFilter, instanceOf(StopTokenFilterFactory.class));
-        Tokenizer tokenizer = new WhitespaceTokenizer();
-        tokenizer.setReader(new StringReader("foo bar"));
-        TokenStream create = tokenFilter.create(tokenizer);
-        assertThat(create, instanceOf(Lucene43StopFilter.class));
+        assertThat(create, instanceOf(StopFilter.class));
     }
 
     public void testThatSuggestStopFilterWorks() throws Exception {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.my_stop.type", "stop")
                 .put("index.analysis.filter.my_stop.remove_trailing", false)
-                .put("path.home", createTempDir().toString())
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_stop");

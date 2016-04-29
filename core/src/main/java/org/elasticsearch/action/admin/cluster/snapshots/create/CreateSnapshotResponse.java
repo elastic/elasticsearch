@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
@@ -83,8 +82,8 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
     }
 
     static final class Fields {
-        static final XContentBuilderString SNAPSHOT = new XContentBuilderString("snapshot");
-        static final XContentBuilderString ACCEPTED = new XContentBuilderString("accepted");
+        static final String SNAPSHOT = "snapshot";
+        static final String ACCEPTED = "accepted";
     }
 
     @Override

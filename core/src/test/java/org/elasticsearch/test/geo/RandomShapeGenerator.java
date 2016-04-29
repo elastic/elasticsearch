@@ -20,23 +20,24 @@
 package org.elasticsearch.test.geo;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import com.spatial4j.core.context.jts.JtsSpatialContext;
-import com.spatial4j.core.distance.DistanceUtils;
-import com.spatial4j.core.exception.InvalidShapeException;
-import com.spatial4j.core.shape.Point;
-import com.spatial4j.core.shape.Rectangle;
-import com.spatial4j.core.shape.impl.Range;
+import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
+import org.locationtech.spatial4j.distance.DistanceUtils;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Point;
+import org.locationtech.spatial4j.shape.Rectangle;
+import org.locationtech.spatial4j.shape.impl.Range;
 import com.vividsolutions.jts.algorithm.ConvexHull;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.geo.builders.CoordinateCollection;
+import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
 import org.elasticsearch.common.geo.builders.MultiPointBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.geo.builders.PointCollection;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.search.geo.GeoShapeQueryTests;
@@ -44,7 +45,7 @@ import org.junit.Assert;
 
 import java.util.Random;
 
-import static com.spatial4j.core.shape.SpatialRelation.CONTAINS;
+import static org.locationtech.spatial4j.shape.SpatialRelation.CONTAINS;
 
 /**
  * Random geoshape generation utilities for randomized {@code geo_shape} type testing
@@ -115,7 +116,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
             throws InvalidShapeException {
         if (numGeometries <= 0) {
             // cap geometry collection at 4 shapes (to save test time)
-            numGeometries = RandomInts.randomIntBetween(r, 2, 5);
+            numGeometries = RandomInts.randomIntBetween(r, 2, 4);
         }
 
         if (nearPoint == null) {
@@ -188,11 +189,12 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                 // if this number gets out of hand, the number of self intersections for a linestring can become
                 // (n^2-n)/2 and computing the relation intersection matrix will become NP-Hard
                 int numPoints = RandomInts.randomIntBetween(r, 3, 10);
-                PointCollection pcb = (st == ShapeType.MULTIPOINT) ? new MultiPointBuilder() : new LineStringBuilder();
+                CoordinatesBuilder coordinatesBuilder = new CoordinatesBuilder();
                 for (int i=0; i<numPoints; ++i) {
                     p = xRandomPointIn(r, within);
-                    pcb.point(p.getX(), p.getY());
+                    coordinatesBuilder.coordinate(p.getX(), p.getY());
                 }
+                CoordinateCollection pcb = (st == ShapeType.MULTIPOINT) ? new MultiPointBuilder(coordinatesBuilder.build()) : new LineStringBuilder(coordinatesBuilder);
                 return pcb;
             case MULTILINESTRING:
                 MultiLineStringBuilder mlsb = new MultiLineStringBuilder();
@@ -220,7 +222,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                     shellCoords[2] = new Coordinate(within.getMaxX(), within.getMaxY());
                     shellCoords[3] = new Coordinate(within.getMaxX(), within.getMinY());
                 }
-                PolygonBuilder pgb = new PolygonBuilder().points(shellCoords).close();
+                PolygonBuilder pgb = new PolygonBuilder(new CoordinatesBuilder().coordinates(shellCoords).close());
                 if (validate) {
                     // This test framework builds semi-random geometry (in the sense that points are not truly random due to spatial
                     // auto-correlation) As a result of the semi-random nature of the geometry, one can not predict the orientation
@@ -256,10 +258,30 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
         return p;
     }
 
-    public static Rectangle xRandomRectangle(Random r, Point nearP) {
-        Rectangle bounds = ctx.getWorldBounds();
+    private static Rectangle xRandomRectangle(Random r, Point nearP, Rectangle bounds, boolean small) {
         if (nearP == null)
             nearP = xRandomPointIn(r, bounds);
+
+        if (small == true) {
+            // between 3 and 6 degrees
+            final double latRange = 3 * r.nextDouble() + 3;
+            final double lonRange = 3 * r.nextDouble() + 3;
+
+            double minX = nearP.getX();
+            double maxX = minX + lonRange;
+            if (maxX > 180) {
+                maxX = minX;
+                minX -= lonRange;
+            }
+            double minY = nearP.getY();
+            double maxY = nearP.getY() + latRange;
+            if (maxY > 90) {
+                maxY = minY;
+                minY -= latRange;
+            }
+
+            return ctx.makeRectangle(minX, maxX, minY, maxY);
+        }
 
         Range xRange = xRandomRange(r, rarely(r) ? 0 : nearP.getX(), Range.xRange(bounds, ctx));
         Range yRange = xRandomRange(r, rarely(r) ? 0 : nearP.getY(), Range.yRange(bounds, ctx));
@@ -269,6 +291,15 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                 xDivisible(xRange.getMax()*10e3)/10e3,
                 xDivisible(yRange.getMin()*10e3)/10e3,
                 xDivisible(yRange.getMax()*10e3)/10e3);
+    }
+
+    /** creates a small random rectangle by default to keep shape test performance at bay */
+    public static Rectangle xRandomRectangle(Random r, Point nearP) {
+        return xRandomRectangle(r, nearP, ctx.getWorldBounds(), true);
+    }
+
+    public static Rectangle xRandomRectangle(Random r, Point nearP, boolean small) {
+        return xRandomRectangle(r, nearP, ctx.getWorldBounds(), small);
     }
 
     private static boolean rarely(Random r) {

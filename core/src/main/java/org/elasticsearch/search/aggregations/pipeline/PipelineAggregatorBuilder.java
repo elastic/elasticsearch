@@ -16,44 +16,127 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
- * A base class for all pipeline aggregator builders.
+ * A factory that knows how to create an {@link PipelineAggregator} of a
+ * specific type.
  */
-public abstract class PipelineAggregatorBuilder<B extends PipelineAggregatorBuilder<B>> extends AbstractAggregationBuilder {
-
-    private String[] bucketsPaths;
-    private Map<String, Object> metaData;
+public abstract class PipelineAggregatorBuilder<PAB extends PipelineAggregatorBuilder<PAB>> extends ToXContentToBytes
+        implements NamedWriteable {
 
     /**
-     * Sole constructor, typically used by sub-classes.
+     * Field shared by many parsers.
      */
-    protected PipelineAggregatorBuilder(String name, String type) {
-        super(name, type);
-    }
+    public static final ParseField BUCKETS_PATH_FIELD = new ParseField("buckets_path");
+
+    protected final String name;
+    protected final String type;
+    protected final String[] bucketsPaths;
+    protected Map<String, Object> metaData;
 
     /**
-     * Sets the paths to the buckets to use for this pipeline aggregator
+     * Constructs a new pipeline aggregator factory.
+     *
+     * @param name
+     *            The aggregation name
+     * @param type
+     *            The aggregation type
      */
-    public B setBucketsPaths(String... bucketsPaths) {
+    protected PipelineAggregatorBuilder(String name, String type, String[] bucketsPaths) {
+        if (name == null) {
+            throw new IllegalArgumentException("[name] must not be null: [" + name + "]");
+        }
+        if (type == null) {
+            throw new IllegalArgumentException("[type] must not be null: [" + name + "]");
+        }
+        if (bucketsPaths == null) {
+            throw new IllegalArgumentException("[bucketsPaths] must not be null: [" + name + "]");
+        }
+        this.name = name;
+        this.type = type;
         this.bucketsPaths = bucketsPaths;
-        return (B) this;
     }
 
     /**
-     * Sets the meta data to be included in the pipeline aggregator's response
+     * Read from a stream.
      */
-    public B setMetaData(Map<String, Object> metaData) {
+    protected PipelineAggregatorBuilder(StreamInput in, String type) throws IOException {
+        name = in.readString();
+        this.type = type;
+        bucketsPaths = in.readStringArray();
+        metaData = in.readMap();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeStringArray(bucketsPaths);
+        out.writeMap(metaData);
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
+    public String name() {
+        return name;
+    }
+
+    public String type() {
+        return type;
+    }
+
+    /**
+     * Validates the state of this factory (makes sure the factory is properly
+     * configured)
+     */
+    public final void validate(AggregatorFactory<?> parent, AggregatorFactory<?>[] factories,
+            List<PipelineAggregatorBuilder<?>> pipelineAggregatorFactories) {
+        doValidate(parent, factories, pipelineAggregatorFactories);
+    }
+
+    protected abstract PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException;
+
+    /**
+     * Creates the pipeline aggregator
+     *
+     * @return The created aggregator
+     */
+    public final PipelineAggregator create() throws IOException {
+        PipelineAggregator aggregator = createInternal(this.metaData);
+        return aggregator;
+    }
+
+    public void doValidate(AggregatorFactory<?> parent, AggregatorFactory<?>[] factories,
+            List<PipelineAggregatorBuilder<?>> pipelineAggregatorFactories) {
+    }
+
+    @SuppressWarnings("unchecked")
+    public PAB setMetaData(Map<String, Object> metaData) {
         this.metaData = metaData;
-        return (B)this;
+        return (PAB) this;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String[] getBucketsPaths() {
+        return bucketsPaths;
     }
 
     @Override
@@ -65,7 +148,7 @@ public abstract class PipelineAggregatorBuilder<B extends PipelineAggregatorBuil
         }
         builder.startObject(type);
 
-        if (bucketsPaths != null) {
+        if (!overrideBucketsPath() && bucketsPaths != null) {
             builder.startArray(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName());
             for (String path : bucketsPaths) {
                 builder.value(path);
@@ -80,5 +163,42 @@ public abstract class PipelineAggregatorBuilder<B extends PipelineAggregatorBuil
         return builder.endObject();
     }
 
+    /**
+     * @return <code>true</code> if the {@link PipelineAggregatorBuilder}
+     *         overrides the XContent rendering of the bucketPath option.
+     */
+    protected boolean overrideBucketsPath() {
+        return false;
+    }
+
     protected abstract XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException;
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(Arrays.hashCode(bucketsPaths), metaData, name, type, doHashCode());
+    }
+
+    protected abstract int doHashCode();
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        @SuppressWarnings("unchecked")
+        PipelineAggregatorBuilder<PAB> other = (PipelineAggregatorBuilder<PAB>) obj;
+        if (!Objects.equals(name, other.name))
+            return false;
+        if (!Objects.equals(type, other.type))
+            return false;
+        if (!Objects.deepEquals(bucketsPaths, other.bucketsPaths))
+            return false;
+        if (!Objects.equals(metaData, other.metaData))
+            return false;
+        return doEquals(obj);
+    }
+
+    protected abstract boolean doEquals(Object obj);
+
 }

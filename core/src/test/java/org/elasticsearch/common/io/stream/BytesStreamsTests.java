@@ -20,17 +20,24 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for {@link BytesStreamOutput} paging behaviour.
@@ -273,7 +280,17 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeString("hello");
         out.writeString("goodbye");
         out.writeGenericValue(BytesRefs.toBytesRef("bytesref"));
+        out.writeStringArray(new String[] {"a", "b", "cat"});
+        out.writeBytesReference(new BytesArray("test"));
+        out.writeOptionalBytesReference(new BytesArray("test"));
+        out.writeOptionalDouble(null);
+        out.writeOptionalDouble(1.2);
+        out.writeTimeZone(DateTimeZone.forID("CET"));
+        out.writeOptionalTimeZone(DateTimeZone.getDefault());
+        out.writeOptionalTimeZone(null);
+        final byte[] bytes = out.bytes().toBytes();
         StreamInput in = StreamInput.wrap(out.bytes().toBytes());
+        assertEquals(in.available(), bytes.length);
         assertThat(in.readBoolean(), equalTo(false));
         assertThat(in.readByte(), equalTo((byte)1));
         assertThat(in.readShort(), equalTo((short)-1));
@@ -292,6 +309,15 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readString(), equalTo("hello"));
         assertThat(in.readString(), equalTo("goodbye"));
         assertThat(in.readGenericValue(), equalTo((Object)BytesRefs.toBytesRef("bytesref")));
+        assertThat(in.readStringArray(), equalTo(new String[] {"a", "b", "cat"}));
+        assertThat(in.readBytesReference(), equalTo(new BytesArray("test")));
+        assertThat(in.readOptionalBytesReference(), equalTo(new BytesArray("test")));
+        assertNull(in.readOptionalDouble());
+        assertThat(in.readOptionalDouble(), closeTo(1.2, 0.0001));
+        assertEquals(DateTimeZone.forID("CET"), in.readTimeZone());
+        assertEquals(DateTimeZone.getDefault(), in.readOptionalTimeZone());
+        assertNull(in.readOptionalTimeZone());
+        assertEquals(0, in.available());
         in.close();
         out.close();
     }
@@ -299,42 +325,38 @@ public class BytesStreamsTests extends ESTestCase {
     public void testNamedWriteable() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(BaseNamedWriteable.class, new TestNamedWriteable(null, null));
+        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new);
         TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
         out.writeNamedWriteable(namedWriteableIn);
-        StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytes()), namedWriteableRegistry);
+        byte[] bytes = out.bytes().toBytes();
+        StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry);
+        assertEquals(in.available(), bytes.length);
         BaseNamedWriteable namedWriteableOut = in.readNamedWriteable(BaseNamedWriteable.class);
         assertEquals(namedWriteableOut, namedWriteableIn);
+        assertEquals(in.available(), 0);
     }
 
     public void testNamedWriteableDuplicates() throws IOException {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(BaseNamedWriteable.class, new TestNamedWriteable(null, null));
-        try {
-            namedWriteableRegistry.registerPrototype(BaseNamedWriteable.class, new TestNamedWriteable(null, null));
-            fail("registerPrototype should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("named writeable of type [" + TestNamedWriteable.class.getName() + "] with name [" + TestNamedWriteable.NAME + "] is already registered by type ["
-                    + TestNamedWriteable.class.getName() + "] within category [" + BaseNamedWriteable.class.getName() + "]"));
-        }
+        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new));
+        assertThat(e.getMessage(), startsWith("named writeable [" + BaseNamedWriteable.class.getName() + "][" + TestNamedWriteable.NAME
+                + "] is already registered by ["));
     }
 
     public void testNamedWriteableUnknownCategory() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeNamedWriteable(new TestNamedWriteable("test1", "test2"));
         StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytes()), new NamedWriteableRegistry());
-        try {
-            //no named writeable registered with given name, can write but cannot read it back
-            in.readNamedWriteable(BaseNamedWriteable.class);
-            fail("read should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("unknown named writeable category [" + BaseNamedWriteable.class.getName() + "]"));
-        }
+        //no named writeable registered with given name, can write but cannot read it back
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> in.readNamedWriteable(BaseNamedWriteable.class));
+        assertThat(e.getMessage(), equalTo("unknown named writeable category [" + BaseNamedWriteable.class.getName() + "]"));
     }
 
     public void testNamedWriteableUnknownNamedWriteable() throws IOException {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(BaseNamedWriteable.class, new TestNamedWriteable(null, null));
+        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new);
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeNamedWriteable(new NamedWriteable() {
             @Override
@@ -345,11 +367,6 @@ public class BytesStreamsTests extends ESTestCase {
             @Override
             public void writeTo(StreamOutput out) throws IOException {
             }
-
-            @Override
-            public Object readFrom(StreamInput in) throws IOException {
-                return null;
-            }
         });
         StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytes()), namedWriteableRegistry);
         try {
@@ -357,7 +374,7 @@ public class BytesStreamsTests extends ESTestCase {
             in.readNamedWriteable(BaseNamedWriteable.class);
             fail("read should have failed");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("unknown named writeable with name [unknown] within category [" + BaseNamedWriteable.class.getName() + "]"));
+            assertThat(e.getMessage(), equalTo("unknown named writeable [" + BaseNamedWriteable.class.getName() + "][unknown]"));
         }
     }
 
@@ -374,11 +391,51 @@ public class BytesStreamsTests extends ESTestCase {
         }
     }
 
-    private static abstract class BaseNamedWriteable<T> implements NamedWriteable<T> {
+    public void testNamedWriteableReaderReturnsNull() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, (StreamInput in) -> null);
+        TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+        out.writeNamedWriteable(namedWriteableIn);
+        byte[] bytes = out.bytes().toBytes();
+        StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry);
+        assertEquals(in.available(), bytes.length);
+        IOException e = expectThrows(IOException.class, () -> in.readNamedWriteable(BaseNamedWriteable.class));
+        assertThat(e.getMessage(), endsWith("] returned null which is not allowed and probably means it screwed up the stream."));
+    }
+
+    public void testOptionalWriteableReaderReturnsNull() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeOptionalWriteable(new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
+        StreamInput in = StreamInput.wrap(out.bytes().toBytes());
+        IOException e = expectThrows(IOException.class, () -> in.readOptionalWriteable((StreamInput ignored) -> null));
+        assertThat(e.getMessage(), endsWith("] returned null which is not allowed and probably means it screwed up the stream."));
+    }
+
+    public void testWriteableReaderReturnsWrongName() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, (StreamInput in) -> new TestNamedWriteable(in) {
+            @Override
+            public String getWriteableName() {
+                return "intentionally-broken";
+            }
+        });
+        TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+        out.writeNamedWriteable(namedWriteableIn);
+        byte[] bytes = out.bytes().toBytes();
+        StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry);
+        assertEquals(in.available(), bytes.length);
+        AssertionError e = expectThrows(AssertionError.class, () -> in.readNamedWriteable(BaseNamedWriteable.class));
+        assertThat(e.getMessage(),
+                endsWith(" claims to have a different name [intentionally-broken] than it was read from [test-named-writeable]."));
+    }
+
+    private static abstract class BaseNamedWriteable implements NamedWriteable {
 
     }
 
-    private static class TestNamedWriteable extends BaseNamedWriteable<TestNamedWriteable> {
+    private static class TestNamedWriteable extends BaseNamedWriteable {
 
         private static final String NAME = "test-named-writeable";
 
@@ -390,6 +447,11 @@ public class BytesStreamsTests extends ESTestCase {
             this.field2 = field2;
         }
 
+        public TestNamedWriteable(StreamInput in) throws IOException {
+            field1 = in.readString();
+            field2 = in.readString();
+        }
+
         @Override
         public String getWriteableName() {
             return NAME;
@@ -399,11 +461,6 @@ public class BytesStreamsTests extends ESTestCase {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(field1);
             out.writeString(field2);
-        }
-
-        @Override
-        public TestNamedWriteable readFrom(StreamInput in) throws IOException {
-            return new TestNamedWriteable(in.readString(), in.readString());
         }
 
         @Override
@@ -465,7 +522,7 @@ public class BytesStreamsTests extends ESTestCase {
     // create & fill byte[] with randomized data
     protected byte[] randomizedByteArrayWithSize(int size) {
         byte[] data = new byte[size];
-        getRandom().nextBytes(data);
+        random().nextBytes(data);
         return data;
     }
 

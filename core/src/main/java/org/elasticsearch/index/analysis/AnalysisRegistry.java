@@ -29,7 +29,12 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
-import org.elasticsearch.indices.analysis.*;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.analysis.HunspellService;
+import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
+import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
+import org.elasticsearch.indices.analysis.PreBuiltTokenFilters;
+import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -52,7 +57,7 @@ public final class AnalysisRegistry implements Closeable {
     private final Map<String, Analyzer> cachedAnalyzer = new ConcurrentHashMap<>();
     private final PrebuiltAnalysis prebuiltAnalysis;
     private final HunspellService hunspellService;
-    private final Environment environemnt;
+    private final Environment environment;
 
     public AnalysisRegistry(HunspellService hunspellService, Environment environment) {
         this(hunspellService, environment, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
@@ -65,7 +70,7 @@ public final class AnalysisRegistry implements Closeable {
                             Map<String, AnalysisModule.AnalysisProvider<AnalyzerProvider>> analyzers) {
         prebuiltAnalysis = new PrebuiltAnalysis();
         this.hunspellService = hunspellService;
-        this.environemnt = environment;
+        this.environment = environment;
         final Map<String, AnalysisModule.AnalysisProvider<CharFilterFactory>> charFilterBuilder = new HashMap<>(charFilters);
         final Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> tokenFilterBuilder = new HashMap<>(tokenFilters);
         final Map<String, AnalysisModule.AnalysisProvider<TokenizerFactory>> tokenizerBuilder = new HashMap<>(tokenizers);
@@ -78,6 +83,10 @@ public final class AnalysisRegistry implements Closeable {
         this.tokenizers = Collections.unmodifiableMap(tokenizerBuilder);
         this.charFilters = Collections.unmodifiableMap(charFilterBuilder);
         this.analyzers = Collections.unmodifiableMap(analyzerBuilder);
+    }
+
+    public HunspellService getHunspellService() {
+        return hunspellService;
     }
 
     /**
@@ -110,13 +119,13 @@ public final class AnalysisRegistry implements Closeable {
             AnalysisModule.AnalysisProvider<AnalyzerProvider> provider = analyzers.get(analyzer);
             return provider == null ? null : cachedAnalyzer.computeIfAbsent(analyzer, (key) -> {
                         try {
-                            return provider.get(environemnt, key).get();
+                            return provider.get(environment, key).get();
                         } catch (IOException ex) {
                             throw new ElasticsearchException("failed to load analyzer for name " + key, ex);
                         }}
             );
         }
-        return analyzerProvider.get(environemnt, analyzer).get();
+        return analyzerProvider.get(environment, analyzer).get();
     }
 
     @Override
@@ -176,6 +185,7 @@ public final class AnalysisRegistry implements Closeable {
         tokenizers.put("standard", StandardTokenizerFactory::new);
         tokenizers.put("uax_url_email", UAX29URLEmailTokenizerFactory::new);
         tokenizers.put("path_hierarchy", PathHierarchyTokenizerFactory::new);
+        tokenizers.put("PathHierarchy", PathHierarchyTokenizerFactory::new);
         tokenizers.put("keyword", KeywordTokenizerFactory::new);
         tokenizers.put("letter", LetterTokenizerFactory::new);
         tokenizers.put("lowercase", LowerCaseTokenizerFactory::new);
@@ -248,6 +258,7 @@ public final class AnalysisRegistry implements Closeable {
         tokenFilters.put("apostrophe", ApostropheFilterFactory::new);
         tokenFilters.put("classic", ClassicFilterFactory::new);
         tokenFilters.put("decimal_digit", DecimalDigitFilterFactory::new);
+        tokenFilters.put("fingerprint", FingerprintTokenFilterFactory::new);
     }
 
     private void registerBuiltInAnalyzer(Map<String, AnalysisModule.AnalysisProvider<AnalyzerProvider>> analyzers) {
@@ -294,6 +305,7 @@ public final class AnalysisRegistry implements Closeable {
         analyzers.put("swedish", SwedishAnalyzerProvider::new);
         analyzers.put("turkish", TurkishAnalyzerProvider::new);
         analyzers.put("thai", ThaiAnalyzerProvider::new);
+        analyzers.put("fingerprint", FingerprintAnalyzerProvider::new);
     }
 
     private <T> Map<String, T> buildMapping(boolean analyzer, String toBuild, IndexSettings settings, Map<String, Settings> settingsMap, Map<String, AnalysisModule.AnalysisProvider<T>> providerMap, Map<String, AnalysisModule.AnalysisProvider<T>> defaultInstance) throws IOException {
@@ -318,7 +330,7 @@ public final class AnalysisRegistry implements Closeable {
                     if (type == null) {
                         throw new IllegalArgumentException("Unknown " + toBuild + " type [" + typeName + "] for [" + name + "]");
                     }
-                    factory = type.get(settings, environemnt, name, currentSettings);
+                    factory = type.get(settings, environment, name, currentSettings);
                 }
                 factories.put(name, factory);
             }  else {
@@ -329,7 +341,7 @@ public final class AnalysisRegistry implements Closeable {
                 if (type == null) {
                     throw new IllegalArgumentException("Unknown " + toBuild + " type [" + typeName + "] for [" + name + "]");
                 }
-                final T factory = type.get(settings, environemnt, name, currentSettings);
+                final T factory = type.get(settings, environment, name, currentSettings);
                 factories.put(name, factory);
             }
 
@@ -349,28 +361,20 @@ public final class AnalysisRegistry implements Closeable {
             AnalysisModule.AnalysisProvider<T> defaultProvider = defaultInstance.get(name);
             final T instance;
             if (defaultProvider == null) {
-                instance = provider.get(settings, environemnt, name, defaultSettings);
+                instance = provider.get(settings, environment, name, defaultSettings);
             } else {
-                instance = defaultProvider.get(settings, environemnt, name, defaultSettings);
+                instance = defaultProvider.get(settings, environment, name, defaultSettings);
             }
             factories.put(name, instance);
-            String camelCase = Strings.toCamelCase(name);
-            if (providerMap.containsKey(camelCase) == false && factories.containsKey(camelCase) == false) {
-                factories.put(camelCase, instance);
-            }
         }
 
         for (Map.Entry<String, AnalysisModule.AnalysisProvider<T>> entry : defaultInstance.entrySet()) {
             final String name = entry.getKey();
             final AnalysisModule.AnalysisProvider<T> provider = entry.getValue();
-            final String camelCase = Strings.toCamelCase(name);
-            if (factories.containsKey(name) == false || (defaultInstance.containsKey(camelCase) == false && factories.containsKey(camelCase) == false)) {
-                final T instance = provider.get(settings, environemnt, name, defaultSettings);
+            if (factories.containsKey(name) == false) {
+                final T instance = provider.get(settings, environment, name, defaultSettings);
                 if (factories.containsKey(name) == false) {
                     factories.put(name, instance);
-                }
-                if ((defaultInstance.containsKey(camelCase) == false && factories.containsKey(camelCase) == false)) {
-                    factories.put(camelCase, instance);
                 }
             }
         }
@@ -404,6 +408,7 @@ public final class AnalysisRegistry implements Closeable {
             // Tokenizer aliases
             tokenizerFactories.put("nGram", new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.NGRAM.getTokenizerFactory(Version.CURRENT)));
             tokenizerFactories.put("edgeNGram", new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.EDGE_NGRAM.getTokenizerFactory(Version.CURRENT)));
+            tokenizerFactories.put("PathHierarchy", new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.PATH_HIERARCHY.getTokenizerFactory(Version.CURRENT)));
 
 
             // Token filters

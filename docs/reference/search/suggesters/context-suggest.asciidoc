@@ -99,7 +99,7 @@ PUT place/shops/1
     ...
     "suggest": {
         "input": ["timmy's", "starbucks", "dunkin donuts"],
-        "context": {
+        "contexts": {
             "place_type": ["cafe", "food"] <1>
         }
     }
@@ -273,7 +273,7 @@ PUT place/shops/1
 {
     "suggest": {
         "input": "timmy's",
-        "context": [
+        "contexts": [
             "location": [
                 {
                     "lat": 43.6624803,
@@ -305,7 +305,7 @@ POST place/_suggest
         "completion" : {
             "field" : "suggest",
             "size": 10,
-            "context": {
+            "contexts": {
                 "location": {
                     "lat": 43.662,
                     "lon": -79.380

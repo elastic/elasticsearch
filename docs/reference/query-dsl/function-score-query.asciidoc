@@ -215,6 +215,22 @@ There are a number of options for the `field_value_factor` function:
     `log1p`, `log2p`, `ln`, `ln1p`, `ln2p`, `square`, `sqrt`, or `reciprocal`.
     Defaults to `none`.
 
+[cols="<,<",options="header",]
+|=======================================================================
+| Modifier | Meaning
+
+| `none` | Do not apply any multiplier to the field value
+| `log` | Take the https://en.wikipedia.org/wiki/Logarithm[logarithm] of the field value
+| `log1p` | Add 1 to the field value and take the logarithm
+| `log2p` | Add 2 to the field value and take the logarithm
+| `ln` | Take the https://en.wikipedia.org/wiki/Natural_logarithm[natural logarithm] of the field value
+| `ln1p` | Add 1 to the field value and take the natural logarithm
+| `ln2p` | Add 2 to the field value and take the natural logarithm
+| `square` | Square the field value (multiply it by itself)
+| `sqrt` | Take the https://en.wikipedia.org/wiki/Square_root[square root] of the field value
+| `reciprocal` | https://en.wikipedia.org/wiki/Multiplicative_inverse[Reciprocate] the field value, same as `1/x` where `x` is the field's value
+|=======================================================================
+
 `missing`::
 
     Value used if the document doesn't have that field. The modifier
@@ -300,9 +316,9 @@ location field. You want to compute a decay function depending on how
 far the hotel is from a given location. You might not immediately see
 what scale to choose for the gauss function, but you can say something
 like: "At a distance of 2km from the desired location, the score should
-be reduced by one third."
+be reduced to one third."
 The parameter "scale" will then be adjusted automatically to assure that
-the score function computes a score of 0.5 for hotels that are 2km away
+the score function computes a score of 0.33 for hotels that are 2km away
 from the desired location.
 
 

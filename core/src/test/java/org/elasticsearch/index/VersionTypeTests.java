@@ -192,24 +192,24 @@ public class VersionTypeTests extends ESTestCase {
     }
 
     public void testUpdateVersion() {
-        assertThat(VersionType.INTERNAL.updateVersion(Versions.NOT_SET, 10), equalTo(1l));
-        assertThat(VersionType.INTERNAL.updateVersion(Versions.NOT_FOUND, 10), equalTo(1l));
-        assertThat(VersionType.INTERNAL.updateVersion(1, 1), equalTo(2l));
-        assertThat(VersionType.INTERNAL.updateVersion(2, Versions.MATCH_ANY), equalTo(3l));
+        assertThat(VersionType.INTERNAL.updateVersion(Versions.NOT_SET, 10), equalTo(1L));
+        assertThat(VersionType.INTERNAL.updateVersion(Versions.NOT_FOUND, 10), equalTo(1L));
+        assertThat(VersionType.INTERNAL.updateVersion(1, 1), equalTo(2L));
+        assertThat(VersionType.INTERNAL.updateVersion(2, Versions.MATCH_ANY), equalTo(3L));
 
 
-        assertThat(VersionType.EXTERNAL.updateVersion(Versions.NOT_SET, 10), equalTo(10l));
-        assertThat(VersionType.EXTERNAL.updateVersion(Versions.NOT_FOUND, 10), equalTo(10l));
-        assertThat(VersionType.EXTERNAL.updateVersion(1, 10), equalTo(10l));
+        assertThat(VersionType.EXTERNAL.updateVersion(Versions.NOT_SET, 10), equalTo(10L));
+        assertThat(VersionType.EXTERNAL.updateVersion(Versions.NOT_FOUND, 10), equalTo(10L));
+        assertThat(VersionType.EXTERNAL.updateVersion(1, 10), equalTo(10L));
 
-        assertThat(VersionType.EXTERNAL_GTE.updateVersion(Versions.NOT_SET, 10), equalTo(10l));
-        assertThat(VersionType.EXTERNAL_GTE.updateVersion(Versions.NOT_FOUND, 10), equalTo(10l));
-        assertThat(VersionType.EXTERNAL_GTE.updateVersion(1, 10), equalTo(10l));
-        assertThat(VersionType.EXTERNAL_GTE.updateVersion(10, 10), equalTo(10l));
+        assertThat(VersionType.EXTERNAL_GTE.updateVersion(Versions.NOT_SET, 10), equalTo(10L));
+        assertThat(VersionType.EXTERNAL_GTE.updateVersion(Versions.NOT_FOUND, 10), equalTo(10L));
+        assertThat(VersionType.EXTERNAL_GTE.updateVersion(1, 10), equalTo(10L));
+        assertThat(VersionType.EXTERNAL_GTE.updateVersion(10, 10), equalTo(10L));
 
-        assertThat(VersionType.FORCE.updateVersion(Versions.NOT_SET, 10), equalTo(10l));
-        assertThat(VersionType.FORCE.updateVersion(Versions.NOT_FOUND, 10), equalTo(10l));
-        assertThat(VersionType.FORCE.updateVersion(11, 10), equalTo(10l));
+        assertThat(VersionType.FORCE.updateVersion(Versions.NOT_SET, 10), equalTo(10L));
+        assertThat(VersionType.FORCE.updateVersion(Versions.NOT_FOUND, 10), equalTo(10L));
+        assertThat(VersionType.FORCE.updateVersion(11, 10), equalTo(10L));
 
 // Old indexing code
 //        if (index.versionType() == VersionType.INTERNAL) { // internal version type

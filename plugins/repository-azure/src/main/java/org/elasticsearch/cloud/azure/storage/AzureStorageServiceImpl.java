@@ -22,8 +22,13 @@ package org.elasticsearch.cloud.azure.storage;
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
-import com.microsoft.azure.storage.blob.*;
+import com.microsoft.azure.storage.blob.BlobProperties;
+import com.microsoft.azure.storage.blob.CloudBlobClient;
+import com.microsoft.azure.storage.blob.CloudBlobContainer;
+import com.microsoft.azure.storage.blob.CloudBlockBlob;
+import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -37,7 +42,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.Map;
 
 public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureStorageServiceImpl>
@@ -47,7 +52,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     final Map<String, AzureStorageSettings> secondariesStorageSettings;
 
     final Map<String, CloudBlobClient> clients;
-    
+
     @Inject
     public AzureStorageServiceImpl(Settings settings) {
         super(settings);
@@ -56,7 +61,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         this.primaryStorageSettings = storageSettings.v1();
         this.secondariesStorageSettings = storageSettings.v2();
 
-        this.clients = new Hashtable<>();
+        this.clients = new HashMap<>();
     }
 
     void createClient(AzureStorageSettings azureStorageSettings) {
@@ -81,22 +86,22 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
             logger.error("can not create azure storage client: {}", e.getMessage());
         }
     }
-    
+
     CloudBlobClient getSelectedClient(String account, LocationMode mode) {
         logger.trace("selecting a client for account [{}], mode [{}]", account, mode.name());
         AzureStorageSettings azureStorageSettings = null;
 
-        if (this.primaryStorageSettings == null || this.secondariesStorageSettings.isEmpty()) {
-            throw new IllegalArgumentException("No azure storage can be found. Check your elasticsearch.yml.");
+        if (this.primaryStorageSettings == null) {
+            throw new IllegalArgumentException("No primary azure storage can be found. Check your elasticsearch.yml.");
         }
 
-        if (account != null) {
+        if (Strings.hasLength(account)) {
             azureStorageSettings = this.secondariesStorageSettings.get(account);
         }
 
         // if account is not secondary, it's the primary
         if (azureStorageSettings == null) {
-            if (account == null || primaryStorageSettings.getName() == null || account.equals(primaryStorageSettings.getName())) {
+            if (Strings.hasLength(account) == false || primaryStorageSettings.getName() == null || account.equals(primaryStorageSettings.getName())) {
                 azureStorageSettings = primaryStorageSettings;
             }
         }
@@ -115,9 +120,20 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         // NOTE: for now, just set the location mode in case it is different;
         // only one mode per storage account can be active at a time
         client.getDefaultRequestOptions().setLocationMode(mode);
+
+        // Set timeout option if the user sets cloud.azure.storage.timeout or cloud.azure.storage.xxx.timeout (it's negative by default)
+        if (azureStorageSettings.getTimeout().getSeconds() > 0) {
+            try {
+                int timeout = (int) azureStorageSettings.getTimeout().getMillis();
+                client.getDefaultRequestOptions().setTimeoutIntervalInMs(timeout);
+            } catch (ClassCastException e) {
+                throw new IllegalArgumentException("Can not convert [" + azureStorageSettings.getTimeout() +
+                    "]. It can not be longer than 2,147,483,647ms.");
+            }
+        }
         return client;
     }
-    
+
     @Override
     public boolean doesContainerExist(String account, LocationMode mode, String container) {
         try {
@@ -153,7 +169,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
             logger.trace("creating container [{}]", container);
             blob_container.createIfNotExists();
         } catch (IllegalArgumentException e) {
-            logger.trace("fails creating container [{}]", container, e.getMessage());
+            logger.trace("fails creating container [{}]", e, container);
             throw new RepositoryException(container, e.getMessage());
         }
     }
@@ -217,9 +233,9 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(String account, LocationMode mode, String container, String keyPath, String prefix) throws URISyntaxException, StorageException {
         // NOTE: this should be here: if (prefix == null) prefix = "";
-        // however, this is really inefficient since deleteBlobsByPrefix enumerates everything and 
+        // however, this is really inefficient since deleteBlobsByPrefix enumerates everything and
         // then does a prefix match on the result; it should just call listBlobsByPrefix with the prefix!
-        
+
         logger.debug("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix);
         MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
 
@@ -259,7 +275,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         CloudBlockBlob blobSource = blob_container.getBlockBlobReference(sourceBlob);
         if (blobSource.exists()) {
             CloudBlockBlob blobTarget = blob_container.getBlockBlobReference(targetBlob);
-            blobTarget.startCopyFromBlob(blobSource);
+            blobTarget.startCopy(blobSource);
             blobSource.delete();
             logger.debug("moveBlob container [{}], sourceBlob [{}], targetBlob [{}] -> done", container, sourceBlob, targetBlob);
         }

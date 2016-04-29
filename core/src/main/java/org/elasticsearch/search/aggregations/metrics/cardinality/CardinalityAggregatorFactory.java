@@ -20,6 +20,9 @@
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -31,30 +34,32 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource> {
+public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, CardinalityAggregatorFactory> {
 
-    private final long precisionThreshold;
+    private final Long precisionThreshold;
 
-    CardinalityAggregatorFactory(String name, ValuesSourceConfig config, long precisionThreshold) {
-        super(name, InternalCardinality.TYPE.name(), config);
+    public CardinalityAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource> config, Long precisionThreshold,
+            AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            Map<String, Object> metaData) throws IOException {
+        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
         this.precisionThreshold = precisionThreshold;
     }
 
-    private int precision(Aggregator parent) {
-        return precisionThreshold < 0 ? defaultPrecision(parent) : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
-    }
-
     @Override
-    protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new CardinalityAggregator(name, null, precision(parent), config.formatter(), context, parent, pipelineAggregators, metaData);
+        return new CardinalityAggregator(name, null, precision(parent), context, parent, pipelineAggregators, metaData);
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new CardinalityAggregator(name, valuesSource, precision(parent), config.formatter(), context, parent, pipelineAggregators,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        return new CardinalityAggregator(name, valuesSource, precision(parent), context, parent, pipelineAggregators,
                 metaData);
+    }
+
+    private int precision(Aggregator parent) {
+        return precisionThreshold == null ? defaultPrecision(parent) : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
     }
 
     /*
@@ -66,7 +71,7 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory.L
         int precision = HyperLogLogPlusPlus.DEFAULT_PRECISION;
         while (parent != null) {
             if (parent instanceof SingleBucketAggregator == false) {
-                // if the parent creates buckets, we substract 5 to the precision,
+                // if the parent creates buckets, we subtract 5 to the precision,
                 // which will effectively divide the memory usage of each counter by 32
                 precision -= 5;
             }
@@ -75,5 +80,4 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory.L
 
         return Math.max(precision, HyperLogLogPlusPlus.MIN_PRECISION);
     }
-
 }

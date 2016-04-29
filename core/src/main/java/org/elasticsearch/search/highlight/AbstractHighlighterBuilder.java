@@ -21,28 +21,36 @@ package org.elasticsearch.search.highlight;
 
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.highlight.HighlightBuilder.Order;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
+
+import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 
 /**
  * This abstract class holds parameters shared by {@link HighlightBuilder} and {@link HighlightBuilder.Field}
  * and provides the common setters, equality, hashCode calculation and common serialization
  */
-public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> {
-
+public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> extends ToXContentToBytes implements Writeable {
     public static final ParseField PRE_TAGS_FIELD = new ParseField("pre_tags");
     public static final ParseField POST_TAGS_FIELD = new ParseField("post_tags");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
     public static final ParseField ORDER_FIELD = new ParseField("order");
-    public static final ParseField TAGS_SCHEMA_FIELD = new ParseField("tags_schema");
     public static final ParseField HIGHLIGHT_FILTER_FIELD = new ParseField("highlight_filter");
     public static final ParseField FRAGMENT_SIZE_FIELD = new ParseField("fragment_size");
     public static final ParseField FRAGMENT_OFFSET_FIELD = new ParseField("fragment_offset");
@@ -74,7 +82,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     protected QueryBuilder<?> highlightQuery;
 
-    protected String order;
+    protected Order order;
 
     protected Boolean highlightFilter;
 
@@ -91,6 +99,75 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     protected Map<String, Object> options;
 
     protected Boolean requireFieldMatch;
+
+    public AbstractHighlighterBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected AbstractHighlighterBuilder(StreamInput in) throws IOException {
+        preTags(in.readOptionalStringArray());
+        postTags(in.readOptionalStringArray());
+        fragmentSize(in.readOptionalVInt());
+        numOfFragments(in.readOptionalVInt());
+        highlighterType(in.readOptionalString());
+        fragmenter(in.readOptionalString());
+        if (in.readBoolean()) {
+            highlightQuery(in.readNamedWriteable(QueryBuilder.class));
+        }
+        order(in.readOptionalWriteable(Order::readFromStream));
+        highlightFilter(in.readOptionalBoolean());
+        forceSource(in.readOptionalBoolean());
+        boundaryMaxScan(in.readOptionalVInt());
+        if (in.readBoolean()) {
+            boundaryChars(in.readString().toCharArray());
+        }
+        noMatchSize(in.readOptionalVInt());
+        phraseLimit(in.readOptionalVInt());
+        if (in.readBoolean()) {
+            options(in.readMap());
+        }
+        requireFieldMatch(in.readOptionalBoolean());
+    }
+
+    /**
+     * write common parameters to {@link StreamOutput}
+     */
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalStringArray(preTags);
+        out.writeOptionalStringArray(postTags);
+        out.writeOptionalVInt(fragmentSize);
+        out.writeOptionalVInt(numOfFragments);
+        out.writeOptionalString(highlighterType);
+        out.writeOptionalString(fragmenter);
+        boolean hasQuery = highlightQuery != null;
+        out.writeBoolean(hasQuery);
+        if (hasQuery) {
+            out.writeNamedWriteable(highlightQuery);
+        }
+        out.writeOptionalWriteable(order);
+        out.writeOptionalBoolean(highlightFilter);
+        out.writeOptionalBoolean(forceSource);
+        out.writeOptionalVInt(boundaryMaxScan);
+        boolean hasBounaryChars = boundaryChars != null;
+        out.writeBoolean(hasBounaryChars);
+        if (hasBounaryChars) {
+            out.writeString(String.valueOf(boundaryChars));
+        }
+        out.writeOptionalVInt(noMatchSize);
+        out.writeOptionalVInt(phraseLimit);
+        boolean hasOptions = options != null;
+        out.writeBoolean(hasOptions);
+        if (hasOptions) {
+            out.writeMap(options);
+        }
+        out.writeOptionalBoolean(requireFieldMatch);
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     /**
      * Set the pre tags that will be used for highlighting.
@@ -125,7 +202,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * Set the fragment size in characters, defaults to {@link HighlighterParseElement#DEFAULT_FRAGMENT_CHAR_SIZE}
+     * Set the fragment size in characters, defaults to {@link HighlightBuilder#DEFAULT_FRAGMENT_CHAR_SIZE}
      */
     @SuppressWarnings("unchecked")
     public HB fragmentSize(Integer fragmentSize) {
@@ -141,7 +218,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * Set the number of fragments, defaults to {@link HighlighterParseElement#DEFAULT_NUMBER_OF_FRAGMENTS}
+     * Set the number of fragments, defaults to {@link HighlightBuilder#DEFAULT_NUMBER_OF_FRAGMENTS}
      */
     @SuppressWarnings("unchecked")
     public HB numOfFragments(Integer numOfFragments) {
@@ -213,18 +290,26 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     /**
      * The order of fragments per field. By default, ordered by the order in the
      * highlighted text. Can be <tt>score</tt>, which then it will be ordered
-     * by score of the fragments.
+     * by score of the fragments, or <tt>none</TT>.
+     */
+    public HB order(String order) {
+        return order(Order.fromString(order));
+    }
+
+    /**
+     * By default, fragments of a field are ordered by the order in the highlighted text.
+     * If set to {@link Order#SCORE}, this changes order to score of the fragments.
      */
     @SuppressWarnings("unchecked")
-    public HB order(String order) {
-        this.order = order;
+    public HB order(Order scoreOrdered) {
+        this.order = scoreOrdered;
         return (HB) this;
     }
 
     /**
-     * @return the value set by {@link #order(String)}
+     * @return the value set by {@link #order(Order)}
      */
-    public String order() {
+    public Order order() {
         return this.order;
     }
 
@@ -349,7 +434,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
      * @return the value set by {@link #phraseLimit(Integer)}
      */
     public Integer phraseLimit() {
-        return this.noMatchSize;
+        return this.phraseLimit;
     }
 
     /**
@@ -367,6 +452,16 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public Boolean forceSource() {
         return this.forceSource;
     }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        innerXContent(builder);
+        builder.endObject();
+        return builder;
+    }
+
+    protected abstract void innerXContent(XContentBuilder builder) throws IOException;
 
     void commonOptionsToXContent(XContentBuilder builder) throws IOException {
         if (preTags != null) {
@@ -391,7 +486,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             builder.field(HIGHLIGHT_QUERY_FIELD.getPreferredName(), highlightQuery);
         }
         if (order != null) {
-            builder.field(ORDER_FIELD.getPreferredName(), order);
+            builder.field(ORDER_FIELD.getPreferredName(), order.toString());
         }
         if (highlightFilter != null) {
             builder.field(HIGHLIGHT_FILTER_FIELD.getPreferredName(), highlightFilter);
@@ -419,6 +514,50 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         }
     }
 
+    static <HB extends AbstractHighlighterBuilder<HB>> BiFunction<QueryParseContext, HB, HB> setupParser(
+            ObjectParser<HB, QueryParseContext> parser) {
+        parser.declareStringArray(fromList(String.class, HB::preTags), PRE_TAGS_FIELD);
+        parser.declareStringArray(fromList(String.class, HB::postTags), POST_TAGS_FIELD);
+        parser.declareString(HB::order, ORDER_FIELD);
+        parser.declareBoolean(HB::highlightFilter, HIGHLIGHT_FILTER_FIELD);
+        parser.declareInt(HB::fragmentSize, FRAGMENT_SIZE_FIELD);
+        parser.declareInt(HB::numOfFragments, NUMBER_OF_FRAGMENTS_FIELD);
+        parser.declareBoolean(HB::requireFieldMatch, REQUIRE_FIELD_MATCH_FIELD);
+        parser.declareInt(HB::boundaryMaxScan, BOUNDARY_MAX_SCAN_FIELD);
+        parser.declareString((HB hb, String bc) -> hb.boundaryChars(bc.toCharArray()) , BOUNDARY_CHARS_FIELD);
+        parser.declareString(HB::highlighterType, TYPE_FIELD);
+        parser.declareString(HB::fragmenter, FRAGMENTER_FIELD);
+        parser.declareInt(HB::noMatchSize, NO_MATCH_SIZE_FIELD);
+        parser.declareBoolean(HB::forceSource, FORCE_SOURCE_FIELD);
+        parser.declareInt(HB::phraseLimit, PHRASE_LIMIT_FIELD);
+        parser.declareObject(HB::options, (XContentParser p, QueryParseContext c) -> {
+            try {
+                return p.map();
+            } catch (IOException e) {
+                throw new RuntimeException("Error parsing options", e);
+            }
+        }, OPTIONS_FIELD);
+        parser.declareObject(HB::highlightQuery, (XContentParser p, QueryParseContext c) -> {
+            try {
+                return c.parseInnerQueryBuilder();
+            } catch (IOException e) {
+                throw new RuntimeException("Error parsing query", e);
+            }
+        }, HIGHLIGHT_QUERY_FIELD);
+        return (QueryParseContext c, HB hb) -> {
+            try {
+                parser.parse(c.parser(), hb, c);
+                if (hb.preTags() != null && hb.postTags() == null) {
+                    throw new ParsingException(c.parser().getTokenLocation(),
+                            "pre_tags are set but post_tags are not set");
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return hb;
+        };
+    }
+
     @Override
     public final int hashCode() {
         return Objects.hash(getClass(), Arrays.hashCode(preTags), Arrays.hashCode(postTags), fragmentSize,
@@ -428,7 +567,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * internal hashCode calculation to overwrite for the implementing classes.
+     * fields only present in subclass should contribute to hashCode in the implementation
      */
     protected abstract int doHashCode();
 
@@ -462,71 +601,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * internal equals to overwrite for the implementing classes.
+     * fields only present in subclass should be checked for equality in the implementation
      */
     protected abstract boolean doEquals(HB other);
-
-    /**
-     * read common parameters from {@link StreamInput}
-     */
-    @SuppressWarnings("unchecked")
-    protected HB readOptionsFrom(StreamInput in) throws IOException {
-        preTags(in.readOptionalStringArray());
-        postTags(in.readOptionalStringArray());
-        fragmentSize(in.readOptionalVInt());
-        numOfFragments(in.readOptionalVInt());
-        highlighterType(in.readOptionalString());
-        fragmenter(in.readOptionalString());
-        if (in.readBoolean()) {
-            highlightQuery(in.readQuery());
-        }
-        order(in.readOptionalString());
-        highlightFilter(in.readOptionalBoolean());
-        forceSource(in.readOptionalBoolean());
-        boundaryMaxScan(in.readOptionalVInt());
-        if (in.readBoolean()) {
-            boundaryChars(in.readString().toCharArray());
-        }
-        noMatchSize(in.readOptionalVInt());
-        phraseLimit(in.readOptionalVInt());
-        if (in.readBoolean()) {
-            options(in.readMap());
-        }
-        requireFieldMatch(in.readOptionalBoolean());
-        return (HB) this;
-    }
-
-    /**
-     * write common parameters to {@link StreamOutput}
-     */
-    protected void writeOptionsTo(StreamOutput out) throws IOException {
-        out.writeOptionalStringArray(preTags);
-        out.writeOptionalStringArray(postTags);
-        out.writeOptionalVInt(fragmentSize);
-        out.writeOptionalVInt(numOfFragments);
-        out.writeOptionalString(highlighterType);
-        out.writeOptionalString(fragmenter);
-        boolean hasQuery = highlightQuery != null;
-        out.writeBoolean(hasQuery);
-        if (hasQuery) {
-            out.writeQuery(highlightQuery);
-        }
-        out.writeOptionalString(order);
-        out.writeOptionalBoolean(highlightFilter);
-        out.writeOptionalBoolean(forceSource);
-        out.writeOptionalVInt(boundaryMaxScan);
-        boolean hasBounaryChars = boundaryChars != null;
-        out.writeBoolean(hasBounaryChars);
-        if (hasBounaryChars) {
-            out.writeString(String.valueOf(boundaryChars));
-        }
-        out.writeOptionalVInt(noMatchSize);
-        out.writeOptionalVInt(phraseLimit);
-        boolean hasOptions = options != null;
-        out.writeBoolean(hasOptions);
-        if (hasOptions) {
-            out.writeMap(options);
-        }
-        out.writeOptionalBoolean(requireFieldMatch);
-    }
 }

@@ -156,7 +156,7 @@ def remove_plugin(version, release_dir, plugin_name):
   run_plugin(version, release_dir, 'remove', [plugin_name])
 
 def run_plugin(version, release_dir, plugin_cmd, args):
-  cmd = [os.path.join(release_dir, 'bin/plugin'), plugin_cmd] + args
+  cmd = [os.path.join(release_dir, 'bin/elasticsearch-plugin'), plugin_cmd] + args
   subprocess.check_call(cmd)
 
 def create_client(http_port=DEFAULT_HTTP_TCP_PORT, timeout=30):
@@ -247,6 +247,34 @@ def generate_index(client, version, index_name):
       }
     }
 
+  mappings['norms'] = {
+    'properties': {
+      'string_with_norms_disabled': {
+        'type': 'string',
+        'norms': {
+          'enabled': False
+        }
+      },
+      'string_with_norms_enabled': {
+        'type': 'string',
+        'index': 'not_analyzed',
+        'norms': {
+          'enabled': True,
+          'loading': 'eager'
+        }
+      }
+    }
+  }
+
+  mappings['doc'] = {
+    'properties': {
+      'string': {
+        'type': 'string',
+        'boost': 4
+      }
+    }
+  }
+
   settings = {
     'number_of_shards': 1,
     'number_of_replicas': 0,
@@ -257,10 +285,19 @@ def generate_index(client, version, index_name):
     # Same as ES default (5 GB), but missing the units to make sure they are inserted on upgrade:
     settings['merge.policy.max_merged_segment'] = '5368709120'
     
+  warmers = {}
+  warmers['warmer1'] = {
+    'source': {
+      'query': {
+        'match_all': {}
+      }
+    }
+  }
 
   client.indices.create(index=index_name, body={
       'settings': settings,
-      'mappings': mappings
+      'mappings': mappings,
+      'warmers': warmers
   })
   health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
   assert health['timed_out'] == False, 'cluster health timed out %s' % health

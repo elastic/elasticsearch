@@ -61,7 +61,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     }
 
     @Override
-    public ClusterHealthRequest indices(String[] indices) {
+    public ClusterHealthRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }

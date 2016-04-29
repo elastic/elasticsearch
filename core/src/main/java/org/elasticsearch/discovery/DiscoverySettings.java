@@ -22,10 +22,11 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.EnumSet;
@@ -35,42 +36,49 @@ import java.util.EnumSet;
  */
 public class DiscoverySettings extends AbstractComponent {
 
+    public final static int NO_MASTER_BLOCK_ID = 2;
+    public final static ClusterBlock NO_MASTER_BLOCK_ALL = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
+    public final static ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
     /**
      * sets the timeout for a complete publishing cycle, including both sending and committing. the master
-     * will continute to process the next cluster state update after this time has elapsed
+     * will continue to process the next cluster state update after this time has elapsed
      **/
-    public static final String PUBLISH_TIMEOUT = "discovery.zen.publish_timeout";
+    public static final Setting<TimeValue> PUBLISH_TIMEOUT_SETTING =
+        Setting.positiveTimeSetting("discovery.zen.publish_timeout", TimeValue.timeValueSeconds(30),
+            Property.Dynamic, Property.NodeScope);
 
     /**
      * sets the timeout for receiving enough acks for a specific cluster state and committing it. failing
      * to receive responses within this window will cause the cluster state change to be rejected.
      */
-    public static final String COMMIT_TIMEOUT = "discovery.zen.commit_timeout";
-    public static final String NO_MASTER_BLOCK = "discovery.zen.no_master_block";
-    public static final String PUBLISH_DIFF_ENABLE = "discovery.zen.publish_diff.enable";
-
-    public static final TimeValue DEFAULT_PUBLISH_TIMEOUT = TimeValue.timeValueSeconds(30);
-    public static final TimeValue DEFAULT_COMMIT_TIMEOUT = TimeValue.timeValueSeconds(30);
-    public static final String DEFAULT_NO_MASTER_BLOCK = "write";
-    public final static int NO_MASTER_BLOCK_ID = 2;
-    public final static boolean DEFAULT_PUBLISH_DIFF_ENABLE = true;
-
-    public final static ClusterBlock NO_MASTER_BLOCK_ALL = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
-    public final static ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
+    public static final Setting<TimeValue> COMMIT_TIMEOUT_SETTING =
+        new Setting<>("discovery.zen.commit_timeout", (s) -> PUBLISH_TIMEOUT_SETTING.getRaw(s),
+            (s) -> TimeValue.parseTimeValue(s, TimeValue.timeValueSeconds(30), "discovery.zen.commit_timeout"),
+            Property.Dynamic, Property.NodeScope);
+    public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING =
+        new Setting<>("discovery.zen.no_master_block", "write", DiscoverySettings::parseNoMasterBlock,
+            Property.Dynamic, Property.NodeScope);
+    public static final Setting<Boolean> PUBLISH_DIFF_ENABLE_SETTING =
+        Setting.boolSetting("discovery.zen.publish_diff.enable", true, Property.Dynamic, Property.NodeScope);
+    public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING =
+        Setting.positiveTimeSetting("discovery.initial_state_timeout", TimeValue.timeValueSeconds(30), Property.NodeScope);
 
     private volatile ClusterBlock noMasterBlock;
     private volatile TimeValue publishTimeout;
+
     private volatile TimeValue commitTimeout;
     private volatile boolean publishDiff;
 
-    @Inject
-    public DiscoverySettings(Settings settings, NodeSettingsService nodeSettingsService) {
+    public DiscoverySettings(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
-        nodeSettingsService.addListener(new ApplySettings());
-        this.noMasterBlock = parseNoMasterBlock(settings.get(NO_MASTER_BLOCK, DEFAULT_NO_MASTER_BLOCK));
-        this.publishTimeout = settings.getAsTime(PUBLISH_TIMEOUT, DEFAULT_PUBLISH_TIMEOUT);
-        this.commitTimeout = settings.getAsTime(COMMIT_TIMEOUT, new TimeValue(Math.min(DEFAULT_COMMIT_TIMEOUT.millis(), publishTimeout.millis())));
-        this.publishDiff = settings.getAsBoolean(PUBLISH_DIFF_ENABLE, DEFAULT_PUBLISH_DIFF_ENABLE);
+        clusterSettings.addSettingsUpdateConsumer(NO_MASTER_BLOCK_SETTING, this::setNoMasterBlock);
+        clusterSettings.addSettingsUpdateConsumer(PUBLISH_DIFF_ENABLE_SETTING, this::setPublishDiff);
+        clusterSettings.addSettingsUpdateConsumer(COMMIT_TIMEOUT_SETTING, this::setCommitTimeout);
+        clusterSettings.addSettingsUpdateConsumer(PUBLISH_TIMEOUT_SETTING, this::setPublishTimeout);
+        this.noMasterBlock = NO_MASTER_BLOCK_SETTING.get(settings);
+        this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
+        this.commitTimeout = COMMIT_TIMEOUT_SETTING.get(settings);
+        this.publishDiff = PUBLISH_DIFF_ENABLE_SETTING.get(settings);
     }
 
     /**
@@ -88,47 +96,25 @@ public class DiscoverySettings extends AbstractComponent {
         return noMasterBlock;
     }
 
-    public boolean getPublishDiff() { return publishDiff;}
-
-    private class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            TimeValue newPublishTimeout = settings.getAsTime(PUBLISH_TIMEOUT, null);
-            if (newPublishTimeout != null) {
-                if (newPublishTimeout.millis() != publishTimeout.millis()) {
-                    logger.info("updating [{}] from [{}] to [{}]", PUBLISH_TIMEOUT, publishTimeout, newPublishTimeout);
-                    publishTimeout = newPublishTimeout;
-                    if (settings.getAsTime(COMMIT_TIMEOUT, null) == null && commitTimeout.millis() > publishTimeout.millis()) {
-                        logger.info("reducing default [{}] to [{}] due to publish timeout change", COMMIT_TIMEOUT, publishTimeout);
-                        commitTimeout = publishTimeout;
-                    }
-                }
-            }
-            TimeValue newCommitTimeout = settings.getAsTime(COMMIT_TIMEOUT, null);
-            if (newCommitTimeout != null) {
-                if (newCommitTimeout.millis() != commitTimeout.millis()) {
-                    logger.info("updating [{}] from [{}] to [{}]", COMMIT_TIMEOUT, commitTimeout, newCommitTimeout);
-                    commitTimeout = newCommitTimeout;
-                }
-            }
-            String newNoMasterBlockValue = settings.get(NO_MASTER_BLOCK);
-            if (newNoMasterBlockValue != null) {
-                ClusterBlock newNoMasterBlock = parseNoMasterBlock(newNoMasterBlockValue);
-                if (newNoMasterBlock != noMasterBlock) {
-                    noMasterBlock = newNoMasterBlock;
-                }
-            }
-            Boolean newPublishDiff = settings.getAsBoolean(PUBLISH_DIFF_ENABLE, null);
-            if (newPublishDiff != null) {
-                if (newPublishDiff != publishDiff) {
-                    logger.info("updating [{}] from [{}] to [{}]", PUBLISH_DIFF_ENABLE, publishDiff, newPublishDiff);
-                    publishDiff = newPublishDiff;
-                }
-            }
-        }
+    private void setNoMasterBlock(ClusterBlock noMasterBlock) {
+        this.noMasterBlock = noMasterBlock;
     }
 
-    private ClusterBlock parseNoMasterBlock(String value) {
+    private void setPublishDiff(boolean publishDiff) {
+        this.publishDiff = publishDiff;
+    }
+
+    private void setPublishTimeout(TimeValue publishTimeout) {
+        this.publishTimeout = publishTimeout;
+    }
+
+    private void setCommitTimeout(TimeValue commitTimeout) {
+        this.commitTimeout = commitTimeout;
+    }
+
+    public boolean getPublishDiff() { return publishDiff;}
+
+    private static ClusterBlock parseNoMasterBlock(String value) {
         switch (value) {
             case "all":
                 return NO_MASTER_BLOCK_ALL;

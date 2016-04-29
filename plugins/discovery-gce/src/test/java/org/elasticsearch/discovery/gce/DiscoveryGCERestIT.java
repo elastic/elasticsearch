@@ -21,21 +21,13 @@ package org.elasticsearch.discovery.gce;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
-import java.util.Collection;
 
 public class DiscoveryGCERestIT extends ESRestTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(GceDiscoveryPlugin.class);
-    }
 
     public DiscoveryGCERestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

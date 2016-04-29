@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.aws.node;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -45,7 +46,7 @@ public class Ec2CustomNodeAttributes extends AbstractComponent implements Discov
 
     @Override
     public Map<String, String> buildAttributes() {
-        if (!settings.getAsBoolean("cloud.node.auto_attributes", false)) {
+        if (AwsEc2Service.AUTO_ATTRIBUTE_SETTING.get(settings) == false) {
             return null;
         }
         Map<String, String> ec2Attributes = new HashMap<>();

@@ -142,8 +142,8 @@ include::search.asciidoc[]
 
 include::aggs.asciidoc[]
 
-include::percolate.asciidoc[]
-
 include::query-dsl.asciidoc[]
 
 include::indexed-scripts.asciidoc[]
+
+include::admin/index.asciidoc[]

@@ -19,24 +19,24 @@
 
 package org.elasticsearch.messy.tests;
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.groovy.GroovyPlugin;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.test.ESIntegTestCase;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -94,7 +94,7 @@ public class FunctionScoreTests extends ESIntegTestCase {
         assertSearchResponse(response);
         assertThat(response.getHits().getAt(0).score(), equalTo(1.0f));
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getKeyAsString(), equalTo("1.0"));
-        assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1l));
+        assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
     }
 
     public void testMinScoreFunctionScoreBasic() throws IOException {
@@ -109,21 +109,21 @@ public class FunctionScoreTests extends ESIntegTestCase {
                                 functionScoreQuery(scriptFunction(new Script(Float.toString(score)))).setMinScore(minScore)))
         ).actionGet();
         if (score < minScore) {
-            assertThat(searchResponse.getHits().getTotalHits(), is(0l));
+            assertThat(searchResponse.getHits().getTotalHits(), is(0L));
         } else {
-            assertThat(searchResponse.getHits().getTotalHits(), is(1l));
+            assertThat(searchResponse.getHits().getTotalHits(), is(1L));
         }
 
         searchResponse = client().search(
-                searchRequest().source(searchSource().query(functionScoreQuery(new MatchAllQueryBuilder(), new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
-                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(new Script(Float.toString(score)))),
-                                new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(new Script(Float.toString(score))))
+                searchRequest().source(searchSource().query(functionScoreQuery(new MatchAllQueryBuilder(), new FilterFunctionBuilder[] {
+                                new FilterFunctionBuilder(scriptFunction(new Script(Float.toString(score)))),
+                                new FilterFunctionBuilder(scriptFunction(new Script(Float.toString(score))))
                         }).scoreMode(FiltersFunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)))
                 ).actionGet();
         if (score < minScore) {
-            assertThat(searchResponse.getHits().getTotalHits(), is(0l));
+            assertThat(searchResponse.getHits().getTotalHits(), is(0L));
         } else {
-            assertThat(searchResponse.getHits().getTotalHits(), is(1l));
+            assertThat(searchResponse.getHits().getTotalHits(), is(1L));
         }
     }
 
@@ -152,9 +152,9 @@ public class FunctionScoreTests extends ESIntegTestCase {
         assertMinScoreSearchResponses(numDocs, searchResponse, numMatchingDocs);
 
         searchResponse = client().search(
-                searchRequest().source(searchSource().query(functionScoreQuery(new MatchAllQueryBuilder(), new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
-                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script)),
-                        new FunctionScoreQueryBuilder.FilterFunctionBuilder(scriptFunction(script))
+                searchRequest().source(searchSource().query(functionScoreQuery(new MatchAllQueryBuilder(), new FilterFunctionBuilder[] {
+                        new FilterFunctionBuilder(scriptFunction(script)),
+                        new FilterFunctionBuilder(scriptFunction(script))
                 }).scoreMode(FiltersFunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)).size(numDocs))).actionGet();
         assertMinScoreSearchResponses(numDocs, searchResponse, numMatchingDocs);
     }
@@ -169,14 +169,21 @@ public class FunctionScoreTests extends ESIntegTestCase {
         }
     }
 
+    /** make sure min_score works if functions is empty, see https://github.com/elastic/elasticsearch/issues/10253 */
     public void testWithEmptyFunctions() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test"));
         ensureYellow();
         index("test", "testtype", "1", jsonBuilder().startObject().field("text", "test text").endObject());
         refresh();
 
-        // make sure that min_score works if functions is empty, see https://github.com/elastic/elasticsearch/issues/10253
-        float termQueryScore = 0.19178301f;
+        SearchResponse termQuery = client().search(
+            searchRequest().source(
+                    searchSource().explain(true).query(
+                            termQuery("text", "text")))).get();
+        assertSearchResponse(termQuery);
+        assertThat(termQuery.getHits().totalHits(), equalTo(1L));
+        float termQueryScore = termQuery.getHits().getAt(0).getScore();
+
         for (CombineFunction combineFunction : CombineFunction.values()) {
             testMinScoreApplied(combineFunction, termQueryScore);
         }
@@ -188,7 +195,7 @@ public class FunctionScoreTests extends ESIntegTestCase {
                         searchSource().explain(true).query(
                                 functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(0.1f)))).get();
         assertSearchResponse(response);
-        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().totalHits(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getScore(), equalTo(expectedScore));
 
         response = client().search(
@@ -197,7 +204,7 @@ public class FunctionScoreTests extends ESIntegTestCase {
                                 functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(2f)))).get();
 
         assertSearchResponse(response);
-        assertThat(response.getHits().totalHits(), equalTo(0l));
+        assertThat(response.getHits().totalHits(), equalTo(0L));
     }
 }
 

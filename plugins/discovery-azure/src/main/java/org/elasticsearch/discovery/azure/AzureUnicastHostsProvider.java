@@ -19,8 +19,11 @@
 
 package org.elasticsearch.discovery.azure;
 
-import com.microsoft.windowsazure.management.compute.models.*;
-
+import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
+import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
+import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
+import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
+import com.microsoft.windowsazure.management.compute.models.RoleInstance;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.azure.AzureServiceDisableException;
 import org.elasticsearch.cloud.azure.AzureServiceRemoteException;
@@ -41,8 +44,10 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.Locale;
 import java.util.List;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 /**
  *
@@ -65,7 +70,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                     return hostType;
                 }
             }
-            return null;
+            throw new IllegalArgumentException("invalid value for host type [" + type + "]");
         }
     }
 
@@ -115,16 +120,9 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
         this.networkService = networkService;
         this.version = version;
 
-        this.refreshInterval = settings.getAsTime(Discovery.REFRESH, TimeValue.timeValueSeconds(0));
+        this.refreshInterval = Discovery.REFRESH_SETTING.get(settings);
 
-        String strHostType = settings.get(Discovery.HOST_TYPE, HostType.PRIVATE_IP.name()).toUpperCase(Locale.ROOT);
-        HostType tmpHostType = HostType.fromString(strHostType);
-        if (tmpHostType == null) {
-            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", Discovery.HOST_TYPE,
-                    strHostType, HostType.PRIVATE_IP.name().toLowerCase(Locale.ROOT));
-            tmpHostType = HostType.PRIVATE_IP;
-        }
-        this.hostType = tmpHostType;
+        this.hostType = Discovery.HOST_TYPE_SETTING.get(settings);
         this.publicEndpointName = settings.get(Discovery.ENDPOINT_NAME, "elasticsearch");
 
         // Deployment name could be set with discovery.azure.deployment.name
@@ -221,7 +219,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                             if (privateIp.equals(ipAddress)) {
                                 logger.trace("adding ourselves {}", NetworkAddress.format(ipAddress));
                             }
-                            networkAddress = NetworkAddress.formatAddress(privateIp);
+                            networkAddress = NetworkAddress.format(privateIp);
                         } else {
                             logger.trace("no private ip provided. ignoring [{}]...", instance.getInstanceName());
                         }
@@ -234,7 +232,8 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                                 continue;
                             }
 
-                            networkAddress = NetworkAddress.formatAddress(new InetSocketAddress(endpoint.getVirtualIPAddress(), endpoint.getPort()));
+                            networkAddress = NetworkAddress.format(new InetSocketAddress(endpoint.getVirtualIPAddress(),
+                                    endpoint.getPort()));
                         }
 
                         if (networkAddress == null) {
@@ -258,8 +257,8 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                     TransportAddress[] addresses = transportService.addressesFromString(networkAddress, 1);
                     for (TransportAddress address : addresses) {
                         logger.trace("adding {}, transport_address {}", networkAddress, address);
-                        cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceName(), address,
-                            version.minimumCompatibilityVersion()));
+                        cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceName(), address, emptyMap(),
+                                emptySet(), version.minimumCompatibilityVersion()));
                     }
                 } catch (Exception e) {
                     logger.warn("can not convert [{}] to transport address. skipping. [{}]", networkAddress, e.getMessage());

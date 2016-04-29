@@ -3,5 +3,11 @@
 
 [partintro]
 --
-This section will summarize the changes in released versions.
+This section summarizes the changes in each release.
+
+* <<release-notes-5.0.0-alpha1>>
+* <<release-notes-5.0.0-alpha1-2x>>
+
 --
+include::release-notes/5.0.0-alpha1.asciidoc[]
+include::release-notes/5.0.0-alpha1-2x.asciidoc[]

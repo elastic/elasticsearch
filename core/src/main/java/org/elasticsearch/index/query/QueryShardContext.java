@@ -19,7 +19,16 @@
 
 package org.elasticsearch.index.query;
 
+import static java.util.Collections.unmodifiableMap;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Query;
@@ -27,9 +36,10 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -43,135 +53,83 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
+import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.Template;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * Context object used to create lucene queries on the shard level.
  */
-public class QueryShardContext {
+public class QueryShardContext extends QueryRewriteContext {
 
-    private static final ThreadLocal<String[]> typesContext = new ThreadLocal<>();
     private final MapperService mapperService;
-    private final ScriptService scriptService;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
     private final IndexFieldDataService indexFieldDataService;
     private final IndexSettings indexSettings;
-    private final Client client;
+    private String[] types = Strings.EMPTY_ARRAY;
 
-    public static void setTypes(String[] types) {
-        typesContext.set(types);
+    public void setTypes(String... types) {
+        this.types = types;
     }
 
-    public static String[] getTypes() {
-        return typesContext.get();
-    }
-
-    public static String[] setTypesWithPrevious(String... types) {
-        String[] old = typesContext.get();
-        setTypes(types);
-        return old;
-    }
-
-    public static void removeTypes() {
-        typesContext.remove();
+    public String[] getTypes() {
+        return types;
     }
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private final MapperQueryParser queryParser = new MapperQueryParser(this);
     private final IndicesQueriesRegistry indicesQueriesRegistry;
+    private final PercolatorQueryCache percolatorQueryCache;
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
-    private QueryParseContext parseContext;
     boolean isFilter; // pkg private for testing
 
-    public QueryShardContext(IndexSettings indexSettings, Client client, BitsetFilterCache bitsetFilterCache, IndexFieldDataService indexFieldDataService, MapperService mapperService, SimilarityService similarityService, ScriptService scriptService,
-                             final IndicesQueriesRegistry indicesQueriesRegistry) {
+    public QueryShardContext(IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache, IndexFieldDataService indexFieldDataService,
+                             MapperService mapperService, SimilarityService similarityService, ScriptService scriptService,
+                             final IndicesQueriesRegistry indicesQueriesRegistry, Client client, PercolatorQueryCache percolatorQueryCache,
+                             IndexReader reader, ClusterState clusterState) {
+        super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, client, reader, clusterState);
         this.indexSettings = indexSettings;
-        this.scriptService = scriptService;
-        this.client = client;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
         this.bitsetFilterCache = bitsetFilterCache;
         this.indexFieldDataService = indexFieldDataService;
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.indicesQueriesRegistry = indicesQueriesRegistry;
-        this.parseContext = new QueryParseContext(indicesQueriesRegistry);
+        this.percolatorQueryCache = percolatorQueryCache;
+        this.nestedScope = new NestedScope();
     }
 
     public QueryShardContext(QueryShardContext source) {
-        this(source.indexSettings, source.client, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService, source.similarityService, source.scriptService, source.indicesQueriesRegistry);
-    }
-
-
-    public QueryShardContext clone() {
-        return new QueryShardContext(indexSettings, client, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry);
-    }
-
-    public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
-        this.parseContext.parseFieldMatcher(parseFieldMatcher);
-    }
-
-    public ParseFieldMatcher parseFieldMatcher() {
-        return parseContext.parseFieldMatcher();
+        this(source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
+                source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.client,
+                source.percolatorQueryCache, source.reader, source.clusterState);
+        this.types = source.getTypes();
     }
 
     public void reset() {
         allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
-        this.parseFieldMatcher(ParseFieldMatcher.EMPTY);
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
         this.isFilter = false;
     }
 
-    public void reset(XContentParser jp) {
-        this.reset();
-        this.parseContext.reset(jp);
-    }
-
-    public Index index() {
-        return this.mapperService.getIndexSettings().getIndex();
-    }
-
-    public InnerHitsSubSearchContext getInnerHitsContext(XContentParser parser) throws IOException {
-        return InnerHitsQueryParserHelper.parse(parser);
-    }
-
     public AnalysisService getAnalysisService() {
         return mapperService.analysisService();
     }
 
-    public ScriptService getScriptService() {
-        return scriptService;
-    }
-
-    public MapperService getMapperService() {
-        return mapperService;
+    public PercolatorQueryCache getPercolatorQueryCache() {
+        return percolatorQueryCache;
     }
 
     public Similarity getSearchSimilarity() {
@@ -218,10 +176,6 @@ public class QueryShardContext {
         return unmodifiableMap(new HashMap<>(namedQueries));
     }
 
-    public void combineNamedQueries(QueryShardContext context) {
-        namedQueries.putAll(context.namedQueries);
-    }
-
     /**
      * Return whether we are currently parsing a filter or a query.
      */
@@ -229,32 +183,16 @@ public class QueryShardContext {
         return isFilter;
     }
 
-    public void addInnerHits(String name, InnerHitsContext.BaseInnerHits context) {
-        SearchContext sc = SearchContext.current();
-        if (sc == null) {
-            throw new QueryShardException(this, "inner_hits unsupported");
-        }
-
-        InnerHitsContext innerHitsContext;
-        if (sc.innerHits() == null) {
-            innerHitsContext = new InnerHitsContext(new HashMap<>());
-            sc.innerHits(innerHitsContext);
-        } else {
-            innerHitsContext = sc.innerHits();
-        }
-        innerHitsContext.addInnerHitDefinition(name, context);
-    }
-
     public Collection<String> simpleMatchToIndexNames(String pattern) {
         return mapperService.simpleMatchToIndexNames(pattern);
     }
 
     public MappedFieldType fieldMapper(String name) {
-        return failIfFieldMappingNotFound(name, mapperService.smartNameFieldType(name, getTypes()));
+        return failIfFieldMappingNotFound(name, mapperService.fullName(name));
     }
 
     public ObjectMapper getObjectMapper(String name) {
-        return mapperService.getObjectMapper(name, getTypes());
+        return mapperService.getObjectMapper(name);
     }
 
     /**
@@ -287,20 +225,14 @@ public class QueryShardContext {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
 
-    private MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
-        if (allowUnmappedFields) {
+    MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
+        if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
-            StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
+            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
             return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
         } else {
-            Version indexCreatedVersion = indexSettings.getIndexVersionCreated();
-            if (fieldMapping == null && indexCreatedVersion.onOrAfter(Version.V_1_4_0_Beta1)) {
-                throw new QueryShardException(this, "Strict field resolution and no field mapping can be found for the field with name ["
-                        + name + "]");
-            } else {
-                return fieldMapping;
-            }
+            throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
     }
 
@@ -347,10 +279,6 @@ public class QueryShardContext {
         return indexSettings.getIndexVersionCreated();
     }
 
-    public QueryParseContext parseContext() {
-        return this.parseContext;
-    }
-
     public boolean matchesIndices(String... indices) {
         for (String index : indices) {
             if (indexSettings.matchesIndexName(index)) {
@@ -358,18 +286,6 @@ public class QueryShardContext {
             }
         }
         return false;
-    }
-
-    /*
-    * Executes the given template, and returns the response.
-    */
-    public BytesReference executeQueryTemplate(Template template, SearchContext searchContext) {
-        ExecutableScript executable = getScriptService().executable(template, ScriptContext.Standard.SEARCH, searchContext);
-        return (BytesReference) executable.run();
-    }
-
-    public Client getClient() {
-        return client;
     }
 
     public ParsedQuery parse(BytesReference source) {
@@ -401,38 +317,35 @@ public class QueryShardContext {
      */
     @Nullable
     public ParsedQuery parseInnerFilter(XContentParser parser) throws IOException {
-        reset(parser);
+        reset();
         try {
-            parseFieldMatcher(indexSettings.getParseFieldMatcher());
-            Query filter = parseContext().parseInnerQueryBuilder().toFilter(this);
+            Query filter = QueryBuilder.rewriteQuery(newParseContext(parser).parseInnerQueryBuilder(), this).toFilter(this);
             if (filter == null) {
                 return null;
             }
             return new ParsedQuery(filter, copyNamedQueries());
         } finally {
-            reset(null);
+            reset();
         }
     }
 
 
     private ParsedQuery innerParse(XContentParser parser) throws IOException, QueryShardException {
-        reset(parser);
+        reset();
         try {
-            parseFieldMatcher(indexSettings.getParseFieldMatcher());
-            Query query = parseInnerQuery();
+            Query query = parseInnerQuery(parser);
             return new ParsedQuery(query, copyNamedQueries());
         } finally {
-            reset(null);
+            reset();
         }
     }
 
-    public Query parseInnerQuery() throws IOException {
-        return toQuery(this.parseContext().parseInnerQueryBuilder(), this);
+    public Query parseInnerQuery(XContentParser parser) throws IOException {
+        return toQuery(this.newParseContext(parser).parseInnerQueryBuilder(), this);
     }
 
     public ParsedQuery toQuery(QueryBuilder<?> queryBuilder) {
         reset();
-        parseFieldMatcher(indexSettings.getParseFieldMatcher());
         try {
             Query query = toQuery(queryBuilder, this);
             return new ParsedQuery(query, copyNamedQueries());
@@ -445,12 +358,16 @@ public class QueryShardContext {
         }
     }
 
-    private static Query toQuery(QueryBuilder<?> queryBuilder, QueryShardContext context) throws IOException {
-        Query query = queryBuilder.toQuery(context);
+    private static Query toQuery(final QueryBuilder<?> queryBuilder, final QueryShardContext context) throws IOException {
+        final Query query = QueryBuilder.rewriteQuery(queryBuilder, context).toQuery(context);
         if (query == null) {
-            query = Queries.newMatchNoDocsQuery();
+            return Queries.newMatchNoDocsQuery("No query left after rewrite.");
         }
         return query;
+    }
+
+    public final Index index() {
+        return indexSettings.getIndex();
     }
 
 }

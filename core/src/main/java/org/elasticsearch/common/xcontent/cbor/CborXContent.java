@@ -24,9 +24,16 @@ import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
 
 /**
  * A CBOR based content implementation using Jackson.
@@ -60,18 +67,8 @@ public class CborXContent implements XContent {
     }
 
     @Override
-    public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return new CborXContentGenerator(cborFactory.createGenerator(os, JsonEncoding.UTF8));
-    }
-
-    @Override
-    public XContentGenerator createGenerator(OutputStream os, String[] filters) throws IOException {
-        return new CborXContentGenerator(cborFactory.createGenerator(os, JsonEncoding.UTF8), filters);
-    }
-
-    @Override
-    public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return new CborXContentGenerator(cborFactory.createGenerator(writer));
+    public XContentGenerator createGenerator(OutputStream os, String[] filters, boolean inclusive) throws IOException {
+        return new CborXContentGenerator(cborFactory.createGenerator(os, JsonEncoding.UTF8), os, filters, inclusive);
     }
 
     @Override
@@ -106,4 +103,5 @@ public class CborXContent implements XContent {
     public XContentParser createParser(Reader reader) throws IOException {
         return new CborXContentParser(cborFactory.createParser(reader));
     }
+
 }

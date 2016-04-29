@@ -19,12 +19,14 @@
 
 package org.elasticsearch.transport.netty;
 
+import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.logging.ESLogger;
 import org.jboss.netty.logging.AbstractInternalLogger;
 
 /**
  *
  */
+@SuppressLoggerChecks(reason = "safely delegates to logger")
 public class NettyInternalESLogger extends AbstractInternalLogger {
 
     private final ESLogger logger;

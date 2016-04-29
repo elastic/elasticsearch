@@ -21,21 +21,13 @@ package org.elasticsearch.script.javascript;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.plugin.javascript.JavaScriptPlugin;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
-import java.util.Collection;
 
 public class LangJavaScriptRestIT extends ESRestTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(JavaScriptPlugin.class);
-    }
 
     public LangJavaScriptRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

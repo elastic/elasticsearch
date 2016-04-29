@@ -21,23 +21,14 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugin.analysis.AnalysisPhoneticPlugin;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -45,22 +36,12 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SimplePhoneticAnalysisTests extends ESTestCase {
     public void testPhoneticTokenFilterFactory() throws IOException {
         String yaml = "/org/elasticsearch/index/analysis/phonetic-1.yml";
-        Settings settings = settingsBuilder().loadFromStream(yaml, getClass().getResourceAsStream(yaml))
+        Settings settings = Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", createTempDir())
                 .build();
-        AnalysisService analysisService = testSimpleConfiguration(settings);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), settings,
+            new AnalysisPhoneticPlugin()::onModule);
         TokenFilterFactory filterFactory = analysisService.tokenFilter("phonetic");
         MatcherAssert.assertThat(filterFactory, instanceOf(PhoneticTokenFilterFactory.class));
-    }
-
-    private AnalysisService testSimpleConfiguration(Settings settings) throws IOException {
-        Index index = new Index("test");
-        AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
-        new AnalysisPhoneticPlugin().onModule(analysisModule);
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings, new SettingsFilter(settings)),
-                new EnvironmentModule(new Environment(settings)), analysisModule)
-                .createInjector();
-        return parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, settings));
     }
 }

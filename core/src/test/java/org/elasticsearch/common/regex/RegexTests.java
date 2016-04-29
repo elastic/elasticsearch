@@ -28,10 +28,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class RegexTests extends ESTestCase {
     public void testFlags() {
         String[] supportedFlags = new String[]{"CASE_INSENSITIVE", "MULTILINE", "DOTALL", "UNICODE_CASE", "CANON_EQ", "UNIX_LINES",
-                "LITERAL", "COMMENTS", "UNICODE_CHAR_CLASS"};
+                "LITERAL", "COMMENTS", "UNICODE_CHAR_CLASS", "UNICODE_CHARACTER_CLASS"};
         int[] flags = new int[]{Pattern.CASE_INSENSITIVE, Pattern.MULTILINE, Pattern.DOTALL, Pattern.UNICODE_CASE, Pattern.CANON_EQ,
                 Pattern.UNIX_LINES, Pattern.LITERAL, Pattern.COMMENTS, Regex.UNICODE_CHARACTER_CLASS};
-        Random random = getRandom();
+        Random random = random();
         int num = 10 + random.nextInt(100);
         for (int i = 0; i < num; i++) {
             int numFlags = random.nextInt(flags.length + 1);

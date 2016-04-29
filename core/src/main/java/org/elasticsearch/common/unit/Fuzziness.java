@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -36,20 +35,16 @@ import java.util.Objects;
  * parsing and conversion from similarities to edit distances
  * etc.
  */
-public final class Fuzziness implements ToXContent, Writeable<Fuzziness> {
+public final class Fuzziness implements ToXContent, Writeable {
 
-    public static final XContentBuilderString X_FIELD_NAME = new XContentBuilderString("fuzziness");
+    public static final String X_FIELD_NAME = "fuzziness";
     public static final Fuzziness ZERO = new Fuzziness(0);
     public static final Fuzziness ONE = new Fuzziness(1);
     public static final Fuzziness TWO = new Fuzziness(2);
     public static final Fuzziness AUTO = new Fuzziness("AUTO");
-    public static final ParseField FIELD = new ParseField(X_FIELD_NAME.camelCase().getValue());
+    public static final ParseField FIELD = new ParseField(X_FIELD_NAME);
 
     private final String fuzziness;
-
-    /** the prototype constant is intended for deserialization when used with
-     * {@link org.elasticsearch.common.io.stream.StreamableReader#readFrom(StreamInput)} */
-    static final Fuzziness PROTOTYPE = AUTO;
 
     private Fuzziness(int fuzziness) {
         if (fuzziness != 0 && fuzziness != 1 && fuzziness != 2) {
@@ -66,7 +61,21 @@ public final class Fuzziness implements ToXContent, Writeable<Fuzziness> {
     }
 
     /**
+     * Read from a stream.
+     */
+    public Fuzziness(StreamInput in) throws IOException {
+        fuzziness = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(fuzziness);
+    }
+
+    /**
      * Creates a {@link Fuzziness} instance from an edit distance. The value must be one of <tt>[0, 1, 2]</tt>
+     *
+     * Note: Using this method only makes sense if the field you are applying Fuzziness to is some sort of string.
      */
     public static Fuzziness fromEdits(int edits) {
         return new Fuzziness(edits);
@@ -234,19 +243,5 @@ public final class Fuzziness implements ToXContent, Writeable<Fuzziness> {
     @Override
     public int hashCode() {
         return fuzziness.hashCode();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(fuzziness);
-    }
-
-    @Override
-    public Fuzziness readFrom(StreamInput in) throws IOException {
-        return new Fuzziness(in.readString());
-    }
-
-    public static Fuzziness readFuzzinessFrom(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
     }
 }

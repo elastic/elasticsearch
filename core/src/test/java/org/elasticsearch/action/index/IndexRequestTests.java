@@ -27,7 +27,11 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
@@ -66,6 +70,28 @@ public class IndexRequestTests extends ESTestCase {
         request.version(randomIntBetween(0, Integer.MAX_VALUE));
         assertThat(request.validate().validationErrors(), not(empty()));
     }
+
+    public void testIndexingRejectsLongIds() {
+        String id = randomAsciiOfLength(511);
+        IndexRequest request = new IndexRequest("index", "type", id);
+        request.source("{}");
+        ActionRequestValidationException validate = request.validate();
+        assertNull(validate);
+
+        id = randomAsciiOfLength(512);
+        request = new IndexRequest("index", "type", id);
+        request.source("{}");
+        validate = request.validate();
+        assertNull(validate);
+
+        id = randomAsciiOfLength(513);
+        request = new IndexRequest("index", "type", id);
+        request.source("{}");
+        validate = request.validate();
+        assertThat(validate, notNullValue());
+        assertThat(validate.getMessage(),
+                containsString("id is too long, must be no longer than 512 bytes but was: 513"));
+}
 
     public void testSetTTLAsTimeValue() {
         IndexRequest indexRequest = new IndexRequest();

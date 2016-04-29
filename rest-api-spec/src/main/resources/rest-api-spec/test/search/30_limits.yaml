@@ -1,0 +1,35 @@
+setup:
+  - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     1
+          body:   { foo: bar }
+
+  - do:
+      indices.refresh: {}
+
+---
+"Request window limits":
+  - do:
+      catch:      /Result window is too large, from \+ size must be less than or equal to[:] \[10000\] but was \[10010\]/
+      search:
+        index: test_1
+        from: 10000
+
+---
+"Rescore window limits":
+  - do:
+      catch:      /Rescore window \[10001\] is too large\. It must be less than \[10000\]\./
+      search:
+        index: test_1
+        body:
+          query:
+            match_all: {}
+          rescore:
+              - window_size: 10001
+                query:
+                  rescore_query:
+                    match_all: {}
+                  query_weight: 1
+                  rescore_query_weight: 2

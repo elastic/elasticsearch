@@ -105,7 +105,7 @@ public class SearchStatsTests extends ESIntegTestCase {
         refresh();
         int iters = scaledRandomIntBetween(100, 150);
         for (int i = 0; i < iters; i++) {
-            SearchResponse searchResponse = internalCluster().clientNodeClient().prepareSearch()
+            SearchResponse searchResponse = internalCluster().coordOnlyNodeClient().prepareSearch()
                     .setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2")
                     .highlighter(new HighlightBuilder().field("field"))
                     .addScriptField("scrip1", new Script("_source.field"))
@@ -116,19 +116,19 @@ public class SearchStatsTests extends ESIntegTestCase {
         }
 
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().execute().actionGet();
-        logger.debug("###### indices search stats: " + indicesStats.getTotal().getSearch());
-        assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryCount(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getSearch().getTotal().getFetchCount(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getSearch().getTotal().getFetchTimeInMillis(), greaterThan(0l));
+        logger.debug("###### indices search stats: {}", indicesStats.getTotal().getSearch());
+        assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryCount(), greaterThan(0L));
+        assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0L));
+        assertThat(indicesStats.getTotal().getSearch().getTotal().getFetchCount(), greaterThan(0L));
+        assertThat(indicesStats.getTotal().getSearch().getTotal().getFetchTimeInMillis(), greaterThan(0L));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats(), nullValue());
 
         indicesStats = client().admin().indices().prepareStats().setGroups("group1").execute().actionGet();
         assertThat(indicesStats.getTotal().getSearch().getGroupStats(), notNullValue());
-        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryCount(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryTimeInMillis(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getFetchCount(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getFetchTimeInMillis(), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryCount(), greaterThan(0L));
+        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryTimeInMillis(), greaterThan(0L));
+        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getFetchCount(), greaterThan(0L));
+        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getFetchTimeInMillis(), greaterThan(0L));
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
         NodeStats[] nodes = nodeStats.getNodes();
         Set<String> nodeIdsWithIndex = nodeIdsWithIndex("test1", "test2");
@@ -136,12 +136,12 @@ public class SearchStatsTests extends ESIntegTestCase {
         for (NodeStats stat : nodes) {
             Stats total = stat.getIndices().getSearch().getTotal();
             if (nodeIdsWithIndex.contains(stat.getNode().getId())) {
-                assertThat(total.getQueryCount(), greaterThan(0l));
-                assertThat(total.getQueryTimeInMillis(), greaterThan(0l));
+                assertThat(total.getQueryCount(), greaterThan(0L));
+                assertThat(total.getQueryTimeInMillis(), greaterThan(0L));
                 num++;
             } else {
-                assertThat(total.getQueryCount(), equalTo(0l));
-                assertThat(total.getQueryTimeInMillis(), equalTo(0l));
+                assertThat(total.getQueryCount(), equalTo(0L));
+                assertThat(total.getQueryTimeInMillis(), equalTo(0L));
             }
         }
 
@@ -186,7 +186,7 @@ public class SearchStatsTests extends ESIntegTestCase {
         client().admin().indices().prepareRefresh(index).execute().actionGet();
 
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats(index).execute().actionGet();
-        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0l));
+        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
 
         int size = scaledRandomIntBetween(1, docs);
         SearchResponse searchResponse = client().prepareSearch()
@@ -228,9 +228,9 @@ public class SearchStatsTests extends ESIntegTestCase {
 
         indicesStats = client().admin().indices().prepareStats().execute().actionGet();
         stats = indicesStats.getTotal().getSearch().getTotal();
-        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0l));
+        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
         assertThat(stats.getScrollCount(), equalTo((long)numAssignedShards(index)));
-        assertThat(stats.getScrollTimeInMillis(), greaterThan(0l));
+        assertThat(stats.getScrollTimeInMillis(), greaterThan(0L));
     }
 
     protected int numAssignedShards(String... indices) {

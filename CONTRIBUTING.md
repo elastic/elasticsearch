@@ -84,7 +84,9 @@ Please follow these formatting guidelines:
 * Line width is 140 characters
 * The rest is left to Java coding standards
 * Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
-* Don't worry too much about imports.  Try not to change the order but don't worry about fighting your IDE to stop it from switching from * imports to specific imports or from specific to * imports.
+* Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. Please attempt to tame your IDE so it doesn't make them and please send a PR against this document with instructions for your IDE if it doesn't contain them.
+ * Eclipse: Preferences->Java->Code Style->Organize Imports. There are two boxes labeled "`Number of (static )? imports needed for .*`". Set their values to 99999 or some other absurdly high value.
+* Don't worry too much about import order. Try not to change it but don't worry about fighting your IDE to stop it from doing so.
 
 To create a distribution from the source, simply run:
 
@@ -93,12 +95,10 @@ cd elasticsearch/
 gradle assemble
 ```
 
-You will find the newly built packages under: `./distribution/build/distributions/`.
+You will find the newly built packages under: `./distribution/(deb|rpm|tar|zip)/build/distributions/`.
 
 Before submitting your changes, run the test suite to make sure that nothing is broken, with:
 
 ```sh
 gradle check
 ```
-
-Source: [Contributing to elasticsearch](https://www.elastic.co/contributing-to-elasticsearch/)

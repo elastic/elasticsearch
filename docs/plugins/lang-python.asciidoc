@@ -12,7 +12,7 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin install lang-python
+sudo bin/elasticsearch-plugin install lang-python
 ----------------------------------------------------------------
 
 The plugin must be installed on every node in the cluster, and each node must
@@ -26,7 +26,7 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/plugin remove lang-python
+sudo bin/elasticsearch-plugin remove lang-python
 ----------------------------------------------------------------
 
 The node must be stopped before removing the plugin.
@@ -141,10 +141,10 @@ GET test/_search
 === File scripts
 
 You can save your scripts to a file in the `config/scripts/` directory on
-every node. The `.python` file suffix identifies the script as containing
+every node. The `.py` file suffix identifies the script as containing
 Python:
 
-First, save this file as `config/scripts/my_script.python` on every node
+First, save this file as `config/scripts/my_script.py` on every node
 in the cluster:
 
 [source,python]
@@ -188,5 +188,5 @@ GET test/_search
 ----
 // AUTOSENSE
 
-<1> The function score query retrieves the script with filename `my_script.python`.
+<1> The function score query retrieves the script with filename `my_script.py`.
 

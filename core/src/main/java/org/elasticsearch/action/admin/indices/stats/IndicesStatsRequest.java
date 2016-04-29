@@ -185,12 +185,12 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     }
 
     public IndicesStatsRequest percolate(boolean percolate) {
-        flags.set(Flag.Percolate, percolate);
+        flags.set(Flag.PercolatorCache, percolate);
         return this;
     }
 
     public boolean percolate() {
-        return flags.isSet(Flag.Percolate);
+        return flags.isSet(Flag.PercolatorCache);
     }
 
     public IndicesStatsRequest segments(boolean segments) {
@@ -263,6 +263,15 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
 
     public boolean recovery() {
         return flags.isSet(Flag.Recovery);
+    }
+
+    public boolean includeSegmentFileSizes() {
+        return flags.includeSegmentFileSizes();
+    }
+
+    public IndicesStatsRequest includeSegmentFileSizes(boolean includeSegmentFileSizes) {
+        flags.includeSegmentFileSizes(includeSegmentFileSizes);
+        return this;
     }
 
     @Override

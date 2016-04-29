@@ -19,13 +19,8 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.HDRPercentilesAggregator;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentiles;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestPercentilesAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 
 /**
  *
@@ -38,12 +33,7 @@ public class PercentilesParser extends AbstractPercentilesParser {
         super(true);
     }
 
-    private final static double[] DEFAULT_PERCENTS = new double[] { 1, 5, 25, 50, 75, 95, 99 };
-
-    @Override
-    public String type() {
-        return InternalTDigestPercentiles.TYPE.name();
-    }
+    public final static double[] DEFAULT_PERCENTS = new double[] { 1, 5, 25, 50, 75, 95, 99 };
 
     @Override
     protected ParseField keysField() {
@@ -51,18 +41,24 @@ public class PercentilesParser extends AbstractPercentilesParser {
     }
 
     @Override
-    protected AggregatorFactory buildFactory(SearchContext context, String aggregationName, ValuesSourceConfig<Numeric> valuesSourceConfig,
-            double[] keys, PercentilesMethod method, Double compression, Integer numberOfSignificantValueDigits, boolean keyed) {
-        if (keys == null) {
-            keys = DEFAULT_PERCENTS;
+    protected ValuesSourceAggregatorBuilder<Numeric, ?> buildFactory(String aggregationName, double[] keys, PercentilesMethod method,
+            Double compression, Integer numberOfSignificantValueDigits, Boolean keyed) {
+        PercentilesAggregatorBuilder factory = new PercentilesAggregatorBuilder(aggregationName);
+        if (keys != null) {
+            factory.percentiles(keys);
         }
-        if (method == PercentilesMethod.TDIGEST) {
-            return new TDigestPercentilesAggregator.Factory(aggregationName, valuesSourceConfig, keys, compression, keyed);
-        } else if (method == PercentilesMethod.HDR) {
-            return new HDRPercentilesAggregator.Factory(aggregationName, valuesSourceConfig, keys, numberOfSignificantValueDigits, keyed);
-        } else {
-            throw new AssertionError();
+        if (method != null) {
+            factory.method(method);
         }
+        if (compression != null) {
+            factory.compression(compression);
+        }
+        if (numberOfSignificantValueDigits != null) {
+            factory.numberOfSignificantValueDigits(numberOfSignificantValueDigits);
+        }
+        if (keyed != null) {
+            factory.keyed(keyed);
+        }
+        return factory;
     }
-
 }

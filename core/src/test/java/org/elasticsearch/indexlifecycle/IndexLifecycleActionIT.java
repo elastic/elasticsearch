@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
@@ -43,9 +42,14 @@ import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 
 /**
@@ -54,24 +58,24 @@ import static org.hamcrest.Matchers.*;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexLifecycleActionIT extends ESIntegTestCase {
     public void testIndexLifecycleActionsWith11Shards1Backup() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
+                .put(indexSettings())
                 .put(SETTING_NUMBER_OF_SHARDS, 11)
                 .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "0s")
                 .build();
 
         // start one server
         logger.info("Starting sever1");
-        final String server_1 = internalCluster().startNode(settings);
+        final String server_1 = internalCluster().startNode();
         final String node1 = getLocalNodeId(server_1);
 
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test")).actionGet();
+        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings)).actionGet();
         assertThat(createIndexResponse.isAcknowledged(), equalTo(true));
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
@@ -81,12 +85,12 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         logger.info("Starting server2");
         // start another server
-        String server_2 = internalCluster().startNode(settings);
+        String server_2 = internalCluster().startNode();
 
         // first wait for 2 nodes in the cluster
         logger.info("Running Cluster Health");
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         final String node2 = getLocalNodeId(server_2);
@@ -116,7 +120,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         logger.info("Starting server3");
         // start another server
-        String server_3 = internalCluster().startNode(settings);
+        String server_3 = internalCluster().startNode();
 
         // first wait for 3 nodes in the cluster
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3")).actionGet();
@@ -165,7 +169,7 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         // verify health
         logger.info("Running Cluster Health");
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 

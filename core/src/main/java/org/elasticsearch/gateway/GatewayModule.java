@@ -21,28 +21,16 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.ExtensionPoint;
 
 /**
  *
  */
 public class GatewayModule extends AbstractModule {
 
-    public static final String GATEWAY_TYPE_KEY = "gateway.type";
-
-    private final ExtensionPoint.SelectedType<Gateway> gatewayTypes = new ExtensionPoint.SelectedType<>("gateway", Gateway.class);
     private final Settings settings;
 
     public GatewayModule(Settings settings) {
         this.settings = settings;
-        registerGatewayType("default", Gateway.class);
-    }
-
-    /**
-     * Adds a custom Discovery type.
-     */
-    public void registerGatewayType(String type, Class<? extends Gateway> clazz) {
-        gatewayTypes.registerExtension(type, clazz);
     }
 
     @Override
@@ -50,7 +38,6 @@ public class GatewayModule extends AbstractModule {
         bind(MetaStateService.class).asEagerSingleton();
         bind(DanglingIndicesState.class).asEagerSingleton();
         bind(GatewayService.class).asEagerSingleton();
-        gatewayTypes.bindType(binder(), settings, GATEWAY_TYPE_KEY, "default");
         bind(TransportNodesListGatewayMetaState.class).asEagerSingleton();
         bind(GatewayMetaState.class).asEagerSingleton();
         bind(TransportNodesListGatewayStartedShards.class).asEagerSingleton();

@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.gradle.precommit
 
-import org.gradle.api.*
+import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory

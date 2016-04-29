@@ -30,11 +30,9 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
@@ -56,7 +54,6 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.Lucene.readExplanation;
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
-import static org.elasticsearch.search.SearchShardTarget.readSearchShardTarget;
 import static org.elasticsearch.search.highlight.HighlightField.readHighlightField;
 import static org.elasticsearch.search.internal.InternalSearchHitField.readSearchHitField;
 
@@ -104,14 +101,14 @@ public class InternalSearchHit implements SearchHit {
 
     public InternalSearchHit(int docId, String id, Text type, Map<String, SearchHitField> fields) {
         this.docId = docId;
-        this.id = new StringAndBytesText(id);
+        this.id = new Text(id);
         this.type = type;
         this.fields = fields;
     }
 
     public InternalSearchHit(int nestedTopDocId, String id, Text type, InternalNestedIdentity nestedIdentity, Map<String, SearchHitField> fields) {
         this.docId = nestedTopDocId;
-        this.id = new StringAndBytesText(id);
+        this.id = new Text(id);
         this.type = type;
         this.nestedIdentity = nestedIdentity;
         this.fields = fields;
@@ -242,7 +239,7 @@ public class InternalSearchHit implements SearchHit {
     }
 
     @Override
-    public boolean isSourceEmpty() {
+    public boolean hasSource() {
         return source == null;
     }
 
@@ -339,7 +336,7 @@ public class InternalSearchHit implements SearchHit {
         if (sortValues != null) {
             for (int i = 0; i < sortValues.length; i++) {
                 if (sortValues[i] instanceof BytesRef) {
-                    sortValuesCopy[i] = new StringAndBytesText(new BytesArray((BytesRef) sortValues[i]));
+                    sortValuesCopy[i] = new Text(new BytesArray((BytesRef) sortValues[i]));
                 }
             }
         }
@@ -409,20 +406,20 @@ public class InternalSearchHit implements SearchHit {
     }
 
     public static class Fields {
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString _SCORE = new XContentBuilderString("_score");
-        static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
-        static final XContentBuilderString HIGHLIGHT = new XContentBuilderString("highlight");
-        static final XContentBuilderString SORT = new XContentBuilderString("sort");
-        static final XContentBuilderString MATCHED_QUERIES = new XContentBuilderString("matched_queries");
-        static final XContentBuilderString _EXPLANATION = new XContentBuilderString("_explanation");
-        static final XContentBuilderString VALUE = new XContentBuilderString("value");
-        static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
-        static final XContentBuilderString DETAILS = new XContentBuilderString("details");
-        static final XContentBuilderString INNER_HITS = new XContentBuilderString("inner_hits");
+        static final String _INDEX = "_index";
+        static final String _TYPE = "_type";
+        static final String _ID = "_id";
+        static final String _VERSION = "_version";
+        static final String _SCORE = "_score";
+        static final String FIELDS = "fields";
+        static final String HIGHLIGHT = "highlight";
+        static final String SORT = "sort";
+        static final String MATCHED_QUERIES = "matched_queries";
+        static final String _EXPLANATION = "_explanation";
+        static final String VALUE = "value";
+        static final String DESCRIPTION = "description";
+        static final String DETAILS = "details";
+        static final String INNER_HITS = "inner_hits";
     }
 
     @Override
@@ -639,7 +636,7 @@ public class InternalSearchHit implements SearchHit {
 
         if (context.streamShardTarget() == ShardTargetType.STREAM) {
             if (in.readBoolean()) {
-                shard = readSearchShardTarget(in);
+                shard = new SearchShardTarget(in);
             }
         } else if (context.streamShardTarget() == ShardTargetType.LOOKUP) {
             int lookupId = in.readVInt();
@@ -783,7 +780,7 @@ public class InternalSearchHit implements SearchHit {
         private InternalNestedIdentity child;
 
         public InternalNestedIdentity(String field, int offset, InternalNestedIdentity child) {
-            this.field = new StringAndBytesText(field);
+            this.field = new Text(field);
             this.offset = offset;
             this.child = child;
         }
@@ -838,9 +835,9 @@ public class InternalSearchHit implements SearchHit {
 
         public static class Fields {
 
-            static final XContentBuilderString _NESTED = new XContentBuilderString("_nested");
-            static final XContentBuilderString _NESTED_FIELD = new XContentBuilderString("field");
-            static final XContentBuilderString _NESTED_OFFSET = new XContentBuilderString("offset");
+            static final String _NESTED = "_nested";
+            static final String _NESTED_FIELD = "field";
+            static final String _NESTED_OFFSET = "offset";
 
         }
     }

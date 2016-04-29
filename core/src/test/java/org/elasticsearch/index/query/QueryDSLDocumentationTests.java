@@ -23,6 +23,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
@@ -58,7 +59,6 @@ import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.indicesQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.missingQuery;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
@@ -138,6 +138,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         functionScoreQuery(functions);
     }
 
+    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     public void testFuzzy() {
         fuzzyQuery("name", "kimchy");
     }
@@ -175,12 +176,14 @@ public class QueryDSLDocumentationTests extends ESTestCase {
     public void testGeoShape() throws IOException {
         GeoShapeQueryBuilder qb = geoShapeQuery(
                 "pin.location",
-                ShapeBuilders.newMultiPoint()
-                    .point(0, 0)
-                    .point(0, 10)
-                    .point(10, 10)
-                    .point(10, 0)
-                    .point(0, 0));
+                ShapeBuilders.newMultiPoint(
+                        new CoordinatesBuilder()
+                    .coordinate(0, 0)
+                    .coordinate(0, 10)
+                    .coordinate(10, 10)
+                    .coordinate(10, 0)
+                    .coordinate(0, 0)
+                    .build()));
         qb.relation(ShapeRelation.WITHIN);
 
         qb = geoShapeQuery(
@@ -202,15 +205,15 @@ public class QueryDSLDocumentationTests extends ESTestCase {
     public void testHasChild() {
         hasChildQuery(
                 "blog_tag",
-                termQuery("tag","something")
-            );
+                termQuery("tag","something"),
+                ScoreMode.None);
     }
 
     public void testHasParent() {
         hasParentQuery(
             "blog",
-            termQuery("tag","something")
-        );
+            termQuery("tag","something"),
+                false);
     }
 
     public void testIds() {
@@ -240,10 +243,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         matchQuery("name", "kimchy elasticsearch");
     }
 
-    public void testMissing() {
-        missingQuery("user", true, true);
-    }
-
     public void testMLT() {
         String[] fields = {"name.first", "name.last"};
         String[] texts = {"text like this one"};
@@ -263,9 +262,8 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 "obj1",
                 boolQuery()
                         .must(matchQuery("obj1.name", "blue"))
-                        .must(rangeQuery("obj1.count").gt(5))
-            )
-            .scoreMode(ScoreMode.Avg);
+                        .must(rangeQuery("obj1.count").gt(5)),
+                ScoreMode.Avg);
     }
 
     public void testPrefix() {
@@ -336,8 +334,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         spanNearQuery(spanTermQuery("field","value1"), 12)
         .clause(spanTermQuery("field","value2"))
         .clause(spanTermQuery("field","value3"))
-        .inOrder(false)
-        .collectPayloads(false);
+        .inOrder(false);
     }
 
     public void testSpanNot() {
@@ -366,7 +363,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
     public void testTemplate() {
         templateQuery(
                 "gender_template",
-                ScriptType.INDEXED,
+                ScriptType.STORED,
                 new HashMap<>());
     }
 

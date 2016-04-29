@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis.pl;
 
-import org.apache.lucene.analysis.pl.PolishAnalyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.pl.PolishAnalyzer;
 import org.apache.lucene.analysis.stempel.StempelFilter;
 import org.apache.lucene.analysis.stempel.StempelStemmer;
 import org.egothor.stemmer.Trie;

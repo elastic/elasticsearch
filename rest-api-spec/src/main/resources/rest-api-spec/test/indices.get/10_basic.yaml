@@ -10,11 +10,6 @@ setup:
             test_blias: {}
           mappings:
             type_1: {}
-          warmers:
-            test_warmer:
-              source:
-                query:
-                  match_all: {}
           settings:
             number_of_shards:   1
             number_of_replicas: 1
@@ -59,7 +54,6 @@ setup:
 
   - is_true: test_index.aliases
   - is_true: test_index.settings
-  - is_true: test_index.warmers
   - is_true: test_index.mappings
 
 ---
@@ -73,20 +67,6 @@ setup:
   - is_true: test_index.mappings
   - is_false: test_index.aliases
   - is_false: test_index.settings
-  - is_false: test_index.warmers
-
----
-"Get index infos for mappings and warmers only":
-
-  - do:
-      indices.get:
-        index: test_index
-        feature: _mapping,_warmer
-
-  - is_true: test_index.mappings
-  - is_true: test_index.warmers
-  - is_false: test_index.aliases
-  - is_false: test_index.settings
 
 ---
 "Get index infos should work on aliases":
@@ -94,10 +74,9 @@ setup:
   - do:
       indices.get:
         index: test_blias
-        feature: _mapping,_warmer
+        feature: _mapping
 
   - is_true: test_index.mappings
-  - is_true: test_index.warmers
   - is_false: test_index.aliases
   - is_false: test_index.settings
 
@@ -113,7 +92,6 @@ setup:
   - is_true: test_index.settings
   - is_true: test_index_2.settings
   - is_false: test_index.aliases
-  - is_false: test_index.warmers
 
 ---
 "Get index infos with human settings should return index creation date and version in readable format":

@@ -20,13 +20,20 @@
 package org.elasticsearch.search.aggregations.bucket.filters;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.EmptyQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -39,49 +46,104 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  *
  */
 public class FiltersAggregator extends BucketsAggregator {
 
-    static class KeyedFilter {
+    public static final ParseField FILTERS_FIELD = new ParseField("filters");
+    public static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
+    public static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
 
-        final String key;
-        final Query filter;
+    public static class KeyedFilter implements Writeable, ToXContent {
+        private final String key;
+        private final QueryBuilder<?> filter;
 
-        KeyedFilter(String key, Query filter) {
+        public KeyedFilter(String key, QueryBuilder<?> filter) {
+            if (key == null) {
+                throw new IllegalArgumentException("[key] must not be null");
+            }
+            if (filter == null) {
+                throw new IllegalArgumentException("[filter] must not be null");
+            }
             this.key = key;
-            this.filter = filter;
+            if (filter instanceof EmptyQueryBuilder) {
+                this.filter = new MatchAllQueryBuilder();
+            } else {
+                this.filter = filter;
+            }
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public KeyedFilter(StreamInput in) throws IOException {
+            key = in.readString();
+            filter = in.readNamedWriteable(QueryBuilder.class);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(key);
+            out.writeNamedWriteable(filter);
+        }
+
+        public String key() {
+            return key;
+        }
+
+        public QueryBuilder<?> filter() {
+            return filter;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(key, filter);
+            return builder;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(key, filter);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            KeyedFilter other = (KeyedFilter) obj;
+            return Objects.equals(key, other.key)
+                    && Objects.equals(filter, other.filter);
         }
     }
 
     private final String[] keys;
-    private final Weight[] filters;
+    private Weight[] filters;
     private final boolean keyed;
     private final boolean showOtherBucket;
     private final String otherBucketKey;
     private final int totalNumKeys;
 
-    public FiltersAggregator(String name, AggregatorFactories factories, List<KeyedFilter> filters, boolean keyed, String otherBucketKey,
+    public FiltersAggregator(String name, AggregatorFactories factories, String[] keys, Weight[] filters, boolean keyed, String otherBucketKey,
             AggregationContext aggregationContext,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.keyed = keyed;
-        this.keys = new String[filters.size()];
-        this.filters = new Weight[filters.size()];
+        this.keys = keys;
+        this.filters = filters;
         this.showOtherBucket = otherBucketKey != null;
         this.otherBucketKey = otherBucketKey;
         if (showOtherBucket) {
-            this.totalNumKeys = filters.size() + 1;
+            this.totalNumKeys = keys.length + 1;
         } else {
-            this.totalNumKeys = filters.size();
-        }
-        for (int i = 0; i < filters.size(); ++i) {
-            KeyedFilter keyedFilter = filters.get(i);
-            this.keys[i] = keyedFilter.key;
-            this.filters[i] = aggregationContext.searchContext().searcher().createNormalizedWeight(keyedFilter.filter, false);
+            this.totalNumKeys = keys.length;
         }
     }
 
@@ -112,16 +174,16 @@ public class FiltersAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        List<InternalFilters.Bucket> buckets = new ArrayList<>(filters.length);
+        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.length);
         for (int i = 0; i < keys.length; i++) {
             long bucketOrd = bucketOrd(owningBucketOrdinal, i);
-            InternalFilters.Bucket bucket = new InternalFilters.Bucket(keys[i], bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed);
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(keys[i], bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed);
             buckets.add(bucket);
         }
         // other bucket
         if (showOtherBucket) {
             long bucketOrd = bucketOrd(owningBucketOrdinal, keys.length);
-            InternalFilters.Bucket bucket = new InternalFilters.Bucket(otherBucketKey, bucketDocCount(bucketOrd),
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, bucketDocCount(bucketOrd),
                     bucketAggregations(bucketOrd), keyed);
             buckets.add(bucket);
         }
@@ -131,36 +193,22 @@ public class FiltersAggregator extends BucketsAggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
-        List<InternalFilters.Bucket> buckets = new ArrayList<>(filters.length);
+        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.length);
         for (int i = 0; i < keys.length; i++) {
-            InternalFilters.Bucket bucket = new InternalFilters.Bucket(keys[i], 0, subAggs, keyed);
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(keys[i], 0, subAggs, keyed);
             buckets.add(bucket);
         }
+
+        if (showOtherBucket) {
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, 0, subAggs, keyed);
+            buckets.add(bucket);
+        }
+
         return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metaData());
     }
 
     final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
         return owningBucketOrdinal * totalNumKeys + filterOrd;
-    }
-
-    public static class Factory extends AggregatorFactory {
-
-        private final List<KeyedFilter> filters;
-        private boolean keyed;
-        private String otherBucketKey;
-
-        public Factory(String name, List<KeyedFilter> filters, boolean keyed, String otherBucketKey) {
-            super(name, InternalFilters.TYPE.name());
-            this.filters = filters;
-            this.keyed = keyed;
-            this.otherBucketKey = otherBucketKey;
-        }
-
-        @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-            return new FiltersAggregator(name, factories, filters, keyed, otherBucketKey, context, parent, pipelineAggregators, metaData);
-        }
     }
 
 }

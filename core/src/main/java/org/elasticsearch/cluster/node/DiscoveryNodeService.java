@@ -19,24 +19,44 @@
 
 package org.elasticsearch.cluster.node;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.node.Node;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  */
 public class DiscoveryNodeService extends AbstractComponent {
 
+    public static final Setting<Long> NODE_ID_SEED_SETTING =
+            // don't use node.id.seed so it won't be seen as an attribute
+            Setting.longSetting("node_id.seed", 0L, Long.MIN_VALUE, Property.NodeScope);
     private final List<CustomAttributesProvider> customAttributesProviders = new CopyOnWriteArrayList<>();
+    private final Version version;
 
     @Inject
-    public DiscoveryNodeService(Settings settings) {
+    public DiscoveryNodeService(Settings settings, Version version) {
         super(settings);
+        this.version = version;
+    }
+
+    public static String generateNodeId(Settings settings) {
+        Random random = Randomness.get(settings, NODE_ID_SEED_SETTING);
+        return UUIDs.randomBase64UUID(random);
     }
 
     public DiscoveryNodeService addCustomAttributeProvider(CustomAttributesProvider customAttributesProvider) {
@@ -44,21 +64,18 @@ public class DiscoveryNodeService extends AbstractComponent {
         return this;
     }
 
-    public Map<String, String> buildAttributes() {
-        Map<String, String> attributes = new HashMap<>(settings.getByPrefix("node.").getAsMap());
-        attributes.remove("name"); // name is extracted in other places
-        if (attributes.containsKey("client")) {
-            if (attributes.get("client").equals("false")) {
-                attributes.remove("client"); // this is the default
-            } else {
-                // if we are client node, don't store data ...
-                attributes.put("data", "false");
-            }
+    public DiscoveryNode buildLocalNode(TransportAddress publishAddress) {
+        final String nodeId = generateNodeId(settings);
+        Map<String, String> attributes = new HashMap<>(Node.NODE_ATTRIBUTES.get(this.settings).getAsMap());
+        Set<DiscoveryNode.Role> roles = new HashSet<>();
+        if (Node.NODE_INGEST_SETTING.get(settings)) {
+            roles.add(DiscoveryNode.Role.INGEST);
         }
-        if (attributes.containsKey("data")) {
-            if (attributes.get("data").equals("true")) {
-                attributes.remove("data");
-            }
+        if (Node.NODE_MASTER_SETTING.get(settings)) {
+            roles.add(DiscoveryNode.Role.MASTER);
+        }
+        if (Node.NODE_DATA_SETTING.get(settings)) {
+            roles.add(DiscoveryNode.Role.DATA);
         }
 
         for (CustomAttributesProvider provider : customAttributesProviders) {
@@ -75,11 +92,11 @@ public class DiscoveryNodeService extends AbstractComponent {
                 logger.warn("failed to build custom attributes from provider [{}]", e, provider);
             }
         }
-
-        return attributes;
+        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes,
+                roles, version);
     }
 
-    public static interface CustomAttributesProvider {
+    public interface CustomAttributesProvider {
 
         Map<String, String> buildAttributes();
     }

@@ -62,7 +62,7 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
 
     public void setIndexConstraints(IndexConstraint[] indexConstraints) {
         if (indexConstraints == null) {
-            throw new NullPointerException("specified index_contraints can't be null");
+            throw new NullPointerException("specified index_constraints can't be null");
         }
         this.indexConstraints = indexConstraints;
     }
@@ -108,7 +108,8 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
         this.indexConstraints = indexConstraints.toArray(new IndexConstraint[indexConstraints.size()]);
     }
 
-    private void parseIndexContraints(List<IndexConstraint> indexConstraints, XContentParser parser) throws IOException {
+    private void parseIndexContraints(List<IndexConstraint> indexConstraints,
+                                      XContentParser parser) throws IOException {
         Token token = parser.currentToken();
         assert token == Token.START_OBJECT;
         String field = null;
@@ -117,7 +118,8 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
             if (token == Token.FIELD_NAME) {
                 field = currentName = parser.currentName();
             } else if (token == Token.START_OBJECT) {
-                for (Token fieldToken = parser.nextToken(); fieldToken != Token.END_OBJECT; fieldToken = parser.nextToken()) {
+                for (Token fieldToken = parser.nextToken();
+                     fieldToken != Token.END_OBJECT; fieldToken = parser.nextToken()) {
                     if (fieldToken == Token.FIELD_NAME) {
                         currentName = parser.currentName();
                     } else if (fieldToken == Token.START_OBJECT) {
@@ -125,7 +127,8 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
                         String value = null;
                         String optionalFormat = null;
                         IndexConstraint.Comparison comparison = null;
-                        for (Token propertyToken = parser.nextToken(); propertyToken != Token.END_OBJECT; propertyToken = parser.nextToken()) {
+                        for (Token propertyToken = parser.nextToken();
+                             propertyToken != Token.END_OBJECT; propertyToken = parser.nextToken()) {
                             if (propertyToken.isValue()) {
                                 if ("format".equals(parser.currentName())) {
                                     optionalFormat = parser.text();
@@ -162,7 +165,8 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if ("cluster".equals(level) == false && "indices".equals(level) == false) {
-            validationException = ValidateActions.addValidationError("invalid level option [" + level + "]", validationException);
+            validationException =
+                ValidateActions.addValidationError("invalid level option [" + level + "]", validationException);
         }
         if (fields == null || fields.length == 0) {
             validationException = ValidateActions.addValidationError("no fields specified", validationException);

@@ -136,10 +136,10 @@ public class IndexLookupTests extends ESIntegTestCase {
         expectedEndOffsetsArray.put("3", ends3);
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("int_payload_field").field("type", "string").field("index_options", "offsets")
+                .startObject("int_payload_field").field("type", "text").field("index_options", "offsets")
                 .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                Settings.settingsBuilder()
+                Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.payload_int.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.payload_int.filter", "delimited_int")
@@ -399,13 +399,13 @@ public class IndexLookupTests extends ESIntegTestCase {
 
     public void testAllExceptPosAndOffset() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("float_payload_field").field("type", "string").field("index_options", "offsets").field("term_vector", "no")
-            .field("analyzer", "payload_float").endObject().startObject("string_payload_field").field("type", "string")
+                .startObject("float_payload_field").field("type", "text").field("index_options", "offsets").field("term_vector", "no")
+            .field("analyzer", "payload_float").endObject().startObject("string_payload_field").field("type", "text")
             .field("index_options", "offsets").field("term_vector", "no").field("analyzer", "payload_string").endObject()
-                .startObject("int_payload_field").field("type", "string").field("index_options", "offsets")
+                .startObject("int_payload_field").field("type", "text").field("index_options", "offsets")
             .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                Settings.settingsBuilder()
+                Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.payload_float.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.payload_float.filter", "delimited_float")
@@ -474,23 +474,23 @@ public class IndexLookupTests extends ESIntegTestCase {
 
         // check doc frequencies for 'c'
         script = new Script("term = _index['float_payload_field']['c']; if (term != null) {term.df()}");
-        expectedResults.put("1", 1l);
-        expectedResults.put("2", 1l);
-        expectedResults.put("3", 1l);
-        expectedResults.put("4", 1l);
-        expectedResults.put("5", 1l);
-        expectedResults.put("6", 1l);
+        expectedResults.put("1", 1L);
+        expectedResults.put("2", 1L);
+        expectedResults.put("3", 1L);
+        expectedResults.put("4", 1L);
+        expectedResults.put("5", 1L);
+        expectedResults.put("6", 1L);
         checkValueInEachDoc(script, expectedResults, 6);
         expectedResults.clear();
 
         // check doc frequencies for term that does not exist
         script = new Script("term = _index['float_payload_field']['non_existent_term']; if (term != null) {term.df()}");
-        expectedResults.put("1", 0l);
-        expectedResults.put("2", 0l);
-        expectedResults.put("3", 0l);
-        expectedResults.put("4", 0l);
-        expectedResults.put("5", 0l);
-        expectedResults.put("6", 0l);
+        expectedResults.put("1", 0L);
+        expectedResults.put("2", 0L);
+        expectedResults.put("3", 0L);
+        expectedResults.put("4", 0L);
+        expectedResults.put("5", 0L);
+        expectedResults.put("6", 0L);
         checkValueInEachDoc(script, expectedResults, 6);
         expectedResults.clear();
 
@@ -507,12 +507,12 @@ public class IndexLookupTests extends ESIntegTestCase {
 
         // check total term frequencies for 'a'
         script = new Script("term = _index['float_payload_field']['a']; if (term != null) {term.ttf()}");
-        expectedResults.put("1", 4l);
-        expectedResults.put("2", 4l);
-        expectedResults.put("3", 4l);
-        expectedResults.put("4", 4l);
-        expectedResults.put("5", 4l);
-        expectedResults.put("6", 4l);
+        expectedResults.put("1", 4L);
+        expectedResults.put("2", 4L);
+        expectedResults.put("3", 4L);
+        expectedResults.put("4", 4L);
+        expectedResults.put("5", 4L);
+        expectedResults.put("6", 4L);
         checkValueInEachDoc(script, expectedResults, 6);
         expectedResults.clear();
 

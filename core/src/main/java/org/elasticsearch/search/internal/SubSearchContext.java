@@ -49,6 +49,8 @@ public class SubSearchContext extends FilteredSearchContext {
     private int from;
     private int size = DEFAULT_SIZE;
     private Sort sort;
+    private ParsedQuery parsedQuery;
+    private Query query;
 
     private final FetchSearchResult fetchSearchResult;
     private final QuerySearchResult querySearchResult;
@@ -66,8 +68,6 @@ public class SubSearchContext extends FilteredSearchContext {
     private boolean trackScores;
     private boolean version;
 
-    private InnerHitsContext innerHitsContext;
-
     public SubSearchContext(SearchContext context) {
         super(context);
         this.fetchSearchResult = new FetchSearchResult();
@@ -84,11 +84,6 @@ public class SubSearchContext extends FilteredSearchContext {
 
     @Override
     public Query searchFilter(String[] types) {
-        throw new UnsupportedOperationException("this context should be read only");
-    }
-
-    @Override
-    public SearchContext searchType(SearchType searchType) {
         throw new UnsupportedOperationException("this context should be read only");
     }
 
@@ -185,6 +180,25 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public Sort sort() {
         return sort;
+    }
+
+    @Override
+    public SearchContext parsedQuery(ParsedQuery parsedQuery) {
+        this.parsedQuery = parsedQuery;
+        if (parsedQuery != null) {
+            this.query = parsedQuery.query();
+        }
+        return this;
+    }
+
+    @Override
+    public ParsedQuery parsedQuery() {
+        return parsedQuery;
+    }
+
+    @Override
+    public Query query() {
+        return query;
     }
 
     @Override
@@ -326,13 +340,4 @@ public class SubSearchContext extends FilteredSearchContext {
         throw new UnsupportedOperationException("Not supported");
     }
 
-    @Override
-    public void innerHits(InnerHitsContext innerHitsContext) {
-        this.innerHitsContext = innerHitsContext;
-    }
-
-    @Override
-    public InnerHitsContext innerHits() {
-        return innerHitsContext;
-    }
 }

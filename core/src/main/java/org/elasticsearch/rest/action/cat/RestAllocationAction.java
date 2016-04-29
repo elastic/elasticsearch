@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.cat;
 
 import com.carrotsearch.hppc.ObjectIntScatterMap;
-
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -35,7 +34,10 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -118,7 +120,7 @@ public class RestAllocationAction extends AbstractCatAction {
         for (NodeStats nodeStats : stats.getNodes()) {
             DiscoveryNode node = nodeStats.getNode();
 
-            int shardCount = allocs.getOrDefault(node.id(), 0);
+            int shardCount = allocs.getOrDefault(node.getId(), 0);
 
             ByteSizeValue total = nodeStats.getFs().getTotal().getTotal();
             ByteSizeValue avail = nodeStats.getFs().getTotal().getAvailable();
@@ -141,7 +143,7 @@ public class RestAllocationAction extends AbstractCatAction {
             table.addCell(diskPercent < 0 ? null : diskPercent);
             table.addCell(node.getHostName());
             table.addCell(node.getHostAddress());
-            table.addCell(node.name());
+            table.addCell(node.getName());
             table.endRow();
         }
 

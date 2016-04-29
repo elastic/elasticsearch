@@ -1,0 +1,12 @@
+[[max-number-of-threads]]
+=== Number of threads
+
+Elasticsearch uses a number of thread pools for different types of operations.
+It is important that it is able to created new threads whenever needed.   Make
+sure that the number of threads that the Elasticsearch user can create is at
+least 2048.
+
+This can be done by setting <<ulimit,`ulimit -u 2048`>> as root before
+starting Elasticsearch, or by setting `nproc` to `2048` in
+<<limits.conf,`/etc/security/limits.conf`>>.
+

@@ -17,6 +17,7 @@
  * under the License.
  */
 package org.elasticsearch.common.lucene;
+
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -37,7 +38,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -53,14 +53,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  */
 public class LuceneTests extends ESTestCase {
-    /**
-     * simple test that ensures that we bump the version on Upgrade
-     */
-    public void testVersion() {
-        // note this is just a silly sanity check, we test it in lucene, and we point to it this way
-        assertEquals(Lucene.VERSION, Version.LATEST);
-    }
-
     public void testWaitForIndex() throws Exception {
         final MockDirectoryWrapper dir = newMockDirectory();
 
@@ -92,7 +84,6 @@ public class LuceneTests extends ESTestCase {
         // now shadow engine should try to be created
         latch.countDown();
 
-        dir.setEnableVirusScanner(false);
         IndexWriterConfig iwc = newIndexWriterConfig();
         iwc.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
@@ -112,7 +103,6 @@ public class LuceneTests extends ESTestCase {
 
     public void testCleanIndex() throws IOException {
         MockDirectoryWrapper dir = newMockDirectory();
-        dir.setEnableVirusScanner(false);
         IndexWriterConfig iwc = newIndexWriterConfig();
         iwc.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
@@ -138,7 +128,7 @@ public class LuceneTests extends ESTestCase {
 
         writer.deleteDocuments(new Term("id", "2"));
         writer.commit();
-        try (DirectoryReader open = DirectoryReader.open(writer, true)) {
+        try (DirectoryReader open = DirectoryReader.open(writer)) {
             assertEquals(3, open.numDocs());
             assertEquals(1, open.numDeletedDocs());
             assertEquals(4, open.maxDoc());
@@ -166,7 +156,6 @@ public class LuceneTests extends ESTestCase {
 
     public void testPruneUnreferencedFiles() throws IOException {
         MockDirectoryWrapper dir = newMockDirectory();
-        dir.setEnableVirusScanner(false);
         IndexWriterConfig iwc = newIndexWriterConfig();
         iwc.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
@@ -194,7 +183,7 @@ public class LuceneTests extends ESTestCase {
 
         writer.deleteDocuments(new Term("id", "2"));
         writer.commit();
-        DirectoryReader open = DirectoryReader.open(writer, true);
+        DirectoryReader open = DirectoryReader.open(writer);
         assertEquals(3, open.numDocs());
         assertEquals(1, open.numDeletedDocs());
         assertEquals(4, open.maxDoc());
@@ -223,7 +212,6 @@ public class LuceneTests extends ESTestCase {
 
     public void testFiles() throws IOException {
         MockDirectoryWrapper dir = newMockDirectory();
-        dir.setEnableVirusScanner(false);
         IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         iwc.setMaxBufferedDocs(2);
@@ -287,7 +275,6 @@ public class LuceneTests extends ESTestCase {
 
     public void testNumDocs() throws IOException {
         MockDirectoryWrapper dir = newMockDirectory();
-        dir.setEnableVirusScanner(false);
         IndexWriterConfig iwc = newIndexWriterConfig();
         IndexWriter writer = new IndexWriter(dir, iwc);
         Document doc = new Document();
@@ -337,7 +324,7 @@ public class LuceneTests extends ESTestCase {
 
     public void testCount() throws Exception {
         Directory dir = newDirectory();
-        RandomIndexWriter w = new RandomIndexWriter(getRandom(), dir);
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
 
         try (DirectoryReader reader = w.getReader()) {
             // match_all does not match anything on an empty index
@@ -377,6 +364,6 @@ public class LuceneTests extends ESTestCase {
      */
     public void testMMapHackSupported() throws Exception {
         // add assume's here if needed for certain platforms, but we should know if it does not work.
-        assertTrue(MMapDirectory.UNMAP_SUPPORTED);
+        assertTrue("MMapDirectory does not support unmapping: " + MMapDirectory.UNMAP_NOT_SUPPORTED_REASON, MMapDirectory.UNMAP_SUPPORTED);
     }
 }

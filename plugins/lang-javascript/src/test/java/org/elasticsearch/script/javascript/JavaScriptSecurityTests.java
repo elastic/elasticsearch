@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.mozilla.javascript.EcmaError;
 import org.mozilla.javascript.WrappedException;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -33,7 +34,7 @@ import java.util.Map;
  * Tests for the Javascript security permissions
  */
 public class JavaScriptSecurityTests extends ESTestCase {
-    
+
     private JavaScriptScriptEngineService se;
 
     @Override
@@ -53,14 +54,14 @@ public class JavaScriptSecurityTests extends ESTestCase {
     /** runs a script */
     private void doTest(String script) {
         Map<String, Object> vars = new HashMap<String, Object>();
-        se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "test", "js", se.compile(script)), vars).run();
+        se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "test", "js", se.compile(script, Collections.emptyMap())), vars).run();
     }
-    
+
     /** asserts that a script runs without exception */
     private void assertSuccess(String script) {
         doTest(script);
     }
-    
+
     /** assert that a security exception is hit */
     private void assertFailure(String script, Class<? extends Throwable> exceptionClass) {
         try {
@@ -78,13 +79,14 @@ public class JavaScriptSecurityTests extends ESTestCase {
             }
         }
     }
-    
+
     /** Test some javascripts that are ok */
     public void testOK() {
         assertSuccess("1 + 2");
         assertSuccess("Math.cos(Math.PI)");
+        assertSuccess("Array.apply(null, Array(100)).map(function (_, i) {return i;}).map(function (i) {return i+1;})");
     }
-    
+
     /** Test some javascripts that should hit security exception */
     public void testNotOK() throws Exception {
         // sanity check :)

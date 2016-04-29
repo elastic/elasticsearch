@@ -21,7 +21,8 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * This class implements a compilation of {@link ShardIterator}s. Each {@link ShardIterator}
@@ -42,7 +43,7 @@ public class GroupShardsIterator implements Iterable<ShardIterator> {
     }
 
     /**
-     * Returns the total number of shards within all groups 
+     * Returns the total number of shards within all groups
      * @return total number of shards
      */
     public int totalSize() {
@@ -55,7 +56,7 @@ public class GroupShardsIterator implements Iterable<ShardIterator> {
 
     /**
      * Returns the total number of shards plus the number of empty groups
-     * @return number of shards and empty groups 
+     * @return number of shards and empty groups
      */
     public int totalSizeWith1ForEmpty() {
         int size = 0;

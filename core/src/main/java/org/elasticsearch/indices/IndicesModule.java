@@ -23,31 +23,42 @@ import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.core.*;
+import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyTokenCountFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.internal.*;
+import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.*;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryParser;
-import org.elasticsearch.index.termvectors.TermVectorsService;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
-import org.elasticsearch.indices.cache.request.IndicesRequestCache;
+import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.memory.IndexingMemoryController;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoverySource;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
@@ -60,10 +71,6 @@ import java.util.Map;
  */
 public class IndicesModule extends AbstractModule {
 
-
-    private final ExtensionPoint.ClassSet<QueryParser> queryParsers
-        = new ExtensionPoint.ClassSet<>("query_parser", QueryParser.class);
-
     private final Map<String, Mapper.TypeParser> mapperParsers
         = new LinkedHashMap<>();
     // Use a LinkedHashMap for metadataMappers because iteration order matters
@@ -71,83 +78,29 @@ public class IndicesModule extends AbstractModule {
         = new LinkedHashMap<>();
 
     public IndicesModule() {
-        registerBuiltinQueryParsers();
         registerBuiltInMappers();
         registerBuiltInMetadataMappers();
     }
 
-    private void registerBuiltinQueryParsers() {
-        registerQueryParser(MatchQueryParser.class);
-        registerQueryParser(MultiMatchQueryParser.class);
-        registerQueryParser(NestedQueryParser.class);
-        registerQueryParser(HasChildQueryParser.class);
-        registerQueryParser(HasParentQueryParser.class);
-        registerQueryParser(DisMaxQueryParser.class);
-        registerQueryParser(IdsQueryParser.class);
-        registerQueryParser(MatchAllQueryParser.class);
-        registerQueryParser(QueryStringQueryParser.class);
-        registerQueryParser(BoostingQueryParser.class);
-        registerQueryParser(BoolQueryParser.class);
-        registerQueryParser(TermQueryParser.class);
-        registerQueryParser(TermsQueryParser.class);
-        registerQueryParser(FuzzyQueryParser.class);
-        registerQueryParser(RegexpQueryParser.class);
-        registerQueryParser(RangeQueryParser.class);
-        registerQueryParser(PrefixQueryParser.class);
-        registerQueryParser(WildcardQueryParser.class);
-        registerQueryParser(ConstantScoreQueryParser.class);
-        registerQueryParser(SpanTermQueryParser.class);
-        registerQueryParser(SpanNotQueryParser.class);
-        registerQueryParser(SpanWithinQueryParser.class);
-        registerQueryParser(SpanContainingQueryParser.class);
-        registerQueryParser(FieldMaskingSpanQueryParser.class);
-        registerQueryParser(SpanFirstQueryParser.class);
-        registerQueryParser(SpanNearQueryParser.class);
-        registerQueryParser(SpanOrQueryParser.class);
-        registerQueryParser(MoreLikeThisQueryParser.class);
-        registerQueryParser(WrapperQueryParser.class);
-        registerQueryParser(IndicesQueryParser.class);
-        registerQueryParser(CommonTermsQueryParser.class);
-        registerQueryParser(SpanMultiTermQueryParser.class);
-        registerQueryParser(FunctionScoreQueryParser.class);
-        registerQueryParser(SimpleQueryStringParser.class);
-        registerQueryParser(TemplateQueryParser.class);
-        registerQueryParser(TypeQueryParser.class);
-        registerQueryParser(ScriptQueryParser.class);
-        registerQueryParser(GeoDistanceQueryParser.class);
-        registerQueryParser(GeoDistanceRangeQueryParser.class);
-        registerQueryParser(GeoBoundingBoxQueryParser.class);
-        registerQueryParser(GeohashCellQuery.Parser.class);
-        registerQueryParser(GeoPolygonQueryParser.class);
-        registerQueryParser(ExistsQueryParser.class);
-        registerQueryParser(MissingQueryParser.class);
-        registerQueryParser(MatchNoneQueryParser.class);
-
-        if (ShapesAvailability.JTS_AVAILABLE) {
-            registerQueryParser(GeoShapeQueryParser.class);
-        }
-    }
-
     private void registerBuiltInMappers() {
-        registerMapper(ByteFieldMapper.CONTENT_TYPE, new ByteFieldMapper.TypeParser());
-        registerMapper(ShortFieldMapper.CONTENT_TYPE, new ShortFieldMapper.TypeParser());
-        registerMapper(IntegerFieldMapper.CONTENT_TYPE, new IntegerFieldMapper.TypeParser());
-        registerMapper(LongFieldMapper.CONTENT_TYPE, new LongFieldMapper.TypeParser());
-        registerMapper(FloatFieldMapper.CONTENT_TYPE, new FloatFieldMapper.TypeParser());
-        registerMapper(DoubleFieldMapper.CONTENT_TYPE, new DoubleFieldMapper.TypeParser());
+        for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
+            registerMapper(type.typeName(), new NumberFieldMapper.TypeParser(type));
+        }
         registerMapper(BooleanFieldMapper.CONTENT_TYPE, new BooleanFieldMapper.TypeParser());
         registerMapper(BinaryFieldMapper.CONTENT_TYPE, new BinaryFieldMapper.TypeParser());
         registerMapper(DateFieldMapper.CONTENT_TYPE, new DateFieldMapper.TypeParser());
         registerMapper(IpFieldMapper.CONTENT_TYPE, new IpFieldMapper.TypeParser());
         registerMapper(StringFieldMapper.CONTENT_TYPE, new StringFieldMapper.TypeParser());
+        registerMapper(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
+        registerMapper(KeywordFieldMapper.CONTENT_TYPE, new KeywordFieldMapper.TypeParser());
         registerMapper(TokenCountFieldMapper.CONTENT_TYPE, new TokenCountFieldMapper.TypeParser());
         registerMapper(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser());
         registerMapper(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser());
-        registerMapper(TypeParsers.MULTI_FIELD_CONTENT_TYPE, TypeParsers.multiFieldConverterTypeParser);
         registerMapper(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser());
         registerMapper(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
+        registerMapper(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser());
 
-        if (ShapesAvailability.JTS_AVAILABLE) {
+        if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerMapper(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
         }
     }
@@ -169,10 +122,6 @@ public class IndicesModule extends AbstractModule {
         registerMetadataMapper(ParentFieldMapper.NAME, new ParentFieldMapper.TypeParser());
         // _field_names is not registered here, see #getMapperRegistry: we need to register it
         // last so that it can see all other mappers, including those coming from plugins
-    }
-
-    public void registerQueryParser(Class<? extends QueryParser> queryParser) {
-        queryParsers.registerExtension(queryParser);
     }
 
     /**
@@ -197,27 +146,19 @@ public class IndicesModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bindQueryParsersExtension();
         bindMapperExtension();
 
         bind(IndicesService.class).asEagerSingleton();
         bind(RecoverySettings.class).asEagerSingleton();
-        bind(RecoveryTarget.class).asEagerSingleton();
+        bind(RecoveryTargetService.class).asEagerSingleton();
         bind(RecoverySource.class).asEagerSingleton();
         bind(IndicesStore.class).asEagerSingleton();
         bind(IndicesClusterStateService.class).asEagerSingleton();
-        bind(IndexingMemoryController.class).asEagerSingleton();
         bind(SyncedFlushService.class).asEagerSingleton();
-        bind(IndicesQueryCache.class).asEagerSingleton();
-        bind(IndicesRequestCache.class).asEagerSingleton();
-        bind(IndicesFieldDataCache.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
         bind(IndicesTTLService.class).asEagerSingleton();
-        bind(IndicesWarmer.class).asEagerSingleton();
         bind(UpdateHelper.class).asEagerSingleton();
         bind(MetaDataIndexUpgradeService.class).asEagerSingleton();
-        bind(IndicesFieldDataCacheListener.class).asEagerSingleton();
-        bind(TermVectorsService.class).asEagerSingleton();
         bind(NodeServicesProvider.class).asEagerSingleton();
     }
 
@@ -236,10 +177,5 @@ public class IndicesModule extends AbstractModule {
 
     protected void bindMapperExtension() {
         bind(MapperRegistry.class).toInstance(getMapperRegistry());
-    }
-
-    protected void bindQueryParsersExtension() {
-        queryParsers.bind(binder());
-        bind(IndicesQueriesRegistry.class).asEagerSingleton();
     }
 }

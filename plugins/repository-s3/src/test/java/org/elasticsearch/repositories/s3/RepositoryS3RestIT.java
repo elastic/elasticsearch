@@ -21,21 +21,13 @@ package org.elasticsearch.repositories.s3;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
-import java.util.Collection;
 
 public class RepositoryS3RestIT extends ESRestTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(S3RepositoryPlugin.class);
-    }
 
     public RepositoryS3RestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

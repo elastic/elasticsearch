@@ -15,7 +15,7 @@ PUT my_index
     "my_type": {
       "properties": {
         "name": { <1>
-          "type": "string",
+          "type": "text",
           "fields": {
             "length": { <2>
               "type":     "token_count",
@@ -68,9 +68,9 @@ The following parameters are accepted by `token_count` fields:
     value. Required. For best performance, use an analyzer without token
     filters.
 
-<<index-boost,`boost`>>::
+<<mapping-boost,`boost`>>::
 
-    Field-level index time boosting. Accepts a floating point number, defaults
+    Mapping field-level query time boosting. Accepts a floating point number, defaults
     to `1.0`.
 
 <<doc-values,`doc_values`>>::

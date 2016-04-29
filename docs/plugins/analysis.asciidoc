@@ -49,10 +49,7 @@ A number of analysis plugins have been contributed by our community:
 * https://github.com/imotov/elasticsearch-analysis-morphology[Russian and English Morphological Analysis Plugin] (by Igor Motov)
 * https://github.com/medcl/elasticsearch-analysis-pinyin[Pinyin Analysis Plugin] (by Medcl)
 * https://github.com/duydo/elasticsearch-analysis-vietnamese[Vietnamese Analysis Plugin] (by Duy Do)
-
-These community plugins appear to have been abandoned:
-
-* https://github.com/barminator/elasticsearch-analysis-annotation[Annotation Analysis Plugin] (by Michal Samek)
+* https://github.com/ofir123/elasticsearch-network-analysis[Network Addresses Analysis Plugin] (by Ofir123)
 * https://github.com/medcl/elasticsearch-analysis-string2int[String2Integer Analysis Plugin] (by Medcl)
 
 include::analysis-icu.asciidoc[]

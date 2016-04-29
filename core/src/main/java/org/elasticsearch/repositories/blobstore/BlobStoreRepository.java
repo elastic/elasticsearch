@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -65,8 +66,6 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -350,12 +349,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 if (metaData != null) {
                     IndexMetaData indexMetaData = metaData.index(index);
                     if (indexMetaData != null) {
-                        for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
-                            ShardId shardId = new ShardId(index, i);
+                        for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
                             try {
-                                indexShardRepository.delete(snapshotId, snapshot.version(), shardId);
+                                indexShardRepository.delete(snapshotId, snapshot.version(), new ShardId(indexMetaData.getIndex(), shardId));
                             } catch (SnapshotException ex) {
-                                logger.warn("[{}] failed to delete shard data for shard [{}]", ex, snapshotId, shardId);
+                                logger.warn("[{}] failed to delete shard data for shard [{}][{}]", ex, snapshotId, index, shardId);
                             }
                         }
                     }
@@ -461,7 +459,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             if (globalMetaDataFormat.exists(snapshotsBlobContainer, snapshotId.getSnapshot())) {
                 snapshotVersion = Version.CURRENT;
             } else if (globalMetaDataLegacyFormat.exists(snapshotsBlobContainer, snapshotId.getSnapshot())) {
-                snapshotVersion = Version.V_1_0_0;
+                throw new SnapshotException(snapshotId, "snapshot is too old");
             } else {
                 throw new SnapshotMissingException(snapshotId);
             }
@@ -481,7 +479,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 metaDataBuilder.put(indexMetaDataFormat(snapshotVersion).read(indexMetaDataBlobContainer, snapshotId.getSnapshot()), false);
             } catch (ElasticsearchParseException | IOException ex) {
                 if (ignoreIndexErrors) {
-                    logger.warn("[{}] [{}] failed to read metadata for index", snapshotId, index, ex);
+                    logger.warn("[{}] [{}] failed to read metadata for index", ex, snapshotId, index);
                 } else {
                     throw ex;
                 }
@@ -531,7 +529,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     }
 
     /**
-     * In v2.0.0 we changed the matadata file format
+     * In v2.0.0 we changed the metadata file format
      * @return true if legacy version should be used false otherwise
      */
     public static boolean legacyMetaData(Version version) {
@@ -637,7 +635,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 // It's readonly - so there is not much we can do here to verify it
                 return null;
             } else {
-                String seed = Strings.randomBase64UUID();
+                String seed = UUIDs.randomBase64UUID();
                 byte[] testBytes = Strings.toUTF8Bytes(seed);
                 BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
                 String blobName = "master.dat";

@@ -44,7 +44,14 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.ClassPermission;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.ScoreAccessor;
+import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -54,7 +61,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -66,6 +75,8 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
      * The name of the scripting engine/language.
      */
     public static final String NAME = "groovy";
+
+    public static final List<String> TYPES = Collections.singletonList(NAME);
     /**
      * The name of the Groovy compiler setting to use associated with activating <code>invokedynamic</code> support.
      */
@@ -150,22 +161,22 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public String[] types() {
-        return new String[]{NAME};
+    public List<String> getTypes() {
+        return TYPES;
     }
 
     @Override
-    public String[] extensions() {
-        return new String[]{NAME};
+    public List<String> getExtensions() {
+        return TYPES;
     }
 
     @Override
-    public boolean sandboxed() {
+    public boolean isSandboxed() {
         return false;
     }
 
     @Override
-    public Object compile(String script) {
+    public Object compile(String script, Map<String, String> params) {
         try {
             // we reuse classloader, so do a security check just in case.
             SecurityManager sm = System.getSecurityManager();
@@ -175,6 +186,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             String fake = MessageDigests.toHexString(MessageDigests.sha1().digest(script.getBytes(StandardCharsets.UTF_8)));
             // same logic as GroovyClassLoader.parseClass() but with a different codesource string:
             return AccessController.doPrivileged(new PrivilegedAction<Object>() {
+                @Override
                 public Class<?> run() {
                     GroovyCodeSource gcs = new GroovyCodeSource(script, fake, BootstrapInfo.UNTRUSTED_CODEBASE);
                     gcs.setCachable(false);
@@ -196,7 +208,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
      */
     @SuppressWarnings("unchecked")
     private Script createScript(Object compiledScript, Map<String, Object> vars) throws InstantiationException, IllegalAccessException {
-        Class scriptClass = (Class) compiledScript;
+        Class<?> scriptClass = (Class<?>) compiledScript;
         Script scriptObject = (Script) scriptClass.newInstance();
         Binding binding = new Binding();
         binding.getVariables().putAll(vars);
@@ -204,7 +216,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         return scriptObject;
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
         try {
@@ -218,7 +229,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         }
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
         return new SearchScript() {
@@ -281,7 +291,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             }
         }
 
-        @SuppressWarnings({"unchecked"})
         @Override
         public void setNextVar(String name, Object value) {
             variables.put(name, value);
@@ -307,7 +316,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 });
             } catch (Throwable e) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("failed to run " + compiledScript, e);
+                    logger.trace("failed to run {}", e, compiledScript);
                 }
                 throw new ScriptException("failed to run " + compiledScript, e);
             }
@@ -327,12 +336,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         public double runAsDouble() {
             return ((Number) run()).doubleValue();
         }
-
-        @Override
-        public Object unwrap(Object value) {
-            return value;
-        }
-
     }
 
     /**

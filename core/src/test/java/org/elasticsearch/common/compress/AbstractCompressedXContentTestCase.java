@@ -72,7 +72,7 @@ public abstract class AbstractCompressedXContentTestCase extends ESTestCase {
         Compressor defaultCompressor = CompressorFactory.defaultCompressor();
         try {
             CompressorFactory.setDefaultCompressor(compressor);
-            Random r = getRandom();
+            Random r = random();
             for (int i = 0; i < 1000; i++) {
                 String string = TestUtil.randomUnicodeString(r, 10000);
                 // hack to make it detected as YAML

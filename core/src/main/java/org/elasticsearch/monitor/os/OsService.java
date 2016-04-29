@@ -20,6 +20,8 @@
 package org.elasticsearch.monitor.os;
 
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
@@ -36,18 +38,22 @@ public class OsService extends AbstractComponent {
 
     private SingleObjectCache<OsStats> osStatsCache;
 
+    public final static Setting<TimeValue> REFRESH_INTERVAL_SETTING =
+        Setting.timeSetting("monitor.os.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
+            Property.NodeScope);
+
     public OsService(Settings settings) {
         super(settings);
         this.probe = OsProbe.getInstance();
 
-        TimeValue refreshInterval = settings.getAsTime("monitor.os.refresh_interval", TimeValue.timeValueSeconds(1));
+        TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
 
         this.info = probe.osInfo();
         this.info.refreshInterval = refreshInterval.millis();
         this.info.allocatedProcessors = EsExecutors.boundedNumberOfProcessors(settings);
 
         osStatsCache = new OsStatsCache(refreshInterval, probe.osStats());
-        logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);
+        logger.debug("using refresh_interval [{}]", refreshInterval);
     }
 
     public OsInfo info() {

@@ -29,19 +29,19 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESAllocationTestCase;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardVersioningTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(ShardVersioningTests.class);
 
     public void testSimple() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+        AllocationService strategy = createAllocationService(Settings.builder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
 
         MetaData metaData = MetaData.builder()
@@ -64,14 +64,12 @@ public class ShardVersioningTests extends ESAllocationTestCase {
         for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
             assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(INITIALIZING));
-            assertThat(routingTable.index("test1").shard(i).primaryShard().version(), equalTo(1l));
             assertThat(routingTable.index("test1").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
         }
 
         for (int i = 0; i < routingTable.index("test2").shards().size(); i++) {
             assertThat(routingTable.index("test2").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test2").shard(i).primaryShard().state(), equalTo(INITIALIZING));
-            assertThat(routingTable.index("test2").shard(i).primaryShard().version(), equalTo(1l));
             assertThat(routingTable.index("test2").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
         }
 
@@ -84,17 +82,13 @@ public class ShardVersioningTests extends ESAllocationTestCase {
         for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
             assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(STARTED));
-            assertThat(routingTable.index("test1").shard(i).primaryShard().version(), equalTo(2l));
             assertThat(routingTable.index("test1").shard(i).replicaShards().get(0).state(), equalTo(INITIALIZING));
-            assertThat(routingTable.index("test1").shard(i).replicaShards().get(0).version(), equalTo(2l));
         }
 
         for (int i = 0; i < routingTable.index("test2").shards().size(); i++) {
             assertThat(routingTable.index("test2").shard(i).shards().size(), equalTo(2));
             assertThat(routingTable.index("test2").shard(i).primaryShard().state(), equalTo(INITIALIZING));
-            assertThat(routingTable.index("test2").shard(i).primaryShard().version(), equalTo(1l));
             assertThat(routingTable.index("test2").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
-            assertThat(routingTable.index("test2").shard(i).replicaShards().get(0).version(), equalTo(1l));
         }
     }
 }

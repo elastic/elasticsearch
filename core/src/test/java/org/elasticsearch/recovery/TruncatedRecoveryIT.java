@@ -29,11 +29,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.recovery.IndexRecoveryIT;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -50,7 +50,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -58,13 +57,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 @SuppressCodecs("*") // test relies on exact file extensions
 public class TruncatedRecoveryIT extends ESIntegTestCase {
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES));
-        return builder.build();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -78,6 +70,10 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
      * Later we allow full recovery to ensure we can still recover and don't run into corruptions.
      */
     public void testCancelRecoveryAndResume() throws Exception {
+        for(RecoverySettings settings : internalCluster().getInstances(RecoverySettings.class)) {
+            IndexRecoveryIT.setChunkSize(settings, new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES));
+        }
+
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
         for (NodeStats stat : nodeStats.getNodes()) {
@@ -86,7 +82,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
             }
         }
         assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
-        Collections.shuffle(dataNodeStats, getRandom());
+        Collections.shuffle(dataNodeStats, random());
         // we use 2 nodes a lucky and unlucky one
         // the lucky one holds the primary
         // the unlucky one gets the replica and the truncated leftovers
@@ -96,9 +92,9 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         // create the index and prevent allocation on any other nodes than the lucky one
         // we have no replicas so far and make sure that we allocate the primary on the lucky node
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=string", "the_id", "type=string")
-                .setSettings(settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards())
-                        .put("index.routing.allocation.include._name", primariesNode.getNode().name()))); // only allocate on the lucky node
+                .addMapping("type1", "field1", "type=text", "the_id", "type=text")
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards())
+                        .put("index.routing.allocation.include._name", primariesNode.getNode().getName()))); // only allocate on the lucky node
 
         // index some docs and check if they are coming back
         int numDocs = randomIntBetween(100, 200);
@@ -120,14 +116,14 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean truncate = new AtomicBoolean(true);
         for (NodeStats dataNode : dataNodeStats) {
-            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().name()));
-            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().name()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
+            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
+            mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
 
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
-                    if (action.equals(RecoveryTarget.Actions.FILE_CHUNK)) {
+                    if (action.equals(RecoveryTargetService.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                        logger.debug("file chunk [" + req.toString() + "] lastChunk: " + req.lastChunk());
+                        logger.debug("file chunk [{}] lastChunk: {}", req, req.lastChunk());
                         if ((req.name().endsWith("cfs") || req.name().endsWith("fdt")) && req.lastChunk() && truncate.get()) {
                             latch.countDown();
                             throw new RuntimeException("Caused some truncated files for fun and profit");
@@ -139,10 +135,10 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         }
 
         logger.info("--> bumping replicas to 1"); //
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder()
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put("index.routing.allocation.include._name",  // now allow allocation on all nodes
-                        primariesNode.getNode().name() + "," + unluckyNode.getNode().name())).get();
+                        primariesNode.getNode().getName() + "," + unluckyNode.getNode().getName())).get();
 
         latch.await();
 

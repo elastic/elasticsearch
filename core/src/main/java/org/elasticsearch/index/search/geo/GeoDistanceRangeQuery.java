@@ -123,7 +123,7 @@ public class GeoDistanceRangeQuery extends Query {
     }
 
     public String fieldName() {
-        return indexFieldData.getFieldNames().indexName();
+        return indexFieldData.getFieldName();
     }
 
     @Override
@@ -144,13 +144,14 @@ public class GeoDistanceRangeQuery extends Query {
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 final DocIdSetIterator approximation;
                 if (boundingBoxWeight != null) {
-                    approximation = boundingBoxWeight.scorer(context);
+                    Scorer s = boundingBoxWeight.scorer(context);
+                    if (s == null) {
+                        // if the approximation does not match anything, we're done
+                        return null;
+                    }
+                    approximation = s.iterator();
                 } else {
                     approximation = DocIdSetIterator.all(context.reader().maxDoc());
-                }
-                if (approximation == null) {
-                    // if the approximation does not match anything, we're done
-                    return null;
                 }
                 final MultiGeoPointValues values = indexFieldData.load(context).getGeoPointValues();
                 final TwoPhaseIterator twoPhaseIterator = new TwoPhaseIterator(approximation) {
@@ -197,7 +198,7 @@ public class GeoDistanceRangeQuery extends Query {
         if (Double.compare(filter.inclusiveUpperPoint, inclusiveUpperPoint) != 0) return false;
         if (Double.compare(filter.lat, lat) != 0) return false;
         if (Double.compare(filter.lon, lon) != 0) return false;
-        if (!indexFieldData.getFieldNames().indexName().equals(filter.indexFieldData.getFieldNames().indexName()))
+        if (!indexFieldData.getFieldName().equals(filter.indexFieldData.getFieldName()))
             return false;
         if (geoDistance != filter.geoDistance) return false;
 
@@ -206,7 +207,7 @@ public class GeoDistanceRangeQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "GeoDistanceRangeQuery(" + indexFieldData.getFieldNames().indexName() + ", " + geoDistance + ", [" + inclusiveLowerPoint + " - " + inclusiveUpperPoint + "], " + lat + ", " + lon + ")";
+        return "GeoDistanceRangeQuery(" + indexFieldData.getFieldName() + ", " + geoDistance + ", [" + inclusiveLowerPoint + " - " + inclusiveUpperPoint + "], " + lat + ", " + lon + ")";
     }
 
     @Override
@@ -222,7 +223,7 @@ public class GeoDistanceRangeQuery extends Query {
         temp = inclusiveUpperPoint != +0.0d ? Double.doubleToLongBits(inclusiveUpperPoint) : 0L;
         result = 31 * result + Long.hashCode(temp);
         result = 31 * result + (geoDistance != null ? geoDistance.hashCode() : 0);
-        result = 31 * result + indexFieldData.getFieldNames().indexName().hashCode();
+        result = 31 * result + indexFieldData.getFieldName().hashCode();
         return result;
     }
 

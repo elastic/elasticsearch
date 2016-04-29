@@ -30,7 +30,7 @@ PUT music/song/_mapping
         "properties" : {
             ...
             "suggest" : {
-                "type" : "completion",
+                "type" : "completion"
             }
         }
     }
@@ -92,7 +92,7 @@ PUT music/song/1?refresh=true
 The following parameters are supported:
 
 `input`::
-    The input to store, this can be a an array of strings or just
+    The input to store, this can be an array of strings or just
     a string. This field is mandatory.
 
 `weight`::

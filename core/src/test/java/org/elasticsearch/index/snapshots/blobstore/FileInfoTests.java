@@ -109,6 +109,8 @@ public class FileInfoTests extends ESTestCase {
             builder.field(Fields.NAME, name);
             builder.field(Fields.PHYSICAL_NAME, physicalName);
             builder.field(Fields.LENGTH, length);
+            builder.field(Fields.WRITTEN_BY, Version.LATEST.toString());
+            builder.field(Fields.CHECKSUM, "666");
             builder.endObject();
             byte[] xContent = builder.bytes().toBytes();
 
@@ -122,9 +124,9 @@ public class FileInfoTests extends ESTestCase {
                 assertThat(name, equalTo(parsedInfo.name()));
                 assertThat(physicalName, equalTo(parsedInfo.physicalName()));
                 assertThat(length, equalTo(parsedInfo.length()));
-                assertNull(parsedInfo.checksum());
-                assertNull(parsedInfo.metadata().checksum());
-                assertNull(parsedInfo.metadata().writtenBy());
+                assertEquals("666", parsedInfo.checksum());
+                assertEquals("666", parsedInfo.metadata().checksum());
+                assertEquals(Version.LATEST, parsedInfo.metadata().writtenBy());
             } else {
                 try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xContent)) {
                     parser.nextToken();
@@ -139,14 +141,14 @@ public class FileInfoTests extends ESTestCase {
     }
 
     public void testGetPartSize() {
-        BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetaData("foo", 36), new ByteSizeValue(6));
+        BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetaData("foo", 36, "666"), new ByteSizeValue(6));
         int numBytes = 0;
         for (int i = 0; i < info.numberOfParts(); i++) {
             numBytes += info.partBytes(i);
         }
         assertEquals(numBytes, 36);
 
-        info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetaData("foo", 35), new ByteSizeValue(6));
+        info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetaData("foo", 35, "666"), new ByteSizeValue(6));
         numBytes = 0;
         for (int i = 0; i < info.numberOfParts(); i++) {
             numBytes += info.partBytes(i);
@@ -154,7 +156,7 @@ public class FileInfoTests extends ESTestCase {
         assertEquals(numBytes, 35);
         final int numIters = randomIntBetween(10, 100);
         for (int j = 0; j < numIters; j++) {
-            StoreFileMetaData metaData = new StoreFileMetaData("foo", randomIntBetween(0, 1000));
+            StoreFileMetaData metaData = new StoreFileMetaData("foo", randomIntBetween(0, 1000), "666");
             info = new BlobStoreIndexShardSnapshot.FileInfo("foo", metaData, new ByteSizeValue(randomIntBetween(1, 1000)));
             numBytes = 0;
             for (int i = 0; i < info.numberOfParts(); i++) {

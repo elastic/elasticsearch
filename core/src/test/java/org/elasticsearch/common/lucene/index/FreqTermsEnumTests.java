@@ -137,7 +137,7 @@ public class FreqTermsEnumTests extends ESTestCase {
         }
 
         // now go over each doc, build the relevant references and filter
-        reader = DirectoryReader.open(iw, true);
+        reader = DirectoryReader.open(iw);
         List<Term> filterTerms = new ArrayList<>();
         for (int docId = 0; docId < reader.maxDoc(); docId++) {
             Document doc = reader.document(docId);
@@ -201,7 +201,7 @@ public class FreqTermsEnumTests extends ESTestCase {
         for (int i = 0; i < cycles; i++) {
             List<String> terms = new ArrayList<>(Arrays.asList(this.terms));
 
-           Collections.shuffle(terms, getRandom());
+           Collections.shuffle(terms, random());
             for (String term : terms) {
                 if (!termsEnum.seekExact(new BytesRef(term))) {
                     assertThat("term : " + term, reference.get(term).docFreq, is(0));

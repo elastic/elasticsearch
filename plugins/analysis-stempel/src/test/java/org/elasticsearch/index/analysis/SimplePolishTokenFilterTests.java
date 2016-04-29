@@ -24,20 +24,10 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -55,13 +45,11 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
     }
 
     private void testToken(String source, String expected) throws IOException {
-        Index index = new Index("test");
-        Settings settings = Settings.settingsBuilder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", createTempDir())
+        Index index = new Index("test", "_na_");
+        Settings settings = Settings.builder()
                 .put("index.analysis.filter.myStemmer.type", "polish_stem")
                 .build();
-        AnalysisService analysisService = createAnalysisService(index, settings);
+        AnalysisService analysisService = createAnalysisService(index, settings, new AnalysisStempelPlugin()::onModule);
 
         TokenFilterFactory filterFactory = analysisService.tokenFilter("myStemmer");
 
@@ -77,12 +65,8 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
     }
 
     private void testAnalyzer(String source, String... expected_terms) throws IOException {
-        Index index = new Index("test");
-        Settings settings = Settings.settingsBuilder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", createTempDir())
-                .build();
-        AnalysisService analysisService = createAnalysisService(index, settings);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), Settings.EMPTY,
+            new AnalysisStempelPlugin()::onModule);
 
         Analyzer analyzer = analysisService.analyzer("polish").analyzer();
 
@@ -97,12 +81,4 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
         }
     }
 
-    private AnalysisService createAnalysisService(Index index, Settings settings) throws IOException {
-        AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
-        new AnalysisStempelPlugin().onModule(analysisModule);
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings, new SettingsFilter(settings)),
-                new EnvironmentModule(new Environment(settings)), analysisModule)
-                .createInjector();
-        return parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, settings));
-    }
 }

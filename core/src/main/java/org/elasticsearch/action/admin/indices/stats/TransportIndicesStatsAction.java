@@ -22,13 +22,13 @@ package org.elasticsearch.action.admin.indices.stats;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -140,10 +140,11 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             flags.fieldDataFields(request.fieldDataFields());
         }
         if (request.percolate()) {
-            flags.set(CommonStatsFlags.Flag.Percolate);
+            flags.set(CommonStatsFlags.Flag.PercolatorCache);
         }
         if (request.segments()) {
             flags.set(CommonStatsFlags.Flag.Segments);
+            flags.includeSegmentFileSizes(request.includeSegmentFileSizes());
         }
         if (request.completion()) {
             flags.set(CommonStatsFlags.Flag.Completion);
@@ -162,6 +163,6 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             flags.set(CommonStatsFlags.Flag.Recovery);
         }
 
-        return new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), new CommonStats(indexShard, flags), indexShard.commitStats());
+        return new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), new CommonStats(indicesService.getIndicesQueryCache(), indexService.cache().getPercolatorQueryCache(), indexShard, flags), indexShard.commitStats());
     }
 }

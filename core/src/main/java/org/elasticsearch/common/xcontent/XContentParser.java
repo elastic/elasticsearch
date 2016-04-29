@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
@@ -178,12 +177,6 @@ public interface XContentParser extends Releasable {
 
     NumberType numberType() throws IOException;
 
-    /**
-     * Is the number type estimated or not (i.e. an int might actually be a long, its just low enough
-     * to be an int).
-     */
-    boolean estimatedNumberType();
-
     short shortValue(boolean coerce) throws IOException;
 
     int intValue(boolean coerce) throws IOException;
@@ -193,7 +186,7 @@ public interface XContentParser extends Releasable {
     float floatValue(boolean coerce) throws IOException;
 
     double doubleValue(boolean coerce) throws IOException;
-    
+
     short shortValue() throws IOException;
 
     int intValue() throws IOException;
@@ -225,10 +218,10 @@ public interface XContentParser extends Releasable {
      *     <li>{@link XContentBuilder#field(String, byte[])}}</li>
      * </ul>
      *
-     * as well as via their <code>XContentBuilderString</code> variants of the separated value methods.
+     * as well as via their <code>String</code> variants of the separated value methods.
      * Note: Do not use this method to read values written with:
      * <ul>
-     *     <li>{@link XContentBuilder#utf8Field(XContentBuilderString, org.apache.lucene.util.BytesRef)}</li>
+     *     <li>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</li>
      *     <li>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</li>
      * </ul>
      *
@@ -247,21 +240,10 @@ public interface XContentParser extends Releasable {
     /**
      * Used for error reporting to highlight where syntax errors occur in
      * content being parsed.
-     * 
+     *
      * @return last token's location or null if cannot be determined
      */
     XContentLocation getTokenLocation();
 
     boolean isClosed();
-
-    /**
-     * Returns this parsers {@link ParseFieldMatcher}
-     */
-    ParseFieldMatcher getParseFieldMatcher();
-
-
-    /**
-     * Sets this parsers {@link ParseFieldMatcher}
-     */
-    void setParseFieldMatcher(ParseFieldMatcher matcher) ;
 }

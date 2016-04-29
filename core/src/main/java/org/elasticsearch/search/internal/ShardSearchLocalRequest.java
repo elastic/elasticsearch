@@ -22,12 +22,12 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
@@ -57,10 +57,9 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * </pre>
  */
 
-public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements ShardSearchRequest {
+public class ShardSearchLocalRequest implements ShardSearchRequest {
 
-    private String index;
-    private int shardId;
+    private ShardId shardId;
     private int numberOfShards;
     private SearchType searchType;
     private Scroll scroll;
@@ -70,6 +69,8 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     private Template template;
     private Boolean requestCache;
     private long nowInMillis;
+
+    private boolean profile;
 
     ShardSearchLocalRequest() {
     }
@@ -82,7 +83,6 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         this.scroll = searchRequest.scroll();
         this.filteringAliases = filteringAliases;
         this.nowInMillis = nowInMillis;
-        copyContextAndHeadersFrom(searchRequest);
     }
 
     public ShardSearchLocalRequest(String[] types, long nowInMillis) {
@@ -97,8 +97,7 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
 
     public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
             Boolean requestCache) {
-        this.index = shardId.getIndex();
-        this.shardId = shardId.id();
+        this.shardId = shardId;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
         this.source = source;
@@ -106,13 +105,9 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         this.requestCache = requestCache;
     }
 
-    @Override
-    public String index() {
-        return index;
-    }
 
     @Override
-    public int shardId() {
+    public ShardId shardId() {
         return shardId;
     }
 
@@ -165,28 +160,35 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         return scroll;
     }
 
-    @SuppressWarnings("unchecked")
+    @Override
+    public void setProfile(boolean profile) {
+        this.profile = profile;
+    }
+
+    @Override
+    public boolean isProfile() {
+        return profile;
+    }
+
     protected void innerReadFrom(StreamInput in) throws IOException {
-        index = in.readString();
-        shardId = in.readVInt();
+        shardId = ShardId.readShardId(in);
         searchType = SearchType.fromId(in.readByte());
         numberOfShards = in.readVInt();
         if (in.readBoolean()) {
             scroll = readScroll(in);
         }
         if (in.readBoolean()) {
-            source = SearchSourceBuilder.readSearchSourceFrom(in);
+            source = new SearchSourceBuilder(in);
         }
         types = in.readStringArray();
         filteringAliases = in.readStringArray();
         nowInMillis = in.readVLong();
-        template = in.readOptionalStreamable(Template::new);
+        template = in.readOptionalWriteable(Template::new);
         requestCache = in.readOptionalBoolean();
     }
 
     protected void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
-        out.writeString(index);
-        out.writeVInt(shardId);
+        shardId.writeTo(out);
         out.writeByte(searchType.id());
         if (!asKey) {
             out.writeVInt(numberOfShards);
@@ -210,7 +212,7 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
             out.writeVLong(nowInMillis);
         }
 
-        out.writeOptionalStreamable(template);
+        out.writeOptionalWriteable(template);
         out.writeOptionalBoolean(requestCache);
     }
 
@@ -221,5 +223,16 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         // copy it over, most requests are small, we might as well copy to make sure we are not sliced...
         // we could potentially keep it without copying, but then pay the price of extra unused bytes up to a page
         return out.bytes().copyBytesArray();
+    }
+
+    @Override
+    public void rewrite(QueryShardContext context) throws IOException {
+        SearchSourceBuilder source = this.source;
+        SearchSourceBuilder rewritten = null;
+        while (rewritten != source) {
+            rewritten = source.rewrite(context);
+            source = rewritten;
+        }
+        this.source = source;
     }
 }

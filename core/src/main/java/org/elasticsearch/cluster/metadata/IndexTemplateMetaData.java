@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -316,7 +317,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         @SuppressWarnings("unchecked")
         public static void toXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject(indexTemplateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(indexTemplateMetaData.name());
 
             builder.field("order", indexTemplateMetaData.order());
             builder.field("template", indexTemplateMetaData.template());
@@ -329,8 +330,10 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 builder.startObject("mappings");
                 for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
                     byte[] mappingSource = cursor.value.uncompressed();
-                    XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                    Map<String, Object> mapping = parser.map();
+                    Map<String, Object> mapping;
+                    try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {;
+                        mapping = parser.map();
+                    }
                     if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
                         // the type name is the root value, reduce it
                         mapping = (Map<String, Object>) mapping.get(cursor.key);
@@ -352,7 +355,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             }
 
             for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {
-                builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(cursor.key);
                 cursor.value.toXContent(builder, params);
                 builder.endObject();
             }
@@ -376,7 +379,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
-                        Settings.Builder templateSettingsBuilder = Settings.settingsBuilder();
+                        Settings.Builder templateSettingsBuilder = Settings.builder();
                         templateSettingsBuilder.put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
                         builder.settings(templateSettingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {

@@ -28,7 +28,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
@@ -86,7 +94,7 @@ public class NodesFaultDetection extends FaultDetection {
     public void updateNodesAndPing(ClusterState clusterState) {
         // remove any nodes we don't need, this will cause their FD to stop
         for (DiscoveryNode monitoredNode : nodesFD.keySet()) {
-            if (!clusterState.nodes().nodeExists(monitoredNode.id())) {
+            if (!clusterState.nodes().nodeExists(monitoredNode.getId())) {
                 nodesFD.remove(monitoredNode);
             }
         }
@@ -192,7 +200,7 @@ public class NodesFaultDetection extends FaultDetection {
             if (!running()) {
                 return;
             }
-            final PingRequest pingRequest = new PingRequest(node.id(), clusterName, localNode, clusterStateVersion);
+            final PingRequest pingRequest = new PingRequest(node.getId(), clusterName, localNode, clusterStateVersion);
             final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout).build();
             transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, new BaseTransportResponseHandler<PingResponse>() {
                         @Override
@@ -247,8 +255,8 @@ public class NodesFaultDetection extends FaultDetection {
         public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
-            if (!localNode.id().equals(request.nodeId)) {
-                throw new IllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + localNode.id() + "]");
+            if (!localNode.getId().equals(request.nodeId)) {
+                throw new IllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + localNode.getId() + "]");
             }
 
             // PingRequest will have clusterName set to null if it came from a node of version <1.4.0
@@ -306,7 +314,7 @@ public class NodesFaultDetection extends FaultDetection {
             super.readFrom(in);
             nodeId = in.readString();
             clusterName = ClusterName.readClusterName(in);
-            masterNode = DiscoveryNode.readNode(in);
+            masterNode = new DiscoveryNode(in);
             clusterStateVersion = in.readLong();
         }
 

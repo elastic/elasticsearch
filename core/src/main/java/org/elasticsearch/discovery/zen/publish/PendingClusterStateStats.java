@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -84,10 +83,10 @@ public class PendingClusterStateStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString QUEUE = new XContentBuilderString("cluster_state_queue");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString PENDING = new XContentBuilderString("pending");
-        static final XContentBuilderString COMMITTED = new XContentBuilderString("committed");
+        static final String QUEUE = "cluster_state_queue";
+        static final String TOTAL = "total";
+        static final String PENDING = "pending";
+        static final String COMMITTED = "committed";
     }
 
     @Override

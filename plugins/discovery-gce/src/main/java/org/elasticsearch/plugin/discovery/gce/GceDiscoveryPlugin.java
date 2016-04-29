@@ -37,6 +37,7 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -85,22 +86,27 @@ public class GceDiscoveryPlugin extends Plugin {
 
     @Override
     public Collection<Module> nodeModules() {
-        return Collections.singletonList(new GceModule());
+        return Collections.singletonList(new GceModule(settings));
     }
 
     @Override
     @SuppressWarnings("rawtypes") // Supertype uses raw type
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        return Collections.singletonList(GceModule.getComputeServiceImpl());
+        logger.debug("Register gce compute and metadata services");
+        Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
+        services.add(GceModule.getComputeServiceImpl());
+        services.add(GceModule.getMetadataServiceImpl());
+        return services;
     }
 
     public void onModule(DiscoveryModule discoveryModule) {
+        logger.debug("Register gce discovery type and gce unicast provider");
         discoveryModule.addDiscoveryType(GCE, ZenDiscovery.class);
-        // If discovery.type: gce, we add Gce as a unicast provider
-            discoveryModule.addUnicastHostProvider(GCE, GceUnicastHostsProvider.class);
+        discoveryModule.addUnicastHostProvider(GCE, GceUnicastHostsProvider.class);
     }
 
     public void onModule(SettingsModule settingsModule) {
+        logger.debug("registering GCE Settings");
         // Register GCE settings
         settingsModule.registerSetting(GceComputeService.PROJECT_SETTING);
         settingsModule.registerSetting(GceComputeService.ZONE_SETTING);

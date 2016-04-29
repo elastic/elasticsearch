@@ -122,7 +122,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
         httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
         httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
         httpServer.createContext("/computeMetadata/v1/instance/service-accounts/default/token", (s) -> {
-            String response = GceComputeServiceMock.readGoogleInternalJsonResponse(
+            String response = GceMockUtils.readGoogleInternalJsonResponse(
                 "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token");
             byte[] responseAsBytes = response.getBytes(StandardCharsets.UTF_8);
             s.sendResponseHeaders(200, responseAsBytes.length);

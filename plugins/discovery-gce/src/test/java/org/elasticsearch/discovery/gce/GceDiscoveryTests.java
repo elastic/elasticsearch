@@ -65,7 +65,6 @@ public class GceDiscoveryTests extends ESTestCase {
 
     protected static ThreadPool threadPool;
     protected MockTransportService transportService;
-    protected NetworkService networkService;
     protected GceComputeService mock;
     protected String projectName;
 
@@ -96,11 +95,6 @@ public class GceDiscoveryTests extends ESTestCase {
         transportService = MockTransportService.local(Settings.EMPTY, Version.CURRENT, threadPool);
     }
 
-    @Before
-    public void createNetworkService() {
-        networkService = new NetworkService(Settings.EMPTY);
-    }
-
     @After
     public void stopGceComputeService() {
         if (mock != null) {
@@ -122,7 +116,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.PROJECT_SETTING.getKey(), projectName)
                 .put(GceComputeService.ZONE_SETTING.getKey(), "europe-west1-b")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(2));
     }
@@ -133,7 +127,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.ZONE_SETTING.getKey(), "europe-west1-b")
                 .putArray(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(1));
         assertThat(discoveryNodes.get(0).getId(), is("#cloud-test2-0"));
@@ -145,7 +139,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.ZONE_SETTING.getKey(), "europe-west1-b")
                 .putArray(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(1));
         assertThat(discoveryNodes.get(0).getId(), is("#cloud-test2-0"));
@@ -156,7 +150,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.PROJECT_SETTING.getKey(), projectName)
                 .put(GceComputeService.ZONE_SETTING.getKey(), "europe-west1-b")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(2));
     }
@@ -167,7 +161,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.ZONE_SETTING.getKey(), "europe-west1-b")
                 .putArray(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(2));
     }
@@ -178,7 +172,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.ZONE_SETTING.getKey(), "europe-west1-b")
                 .putArray(GceUnicastHostsProvider.TAGS_SETTING.getKey(), "elasticsearch", "dev")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(2));
     }
@@ -188,7 +182,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.PROJECT_SETTING.getKey(), projectName)
                 .putArray(GceComputeService.ZONE_SETTING.getKey(), "us-central1-a", "europe-west1-b")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(2));
     }
@@ -198,7 +192,7 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.PROJECT_SETTING.getKey(), projectName)
                 .putArray(GceComputeService.ZONE_SETTING.getKey(), "us-central1-a", "europe-west1-b")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(2));
     }
@@ -211,14 +205,14 @@ public class GceDiscoveryTests extends ESTestCase {
                 .put(GceComputeService.PROJECT_SETTING.getKey(), projectName)
                 .putArray(GceComputeService.ZONE_SETTING.getKey(), "us-central1-a", "us-central1-b")
                 .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         List<DiscoveryNode> discoveryNodes = buildDynamicNodes(mock, nodeSettings);
         assertThat(discoveryNodes, hasSize(0));
     }
 
     public void testIllegalSettingsMissingAllRequired() {
         Settings nodeSettings = Settings.EMPTY;
-        mock = new GceComputeServiceMock(Settings.EMPTY, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         try {
             buildDynamicNodes(mock, nodeSettings);
             fail("We expect an IllegalArgumentException for incomplete settings");
@@ -231,7 +225,7 @@ public class GceDiscoveryTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
             .putArray(GceComputeService.ZONE_SETTING.getKey(), "us-central1-a", "us-central1-b")
             .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         try {
             buildDynamicNodes(mock, nodeSettings);
             fail("We expect an IllegalArgumentException for incomplete settings");
@@ -244,7 +238,7 @@ public class GceDiscoveryTests extends ESTestCase {
         Settings nodeSettings = Settings.builder()
             .put(GceComputeService.PROJECT_SETTING.getKey(), projectName)
             .build();
-        mock = new GceComputeServiceMock(nodeSettings, networkService);
+        mock = new GceComputeServiceMock(nodeSettings);
         try {
             buildDynamicNodes(mock, nodeSettings);
             fail("We expect an IllegalArgumentException for incomplete settings");

@@ -554,7 +554,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public DeleteNatGatewayResult deleteNatGateway(DeleteNatGatewayRequest deleteNatGatewayRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
@@ -679,12 +679,12 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public ModifyHostsResult modifyHosts(ModifyHostsRequest modifyHostsRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public void modifyIdFormat(ModifyIdFormatRequest modifyIdFormatRequest) {
-
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
@@ -1014,7 +1014,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public DisableVpcClassicLinkDnsSupportResult disableVpcClassicLinkDnsSupport(DisableVpcClassicLinkDnsSupportRequest disableVpcClassicLinkDnsSupportRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
@@ -1044,7 +1044,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public RunScheduledInstancesResult runScheduledInstances(RunScheduledInstancesRequest runScheduledInstancesRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
@@ -1084,7 +1084,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public ModifyInstancePlacementResult modifyInstancePlacement(ModifyInstancePlacementRequest modifyInstancePlacementRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
@@ -1224,7 +1224,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public PurchaseScheduledInstancesResult purchaseScheduledInstances(PurchaseScheduledInstancesRequest purchaseScheduledInstancesRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
@@ -1404,7 +1404,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public ReleaseHostsResult releaseHosts(ReleaseHostsRequest releaseHostsRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
@@ -1419,7 +1419,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public CreateNatGatewayResult createNatGateway(CreateNatGatewayRequest createNatGatewayRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
@@ -1454,7 +1454,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public EnableVpcClassicLinkDnsSupportResult enableVpcClassicLinkDnsSupport(EnableVpcClassicLinkDnsSupportRequest enableVpcClassicLinkDnsSupportRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
@@ -1574,12 +1574,12 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public DescribeScheduledInstanceAvailabilityResult describeScheduledInstanceAvailability(DescribeScheduledInstanceAvailabilityRequest describeScheduledInstanceAvailabilityRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeScheduledInstancesResult describeScheduledInstances(DescribeScheduledInstancesRequest describeScheduledInstancesRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
@@ -1624,7 +1624,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public DescribeNatGatewaysResult describeNatGateways(DescribeNatGatewaysRequest describeNatGatewaysRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
@@ -1644,22 +1644,22 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public DescribeHostsResult describeHosts(DescribeHostsRequest describeHostsRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeHostsResult describeHosts() {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeIdFormatResult describeIdFormat(DescribeIdFormatRequest describeIdFormatRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeIdFormatResult describeIdFormat() {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
@@ -1704,7 +1704,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public DescribeVpcClassicLinkDnsSupportResult describeVpcClassicLinkDnsSupport(DescribeVpcClassicLinkDnsSupportRequest describeVpcClassicLinkDnsSupportRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
@@ -1774,7 +1774,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public AllocateHostsResult allocateHosts(AllocateHostsRequest allocateHostsRequest) {
-        return null;
+        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override

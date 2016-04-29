@@ -123,6 +123,10 @@ public class ListPluginsCommandTests extends ESTestCase {
         MockTerminal terminal = listPlugins(env, params);
         String output = terminal.getOutput();
         assertTrue(output, output.contains("Plugin information"));
+        assertTrue(output, output.contains("Classname: org.fake"));
+        assertTrue(output, output.contains("fake_plugin"));
+        assertTrue(output, output.contains("1.0"));
+        assertTrue(output, output.contains("fake desc"));
     }
     
     public void testPluginWithVerboseMultiplePlugins() throws Exception {

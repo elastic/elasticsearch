@@ -96,16 +96,22 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     protected void doAssertLuceneQuery(TermsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (queryBuilder.termsLookup() == null && (queryBuilder.values() == null || queryBuilder.values().isEmpty())) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
+            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
+            assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
+        } else if (queryBuilder.termsLookup() != null && randomTerms.size() == 0){
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
+            assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
         } else {
             assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery booleanQuery = (BooleanQuery) query;
-    
+
             // we only do the check below for string fields (otherwise we'd have to decode the values)
             if (queryBuilder.fieldName().equals(INT_FIELD_NAME) || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)
                     || queryBuilder.fieldName().equals(BOOLEAN_FIELD_NAME) || queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
                 return;
             }
-    
+
             // expected returned terms depending on whether we have a terms query or a terms lookup query
             List<Object> terms;
             if (queryBuilder.termsLookup() != null) {
@@ -113,7 +119,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             } else {
                 terms = queryBuilder.values();
             }
-    
+
             // compare whether we have the expected list of terms returned
             final List<Term> booleanTerms = new ArrayList<>();
             for (BooleanClause booleanClause : booleanQuery) {

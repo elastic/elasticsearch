@@ -50,6 +50,7 @@ public class ReleasableLock implements Releasable {
         assert removeCurrentThread();
     }
 
+
     public ReleasableLock acquire() throws EngineException {
         lock.lock();
         assert addCurrentThread();

@@ -253,6 +253,13 @@ public final class ShardRouting implements Writeable, ToXContent {
     }
 
     /**
+     * returns true for initializing shards that recover their data from another shard copy
+     */
+    public boolean isPeerRecovery() {
+        return state == ShardRoutingState.INITIALIZING && (primary() == false || relocatingNodeId != null);
+    }
+
+    /**
      * A shard iterator with just this shard in it.
      */
     public ShardIterator shardsIt() {

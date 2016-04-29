@@ -136,37 +136,18 @@ public class RecoveriesCollection {
         return onGoingRecoveries.size();
     }
 
-    /** cancel all ongoing recoveries for the given shard. typically because the shards is closed */
-    public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
-        return cancelRecoveriesForShard(shardId, reason, status -> true);
-    }
-
     /**
-     * cancel all ongoing recoveries for the given shard, if their status match a predicate
+     * cancel all ongoing recoveries for the given shard
      *
      * @param reason       reason for cancellation
      * @param shardId      shardId for which to cancel recoveries
-     * @param shouldCancel a predicate to check if a recovery should be cancelled or not.
-     *                     Note that the recovery state can change after this check, but before it is being cancelled via other
-     *                     already issued outstanding references.
      * @return true if a recovery was cancelled
      */
-    public boolean cancelRecoveriesForShard(ShardId shardId, String reason, Predicate<RecoveryTarget> shouldCancel) {
+    public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
         boolean cancelled = false;
         for (RecoveryTarget status : onGoingRecoveries.values()) {
             if (status.shardId().equals(shardId)) {
-                boolean cancel = false;
-                // if we can't increment the status, the recovery is not there any more.
-                if (status.tryIncRef()) {
-                    try {
-                        cancel = shouldCancel.test(status);
-                    } finally {
-                        status.decRef();
-                    }
-                }
-                if (cancel && cancelRecovery(status.recoveryId(), reason)) {
-                    cancelled = true;
-                }
+                cancelled |= cancelRecovery(status.recoveryId(), reason);
             }
         }
         return cancelled;

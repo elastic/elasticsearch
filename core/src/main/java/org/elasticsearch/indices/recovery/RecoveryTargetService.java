@@ -124,13 +124,10 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
      *
      * @param reason       reason for cancellation
      * @param shardId      shardId for which to cancel recoveries
-     * @param shouldCancel a predicate to check if a recovery should be cancelled or not. Null means cancel without an extra check.
-     *                     note that the recovery state can change after this check, but before it is being cancelled via other
-     *                     already issued outstanding references.
      * @return true if a recovery was cancelled
      */
-    public boolean cancelRecoveriesForShard(ShardId shardId, String reason, @Nullable Predicate<RecoveryTarget> shouldCancel) {
-        return onGoingRecoveries.cancelRecoveriesForShard(shardId, reason, shouldCancel);
+    public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
+        return onGoingRecoveries.cancelRecoveriesForShard(shardId, reason);
     }
 
     public void startRecovery(final IndexShard indexShard, final RecoveryState.Type recoveryType, final DiscoveryNode sourceNode, final

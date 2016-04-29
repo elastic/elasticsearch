@@ -16,7 +16,7 @@ Each package features a configuration file, which allows you to set the followin
 `ES_HEAP_SIZE`::          The heap size to start with
 `ES_HEAP_NEWSIZE`::       The size of the new generation heap
 `ES_DIRECT_SIZE`::        The maximum size of the direct memory
-`MAX_OPEN_FILES`::        Maximum number of open files, defaults to `65535`
+`MAX_OPEN_FILES`::        Maximum number of open files, defaults to `65536`
 `MAX_LOCKED_MEMORY`::     Maximum locked memory size. Set to "unlimited" if you use the bootstrap.mlockall option in elasticsearch.yml. You must also set ES_HEAP_SIZE.
 `MAX_MAP_COUNT`::         Maximum number of memory map areas a process may have. If you use `mmapfs` as index store type, make sure this is set to a high value. For more information, check the https://github.com/torvalds/linux/blob/master/Documentation/sysctl/vm.txt[linux kernel documentation] about `max_map_count`. This is set via `sysctl` before starting elasticsearch. Defaults to `65535`
 `LOG_DIR`::               Log directory, defaults to `/var/log/elasticsearch`

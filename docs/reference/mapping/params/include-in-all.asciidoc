@@ -30,7 +30,7 @@ PUT my_index
 --------------------------------
 // AUTOSENSE
 
-<1> The `title` and `content` fields with be included in the `_all` field.
+<1> The `title` and `content` fields will be included in the `_all` field.
 <2> The `date` field will not be included in the `_all` field.
 
 TIP: The `include_in_all` setting is allowed to have different settings for

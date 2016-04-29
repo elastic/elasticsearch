@@ -327,13 +327,10 @@ the document defined in the `percolate` query.
 ==== How it Works Under the Hood
 
 When indexing a document into an index that has the <<percolator,percolator field type>> mapping configured, the query
-part of the documents gets parsed into a Lucene query and is kept in memory until that percolator document is removed.
-So, all the active percolator queries are kept in memory.
+part of the documents gets parsed into a Lucene query and are stored into the Lucene index. A binary representation
+of the query gets stored, but also the query's terms are analyzed and stored into an indexed field.
 
 At search time, the document specified in the request gets parsed into a Lucene document and is stored in a in-memory
-temporary Lucene index. This in-memory index can just hold this one document and it is optimized for that. Then all the queries
-that are registered to the index that the search request is targeted for, are going to be executed on this single document
-in-memory index. This happens on each shard the search request needs to execute.
-
-By using `routing` or additional queries the amount of percolator queries that need to be executed can be reduced and thus
-the time the search API needs to run can be decreased.
+temporary Lucene index. This in-memory index can just hold this one document and it is optimized for that. After this
+a special query is build based on the terms in the in-memory index that select candidate percolator queries based on
+their indexed query terms. These queries are then evaluated by the in-memory index if they actually match.

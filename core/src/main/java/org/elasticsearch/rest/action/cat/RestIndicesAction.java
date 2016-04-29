@@ -222,9 +222,6 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("merges.total_time", "sibling:pri;alias:mtt,mergesTotalTime;default:false;text-align:right;desc:time spent in merges");
         table.addCell("pri.merges.total_time", "default:false;text-align:right;desc:time spent in merges");
 
-        table.addCell("percolate.queries", "sibling:pri;alias:pq,percolateQueries;default:false;text-align:right;desc:number of registered percolation queries");
-        table.addCell("pri.percolate.queries", "default:false;text-align:right;desc:number of registered percolation queries");
-
         table.addCell("refresh.total", "sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("pri.refresh.total", "default:false;text-align:right;desc:total refreshes");
 
@@ -423,9 +420,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getMerge().getTotalTime());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getMerge().getTotalTime());
-
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getPercolatorCache().getNumQueries());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getPercolatorCache().getNumQueries());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getRefresh().getTotal());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getRefresh().getTotal());

@@ -84,14 +84,14 @@ public class PercolateQueryTests extends ESTestCase {
     private Directory directory;
     private IndexWriter indexWriter;
     private Map<String, Query> queries;
-    private PercolateQuery.QueryRegistry queryRegistry;
+    private PercolateQuery.QueryStore queryStore;
     private DirectoryReader directoryReader;
 
     @Before
     public void init() throws Exception {
         directory = newDirectory();
         queries = new HashMap<>();
-        queryRegistry = ctx -> docId -> {
+        queryStore = ctx -> docId -> {
             try {
                 String val = ctx.reader().document(docId).get(UidFieldMapper.NAME);
                 return queries.get(Uid.createUid(val).id());
@@ -145,7 +145,7 @@ public class PercolateQueryTests extends ESTestCase {
 
         PercolateQuery.Builder builder = new PercolateQuery.Builder(
                 "docType",
-                queryRegistry,
+                queryStore,
                 new BytesArray("{}"),
                 percolateSearcher
         );
@@ -219,7 +219,7 @@ public class PercolateQueryTests extends ESTestCase {
 
         PercolateQuery.Builder builder = new PercolateQuery.Builder(
                 "docType",
-                queryRegistry,
+                queryStore,
                 new BytesArray("{}"),
                 percolateSearcher
         );
@@ -336,7 +336,7 @@ public class PercolateQueryTests extends ESTestCase {
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         PercolateQuery.Builder builder1 = new PercolateQuery.Builder(
                 "docType",
-                queryRegistry,
+                queryStore,
                 new BytesArray("{}"),
                 percolateSearcher
         );
@@ -346,7 +346,7 @@ public class PercolateQueryTests extends ESTestCase {
 
         PercolateQuery.Builder builder2 = new PercolateQuery.Builder(
                 "docType",
-                queryRegistry,
+                queryStore,
                 new BytesArray("{}"),
                 percolateSearcher
         );

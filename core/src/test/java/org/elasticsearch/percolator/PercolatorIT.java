@@ -514,38 +514,6 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(percolate.getMatches(), emptyArray());
     }
 
-    public void testPercolateStatistics() throws Exception {
-        client().admin().indices().prepareCreate(INDEX_NAME)
-                .addMapping(TYPE_NAME, "query", "type=percolator")
-                .get();
-        client().admin().indices().prepareCreate("test2")
-                .addMapping(TYPE_NAME, "query", "type=percolator")
-                .get();
-        ensureGreen();
-
-        logger.info("--> register a query");
-        client().prepareIndex(INDEX_NAME, TYPE_NAME, "1")
-                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
-                .execute().actionGet();
-        client().prepareIndex("test2", TYPE_NAME, "1")
-                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
-                .execute().actionGet();
-        refresh();
-
-        logger.info("--> First percolate request");
-        PercolateResponse response = client().preparePercolate()
-                .setIndices(INDEX_NAME).setDocumentType("type")
-                .setSource(jsonBuilder().startObject().startObject("doc").field("field", "val").endObject().endObject())
-                .execute().actionGet();
-        assertMatchCount(response, 1L);
-        assertThat(convertFromTextArray(response.getMatches(), INDEX_NAME), arrayContaining("1"));
-
-        NumShards numShards = getNumShards(INDEX_NAME);
-
-        IndicesStatsResponse indicesResponse = client().admin().indices().prepareStats(INDEX_NAME).execute().actionGet();
-        assertThat(indicesResponse.getTotal().getPercolatorCache().getNumQueries(), equalTo((long)numShards.dataCopies)); // number of copies
-    }
-
     public void testPercolatingExistingDocs() throws Exception {
         client().admin().indices().prepareCreate(INDEX_NAME)
                 .addMapping(TYPE_NAME, "query", "type=percolator")

@@ -76,7 +76,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.percolator.PercolatorQueryCache;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -190,7 +189,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static IndexSettings idxSettings;
     private static SimilarityService similarityService;
     private static MapperService mapperService;
-    private static PercolatorQueryCache percolatorQueryCache;
     private static BitsetFilterCache bitsetFilterCache;
     private static ScriptService scriptService;
 
@@ -308,7 +306,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
             }
         });
-        percolatorQueryCache = new PercolatorQueryCache(idxSettings, () -> createShardContext());
         indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
@@ -349,7 +346,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         idxSettings = null;
         similarityService = null;
         mapperService = null;
-        percolatorQueryCache = null;
         bitsetFilterCache = null;
         scriptService = null;
     }
@@ -750,7 +746,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
         Client client = injector.getInstance(Client.class);
         return new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
-                scriptService, indicesQueriesRegistry, client, percolatorQueryCache, null, state);
+                scriptService, indicesQueriesRegistry, client, null, state);
     }
 
     /**

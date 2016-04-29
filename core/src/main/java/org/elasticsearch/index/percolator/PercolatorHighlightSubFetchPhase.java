@@ -40,6 +40,7 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -69,8 +70,8 @@ public class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
         }
 
         List<LeafReaderContext> ctxs = context.searcher().getIndexReader().leaves();
-        PercolatorQueryCache queriesRegistry = context.percolatorQueryCache();
         IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
+        PercolateQuery.QueryStore queryStore = percolateQuery.getQueryStore();
 
         LeafReaderContext percolatorLeafReaderContext = percolatorIndexSearcher.getIndexReader().leaves().get(0);
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
@@ -78,9 +79,14 @@ public class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                 createSubSearchContext(context, percolatorLeafReaderContext, percolateQuery.getDocumentSource());
 
         for (InternalSearchHit hit : hits) {
-            LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(hit.docId(), ctxs));
-            int segmentDocId = hit.docId() - ctx.docBase;
-            Query query = queriesRegistry.getQueries(ctx).getQuery(segmentDocId);
+            final Query query;
+            try {
+                LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(hit.docId(), ctxs));
+                int segmentDocId = hit.docId() - ctx.docBase;
+                query = queryStore.getQueries(ctx).getQuery(segmentDocId);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             if (query != null) {
                 subSearchContext.parsedQuery(new ParsedQuery(query));
                 hitContext.reset(

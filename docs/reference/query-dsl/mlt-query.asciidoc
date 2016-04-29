@@ -72,7 +72,6 @@ present in the index, the syntax is similar to <<docs-termvectors-artificial-doc
                     "last": "Grimm"
                 },
                 "tweet": "You got no idea what I'd... what I'd give to be invisible."
-              }
             }
         },
         {

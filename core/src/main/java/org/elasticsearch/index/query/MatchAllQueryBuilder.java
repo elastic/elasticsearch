@@ -37,7 +37,21 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
 
     public static final String NAME = "match_all";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final MatchAllQueryBuilder PROTOTYPE = new MatchAllQueryBuilder();
+
+    public MatchAllQueryBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MatchAllQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        // only superclass has state
+    }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -57,9 +71,9 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + MatchAllQueryBuilder.NAME +
@@ -89,16 +103,6 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
     @Override
     protected int doHashCode() {
         return 0;
-    }
-
-    @Override
-    protected MatchAllQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new MatchAllQueryBuilder();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        //nothing to write really
     }
 
     @Override

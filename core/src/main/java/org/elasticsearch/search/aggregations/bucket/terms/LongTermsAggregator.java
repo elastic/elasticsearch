@@ -47,7 +47,6 @@ import java.util.Map;
 public class LongTermsAggregator extends TermsAggregator {
 
     protected final ValuesSource.Numeric valuesSource;
-    protected final DocValueFormat format;
     protected final LongHash bucketOrds;
     private boolean showTermDocCountError;
     private LongFilter longFilter;
@@ -56,10 +55,9 @@ public class LongTermsAggregator extends TermsAggregator {
             Terms.Order order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent,
             SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, bucketCountThresholds, order, subAggCollectMode, pipelineAggregators, metaData);
+        super(name, factories, aggregationContext, parent, bucketCountThresholds, order, format, subAggCollectMode, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.showTermDocCountError = showTermDocCountError;
-        this.format = format;
         this.longFilter = longFilter;
         bucketOrds = new LongHash(1, aggregationContext.bigArrays());
     }

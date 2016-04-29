@@ -29,11 +29,6 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
     static final ParseField SIGMA = new ParseField("sigma");
 
     @Override
-    public String type() {
-        return ExtendedStatsBucketPipelineAggregator.TYPE.name();
-    }
-
-    @Override
     protected ExtendedStatsBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
             String bucketsPath, Map<String, Object> unparsedParams) throws ParseException {
 
@@ -55,10 +50,5 @@ public class ExtendedStatsBucketParser extends BucketMetricsParser {
             factory.sigma(sigma);
         }
         return factory;
-    }
-
-    @Override
-    public ExtendedStatsBucketPipelineAggregatorBuilder getFactoryPrototype() {
-        return ExtendedStatsBucketPipelineAggregatorBuilder.PROTOTYPE;
     }
 }

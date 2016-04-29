@@ -116,7 +116,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
         Version version = randomBoolean() ? Version.CURRENT
                 : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("node.name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
@@ -124,7 +124,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
 
         namedWriteableRegistry = new NamedWriteableRegistry();
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
-        Settings indexSettings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         final ThreadPool threadPool = new ThreadPool(settings);
         final ClusterService clusterService = createClusterService(threadPool);
         setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
@@ -227,9 +227,9 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
         XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(shuffled.bytes());
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
-        parseContext.reset(parser);
-        parseContext.parseFieldMatcher(parseFieldMatcher);
+        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+        String contentString = factoriesBuilder.toString();
+        logger.info("Content string: {}", contentString);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.name(), parser.currentName());
@@ -237,8 +237,8 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.type(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        PipelineAggregatorBuilder newAgg = aggParsers.pipelineAggregator(testAgg.getWriteableName()).parse(testAgg.name(), parser,
-                parseContext);
+        PipelineAggregatorBuilder<?> newAgg = aggParsers.pipelineParser(testAgg.getWriteableName(), ParseFieldMatcher.STRICT)
+                .parse(testAgg.name(), parseContext);
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
@@ -256,10 +256,9 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
     public void testSerialization() throws IOException {
         AF testAgg = createTestAggregatorFactory();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            testAgg.writeTo(output);
+            output.writeNamedWriteable(testAgg);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                PipelineAggregatorBuilder prototype = aggParsers.pipelineAggregator(testAgg.getWriteableName()).getFactoryPrototype();
-                PipelineAggregatorBuilder deserializedQuery = prototype.readFrom(in);
+                PipelineAggregatorBuilder<?> deserializedQuery = in.readNamedWriteable(PipelineAggregatorBuilder.class);
                 assertEquals(deserializedQuery, testAgg);
                 assertEquals(deserializedQuery.hashCode(), testAgg.hashCode());
                 assertNotSame(deserializedQuery, testAgg);
@@ -297,11 +296,10 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
     // argument
     private AF copyAggregation(AF agg) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            agg.writeTo(output);
+            output.writeNamedWriteable(agg);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                PipelineAggregatorBuilder prototype = aggParsers.pipelineAggregator(agg.getWriteableName()).getFactoryPrototype();
                 @SuppressWarnings("unchecked")
-                AF secondAgg = (AF) prototype.readFrom(in);
+                AF secondAgg = (AF) in.readNamedWriteable(PipelineAggregatorBuilder.class);
                 return secondAgg;
             }
         }

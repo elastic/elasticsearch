@@ -23,10 +23,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
 
 import java.io.IOException;
@@ -173,12 +173,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testIllegalConstructorArg() {
-        try {
-            new SimpleQueryStringBuilder(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new SimpleQueryStringBuilder((String) null));
     }
 
     public void testFieldCannotBeNull() {
@@ -399,6 +394,17 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 expectedMinimumShouldMatch = 0;
             }
             assertEquals(expectedMinimumShouldMatch, boolQuery.getMinimumNumberShouldMatch());
+        }
+    }
+
+    public void testIndexMetaField() throws IOException {
+        QueryShardContext shardContext = createShardContext();
+        SimpleQueryStringBuilder simpleQueryStringBuilder = new SimpleQueryStringBuilder(getIndex().getName());
+        simpleQueryStringBuilder.field("_index");
+        Query query = simpleQueryStringBuilder.toQuery(shardContext);
+        assertThat(query, notNullValue());
+        if (getCurrentTypes().length > 0) {
+            assertThat(query, instanceOf(MatchAllDocsQuery.class));
         }
     }
 }

@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -155,9 +154,9 @@ public class RestGetIndicesAction extends BaseRestHandler {
     }
 
     static class Fields {
-        static final XContentBuilderString ALIASES = new XContentBuilderString("aliases");
-        static final XContentBuilderString MAPPINGS = new XContentBuilderString("mappings");
-        static final XContentBuilderString SETTINGS = new XContentBuilderString("settings");
+        static final String ALIASES = "aliases";
+        static final String MAPPINGS = "mappings";
+        static final String SETTINGS = "settings";
     }
 
 }

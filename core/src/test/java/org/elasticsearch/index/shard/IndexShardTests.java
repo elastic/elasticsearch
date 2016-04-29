@@ -46,7 +46,6 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -118,7 +117,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
@@ -127,7 +125,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -489,7 +486,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     }
 
     private void setDurability(IndexShard shard, Translog.Durability durability) {
-        client().admin().indices().prepareUpdateSettings(shard.shardId.getIndexName()).setSettings(settingsBuilder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), durability.name()).build()).get();
+        client().admin().indices().prepareUpdateSettings(shard.shardId.getIndexName()).setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), durability.name()).build()).get();
         assertEquals(durability, shard.getTranslogDurability());
     }
 
@@ -799,13 +796,13 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     }
 
     public void testMaybeFlush() throws Exception {
-        createIndex("test", settingsBuilder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST).build());
+        createIndex("test", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST).build());
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
         assertFalse(shard.shouldFlush());
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(133 /* size of the operation + header&footer*/, ByteSizeUnit.BYTES)).build()).get();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(133 /* size of the operation + header&footer*/, ByteSizeUnit.BYTES)).build()).get();
         client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(randomBoolean()).get();
         assertFalse(shard.shouldFlush());
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{1}), null);
@@ -821,7 +818,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         shard.getEngine().getTranslog().sync();
         long size = shard.getEngine().getTranslog().sizeInBytes();
         logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]", shard.getEngine().getTranslog().sizeInBytes(), shard.getEngine().getTranslog().totalOperations(), shard.getEngine().getTranslog().getGeneration());
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(size, ByteSizeUnit.BYTES))
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(size, ByteSizeUnit.BYTES))
             .build()).get();
         client().prepareDelete("test", "test", "2").get();
         logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]", shard.getEngine().getTranslog().sizeInBytes(), shard.getEngine().getTranslog().totalOperations(), shard.getEngine().getTranslog().getGeneration());
@@ -839,7 +836,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService(resolveIndex("test"));
         final IndexShard shard = test.getShardOrNull(0);
         assertFalse(shard.shouldFlush());
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(133/* size of the operation + header&footer*/, ByteSizeUnit.BYTES)).build()).get();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(133/* size of the operation + header&footer*/, ByteSizeUnit.BYTES)).build()).get();
         client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(randomBoolean()).get();
         assertFalse(shard.shouldFlush());
         final AtomicBoolean running = new AtomicBoolean(true);
@@ -1073,7 +1070,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         // we can't issue this request through a client because of the inconsistencies we created with the cluster state
         // doing it directly instead
         IndexRequest request = client().prepareIndex("test", "test", "0").setSource("{}").request();
-        request.process(MetaData.builder().put(test.getMetaData(), false).build(), null, false, "test");
+        request.process(null, false, "test");
         TransportIndexAction.executeIndexRequestOnPrimary(request, newShard, null);
         newShard.refresh("test");
         assertHitCount(client().prepareSearch().get(), 1);

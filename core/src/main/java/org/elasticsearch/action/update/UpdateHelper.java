@@ -22,6 +22,8 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -61,11 +63,13 @@ import java.util.Map;
 public class UpdateHelper extends AbstractComponent {
 
     private final ScriptService scriptService;
+    private final ClusterService clusterService;
 
     @Inject
-    public UpdateHelper(Settings settings, ScriptService scriptService) {
+    public UpdateHelper(Settings settings, ScriptService scriptService, ClusterService clusterService) {
         super(settings);
         this.scriptService = scriptService;
+        this.clusterService = clusterService;
     }
 
     /**
@@ -246,7 +250,8 @@ public class UpdateHelper extends AbstractComponent {
     private Map<String, Object> executeScript(Script script, Map<String, Object> ctx) {
         try {
             if (scriptService != null) {
-                ExecutableScript executableScript = scriptService.executable(script, ScriptContext.Standard.UPDATE, Collections.emptyMap());
+                ClusterState state = clusterService.state();
+                ExecutableScript executableScript = scriptService.executable(script, ScriptContext.Standard.UPDATE, Collections.emptyMap(), state);
                 executableScript.setNextVar("ctx", ctx);
                 executableScript.run();
                 // we need to unwrap the ctx...

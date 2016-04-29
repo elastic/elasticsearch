@@ -65,7 +65,6 @@
   renamed:    core/src/test/java/org/elasticsearch/percolator/PercolatorIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/PercolatorTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/functionscore/RandomScoreFunctionIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/RandomScoreFunctionTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/RangeIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/RangeTests.java
-  renamed:    core/src/test/java/org/elasticsearch/script/ScriptIndexSettingsIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ScriptIndexSettingsTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/scriptfilter/ScriptQuerySearchIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ScriptQuerySearchTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/ScriptedMetricIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ScriptedMetricTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/fields/SearchFieldsIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/SearchFieldsTests.java

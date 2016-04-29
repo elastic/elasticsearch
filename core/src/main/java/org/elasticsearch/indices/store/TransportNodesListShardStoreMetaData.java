@@ -84,7 +84,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     }
 
     @Override
-    public void list(ShardId shardId, IndexMetaData indexMetaData, String[] nodesIds, ActionListener<NodesStoreFilesMetaData> listener) {
+    public void list(ShardId shardId, String[] nodesIds, ActionListener<NodesStoreFilesMetaData> listener) {
         execute(new Request(shardId, false, nodesIds), listener);
     }
 

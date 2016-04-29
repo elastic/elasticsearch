@@ -34,7 +34,7 @@ The `range` query accepts the following parameters:
 ==== Ranges on date fields
 
 When running `range` queries on fields of type <<date,`date`>>, ranges can be
-specified using <<date-math>>::
+specified using <<date-math>>:
 
 [source,js]
 --------------------------------------------------

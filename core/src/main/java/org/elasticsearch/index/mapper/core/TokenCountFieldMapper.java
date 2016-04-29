@@ -23,44 +23,41 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.Field;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Strings;
+import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.StringFieldMapper.ValueAndBoost;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.lucene.index.IndexOptions.NONE;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
  * A {@link FieldMapper} that takes a string and writes a count of the tokens in that string
- * to the index.  In most ways the mapper acts just like an {@link IntegerFieldMapper}.
+ * to the index.  In most ways the mapper acts just like an {@link LegacyIntegerFieldMapper}.
  */
-public class TokenCountFieldMapper extends IntegerFieldMapper {
+public class TokenCountFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "token_count";
 
-    public static class Defaults extends IntegerFieldMapper.Defaults {
-
+    public static class Defaults {
+        public static final MappedFieldType FIELD_TYPE = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
     }
 
-    public static class Builder extends NumberFieldMapper.Builder<Builder, TokenCountFieldMapper> {
+    public static class Builder extends FieldMapper.Builder<Builder, TokenCountFieldMapper> {
         private NamedAnalyzer analyzer;
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.PRECISION_STEP_32_BIT);
+            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
         }
 
@@ -76,20 +73,8 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
         @Override
         public TokenCountFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            TokenCountFieldMapper fieldMapper = new TokenCountFieldMapper(name, fieldType, defaultFieldType,
-                    ignoreMalformed(context), coerce(context), context.indexSettings(),
-                    analyzer, multiFieldsBuilder.build(this, context), copyTo);
-            return (TokenCountFieldMapper) fieldMapper.includeInAll(includeInAll);
-        }
-
-        @Override
-        protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
-            return NumericIntegerAnalyzer.buildNamedAnalyzer(precisionStep);
-        }
-
-        @Override
-        protected int maxPrecisionStep() {
-            return 32;
+            return new TokenCountFieldMapper(name, fieldType, defaultFieldType,
+                    context.indexSettings(), analyzer, multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -97,10 +82,13 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
         @Override
         @SuppressWarnings("unchecked")
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
+                return new LegacyTokenCountFieldMapper.TypeParser().parse(name, node, parserContext);
+            }
             TokenCountFieldMapper.Builder builder = new TokenCountFieldMapper.Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String propName = Strings.toUnderscoreCase(entry.getKey());
+                String propName = entry.getKey();
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
                     builder.nullValue(nodeIntegerValue(propNode));
@@ -114,7 +102,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
                     iterator.remove();
                 }
             }
-            parseNumberField(builder, name, node, parserContext);
+            parseField(builder, name, node, parserContext);
             if (builder.analyzer() == null) {
                 throw new MapperParsingException("Analyzer must be set for field [" + name + "] but wasn't.");
             }
@@ -124,28 +112,32 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
 
     private NamedAnalyzer analyzer;
 
-    protected TokenCountFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Explicit<Boolean> ignoreMalformed,
-                                    Explicit<Boolean> coerce, Settings indexSettings, NamedAnalyzer analyzer, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
+    protected TokenCountFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+            Settings indexSettings, NamedAnalyzer analyzer, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.analyzer = analyzer;
     }
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        ValueAndBoost valueAndBoost = StringFieldMapper.parseCreateFieldForString(context, null /* Out null value is an int so we convert*/, fieldType().boost());
-        if (valueAndBoost.value() == null && fieldType().nullValue() == null) {
-            return;
+        final String value;
+        if (context.externalValueSet()) {
+            value = context.externalValue().toString();
+        } else {
+            value = context.parser().textOrNull();
         }
 
-        if (fieldType().indexOptions() != NONE || fieldType().stored() || fieldType().hasDocValues()) {
-            int count;
-            if (valueAndBoost.value() == null) {
-                count = fieldType().nullValue();
-            } else {
-                count = countPositions(analyzer, simpleName(), valueAndBoost.value());
-            }
-            addIntegerFields(context, fields, count, valueAndBoost.boost());
+        final int tokenCount;
+        if (value == null) {
+            tokenCount = (Integer) fieldType().nullValue();
+        } else {
+            tokenCount = countPositions(analyzer, name(), value);
         }
+
+        boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
+        boolean docValued = fieldType().hasDocValues();
+        boolean stored = fieldType().stored();
+        fields.addAll(NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, indexed, docValued, stored));
     }
 
     /**
@@ -192,7 +184,6 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-
         builder.field("analyzer", analyzer());
     }
 

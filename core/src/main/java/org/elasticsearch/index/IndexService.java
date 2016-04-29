@@ -239,7 +239,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                     }
                 }
             } finally {
-                IOUtils.close(bitsetFilterCache, indexCache, mapperService, indexFieldData, analysisService, refreshTask, fsyncTask,
+                IOUtils.close(bitsetFilterCache, indexCache, indexFieldData, analysisService, refreshTask, fsyncTask,
                     cache().getPercolatorQueryCache());
             }
         }
@@ -443,7 +443,8 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         return new QueryShardContext(
                 indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
                 similarityService(), nodeServicesProvider.getScriptService(), nodeServicesProvider.getIndicesQueriesRegistry(),
-                indexCache.getPercolatorQueryCache(), indexReader
+                nodeServicesProvider.getClient(), indexCache.getPercolatorQueryCache(), indexReader,
+                nodeServicesProvider.getClusterService().state()
         );
     }
 

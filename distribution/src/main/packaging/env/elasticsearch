@@ -20,24 +20,11 @@
 # Elasticsearch PID directory
 #PID_DIR=/var/run/elasticsearch
 
-# Heap size defaults to ${heap.min} min, ${heap.max} max
-# Set ES_HEAP_SIZE to 50% of available RAM, but no more than 31g
-#ES_HEAP_SIZE=2g
-
-# Heap new generation
-#ES_HEAP_NEWSIZE=
-
-# Maximum direct memory
-#ES_DIRECT_SIZE=
-
 # Additional Java OPTS
 #ES_JAVA_OPTS=
 
 # Configure restart on package upgrade (true, every other setting will lead to not restarting)
 #ES_RESTART_ON_UPGRADE=true
-
-# Path to the GC log file
-#ES_GC_LOG_FILE=/var/log/elasticsearch/gc.log
 
 ################################
 # Elasticsearch service
@@ -67,7 +54,7 @@ ES_STARTUP_SLEEP_TIME=5
 
 # The maximum number of bytes of memory that may be locked into RAM
 # Set to "unlimited" if you use the 'bootstrap.mlockall: true' option
-# in elasticsearch.yml (ES_HEAP_SIZE  must also be set).
+# in elasticsearch.yml.
 # When using Systemd, the LimitMEMLOCK property must be set
 # in /usr/lib/systemd/system/elasticsearch.service
 #MAX_LOCKED_MEMORY=unlimited

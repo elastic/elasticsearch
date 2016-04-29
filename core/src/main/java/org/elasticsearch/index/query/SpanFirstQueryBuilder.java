@@ -36,12 +36,11 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
 
     public static final String NAME = "span_first";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final SpanFirstQueryBuilder PROTOTYPE = new SpanFirstQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, 0);
 
     private static final ParseField MATCH_FIELD = new ParseField("match");
     private static final ParseField END_FIELD = new ParseField("end");
 
-    private final SpanQueryBuilder matchBuilder;
+    private final SpanQueryBuilder<?> matchBuilder;
 
     private final int end;
 
@@ -52,7 +51,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
      * @param end maximum end position of the match, needs to be positive
      * @throws IllegalArgumentException for negative <code>end</code> positions
      */
-    public SpanFirstQueryBuilder(SpanQueryBuilder matchBuilder, int end) {
+    public SpanFirstQueryBuilder(SpanQueryBuilder<?> matchBuilder, int end) {
         if (matchBuilder == null) {
             throw new IllegalArgumentException("inner span query cannot be null");
         }
@@ -64,9 +63,24 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
     }
 
     /**
+     * Read from a stream.
+     */
+    public SpanFirstQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        matchBuilder = (SpanQueryBuilder<?>) in.readNamedWriteable(QueryBuilder.class);
+        end = in.readInt();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(matchBuilder);
+        out.writeInt(end);
+    }
+
+    /**
      * @return the inner {@link SpanQueryBuilder} defined in this query
      */
-    public SpanQueryBuilder innerQuery() {
+    public SpanQueryBuilder<?> innerQuery() {
         return this.matchBuilder;
     }
 
@@ -102,7 +116,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, MATCH_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, MATCH_FIELD)) {
                     QueryBuilder query = parseContext.parseInnerQueryBuilder();
                     if (!(query instanceof SpanQueryBuilder)) {
                         throw new ParsingException(parser.getTokenLocation(), "spanFirst [match] must be of type span query");
@@ -112,11 +126,11 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
                     throw new ParsingException(parser.getTokenLocation(), "[span_first] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, END_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, END_FIELD)) {
                     end = parser.intValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_first] query does not support [" + currentFieldName + "]");
@@ -139,19 +153,6 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
         Query innerSpanQuery = matchBuilder.toQuery(context);
         assert innerSpanQuery instanceof SpanQuery;
         return new SpanFirstQuery((SpanQuery) innerSpanQuery, end);
-    }
-
-    @Override
-    protected SpanFirstQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        SpanQueryBuilder matchBuilder = (SpanQueryBuilder)in.readQuery();
-        int end = in.readInt();
-        return new SpanFirstQueryBuilder(matchBuilder, end);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(matchBuilder);
-        out.writeInt(end);
     }
 
     @Override

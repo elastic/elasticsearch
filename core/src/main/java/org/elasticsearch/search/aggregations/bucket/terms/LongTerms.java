@@ -151,16 +151,13 @@ public class LongTerms extends InternalTerms<LongTerms, LongTerms.Bucket> {
         }
     }
 
-    DocValueFormat format;
-
     LongTerms() {} // for serialization
 
-    public LongTerms(String name, Terms.Order order, DocValueFormat formatter, int requiredSize, int shardSize, long minDocCount,
+    public LongTerms(String name, Terms.Order order, DocValueFormat format, int requiredSize, int shardSize, long minDocCount,
             List<? extends InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, pipelineAggregators,
-                metaData);
-        this.format = formatter;
+        super(name, order, format, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount,
+                pipelineAggregators, metaData);
     }
 
     @Override
@@ -192,7 +189,7 @@ public class LongTerms extends InternalTerms<LongTerms, LongTerms.Bucket> {
     protected void doReadFrom(StreamInput in) throws IOException {
         this.docCountError = in.readLong();
         this.order = InternalOrder.Streams.readOrder(in);
-        this.format = in.readValueFormat();
+        this.format = in.readNamedWriteable(DocValueFormat.class);
         this.requiredSize = readSize(in);
         this.shardSize = readSize(in);
         this.showTermDocCountError = in.readBoolean();
@@ -213,7 +210,7 @@ public class LongTerms extends InternalTerms<LongTerms, LongTerms.Bucket> {
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeLong(docCountError);
         InternalOrder.Streams.writeOrder(order, out);
-        out.writeValueFormat(format);
+        out.writeNamedWriteable(format);
         writeSize(requiredSize, out);
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);

@@ -295,7 +295,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         // cluster state update 4 - update settings
         previousClusterState = clusterState;
-        MetaData metaData = MetaData.builder(clusterState.metaData()).transientSettings(Settings.settingsBuilder().put("foo", "bar").build()).build();
+        MetaData metaData = MetaData.builder(clusterState.metaData()).transientSettings(Settings.builder().put("foo", "bar").build()).build();
         clusterState = ClusterState.builder(clusterState).metaData(metaData).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
         assertSameStateFromDiff(nodeB.clusterState, clusterState);

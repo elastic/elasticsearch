@@ -35,20 +35,15 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregatorBuild
         FiltersAggregatorBuilder factory;
         if (randomBoolean()) {
             KeyedFilter[] filters = new KeyedFilter[size];
-            for (int i = 0; i < size; i++) {
-                // NORELEASE make RandomQueryBuilder work outside of the
-                // AbstractQueryTestCase
-                // builder.query(RandomQueryBuilder.createQuery(getRandom()));
-                filters[i] = new KeyedFilter(randomAsciiOfLengthBetween(1, 20),
+            int i = 0;
+            for (String key : randomUnique(() -> randomAsciiOfLengthBetween(1, 20), size)) {
+                filters[i++] = new KeyedFilter(key,
                         QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
             }
             factory = new FiltersAggregatorBuilder(randomAsciiOfLengthBetween(1, 20), filters);
         } else {
             QueryBuilder<?>[] filters = new QueryBuilder<?>[size];
             for (int i = 0; i < size; i++) {
-                // NORELEASE make RandomQueryBuilder work outside of the
-                // AbstractQueryTestCase
-                // builder.query(RandomQueryBuilder.createQuery(getRandom()));
                 filters[i] = QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20));
             }
             factory = new FiltersAggregatorBuilder(randomAsciiOfLengthBetween(1, 20), filters);

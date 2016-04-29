@@ -23,11 +23,11 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
@@ -54,7 +54,8 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
     public ListTasksResponse() {
     }
 
-    public ListTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException> nodeFailures) {
+    public ListTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures,
+            List<? extends FailedNodeException> nodeFailures) {
         super(taskFailures, nodeFailures);
         this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
     }
@@ -163,7 +164,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
             builder.startObject("nodes");
             for (Map.Entry<DiscoveryNode, List<TaskInfo>> entry : getPerNodeTasks().entrySet()) {
                 DiscoveryNode node = entry.getKey();
-                builder.startObject(node.getId(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(node.getId());
                 builder.field("name", node.getName());
                 builder.field("transport_address", node.getAddress().toString());
                 builder.field("host", node.getHostName());
@@ -178,13 +179,13 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
                 if (!node.getAttributes().isEmpty()) {
                     builder.startObject("attributes");
                     for (Map.Entry<String, String> attrEntry : node.getAttributes().entrySet()) {
-                        builder.field(attrEntry.getKey(), attrEntry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+                        builder.field(attrEntry.getKey(), attrEntry.getValue());
                     }
                     builder.endObject();
                 }
                 builder.startObject("tasks");
                 for(TaskInfo task : entry.getValue()) {
-                    builder.startObject(task.getTaskId().toString(), XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject(task.getTaskId().toString());
                     task.toXContent(builder, params);
                     builder.endObject();
                 }
@@ -194,7 +195,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
         } else if ("parents".equals(groupBy)) {
             builder.startObject("tasks");
             for (TaskGroup group : getTaskGroups()) {
-                builder.startObject(group.getTaskInfo().getTaskId().toString(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(group.getTaskInfo().getTaskId().toString());
                 group.toXContent(builder, params);
                 builder.endObject();
             }
@@ -205,14 +206,6 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this);
     }
 }

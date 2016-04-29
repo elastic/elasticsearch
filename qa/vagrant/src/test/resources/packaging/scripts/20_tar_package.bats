@@ -95,5 +95,44 @@ setup() {
     start_elasticsearch_service
     run_elasticsearch_tests
     stop_elasticsearch_service
+}
+
+@test "[TAR]" start Elasticsearch with custom JVM options {
+    local es_java_opts=$ES_JAVA_OPTS
+    local es_jvm_options=$ES_JVM_OPTIONS
+    local temp=`mktemp -d`
+    touch "$temp/jvm.options"
+    chown -R elasticsearch:elasticsearch "$temp"
+    echo "-Xms264m" >> "$temp/jvm.options"
+    echo "-Xmx264m" >> "$temp/jvm.options"
+    export ES_JVM_OPTIONS="$temp/jvm.options"
+    export ES_JAVA_OPTS="-XX:-UseCompressedOops"
+    start_elasticsearch_service
+    curl -s -XGET localhost:9200/_nodes | fgrep '"heap_init_in_bytes":276824064'
+    curl -s -XGET localhost:9200/_nodes | fgrep '"using_compressed_ordinary_object_pointers":"false"'
+    stop_elasticsearch_service
+    export ES_JVM_OPTIONS=$es_jvm_options
+    export ES_JAVA_OPTS=$es_java_opts
+}
+
+@test "[TAR]" start Elasticsearch with unquoted JSON option {
+    local es_java_opts=$ES_JAVA_OPTS
+    local es_jvm_options=$ES_JVM_OPTIONS
+    local temp=`mktemp -d`
+    touch "$temp/jvm.options"
+    chown -R elasticsearch:elasticsearch "$temp"
+    echo "-Delasticsearch.json.allow_unquoted_field_names=true" >> "$temp/jvm.options"
+    export ES_JVM_OPTIONS="$temp/jvm.options"
+    start_elasticsearch_service
+    # unquoted field name
+    curl -s -XPOST localhost:9200/i/d/1 -d'{foo: "bar"}'
+    [ "$?" -eq 0 ]
+    curl -s -XDELETE localhost:9200/i
+    stop_elasticsearch_service
+    export ES_JVM_OPTIONS=$es_jvm_options
+    export ES_JAVA_OPTS=$es_java_opts
+}
+
+@test "[TAR]" remove tar {
     rm -rf "/tmp/elasticsearch"
 }

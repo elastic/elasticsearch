@@ -193,7 +193,7 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
             SignificanceHeuristic significanceHeuristic = null;
             switch (randomInt(5)) {
             case 0:
-                significanceHeuristic = PercentageScore.PROTOTYPE;
+                significanceHeuristic = new PercentageScore();
                 break;
             case 1:
                 significanceHeuristic = new ChiSquare(randomBoolean(), randomBoolean());
@@ -208,7 +208,7 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
                 significanceHeuristic = new ScriptHeuristic(new Script("foo"));
                 break;
             case 5:
-                significanceHeuristic = JLHScore.PROTOTYPE;
+                significanceHeuristic = new JLHScore();
                 break;
             default:
                 fail();

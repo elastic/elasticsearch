@@ -19,8 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.fasterxml.jackson.core.JsonParseException;
+
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchParseException;
@@ -31,23 +32,22 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.support.InnerHitBuilder;
 import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.TestSearchContext;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQueryBuilder> {
     protected static final String PARENT_TYPE = "parent";
@@ -55,7 +55,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     @BeforeClass
     public static void beforeClass() throws Exception {
-        MapperService mapperService = queryShardContext().getMapperService();
+        MapperService mapperService = createShardContext().getMapperService();
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=text",
                 STRING_FIELD_NAME_2, "type=keyword",
@@ -79,37 +79,21 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
-    @Override
-    protected void setSearchContext(String[] types) {
-        final MapperService mapperService = queryShardContext().getMapperService();
-        final IndexFieldDataService fieldData = indexFieldDataService();
-        TestSearchContext testSearchContext = new TestSearchContext(queryShardContext()) {
-
-            @Override
-            public MapperService mapperService() {
-                return mapperService; // need to build / parse inner hits sort fields
-            }
-
-            @Override
-            public IndexFieldDataService fieldData() {
-                return fieldData; // need to build / parse inner hits sort fields
-            }
-        };
-        testSearchContext.getQueryShardContext().setTypes(types);
-        SearchContext.setCurrent(testSearchContext);
-    }
-
     /**
      * @return a {@link HasChildQueryBuilder} with random values all over the place
      */
     @Override
     protected HasParentQueryBuilder doCreateTestQueryBuilder() {
-        return new HasParentQueryBuilder(PARENT_TYPE,
-                RandomQueryBuilder.createQuery(random()),randomBoolean(),
-                randomBoolean() ? null : new InnerHitBuilder()
-                        .setName(randomAsciiOfLengthBetween(1, 10))
-                        .setSize(randomIntBetween(0, 100))
-                        .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)));
+        HasParentQueryBuilder hqb = new HasParentQueryBuilder(PARENT_TYPE,
+                RandomQueryBuilder.createQuery(random()),randomBoolean());
+        if (randomBoolean()) {
+            hqb.innerHit(new InnerHitBuilder()
+                    .setName(randomAsciiOfLengthBetween(1, 10))
+                    .setSize(randomIntBetween(0, 100))
+                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)));
+        }
+        hqb.ignoreUnmapped(randomBoolean());
+        return hqb;
     }
 
     @Override
@@ -123,43 +107,42 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
             assertEquals(queryBuilder.score() ? ScoreMode.Max : ScoreMode.None, lpq.getScoreMode());
         }
         if (queryBuilder.innerHit() != null) {
-            assertNotNull(SearchContext.current());
+            SearchContext searchContext = SearchContext.current();
+            assertNotNull(searchContext);
             if (query != null) {
-                assertNotNull(SearchContext.current().innerHits());
-                assertEquals(1, SearchContext.current().innerHits().getInnerHits().size());
-                assertTrue(SearchContext.current().innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
-                InnerHitsContext.BaseInnerHits innerHits = SearchContext.current().innerHits()
+                Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+                InnerHitBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
+                for (InnerHitBuilder builder : innerHitBuilders.values()) {
+                    builder.build(searchContext, searchContext.innerHits());
+                }
+                assertNotNull(searchContext.innerHits());
+                assertEquals(1, searchContext.innerHits().getInnerHits().size());
+                assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
+                InnerHitsContext.BaseInnerHits innerHits = searchContext.innerHits()
                         .getInnerHits().get(queryBuilder.innerHit().getName());
                 assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
                 assertEquals(innerHits.sort().getSort().length, 1);
                 assertEquals(innerHits.sort().getSort()[0].getField(), STRING_FIELD_NAME_2);
             } else {
-                assertThat(SearchContext.current().innerHits().getInnerHits().size(), equalTo(0));
+                assertThat(searchContext.innerHits().getInnerHits().size(), equalTo(0));
             }
         }
     }
 
     public void testIllegalValues() throws IOException {
         QueryBuilder query = RandomQueryBuilder.createQuery(random());
-        try {
-            new HasParentQueryBuilder(null, query);
-            fail("must not be null");
-        } catch (IllegalArgumentException ex) {
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> QueryBuilders.hasParentQuery(null, query, false));
+        assertThat(e.getMessage(), equalTo("[has_parent] requires 'type' field"));
 
-        try {
-            new HasParentQueryBuilder("foo", null);
-            fail("must not be null");
-        } catch (IllegalArgumentException ex) {
-        }
+        e = expectThrows(IllegalArgumentException.class,
+                () -> QueryBuilders.hasParentQuery("foo", null, false));
+        assertThat(e.getMessage(), equalTo("[has_parent] requires 'query' field"));
 
         QueryShardContext context = createShardContext();
-        HasParentQueryBuilder queryBuilder = new HasParentQueryBuilder("just_a_type", new MatchAllQueryBuilder());
-        try {
-            queryBuilder.doToQuery(context);
-        } catch (QueryShardException e) {
-            assertThat(e.getMessage(), equalTo("[has_parent] no child types found for type [just_a_type]"));
-        }
+        HasParentQueryBuilder qb = QueryBuilders.hasParentQuery("just_a_type", new MatchAllQueryBuilder(), false);
+        QueryShardException qse = expectThrows(QueryShardException.class, () -> qb.doToQuery(context));
+        assertThat(qse.getMessage(), equalTo("[has_parent] no child types found for type [just_a_type]"));
     }
 
     public void testDeprecatedXContent() throws IOException {
@@ -167,7 +150,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         builder.startObject();
         builder.startObject("has_parent");
         builder.field("query");
-        EmptyQueryBuilder.PROTOTYPE.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        new TermQueryBuilder("a", "a").toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.field("type", "foo"); // deprecated
         builder.endObject();
         builder.endObject();
@@ -180,34 +163,14 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
         HasParentQueryBuilder queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string(), ParseFieldMatcher.EMPTY);
         assertEquals("foo", queryBuilder.type());
-
-        boolean score = randomBoolean();
-        String key = RandomPicks.randomFrom(random(), Arrays.asList("score_mode", "scoreMode"));
-        builder = XContentFactory.jsonBuilder().prettyPrint();
-        builder.startObject();
-        builder.startObject("has_parent");
-        builder.field("query");
-        EmptyQueryBuilder.PROTOTYPE.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.field(key, score ? "score": "none");
-        builder.field("parent_type", "foo");
-        builder.endObject();
-        builder.endObject();
-        try {
-            parseQuery(builder.string());
-            fail(key + " is deprecated");
-        } catch (IllegalArgumentException ex) {
-            assertEquals("Deprecated field [" + key + "] used, replaced by [score]", ex.getMessage());
-        }
-
-        queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string(), ParseFieldMatcher.EMPTY);
-        assertEquals(score, queryBuilder.score());
     }
 
     public void testToQueryInnerQueryType() throws IOException {
         String[] searchTypes = new String[]{CHILD_TYPE};
         QueryShardContext shardContext = createShardContext();
         shardContext.setTypes(searchTypes);
-        HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(PARENT_TYPE, new IdsQueryBuilder().addIds("id"));
+        HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(PARENT_TYPE, new IdsQueryBuilder().addIds("id"),
+                false);
         Query query = hasParentQueryBuilder.toQuery(shardContext);
         //verify that the context types are still the same as the ones we previously set
         assertThat(shardContext.getTypes(), equalTo(searchTypes));
@@ -257,6 +220,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 "    },\n" +
                 "    \"parent_type\" : \"blog\",\n" +
                 "    \"score\" : true,\n" +
+                "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
@@ -264,5 +228,19 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         checkGeneratedJson(json, parsed);
         assertEquals(json, "blog", parsed.type());
         assertEquals(json, "something", ((TermQueryBuilder) parsed.query()).value());
+    }
+
+    public void testIgnoreUnmapped() throws IOException {
+        final HasParentQueryBuilder queryBuilder = new HasParentQueryBuilder("unmapped", new MatchAllQueryBuilder(), false);
+        queryBuilder.ignoreUnmapped(true);
+        Query query = queryBuilder.toQuery(createShardContext());
+        assertThat(query, notNullValue());
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+
+        final HasParentQueryBuilder failingQueryBuilder = new HasParentQueryBuilder("unmapped", new MatchAllQueryBuilder(), false);
+        failingQueryBuilder.ignoreUnmapped(false);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
+        assertThat(e.getMessage(),
+                    containsString("[" + HasParentQueryBuilder.NAME + "] query configured 'parent_type' [unmapped] is not a valid type"));
     }
 }

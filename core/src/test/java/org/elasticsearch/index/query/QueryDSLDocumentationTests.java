@@ -205,15 +205,15 @@ public class QueryDSLDocumentationTests extends ESTestCase {
     public void testHasChild() {
         hasChildQuery(
                 "blog_tag",
-                termQuery("tag","something")
-            );
+                termQuery("tag","something"),
+                ScoreMode.None);
     }
 
     public void testHasParent() {
         hasParentQuery(
             "blog",
-            termQuery("tag","something")
-        );
+            termQuery("tag","something"),
+                false);
     }
 
     public void testIds() {
@@ -262,9 +262,8 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 "obj1",
                 boolQuery()
                         .must(matchQuery("obj1.name", "blue"))
-                        .must(rangeQuery("obj1.count").gt(5))
-            )
-            .scoreMode(ScoreMode.Avg);
+                        .must(rangeQuery("obj1.count").gt(5)),
+                ScoreMode.Avg);
     }
 
     public void testPrefix() {
@@ -364,7 +363,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
     public void testTemplate() {
         templateQuery(
                 "gender_template",
-                ScriptType.INDEXED,
+                ScriptType.STORED,
                 new HashMap<>());
     }
 

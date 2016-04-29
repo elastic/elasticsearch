@@ -124,12 +124,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public boolean useTermQueryWithQueryString() {
-            // As we spoof the presence of an indexed field we have to override
-            // the default of returning false which otherwise leads MatchQuery
-            // et al to run an analyzer over the query string and then try to
-            // hit the search index. We need them to use our termQuery(..)
-            // method which checks index names
+        public boolean isSearchable() {
+            // The _index field is always searchable.
             return true;
         }
 
@@ -148,11 +144,9 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             if (isSameIndex(value, context.index().getName())) {
                 return Queries.newMatchAllQuery();
             } else {
-                return Queries.newMatchNoDocsQuery();
+                return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + value);
             }
         }
-        
-        
 
         @Override
         public Query termsQuery(List values, QueryShardContext context) {
@@ -167,7 +161,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 }
             }
             // None of the listed index names are this one
-            return Queries.newMatchNoDocsQuery();
+            return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + values);
         }
 
         private boolean isSameIndex(Object value, String indexName) {
@@ -177,14 +171,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             } else {
                 return indexName.equals(value.toString());
             }
-        }
-
-        @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
         }
 
         @Override
@@ -206,11 +192,6 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     public boolean enabled() {
         return this.enabledState.enabled;
-    }
-
-    public String value(Document document) {
-        Field field = (Field) document.getField(fieldType().name());
-        return field == null ? null : (String)fieldType().value(field);
     }
 
     @Override

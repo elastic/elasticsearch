@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -58,7 +57,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<Basi
     }
 
     @Override
-    protected Tuple<ReplicationResponse, BasicReplicationRequest> shardOperationOnPrimary(MetaData metaData, BasicReplicationRequest shardRequest) {
+    protected Tuple<ReplicationResponse, BasicReplicationRequest> shardOperationOnPrimary(BasicReplicationRequest shardRequest) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId().getIndex()).getShard(shardRequest.shardId().id());
         indexShard.refresh("api");
         logger.trace("{} refresh request executed on primary", indexShard.shardId());

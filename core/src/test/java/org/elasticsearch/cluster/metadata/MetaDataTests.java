@@ -20,13 +20,21 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -146,5 +154,39 @@ public class MetaDataTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertEquals("Unexpected field [random]", e.getMessage());
         }
+    }
+
+    public void testMetaDataGlobalStateChangesOnIndexDeletions() {
+        IndexGraveyard.Builder builder = IndexGraveyard.builder();
+        builder.addTombstone(new Index("idx1", UUIDs.randomBase64UUID()));
+        final MetaData metaData1 = MetaData.builder().indexGraveyard(builder.build()).build();
+        builder = IndexGraveyard.builder(metaData1.indexGraveyard());
+        builder.addTombstone(new Index("idx2", UUIDs.randomBase64UUID()));
+        final MetaData metaData2 = MetaData.builder(metaData1).indexGraveyard(builder.build()).build();
+        assertFalse("metadata not equal after adding index deletions", MetaData.isGlobalStateEquals(metaData1, metaData2));
+        final MetaData metaData3 = MetaData.builder(metaData2).build();
+        assertTrue("metadata equal when not adding index deletions", MetaData.isGlobalStateEquals(metaData2, metaData3));
+    }
+
+    public void testXContentWithIndexGraveyard() throws IOException {
+        final IndexGraveyard graveyard = IndexGraveyardTests.createRandom();
+        final MetaData originalMeta = MetaData.builder().indexGraveyard(graveyard).build();
+        final XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        XContentParser parser = XContentType.JSON.xContent().createParser(builder.bytes());
+        final MetaData fromXContentMeta = MetaData.PROTO.fromXContent(parser, null);
+        assertThat(fromXContentMeta.indexGraveyard(), equalTo(originalMeta.indexGraveyard()));
+    }
+
+    public void testSerializationWithIndexGraveyard() throws IOException {
+        final IndexGraveyard graveyard = IndexGraveyardTests.createRandom();
+        final MetaData originalMeta = MetaData.builder().indexGraveyard(graveyard).build();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        originalMeta.writeTo(out);
+        final ByteBufferStreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytes()));
+        final MetaData fromStreamMeta = MetaData.PROTO.readFrom(in);
+        assertThat(fromStreamMeta.indexGraveyard(), equalTo(fromStreamMeta.indexGraveyard()));
     }
 }

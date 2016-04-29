@@ -98,7 +98,8 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                     throw new SearchParseException(context, "must specify a script in script fields", parser.getTokenLocation());
                 }
 
-                SearchScript searchScript = context.scriptService().search(context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                SearchScript searchScript = context.scriptService().search(context.lookup(), script, ScriptContext.Standard.SEARCH,
+                        Collections.emptyMap(), context.getQueryShardContext().getClusterState());
                 context.scriptFields().add(new ScriptFieldsContext.ScriptField(fieldName, searchScript, ignoreException));
             }
         }

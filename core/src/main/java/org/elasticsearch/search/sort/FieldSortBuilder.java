@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -100,7 +101,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      */
     public FieldSortBuilder(StreamInput in) throws IOException {
         fieldName = in.readString();
-        nestedFilter = in.readOptionalQuery();
+        nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nestedPath = in.readOptionalString();
         missing = in.readGenericValue();
         order = in.readOptionalWriteable(SortOrder::readFromStream);
@@ -111,7 +112,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        out.writeOptionalQuery(nestedFilter);
+        out.writeOptionalNamedWriteable(nestedFilter);
         out.writeOptionalString(nestedPath);
         out.writeGenericValue(missing);
         out.writeOptionalWriteable(order);
@@ -262,17 +263,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 }
             }
 
-            if (!fieldType.isSortable()) {
-                throw new QueryShardException(context, "Sorting not supported for field[" + fieldName + "]");
-            }
-
             MultiValueMode localSortMode = null;
             if (sortMode != null) {
                 localSortMode = MultiValueMode.fromString(sortMode.toString());
-            }
-
-            if (fieldType.isNumeric() == false && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
-                throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
             }
 
             boolean reverse = (order == SortOrder.DESC);
@@ -281,7 +274,12 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             }
 
             final Nested nested = resolveNested(context, nestedPath, nestedFilter);
-            IndexFieldData.XFieldComparatorSource fieldComparatorSource = context.getForField(fieldType)
+            IndexFieldData<?> fieldData = context.getForField(fieldType);
+            if (fieldData instanceof IndexNumericFieldData == false
+                    && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
+                throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
+            }
+            IndexFieldData.XFieldComparatorSource fieldComparatorSource = fieldData
                     .comparatorSource(missing, localSortMode, nested);
             return new SortField(fieldType.name(), fieldComparatorSource, reverse);
         }
@@ -339,17 +337,17 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (context.parseFieldMatcher().match(currentFieldName, NESTED_FILTER)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, NESTED_FILTER)) {
                     nestedFilter = context.parseInnerQueryBuilder();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Expected " + NESTED_FILTER.getPreferredName() + " element.");
                 }
             } else if (token.isValue()) {
-                if (context.parseFieldMatcher().match(currentFieldName, NESTED_PATH)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, NESTED_PATH)) {
                     nestedPath = parser.text();
-                } else if (context.parseFieldMatcher().match(currentFieldName, MISSING)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, MISSING)) {
                     missing = parser.objectText();
-                } else if (context.parseFieldMatcher().match(currentFieldName, ORDER)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, ORDER)) {
                     String sortOrder = parser.text();
                     if ("asc".equals(sortOrder)) {
                         order = SortOrder.ASC;
@@ -358,9 +356,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "Sort order [{}] not supported.", sortOrder);
                     }
-                } else if (context.parseFieldMatcher().match(currentFieldName, SORT_MODE)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_MODE)) {
                     sortMode = SortMode.fromString(parser.text());
-                } else if (context.parseFieldMatcher().match(currentFieldName, UNMAPPED_TYPE)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, UNMAPPED_TYPE)) {
                     unmappedType = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Option [{}] not supported.", currentFieldName);

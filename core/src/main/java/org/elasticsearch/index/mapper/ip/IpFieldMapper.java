@@ -19,144 +19,109 @@
 
 package org.elasticsearch.index.mapper.ip;
 
-import org.apache.lucene.analysis.LegacyNumericTokenStream;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.XInetAddressPoint;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.search.LegacyNumericRangeQuery;
+import org.apache.lucene.index.XPointValues;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.network.Cidrs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.NumericAnalyzer;
-import org.elasticsearch.index.analysis.NumericTokenizer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.LongFieldMapper.CustomLongNumericField;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyNumberFieldMapper.Defaults;
+import org.elasticsearch.index.mapper.core.TypeParsers;
+import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.bucket.range.ipv4.InternalIPv4Range;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
-
-/**
- *
- */
-public class IpFieldMapper extends NumberFieldMapper {
+/** A {@link FieldMapper} for ip addresses. */
+public class IpFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
 
     public static final String CONTENT_TYPE = "ip";
-    public static final long MAX_IP = 4294967296L;
 
-    public static String longToIp(long longIp) {
-        int octet3 = (int) ((longIp >> 24) % 256);
-        int octet2 = (int) ((longIp >> 16) % 256);
-        int octet1 = (int) ((longIp >> 8) % 256);
-        int octet0 = (int) ((longIp) % 256);
-        return octet3 + "." + octet2 + "." + octet1 + "." + octet0;
-    }
+    public static class Builder extends FieldMapper.Builder<Builder, IpFieldMapper> {
 
-    private static final Pattern pattern = Pattern.compile("\\.");
-
-    public static long ipToLong(String ip) {
-        try {
-            if (!InetAddresses.isInetAddress(ip)) {
-                throw new IllegalArgumentException("failed to parse ip [" + ip + "], not a valid ip address");
-            }
-            String[] octets = pattern.split(ip);
-            if (octets.length != 4) {
-                throw new IllegalArgumentException("failed to parse ip [" + ip + "], not a valid ipv4 address (4 dots)");
-            }
-            return (Long.parseLong(octets[0]) << 24) + (Integer.parseInt(octets[1]) << 16) +
-                    (Integer.parseInt(octets[2]) << 8) + Integer.parseInt(octets[3]);
-        } catch (Exception e) {
-            if (e instanceof IllegalArgumentException) {
-                throw (IllegalArgumentException) e;
-            }
-            throw new IllegalArgumentException("failed to parse ip [" + ip + "]", e);
-        }
-    }
-
-    public static class Defaults extends NumberFieldMapper.Defaults {
-        public static final String NULL_VALUE = null;
-
-        public static final MappedFieldType FIELD_TYPE = new IpFieldType();
-
-        static {
-            FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class Builder extends NumberFieldMapper.Builder<Builder, IpFieldMapper> {
-
-        protected String nullValue = Defaults.NULL_VALUE;
+        private Boolean ignoreMalformed;
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.PRECISION_STEP_64_BIT);
+            super(name, new IpFieldType(), new IpFieldType());
             builder = this;
+        }
+
+        public Builder ignoreMalformed(boolean ignoreMalformed) {
+            this.ignoreMalformed = ignoreMalformed;
+            return builder;
+        }
+
+        protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
+            if (ignoreMalformed != null) {
+                return new Explicit<>(ignoreMalformed, true);
+            }
+            if (context.indexSettings() != null) {
+                return new Explicit<>(IGNORE_MALFORMED_SETTING.get(context.indexSettings()), false);
+            }
+            return Defaults.IGNORE_MALFORMED;
         }
 
         @Override
         public IpFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            IpFieldMapper fieldMapper = new IpFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
+            IpFieldMapper fieldMapper = new IpFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             return (IpFieldMapper) fieldMapper.includeInAll(includeInAll);
-        }
-
-        @Override
-        protected NamedAnalyzer makeNumberAnalyzer(int precisionStep) {
-            String name = precisionStep == Integer.MAX_VALUE ? "_ip/max" : ("_ip/" + precisionStep);
-            return new NamedAnalyzer(name, new NumericIpAnalyzer(precisionStep));
-        }
-
-        @Override
-        protected int maxPrecisionStep() {
-            return 64;
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
+
+        public TypeParser() {
+        }
+
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            IpFieldMapper.Builder builder = new Builder(name);
-            parseNumberField(builder, name, node, parserContext);
+        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
+                return new LegacyIpFieldMapper.TypeParser().parse(name, node, parserContext);
+            }
+            Builder builder = new Builder(name);
+            TypeParsers.parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String propName = Strings.toUnderscoreCase(entry.getKey());
+                String propName = entry.getKey();
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
-                    builder.nullValue(propNode.toString());
+                    builder.nullValue(InetAddresses.forString(propNode.toString()));
+                    iterator.remove();
+                } else if (propName.equals("ignore_malformed")) {
+                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue("ignore_malformed", propNode, parserContext));
+                    iterator.remove();
+                } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -164,17 +129,20 @@ public class IpFieldMapper extends NumberFieldMapper {
         }
     }
 
-    public static final class IpFieldType extends LongFieldMapper.LongFieldType {
+    public static final class IpFieldType extends MappedFieldType {
 
-        public IpFieldType() {
+        IpFieldType() {
+            super();
+            setTokenized(false);
+            setHasDocValues(true);
         }
 
-        protected IpFieldType(IpFieldType ref) {
-            super(ref);
+        IpFieldType(IpFieldType other) {
+            super(other);
         }
 
         @Override
-        public NumberFieldType clone() {
+        public MappedFieldType clone() {
             return new IpFieldType(this);
         }
 
@@ -183,109 +151,109 @@ public class IpFieldMapper extends NumberFieldMapper {
             return CONTENT_TYPE;
         }
 
-        @Override
-        public Long value(Object value) {
-            if (value == null) {
-                return null;
+        private InetAddress parse(Object value) {
+            if (value instanceof InetAddress) {
+                return (InetAddress) value;
+            } else {
+                if (value instanceof BytesRef) {
+                    value = ((BytesRef) value).utf8ToString();
+                }
+                return InetAddresses.forString(value.toString());
             }
-            if (value instanceof Number) {
-                return ((Number) value).longValue();
-            }
-            if (value instanceof BytesRef) {
-                return Numbers.bytesToLong((BytesRef) value);
-            }
-            return ipToLong(value.toString());
-        }
-
-        /**
-         * IPs should return as a string.
-         */
-        @Override
-        public Object valueForSearch(Object value) {
-            Long val = value(value);
-            if (val == null) {
-                return null;
-            }
-            return longToIp(val);
-        }
-
-        @Override
-        public BytesRef indexedValueForSearch(Object value) {
-            BytesRefBuilder bytesRef = new BytesRefBuilder();
-            LegacyNumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
-            return bytesRef.get();
         }
 
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            if (value != null) {
-                String term;
+            failIfNotIndexed();
+            if (value instanceof InetAddress) {
+                return InetAddressPoint.newExactQuery(name(), (InetAddress) value);
+            } else {
                 if (value instanceof BytesRef) {
-                    term = ((BytesRef) value).utf8ToString();
-                } else {
-                    term = value.toString();
+                    value = ((BytesRef) value).utf8ToString();
                 }
-                long[] fromTo;
-                // assume that the term is either a CIDR range or the
-                // term is a single IPv4 address; if either of these
-                // assumptions is wrong, the CIDR parsing will fail
-                // anyway, and that is okay
+                String term = value.toString();
                 if (term.contains("/")) {
-                    // treat the term as if it is in CIDR notation
-                    fromTo = Cidrs.cidrMaskToMinMax(term);
-                } else {
-                    // treat the term as if it is a single IPv4, and
-                    // apply a CIDR mask equivalent to the host route
-                    fromTo = Cidrs.cidrMaskToMinMax(term + "/32");
+                    String[] fields = term.split("/");
+                    if (fields.length == 2) {
+                        InetAddress address = InetAddresses.forString(fields[0]);
+                        int prefixLength = Integer.parseInt(fields[1]);
+                        return XInetAddressPoint.newPrefixQuery(name(), address, prefixLength);
+                    } else {
+                        throw new IllegalArgumentException("Expected [ip/prefix] but was [" + term + "]");
+                    }
                 }
-                if (fromTo != null) {
-                    return rangeQuery(fromTo[0] == 0 ? null : fromTo[0],
-                            fromTo[1] == InternalIPv4Range.MAX_IP ? null : fromTo[1], true, false);
-                }
+                InetAddress address = InetAddresses.forString(term);
+                return InetAddressPoint.newExactQuery(name(), address);
             }
-            return super.termQuery(value, context);
         }
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
-                lowerTerm == null ? null : parseValue(lowerTerm),
-                upperTerm == null ? null : parseValue(upperTerm),
-                includeLower, includeUpper);
+            failIfNotIndexed();
+            InetAddress lower;
+            if (lowerTerm == null) {
+                lower = XInetAddressPoint.MIN_VALUE;
+            } else {
+                lower = parse(lowerTerm);
+                if (includeLower == false) {
+                    if (lower.equals(XInetAddressPoint.MAX_VALUE)) {
+                        return new MatchNoDocsQuery();
+                    }
+                    lower = XInetAddressPoint.nextUp(lower);
+                }
+            }
+
+            InetAddress upper;
+            if (upperTerm == null) {
+                upper = XInetAddressPoint.MAX_VALUE;
+            } else {
+                upper = parse(upperTerm);
+                if (includeUpper == false) {
+                    if (upper.equals(XInetAddressPoint.MIN_VALUE)) {
+                        return new MatchNoDocsQuery();
+                    }
+                    upper = XInetAddressPoint.nextDown(upper);
+                }
+            }
+
+            return InetAddressPoint.newRangeQuery(name(), lower, upper);
         }
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            long iValue = parseValue(value);
-            long iSim;
-            try {
-                iSim = ipToLong(fuzziness.asString());
-            } catch (IllegalArgumentException e) {
-                iSim = fuzziness.asLong();
-            }
-            return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
+            failIfNotIndexed();
+            InetAddress base = parse(value);
+            int mask = fuzziness.asInt();
+            return XInetAddressPoint.newPrefixQuery(name(), base, mask);
         }
 
         @Override
-        public FieldStats stats(IndexReader reader) throws IOException {
-            int maxDoc = reader.maxDoc();
-            Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
-            if (terms == null) {
-                return null;
+        public FieldStats.Ip stats(IndexReader reader) throws IOException {
+            String field = name();
+            long size = XPointValues.size(reader, field);
+            if (size == 0) {
+                return new FieldStats.Ip(reader.maxDoc(), isSearchable(), isAggregatable());
             }
-            long minValue = LegacyNumericUtils.getMinLong(terms);
-            long maxValue = LegacyNumericUtils.getMaxLong(terms);
-            return new FieldStats.Ip(maxDoc, terms.getDocCount(), terms.getSumDocFreq(),
-                    terms.getSumTotalTermFreq(), minValue, maxValue);
+            int docCount = XPointValues.getDocCount(reader, field);
+            byte[] min = XPointValues.getMinPackedValue(reader, field);
+            byte[] max = XPointValues.getMaxPackedValue(reader, field);
+            return new FieldStats.Ip(reader.maxDoc(), docCount, -1L, size,
+                isSearchable(), isAggregatable(),
+                InetAddressPoint.decode(min), InetAddressPoint.decode(max));
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
+            return new DocValuesIndexFieldData.Builder();
+        }
+
+        @Override
+        public Object valueForSearch(Object value) {
+            if (value == null) {
+                return null;
+            }
+            return DocValueFormat.IP.format((BytesRef) value);
         }
 
         @Override
@@ -301,104 +269,139 @@ public class IpFieldMapper extends NumberFieldMapper {
         }
     }
 
-    protected IpFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                            Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                            Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
-    }
+    private Boolean includeInAll;
 
-    private static long parseValue(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
-        }
-        if (value instanceof BytesRef) {
-            return ipToLong(((BytesRef) value).utf8ToString());
-        }
-        return ipToLong(value.toString());
+    private Explicit<Boolean> ignoreMalformed;
+
+    private IpFieldMapper(
+            String simpleName,
+            MappedFieldType fieldType,
+            MappedFieldType defaultFieldType,
+            Explicit<Boolean> ignoreMalformed,
+            Settings indexSettings,
+            MultiFields multiFields,
+            CopyTo copyTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        this.ignoreMalformed = ignoreMalformed;
     }
 
     @Override
-    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        String ipAsString;
-        if (context.externalValueSet()) {
-            ipAsString = (String) context.externalValue();
-            if (ipAsString == null) {
-                ipAsString = fieldType().nullValueAsString();
-            }
-        } else {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                ipAsString = fieldType().nullValueAsString();
-            } else {
-                ipAsString = context.parser().text();
-            }
-        }
-
-        if (ipAsString == null) {
-            return;
-        }
-        if (context.includeInAll(includeInAll, this)) {
-            context.allEntries().addText(fieldType().name(), ipAsString, fieldType().boost());
-        }
-
-        final long value = ipToLong(ipAsString);
-        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            CustomLongNumericField field = new CustomLongNumericField(value, fieldType());
-            if (fieldType.boost() != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
-                field.setBoost(fieldType().boost());
-            }
-            fields.add(field);
-        }
-        if (fieldType().hasDocValues()) {
-            addDocValue(context, fields, value);
-        }
+    public IpFieldType fieldType() {
+        return (IpFieldType) super.fieldType();
     }
 
     @Override
     protected String contentType() {
-        return CONTENT_TYPE;
+        return fieldType.typeName();
+    }
+
+    @Override
+    protected IpFieldMapper clone() {
+        return (IpFieldMapper) super.clone();
+    }
+
+    @Override
+    public Mapper includeInAll(Boolean includeInAll) {
+        if (includeInAll != null) {
+            IpFieldMapper clone = clone();
+            clone.includeInAll = includeInAll;
+            return clone;
+        } else {
+            return this;
+        }
+    }
+
+    @Override
+    public Mapper includeInAllIfNotSet(Boolean includeInAll) {
+        if (includeInAll != null && this.includeInAll == null) {
+            IpFieldMapper clone = clone();
+            clone.includeInAll = includeInAll;
+            return clone;
+        } else {
+            return this;
+        }
+    }
+
+    @Override
+    public Mapper unsetIncludeInAll() {
+        if (includeInAll != null) {
+            IpFieldMapper clone = clone();
+            clone.includeInAll = null;
+            return clone;
+        } else {
+            return this;
+        }
+    }
+
+    @Override
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+        Object addressAsObject;
+        if (context.externalValueSet()) {
+            addressAsObject = context.externalValue();
+        } else {
+            addressAsObject = context.parser().text();
+        }
+
+        if (addressAsObject == null) {
+            addressAsObject = fieldType().nullValue();
+        }
+
+        if (addressAsObject == null) {
+            return;
+        }
+
+        String addressAsString = addressAsObject.toString();
+        InetAddress address;
+        if (addressAsObject instanceof InetAddress) {
+            address = (InetAddress) addressAsObject;
+        } else {
+            try {
+                address = InetAddresses.forString(addressAsString);
+            } catch (IllegalArgumentException e) {
+                if (ignoreMalformed.value()) {
+                    return;
+                } else {
+                    throw e;
+                }
+            }
+        }
+
+        if (context.includeInAll(includeInAll, this)) {
+            context.allEntries().addText(fieldType().name(), addressAsString, fieldType().boost());
+        }
+
+        if (fieldType().indexOptions() != IndexOptions.NONE) {
+            fields.add(new InetAddressPoint(fieldType().name(), address));
+        }
+        if (fieldType().hasDocValues()) {
+            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+        }
+        if (fieldType().stored()) {
+            fields.add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
+        }
+    }
+
+    @Override
+    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        super.doMerge(mergeWith, updateAllTypes);
+        IpFieldMapper other = (IpFieldMapper) mergeWith;
+        this.includeInAll = other.includeInAll;
+        if (other.ignoreMalformed.explicit()) {
+            this.ignoreMalformed = other.ignoreMalformed;
+        }
     }
 
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType().numericPrecisionStep() != Defaults.PRECISION_STEP_64_BIT) {
-            builder.field("precision_step", fieldType().numericPrecisionStep());
-        }
-        if (includeDefaults || fieldType().nullValueAsString() != null) {
-            builder.field("null_value", fieldType().nullValueAsString());
+        if (includeDefaults || ignoreMalformed.explicit()) {
+            builder.field("ignore_malformed", ignoreMalformed.value());
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
         } else if (includeDefaults) {
             builder.field("include_in_all", false);
-        }
-
-    }
-
-    public static class NumericIpAnalyzer extends NumericAnalyzer<NumericIpTokenizer> {
-
-        private final int precisionStep;
-
-        public NumericIpAnalyzer(int precisionStep) {
-            this.precisionStep = precisionStep;
-        }
-
-        @Override
-        protected NumericIpTokenizer createNumericTokenizer(char[] buffer) throws IOException {
-            return new NumericIpTokenizer(precisionStep, buffer);
-        }
-    }
-
-    public static class NumericIpTokenizer extends NumericTokenizer {
-
-        public NumericIpTokenizer(int precisionStep, char[] buffer) throws IOException {
-            super(new LegacyNumericTokenStream(precisionStep), buffer, null);
-        }
-
-        @Override
-        protected void setValue(LegacyNumericTokenStream tokenStream, String value) {
-            tokenStream.setLongValue(ipToLong(value));
         }
     }
 }

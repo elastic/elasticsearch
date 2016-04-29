@@ -19,29 +19,38 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class MaxBucketPipelineAggregatorBuilder
-        extends BucketMetricsPipelineAggregatorBuilder<MaxBucketPipelineAggregatorBuilder> {
-
-    static final MaxBucketPipelineAggregatorBuilder PROTOTYPE = new MaxBucketPipelineAggregatorBuilder("", "");
+public class MaxBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAggregatorBuilder<MaxBucketPipelineAggregatorBuilder> {
+    public static final String NAME = MaxBucketPipelineAggregator.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public MaxBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
-        this(name, new String[] { bucketsPath });
+        super(name, MaxBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
-    private MaxBucketPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
-        super(name, MaxBucketPipelineAggregator.TYPE.name(), bucketsPaths);
+    /**
+     * Read from a stream.
+     */
+    public MaxBucketPipelineAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, NAME);
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        // Do nothing, no extra state to write to stream
     }
 
     @Override
@@ -63,16 +72,13 @@ public class MaxBucketPipelineAggregatorBuilder
         return builder;
     }
 
-    @Override
-    protected MaxBucketPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
-            throws IOException {
-        return new MaxBucketPipelineAggregatorBuilder(name, bucketsPaths);
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        // Do nothing, no extra state to write to stream
-    }
+    public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
+        @Override
+        protected MaxBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+                String bucketsPath, Map<String, Object> unparsedParams) {
+            return new MaxBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+        }
+    };
 
     @Override
     protected int innerHashCode() {
@@ -84,4 +90,8 @@ public class MaxBucketPipelineAggregatorBuilder
         return true;
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

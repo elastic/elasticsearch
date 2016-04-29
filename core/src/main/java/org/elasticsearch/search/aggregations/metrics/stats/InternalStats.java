@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.metrics.stats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -166,7 +165,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readValueFormat();
+        format = in.readNamedWriteable(DocValueFormat.class);
         count = in.readVLong();
         min = in.readDouble();
         max = in.readDouble();
@@ -179,7 +178,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(format);
+        out.writeNamedWriteable(format);
         out.writeVLong(count);
         out.writeDouble(min);
         out.writeDouble(max);
@@ -191,15 +190,15 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     static class Fields {
-        public static final XContentBuilderString COUNT = new XContentBuilderString("count");
-        public static final XContentBuilderString MIN = new XContentBuilderString("min");
-        public static final XContentBuilderString MIN_AS_STRING = new XContentBuilderString("min_as_string");
-        public static final XContentBuilderString MAX = new XContentBuilderString("max");
-        public static final XContentBuilderString MAX_AS_STRING = new XContentBuilderString("max_as_string");
-        public static final XContentBuilderString AVG = new XContentBuilderString("avg");
-        public static final XContentBuilderString AVG_AS_STRING = new XContentBuilderString("avg_as_string");
-        public static final XContentBuilderString SUM = new XContentBuilderString("sum");
-        public static final XContentBuilderString SUM_AS_STRING = new XContentBuilderString("sum_as_string");
+        public static final String COUNT = "count";
+        public static final String MIN = "min";
+        public static final String MIN_AS_STRING = "min_as_string";
+        public static final String MAX = "max";
+        public static final String MAX_AS_STRING = "max_as_string";
+        public static final String AVG = "avg";
+        public static final String AVG_AS_STRING = "avg_as_string";
+        public static final String SUM = "sum";
+        public static final String SUM_AS_STRING = "sum_as_string";
     }
 
     @Override

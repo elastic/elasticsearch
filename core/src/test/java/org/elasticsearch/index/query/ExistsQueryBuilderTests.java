@@ -73,16 +73,8 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     }
 
     public void testIllegalArguments() {
-        try {
-            if (randomBoolean()) {
-                new ExistsQueryBuilder(null);
-            } else {
-                new ExistsQueryBuilder("");
-            }
-            fail("must not be null or empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new ExistsQueryBuilder((String) null));
+        expectThrows(IllegalArgumentException.class, () -> new ExistsQueryBuilder(""));
     }
 
     public void testFromJson() throws IOException {

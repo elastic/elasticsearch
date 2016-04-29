@@ -76,6 +76,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -88,7 +89,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -186,12 +186,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     // this must be a separate method from other ensure checks above so suite scoped integ tests can call...TODO: fix that
     @After
     public final void ensureAllSearchContextsReleased() throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                MockSearchService.assertNoInFLightContext();
-            }
-        });
+        assertBusy(() -> MockSearchService.assertNoInFlightContext());
     }
 
     // mockdirectorywrappers currently set this boolean if checkindex fails
@@ -605,6 +600,23 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Builds a set of unique items. Usually you'll get the requested count but you might get less than that number if the supplier returns
+     * lots of repeats. Make sure that the items properly implement equals and hashcode.
+     */
+    public static <T> Set<T> randomUnique(Supplier<T> supplier, int targetCount) {
+        Set<T> things = new HashSet<>();
+        int maxTries = targetCount * 10;
+        for (int t = 0; t < maxTries; t++) {
+            if (things.size() == targetCount) {
+                return things;
+            }
+            things.add(supplier.get());
+        }
+        // Oh well, we didn't get enough unique things. It'll be ok.
+        return things;
+    }
+
+    /**
      * Randomly shuffles the fields inside objects in the {@link XContentBuilder} passed in.
      * Recursively goes through inner objects and also shuffles them. Exceptions for this
      * recursive shuffling behavior can be made by passing in the names of fields which
@@ -730,7 +742,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     @SafeVarargs
     public static AnalysisService createAnalysisService(Index index, Settings nodeSettings, Settings settings, Consumer<AnalysisModule>... moduleConsumers) throws IOException {
-        Settings indexSettings = settingsBuilder().put(settings)
+        Settings indexSettings = Settings.builder().put(settings)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
         Environment env = new Environment(nodeSettings);

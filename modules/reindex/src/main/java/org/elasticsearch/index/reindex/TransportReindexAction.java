@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -71,9 +72,10 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<ReindexResponse> listener) {
-        validateAgainstAliases(request.getSearchRequest(), request.getDestination(), indexNameExpressionResolver, autoCreateIndex,
-                clusterService.state());
-        new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, scriptService, client, threadPool, request, listener).start();
+        ClusterState state = clusterService.state();
+        validateAgainstAliases(request.getSearchRequest(), request.getDestination(), indexNameExpressionResolver, autoCreateIndex, state);
+        ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
+        new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, scriptService, client, state, threadPool, request, listener).start();
     }
 
     @Override
@@ -115,9 +117,10 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      * possible.
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> {
-        public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService, Client client,
-                ThreadPool threadPool, ReindexRequest request, ActionListener<ReindexResponse> listener) {
-            super(task, logger, scriptService, client, threadPool, request, request.getSearchRequest(), listener);
+        public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService,
+                ParentTaskAssigningClient client, ClusterState state, ThreadPool threadPool, ReindexRequest request,
+                ActionListener<ReindexResponse> listener) {
+            super(task, logger, scriptService, state, client, threadPool, request, request.getSearchRequest(), listener);
         }
 
         @Override

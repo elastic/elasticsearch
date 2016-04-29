@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -634,7 +635,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 // It's readonly - so there is not much we can do here to verify it
                 return null;
             } else {
-                String seed = Strings.randomBase64UUID();
+                String seed = UUIDs.randomBase64UUID();
                 byte[] testBytes = Strings.toUTF8Bytes(seed);
                 BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
                 String blobName = "master.dat";

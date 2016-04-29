@@ -28,7 +28,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -131,15 +130,15 @@ public class RestExplainAction extends BaseRestHandler {
     }
 
     static class Fields {
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString MATCHED = new XContentBuilderString("matched");
-        static final XContentBuilderString EXPLANATION = new XContentBuilderString("explanation");
-        static final XContentBuilderString VALUE = new XContentBuilderString("value");
-        static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
-        static final XContentBuilderString DETAILS = new XContentBuilderString("details");
-        static final XContentBuilderString GET = new XContentBuilderString("get");
+        static final String _INDEX = "_index";
+        static final String _TYPE = "_type";
+        static final String _ID = "_id";
+        static final String MATCHED = "matched";
+        static final String EXPLANATION = "explanation";
+        static final String VALUE = "value";
+        static final String DESCRIPTION = "description";
+        static final String DETAILS = "details";
+        static final String GET = "get";
 
     }
 }

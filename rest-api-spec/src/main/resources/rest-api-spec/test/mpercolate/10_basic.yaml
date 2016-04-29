@@ -1,5 +1,16 @@
 ---
 "Basic multi-percolate":
+
+  - do:
+      indices.create:
+        index: percolator_index
+        body:
+          mappings:
+            queries:
+              properties:
+                query:
+                  type: percolator
+
   - do:
       index:
         index:  percolator_index
@@ -10,7 +21,7 @@
   - do:
       index:
         index: percolator_index
-        type: .percolator
+        type: queries
         id:   test_percolator
         body:
           query:

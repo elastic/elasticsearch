@@ -25,7 +25,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.LegacyNumericUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.IndexSettings;

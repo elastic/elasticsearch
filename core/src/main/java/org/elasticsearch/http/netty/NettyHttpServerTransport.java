@@ -42,9 +42,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.BindHttpException;
-import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
@@ -53,6 +51,8 @@ import org.elasticsearch.http.netty.cors.CorsConfigBuilder;
 import org.elasticsearch.http.netty.cors.CorsHandler;
 import org.elasticsearch.http.netty.pipelining.HttpPipeliningHandler;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
@@ -249,7 +249,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         if (receivePredictorMax.bytes() == receivePredictorMin.bytes()) {
             receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.bytes());
         } else {
-            receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory((int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
+            receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory(
+                (int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
         }
 
         this.compression = SETTING_HTTP_COMPRESSION.get(settings);
@@ -265,8 +266,9 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         }
         this.maxContentLength = maxContentLength;
 
-        logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], receive_predictor[{}->{}], pipelining[{}], pipelining_max_events[{}]",
-                maxChunkSize, maxHeaderSize, maxInitialLineLength, this.maxContentLength, receivePredictorMin, receivePredictorMax, pipelining, pipeliningMaxEvents);
+        logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], " +
+            "receive_predictor[{}->{}], pipelining[{}], pipelining_max_events[{}]", maxChunkSize, maxHeaderSize, maxInitialLineLength,
+            this.maxContentLength, receivePredictorMin, receivePredictorMax, pipelining, pipeliningMaxEvents);
     }
 
     public Settings settings() {
@@ -335,7 +337,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
         final int publishPort = resolvePublishPort(settings, boundAddresses, publishInetAddress);
         final InetSocketAddress publishAddress = new InetSocketAddress(publishInetAddress, publishPort);
-        return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[boundAddresses.size()]), new InetSocketTransportAddress(publishAddress));
+        return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), new InetSocketTransportAddress(publishAddress));
     }
 
     // package private for tests
@@ -483,7 +485,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         return corsConfig;
     }
 
-    protected void dispatchRequest(HttpRequest request, HttpChannel channel) {
+    protected void dispatchRequest(RestRequest request, RestChannel channel) {
         httpServerAdapter.dispatchRequest(request, channel, threadPool.getThreadContext());
     }
 

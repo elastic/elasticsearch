@@ -120,14 +120,6 @@ public class UidFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Uid value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return Uid.createUid(value.toString());
-        }
-
-        @Override
         public IndexFieldData.Builder fielddataBuilder() {
             // TODO: add doc values support?
             return new PagedBytesIndexFieldData.Builder(
@@ -191,10 +183,6 @@ public class UidFieldMapper extends MetadataFieldMapper {
         if (fieldType().hasDocValues()) {
             fields.add(new BinaryDocValuesField(NAME, new BytesRef(uid.stringValue())));
         }
-    }
-
-    public Term term(String uid) {
-        return new Term(fieldType().name(), fieldType().indexedValueForSearch(uid));
     }
 
     @Override

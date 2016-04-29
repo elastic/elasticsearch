@@ -41,7 +41,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class AnalysisServiceTests extends ESTestCase {
@@ -127,7 +126,7 @@ public class AnalysisServiceTests extends ESTestCase {
     public void testConfigureCamelCaseTokenFilter() throws IOException {
         // tests a filter that
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        Settings indexSettings = settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.filter.wordDelimiter.type", "word_delimiter")
                 .put("index.analysis.filter.wordDelimiter.split_on_numerics", false)
@@ -171,36 +170,9 @@ public class AnalysisServiceTests extends ESTestCase {
         }
     }
 
-    public void testCameCaseOverride() throws IOException {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        Settings indexSettings = settingsBuilder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("index.analysis.filter.wordDelimiter.type", "word_delimiter")
-                .put("index.analysis.filter.wordDelimiter.split_on_numerics", false)
-                .put("index.analysis.analyzer.custom_analyzer.tokenizer", "whitespace")
-                .putArray("index.analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter")
-                .put("index.analysis.analyzer.custom_analyzer_1.tokenizer", "whitespace")
-                .putArray("index.analysis.analyzer.custom_analyzer_1.filter", "lowercase", "word_delimiter").build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
-
-        TokenFilterFactory word_delimiter = analysisService.tokenFilter("word_delimiter");
-        TokenFilterFactory override = analysisService.tokenFilter("wordDelimiter");
-        assertNotEquals(word_delimiter.name(), override.name());
-        assertNotSame(analysisService.tokenFilter("wordDelimiter"), analysisService.tokenFilter("word_delimiter"));
-        assertSame(analysisService.tokenFilter("porterStem"), analysisService.tokenFilter("porter_stem"));
-
-        //unconfigured
-        IndexSettings idxSettings1 = IndexSettingsModule.newIndexSettings("index",  settingsBuilder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        AnalysisService analysisService1 = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings1);
-        assertSame(analysisService1.tokenFilter("wordDelimiter"), analysisService1.tokenFilter("word_delimiter"));
-        assertSame(analysisService1.tokenFilter("porterStem"), analysisService1.tokenFilter("porter_stem"));
-    }
-
     public void testBuiltInAnalyzersAreCached() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        Settings indexSettings = settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);

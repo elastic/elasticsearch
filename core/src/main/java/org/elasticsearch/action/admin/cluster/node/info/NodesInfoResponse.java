@@ -64,23 +64,23 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("cluster_name", getClusterName().value(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.field("cluster_name", getClusterName().value());
 
         builder.startObject("nodes");
         for (NodeInfo nodeInfo : this) {
-            builder.startObject(nodeInfo.getNode().getId(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(nodeInfo.getNode().getId());
 
-            builder.field("name", nodeInfo.getNode().getName(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("name", nodeInfo.getNode().getName());
             builder.field("transport_address", nodeInfo.getNode().getAddress().toString());
-            builder.field("host", nodeInfo.getNode().getHostName(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("ip", nodeInfo.getNode().getHostAddress(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("host", nodeInfo.getNode().getHostName());
+            builder.field("ip", nodeInfo.getNode().getHostAddress());
 
             builder.field("version", nodeInfo.getVersion());
             builder.field("build_hash", nodeInfo.getBuild().shortHash());
 
             if (nodeInfo.getServiceAttributes() != null) {
                 for (Map.Entry<String, String> nodeAttribute : nodeInfo.getServiceAttributes().entrySet()) {
-                    builder.field(nodeAttribute.getKey(), nodeAttribute.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+                    builder.field(nodeAttribute.getKey(), nodeAttribute.getValue());
                 }
             }
 
@@ -93,7 +93,7 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             if (!nodeInfo.getNode().getAttributes().isEmpty()) {
                 builder.startObject("attributes");
                 for (Map.Entry<String, String> entry : nodeInfo.getNode().getAttributes().entrySet()) {
-                    builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+                    builder.field(entry.getKey(), entry.getValue());
                 }
                 builder.endObject();
             }

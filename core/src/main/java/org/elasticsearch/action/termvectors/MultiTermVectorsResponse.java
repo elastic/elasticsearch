@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -147,10 +146,10 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
     }
 
     static final class Fields {
-        static final XContentBuilderString DOCS = new XContentBuilderString("docs");
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        static final String DOCS = "docs";
+        static final String _INDEX = "_index";
+        static final String _TYPE = "_type";
+        static final String _ID = "_id";
     }
 
     @Override

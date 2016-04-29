@@ -47,8 +47,8 @@ public class InternalTemplateService implements TemplateService {
             CompiledScript compiledScript = scriptService.compile(
                 script,
                 ScriptContext.Standard.INGEST,
-                Collections.emptyMap()
-            );
+                Collections.emptyMap(),
+                null); // null == OK, because ingest templates are only inline templates.
             return new Template() {
                 @Override
                 public String execute(Map<String, Object> model) {

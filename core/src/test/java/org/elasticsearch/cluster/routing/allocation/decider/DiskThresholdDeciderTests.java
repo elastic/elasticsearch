@@ -60,7 +60,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -69,7 +68,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
     public void testDiskThreshold() {
-        Settings diskSettings = settingsBuilder()
+        Settings diskSettings = Settings.builder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.7)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.8).build();
@@ -104,7 +103,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 // noop
             }
         };
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -183,7 +182,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // Set the low threshold to 60 instead of 70
         // Set the high threshold to 70 instead of 80
         // node2 now should not have new shards allocated to it, but shards can remain
-        diskSettings = settingsBuilder()
+        diskSettings = Settings.builder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "60%")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.7).build();
@@ -193,7 +192,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         new SameShardAllocationDecider(Settings.EMPTY),
                         new DiskThresholdDecider(diskSettings))));
 
-        strategy = new AllocationService(settingsBuilder()
+        strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -214,7 +213,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // Set the low threshold to 50 instead of 60
         // Set the high threshold to 60 instead of 70
         // node2 now should not have new shards allocated to it, and shards cannot remain
-        diskSettings = settingsBuilder()
+        diskSettings = Settings.builder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.5)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.6).build();
@@ -224,7 +223,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         new SameShardAllocationDecider(Settings.EMPTY),
                         new DiskThresholdDecider(diskSettings))));
 
-        strategy = new AllocationService(settingsBuilder()
+        strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -268,7 +267,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     }
 
     public void testDiskThresholdWithAbsoluteSizes() {
-        Settings diskSettings = settingsBuilder()
+        Settings diskSettings = Settings.builder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "30b")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "9b").build();
@@ -305,7 +304,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             }
         };
 
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -363,7 +362,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 // noop
             }
         };
-        strategy = new AllocationService(settingsBuilder()
+        strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -422,7 +421,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // Set the low threshold to 60 instead of 70
         // Set the high threshold to 70 instead of 80
         // node2 now should not have new shards allocated to it, but shards can remain
-        diskSettings = settingsBuilder()
+        diskSettings = Settings.builder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "40b")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "30b").build();
@@ -432,7 +431,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         new SameShardAllocationDecider(Settings.EMPTY),
                         new DiskThresholdDecider(diskSettings))));
 
-        strategy = new AllocationService(settingsBuilder()
+        strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -453,7 +452,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // Set the low threshold to 50 instead of 60
         // Set the high threshold to 60 instead of 70
         // node2 now should not have new shards allocated to it, and shards cannot remain
-        diskSettings = settingsBuilder()
+        diskSettings = Settings.builder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "50b")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "40b").build();
@@ -463,7 +462,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         new SameShardAllocationDecider(Settings.EMPTY),
                         new DiskThresholdDecider(diskSettings))));
 
-        strategy = new AllocationService(settingsBuilder()
+        strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -541,7 +540,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     }
 
     public void testDiskThresholdWithShardSizes() {
-        Settings diskSettings = settingsBuilder()
+        Settings diskSettings = Settings.builder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.7)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "71%").build();
@@ -574,7 +573,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             }
         };
 
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -610,7 +609,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     }
 
     public void testUnknownDiskUsage() {
-        Settings diskSettings = settingsBuilder()
+        Settings diskSettings = Settings.builder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.7)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.85).build();
@@ -644,7 +643,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             }
         };
 
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -711,7 +710,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     }
 
     public void testShardRelocationsTakenIntoAccount() {
-        Settings diskSettings = settingsBuilder()
+        Settings diskSettings = Settings.builder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.7)
@@ -749,7 +748,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             }
         };
 
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -820,7 +819,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     }
 
     public void testCanRemainWithShardRelocatingAway() {
-        Settings diskSettings = settingsBuilder()
+        Settings diskSettings = Settings.builder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "60%")
@@ -917,7 +916,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new HashSet<>(Arrays.asList(
                 new SameShardAllocationDecider(Settings.EMPTY), diskThresholdDecider
         )));
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
@@ -935,7 +934,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
     }
 
     public void testForSingleDataNode() {
-        Settings diskSettings = settingsBuilder()
+        Settings diskSettings = Settings.builder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "60%")
@@ -1014,7 +1013,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 new SameShardAllocationDecider(Settings.EMPTY), diskThresholdDecider
         )));
 
-        AllocationService strategy = new AllocationService(settingsBuilder()
+        AllocationService strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
 

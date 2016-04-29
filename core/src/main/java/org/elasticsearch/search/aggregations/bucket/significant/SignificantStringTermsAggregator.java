@@ -22,6 +22,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -49,12 +50,12 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
     protected final SignificantTermsAggregatorFactory termsAggFactory;
     private final SignificanceHeuristic significanceHeuristic;
 
-    public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
+    public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource, DocValueFormat format,
             BucketCountThresholds bucketCountThresholds, IncludeExclude.StringFilter includeExclude, AggregationContext aggregationContext,
             Aggregator parent, SignificanceHeuristic significanceHeuristic, SignificantTermsAggregatorFactory termsAggFactory,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, valuesSource, null, bucketCountThresholds, includeExclude, aggregationContext, parent,
+        super(name, factories, valuesSource, null, format, bucketCountThresholds, includeExclude, aggregationContext, parent,
                 SubAggCollectionMode.DEPTH_FIRST, false, pipelineAggregators, metaData);
         this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;

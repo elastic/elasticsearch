@@ -33,6 +33,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -179,14 +180,17 @@ final class Bootstrap {
         // We do not need to reload system properties here as we have already applied them in building the settings and
         // reloading could cause multiple prompts to the user for values if a system property was specified with a prompt
         // placeholder
-        Settings nodeSettings = Settings.settingsBuilder()
+        Settings nodeSettings = Settings.builder()
                 .put(settings)
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
                 .build();
 
-        BootstrapCheck.check(nodeSettings);
-
-        node = new Node(nodeSettings);
+        node = new Node(nodeSettings) {
+            @Override
+            protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
+                BootstrapCheck.check(settings, boundTransportAddress);
+            }
+        };
     }
 
     private static Environment initialSettings(boolean foreground, String pidFile) {

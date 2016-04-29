@@ -26,7 +26,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -65,19 +64,19 @@ public class ProcessStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString PROCESS = new XContentBuilderString("process");
-        static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
-        static final XContentBuilderString OPEN_FILE_DESCRIPTORS = new XContentBuilderString("open_file_descriptors");
-        static final XContentBuilderString MAX_FILE_DESCRIPTORS = new XContentBuilderString("max_file_descriptors");
+        static final String PROCESS = "process";
+        static final String TIMESTAMP = "timestamp";
+        static final String OPEN_FILE_DESCRIPTORS = "open_file_descriptors";
+        static final String MAX_FILE_DESCRIPTORS = "max_file_descriptors";
 
-        static final XContentBuilderString CPU = new XContentBuilderString("cpu");
-        static final XContentBuilderString PERCENT = new XContentBuilderString("percent");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString TOTAL_IN_MILLIS = new XContentBuilderString("total_in_millis");
+        static final String CPU = "cpu";
+        static final String PERCENT = "percent";
+        static final String TOTAL = "total";
+        static final String TOTAL_IN_MILLIS = "total_in_millis";
 
-        static final XContentBuilderString MEM = new XContentBuilderString("mem");
-        static final XContentBuilderString TOTAL_VIRTUAL = new XContentBuilderString("total_virtual");
-        static final XContentBuilderString TOTAL_VIRTUAL_IN_BYTES = new XContentBuilderString("total_virtual_in_bytes");
+        static final String MEM = "mem";
+        static final String TOTAL_VIRTUAL = "total_virtual";
+        static final String TOTAL_VIRTUAL_IN_BYTES = "total_virtual_in_bytes";
     }
 
     @Override

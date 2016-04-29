@@ -28,7 +28,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -36,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SearchWithRejectionsIT extends ESIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put("threadpool.search.size", 1)
                 .put("threadpool.search.queue_size", 1)
                 .build();

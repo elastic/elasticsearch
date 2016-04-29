@@ -15,9 +15,9 @@
               },
               {
                 "date" : {
-                  "match_field" : "date",
+                  "field" : "date",
                   "target_field" : "date",
-                  "match_formats" : ["yyyy"]
+                  "formats" : ["yyyy"]
                 }
               }
             ],
@@ -61,7 +61,7 @@
               {
                 "rename" : {
                   "field" : "foofield",
-                  "to" : "field1",
+                  "target_field" : "field1",
                   "on_failure" : [
                     {
                       "set" : {
@@ -72,7 +72,7 @@
                     {
                       "rename" : {
                         "field" : "foofield2",
-                        "to" : "field1",
+                        "target_field" : "field1",
                         "on_failure" : [
                           {
                             "set" : {

@@ -24,6 +24,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -34,19 +36,24 @@ import java.util.Collection;
 import java.util.Objects;
 
 /**
- * A query that will execute the wrapped query only for the specified indices, and "match_all" when
- * it does not match those indices (by default).
+ * A query that will execute the wrapped query only for the specified indices,
+ * and "match_all" when it does not match those indices (by default).
+ *
+ * @deprecated instead search on the `_index` field
  */
+@Deprecated
+// TODO remove this class in 6.0
 public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilder> {
 
     public static final String NAME = "indices";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final IndicesQueryBuilder PROTOTYPE = new IndicesQueryBuilder(EmptyQueryBuilder.PROTOTYPE, "index");
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField NO_MATCH_QUERY = new ParseField("no_match_query");
     private static final ParseField INDEX_FIELD = new ParseField("index");
     private static final ParseField INDICES_FIELD = new ParseField("indices");
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(IndicesQueryBuilder.class));
 
     private final QueryBuilder<?> innerQuery;
 
@@ -54,7 +61,12 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
 
     private QueryBuilder<?> noMatchQuery = defaultNoMatchQuery();
 
+    /**
+     * @deprecated instead search on the `_index` field
+     */
+    @Deprecated
     public IndicesQueryBuilder(QueryBuilder<?> innerQuery, String... indices) {
+        DEPRECATION_LOGGER.deprecated("{} query is deprecated. Instead search on the '_index' field", NAME);
         if (innerQuery == null) {
             throw new IllegalArgumentException("inner query cannot be null");
         }
@@ -63,6 +75,23 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
         }
         this.innerQuery = Objects.requireNonNull(innerQuery);
         this.indices = indices;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public IndicesQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        innerQuery = in.readNamedWriteable(QueryBuilder.class);
+        indices = in.readStringArray();
+        noMatchQuery = in.readNamedWriteable(QueryBuilder.class);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(innerQuery);
+        out.writeStringArray(indices);
+        out.writeNamedWriteable(noMatchQuery);
     }
 
     public QueryBuilder<?> innerQuery() {
@@ -128,15 +157,15 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     innerQuery = parseContext.parseInnerQueryBuilder();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, NO_MATCH_QUERY)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, NO_MATCH_QUERY)) {
                     noMatchQuery = parseContext.parseInnerQueryBuilder();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[indices] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, INDICES_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, INDICES_FIELD)) {
                     if (indices.isEmpty() == false) {
                         throw new ParsingException(parser.getTokenLocation(), "[indices] indices or index already specified");
                     }
@@ -151,16 +180,16 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
                     throw new ParsingException(parser.getTokenLocation(), "[indices] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, INDEX_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, INDEX_FIELD)) {
                     if (indices.isEmpty() == false) {
                         throw new ParsingException(parser.getTokenLocation(), "[indices] indices or index already specified");
                     }
                     indices.add(parser.text());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, NO_MATCH_QUERY)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, NO_MATCH_QUERY)) {
                     noMatchQuery = parseNoMatchQuery(parser.text());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[indices] query does not support [" + currentFieldName + "]");
@@ -200,20 +229,6 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
             return innerQuery.toQuery(context);
         }
         return noMatchQuery.toQuery(context);
-    }
-
-    @Override
-    protected IndicesQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        IndicesQueryBuilder indicesQueryBuilder = new IndicesQueryBuilder(in.readQuery(), in.readStringArray());
-        indicesQueryBuilder.noMatchQuery = in.readQuery();
-        return indicesQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(innerQuery);
-        out.writeStringArray(indices);
-        out.writeQuery(noMatchQuery);
     }
 
     @Override

@@ -27,11 +27,12 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.search.MatchQuery;
 
@@ -134,7 +135,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 .or(instanceOf(FuzzyQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
                 .or(instanceOf(MatchAllDocsQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
                 .or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(PhraseQuery.class))
-                .or(instanceOf(LegacyNumericRangeQuery.class)));
+                .or(instanceOf(LegacyNumericRangeQuery.class))
+                .or(instanceOf(PointRangeQuery.class)));
     }
 
     public void testIllegaArguments() {

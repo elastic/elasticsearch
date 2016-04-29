@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
@@ -77,7 +78,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readValueFormat();
+        format = in.readNamedWriteable(DocValueFormat.class);
         if (in.readBoolean()) {
             counts = HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
         } else {
@@ -87,7 +88,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(format);
+        out.writeNamedWriteable(format);
         if (counts != null) {
             out.writeBoolean(true);
             counts.writeTo(0, out);

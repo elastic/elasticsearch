@@ -45,11 +45,6 @@ public class HistogramParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalHistogram.TYPE.name();
-    }
-
-    @Override
     protected AbstractHistogramBuilder<?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         HistogramAggregatorBuilder factory = new HistogramAggregatorBuilder(aggregationName);
@@ -132,7 +127,7 @@ public class HistogramParser extends NumericValuesSourceParser {
                 otherOptions.put(HistogramAggregator.ORDER_FIELD, order);
                 return true;
             } else if (parseFieldMatcher.match(currentFieldName, ExtendedBounds.EXTENDED_BOUNDS_FIELD)) {
-                ExtendedBounds extendedBounds = ExtendedBounds.parse(parser, parseFieldMatcher, aggregationName);
+                ExtendedBounds extendedBounds = ExtendedBounds.fromXContent(parser, parseFieldMatcher, aggregationName);
                 otherOptions.put(ExtendedBounds.EXTENDED_BOUNDS_FIELD, extendedBounds);
                 return true;
             } else {
@@ -159,10 +154,5 @@ public class HistogramParser extends NumericValuesSourceParser {
             return (InternalOrder) (asc ? InternalOrder.COUNT_ASC : InternalOrder.COUNT_DESC);
         }
         return new InternalOrder.Aggregation(key, asc);
-    }
-
-    @Override
-    public AbstractHistogramBuilder<?> getFactoryPrototypes() {
-        return HistogramAggregatorBuilder.PROTOTYPE;
     }
 }

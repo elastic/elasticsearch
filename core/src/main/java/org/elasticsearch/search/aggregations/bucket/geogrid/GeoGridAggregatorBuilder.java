@@ -21,7 +21,8 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.spatial.util.GeoHashUtils;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,8 +46,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class GeoGridAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoGridAggregatorBuilder> {
-
-    static final GeoGridAggregatorBuilder PROTOTYPE = new GeoGridAggregatorBuilder("");
+    public static final String NAME = InternalGeoHashGrid.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private int precision = GeoHashGridParser.DEFAULT_PRECISION;
     private int requiredSize = GeoHashGridParser.DEFAULT_MAX_NUM_CELLS;
@@ -54,6 +55,23 @@ public class GeoGridAggregatorBuilder extends ValuesSourceAggregatorBuilder<Valu
 
     public GeoGridAggregatorBuilder(String name) {
         super(name, InternalGeoHashGrid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public GeoGridAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalGeoHashGrid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        precision = in.readVInt();
+        requiredSize = in.readVInt();
+        shardSize = in.readVInt();
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeVInt(precision);
+        out.writeVInt(requiredSize);
+        out.writeVInt(shardSize);
     }
 
     public GeoGridAggregatorBuilder precision(int precision) {
@@ -96,42 +114,25 @@ public class GeoGridAggregatorBuilder extends ValuesSourceAggregatorBuilder<Valu
             ValuesSourceConfig<ValuesSource.GeoPoint> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
                     throws IOException {
         int shardSize = this.shardSize;
-    if (shardSize == 0) {
-        shardSize = Integer.MAX_VALUE;
-    }
+        if (shardSize == 0) {
+            shardSize = Integer.MAX_VALUE;
+        }
 
         int requiredSize = this.requiredSize;
-    if (requiredSize == 0) {
-        requiredSize = Integer.MAX_VALUE;
-    }
+        if (requiredSize == 0) {
+            requiredSize = Integer.MAX_VALUE;
+        }
 
-    if (shardSize < 0) {
+        if (shardSize < 0) {
             // Use default heuristic to avoid any wrong-ranking caused by distributed counting
             shardSize = BucketUtils.suggestShardSideQueueSize(requiredSize, context.searchContext().numberOfShards());
-    }
+        }
 
-    if (shardSize < requiredSize) {
-        shardSize = requiredSize;
-    }
+        if (shardSize < requiredSize) {
+            shardSize = requiredSize;
+        }
         return new GeoHashGridAggregatorFactory(name, type, config, precision, requiredSize, shardSize, context, parent,
                 subFactoriesBuilder, metaData);
-    }
-
-    @Override
-    protected GeoGridAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType, ValueType targetValueType,
-            StreamInput in) throws IOException {
-        GeoGridAggregatorBuilder factory = new GeoGridAggregatorBuilder(name);
-        factory.precision = in.readVInt();
-        factory.requiredSize = in.readVInt();
-        factory.shardSize = in.readVInt();
-        return factory;
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(precision);
-        out.writeVInt(requiredSize);
-        out.writeVInt(shardSize);
     }
 
     @Override
@@ -160,6 +161,11 @@ public class GeoGridAggregatorBuilder extends ValuesSourceAggregatorBuilder<Valu
     @Override
     protected int innerHashCode() {
         return Objects.hash(precision, requiredSize, shardSize);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 
     private static class CellValues extends SortingNumericDocValues {

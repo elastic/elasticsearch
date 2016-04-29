@@ -45,7 +45,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
     public static final String NAME = "exists";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final ExistsQueryBuilder PROTOTYPE = new ExistsQueryBuilder("field");
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
 
@@ -56,6 +55,19 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             throw new IllegalArgumentException("field name is null or empty");
         }
         this.fieldName = fieldName;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ExistsQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
     }
 
     /**
@@ -86,11 +98,11 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, FIELD_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, FIELD_FIELD)) {
                     fieldPattern = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
@@ -122,7 +134,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
                 (FieldNamesFieldMapper.FieldNamesFieldType)context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
             // can only happen when no types exist, so no docs exist either
-            return Queries.newMatchNoDocsQuery();
+            return Queries.newMatchNoDocsQuery("Missing types in \"" + NAME + "\" query.");
         }
 
         final Collection<String> fields;
@@ -150,16 +162,6 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     @Override
     protected boolean doEquals(ExistsQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName);
-    }
-
-    @Override
-    protected ExistsQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new ExistsQueryBuilder(in.readString());
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
     }
 
     @Override

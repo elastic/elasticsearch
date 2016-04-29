@@ -62,14 +62,14 @@ public class BucketStreamContext implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        format = in.readValueFormat();
+        format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
         attributes = in.readMap();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(format);
+        out.writeNamedWriteable(format);
         out.writeBoolean(keyed);
         out.writeMap(attributes);
     }

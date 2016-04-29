@@ -40,11 +40,6 @@ public class CardinalityParser extends AnyValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalCardinality.TYPE.name();
-    }
-
-    @Override
     protected CardinalityAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         CardinalityAggregatorBuilder factory = new CardinalityAggregatorBuilder(aggregationName, targetValueType);
@@ -68,10 +63,5 @@ public class CardinalityParser extends AnyValuesSourceParser {
             }
         }
         return false;
-    }
-
-    @Override
-    public CardinalityAggregatorBuilder getFactoryPrototypes() {
-        return CardinalityAggregatorBuilder.PROTOTYPE;
     }
 }

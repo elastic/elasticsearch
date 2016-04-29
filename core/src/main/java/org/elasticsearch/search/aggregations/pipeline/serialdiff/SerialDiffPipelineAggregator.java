@@ -128,14 +128,14 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
 
     @Override
     public void doReadFrom(StreamInput in) throws IOException {
-        formatter = in.readValueFormat();
+        formatter = in.readNamedWriteable(DocValueFormat.class);
         gapPolicy = GapPolicy.readFrom(in);
         lag = in.readVInt();
     }
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(formatter);
+        out.writeNamedWriteable(formatter);
         gapPolicy.writeTo(out);
         out.writeVInt(lag);
     }

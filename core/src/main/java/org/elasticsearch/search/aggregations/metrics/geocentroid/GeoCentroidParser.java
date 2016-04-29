@@ -40,11 +40,6 @@ public class GeoCentroidParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalGeoCentroid.TYPE.name();
-    }
-
-    @Override
     protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
             ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
         return false;
@@ -54,10 +49,5 @@ public class GeoCentroidParser extends GeoPointValuesSourceParser {
     protected GeoCentroidAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         return new GeoCentroidAggregatorBuilder(aggregationName);
-    }
-
-    @Override
-    public GeoCentroidAggregatorBuilder getFactoryPrototypes() {
-        return GeoCentroidAggregatorBuilder.PROTOTYPE;
     }
 }

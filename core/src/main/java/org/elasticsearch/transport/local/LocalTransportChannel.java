@@ -30,6 +30,7 @@ import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.support.TransportStatus;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  *
@@ -45,15 +46,18 @@ public class LocalTransportChannel implements TransportChannel {
     private final String action;
     private final long requestId;
     private final Version version;
+    private final long reservedBytes;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     public LocalTransportChannel(LocalTransport sourceTransport, TransportServiceAdapter sourceTransportServiceAdapter,
-            LocalTransport targetTransport, String action, long requestId, Version version) {
+                                 LocalTransport targetTransport, String action, long requestId, Version version, long reservedBytes) {
         this.sourceTransport = sourceTransport;
         this.sourceTransportServiceAdapter = sourceTransportServiceAdapter;
         this.targetTransport = targetTransport;
         this.action = action;
         this.requestId = requestId;
         this.version = version;
+        this.reservedBytes = reservedBytes;
     }
 
     @Override
@@ -80,13 +84,7 @@ public class LocalTransportChannel implements TransportChannel {
             status = TransportStatus.setResponse(status);
             stream.writeByte(status); // 0 for request, 1 for response.
             response.writeTo(stream);
-            final byte[] data = stream.bytes().toBytes();
-            targetTransport.workers().execute(() -> {
-                ThreadContext threadContext = targetTransport.threadPool.getThreadContext();
-                try (ThreadContext.StoredContext ignore = threadContext.stashContext()){
-                    targetTransport.messageReceived(data, action, sourceTransport, version, null);
-                }
-            });
+            sendResponseData(stream.bytes().toBytes());
             sourceTransportServiceAdapter.onResponseSent(requestId, action, response, options);
         }
     }
@@ -98,15 +96,26 @@ public class LocalTransportChannel implements TransportChannel {
         RemoteTransportException tx = new RemoteTransportException(targetTransport.nodeName(),
                 targetTransport.boundAddress().boundAddresses()[0], action, error);
         stream.writeThrowable(tx);
+        sendResponseData(stream.bytes().toBytes());
+        sourceTransportServiceAdapter.onResponseSent(requestId, action, error);
+    }
 
-        final byte[] data = stream.bytes().toBytes();
+    private void sendResponseData(byte[] data) {
+        close();
         targetTransport.workers().execute(() -> {
             ThreadContext threadContext = targetTransport.threadPool.getThreadContext();
-            try (ThreadContext.StoredContext ignore = threadContext.stashContext()){
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                 targetTransport.messageReceived(data, action, sourceTransport, version, null);
             }
         });
-        sourceTransportServiceAdapter.onResponseSent(requestId, action, error);
+    }
+
+    private void close() {
+        // attempt to close once atomically
+        if (closed.compareAndSet(false, true) == false) {
+            throw new IllegalStateException("Channel is already closed");
+        }
+        sourceTransport.inFlightRequestsBreaker().addWithoutBreaking(-reservedBytes);
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RandomAccessWeight;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,8 +53,6 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
     public static final String NAME = "script";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
-    public static final ScriptQueryBuilder PROTOTYPE = new ScriptQueryBuilder(new Script(""));
-
     private static final ParseField PARAMS_FIELD = new ParseField("params");
 
     private final Script script;
@@ -63,6 +62,19 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             throw new IllegalArgumentException("script cannot be null");
         }
         this.script = script;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ScriptQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        script = new Script(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        script.writeTo(out);
     }
 
     public Script script() {
@@ -101,20 +113,20 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseContext.parseFieldMatcher());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, PARAMS_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                    script = Script.parse(parser, parseContext.getParseFieldMatcher());
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, PARAMS_FIELD)) {
                     // TODO remove in 3.0 (here to support old script APIs)
                     params = parser.map();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if (!scriptParameterParser.token(currentFieldName, token, parser, parseContext.parseFieldMatcher())) {
+                } else if (!scriptParameterParser.token(currentFieldName, token, parser, parseContext.getParseFieldMatcher())) {
                     throw new ParsingException(parser.getTokenLocation(), "[script] query does not support [" + currentFieldName + "]");
                 }
             }
@@ -144,7 +156,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new ScriptQuery(script, context.getScriptService(), context.lookup());
+        return new ScriptQuery(script, context.getScriptService(), context.lookup(), context.getClusterState());
     }
 
     static class ScriptQuery extends Query {
@@ -153,9 +165,9 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         private final SearchScript searchScript;
 
-        public ScriptQuery(Script script, ScriptService scriptService, SearchLookup searchLookup) {
+        public ScriptQuery(Script script, ScriptService scriptService, SearchLookup searchLookup, ClusterState state) {
             this.script = script;
-            this.searchScript = scriptService.search(searchLookup, script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+            this.searchScript = scriptService.search(searchLookup, script, ScriptContext.Standard.SEARCH, Collections.emptyMap(), state);
         }
 
         @Override
@@ -215,16 +227,6 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 }
             };
         }
-    }
-
-    @Override
-    protected ScriptQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new ScriptQueryBuilder(Script.readScript(in));
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        script.writeTo(out);
     }
 
     @Override

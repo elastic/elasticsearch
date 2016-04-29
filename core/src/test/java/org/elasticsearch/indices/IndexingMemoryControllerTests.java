@@ -56,8 +56,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -76,7 +74,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
         public MockController(Settings settings) {
             super(Settings.builder()
-                            .put(SHARD_MEMORY_INTERVAL_TIME_SETTING, "200h") // disable it
+                            .put("indices.memory.interval", "200h") // disable it
                             .put(settings)
                             .build(),
                     null, null, 100 * 1024 * 1024); // fix jvm mem size to 100mb
@@ -176,12 +174,12 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
     }
 
     public void testShardAdditionAndRemoval() {
-        createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
+        createIndex("test", Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0).build());
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
 
         MockController controller = new MockController(Settings.builder()
-                .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "4mb").build());
+                                                       .put("indices.memory.index_buffer_size", "4mb").build());
         IndexShard shard0 = test.getShard(0);
         controller.simulateIndexing(shard0);
         controller.assertBuffer(shard0, 1);
@@ -209,13 +207,13 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
     public void testActiveInactive() {
 
-        createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
+        createIndex("test", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
 
         MockController controller = new MockController(Settings.builder()
-                .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "5mb")
-                .build());
+                                                       .put("indices.memory.index_buffer_size", "5mb")
+                                                       .build());
 
         IndexShard shard0 = test.getShard(0);
         controller.simulateIndexing(shard0);
@@ -248,27 +246,59 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
 
     public void testMinBufferSizes() {
         MockController controller = new MockController(Settings.builder()
-            .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "0.001%")
-            .put(IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING, "6mb").build());
+                                                       .put("indices.memory.index_buffer_size", "0.001%")
+                                                       .put("indices.memory.min_index_buffer_size", "6mb").build());
 
         assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB)));
     }
 
+    public void testNegativeMinIndexBufferSize() {
+        Exception e = expectThrows(IllegalArgumentException.class,
+                                   () -> new MockController(Settings.builder()
+                                                            .put("indices.memory.min_index_buffer_size", "-6mb").build()));
+        assertEquals("Failed to parse value [-6mb] for setting [indices.memory.min_index_buffer_size] must be >= 0b", e.getMessage());
+
+    }
+
+    public void testNegativeInterval() {
+        Exception e = expectThrows(IllegalArgumentException.class,
+                                   () -> new MockController(Settings.builder()
+                                                            .put("indices.memory.interval", "-42s").build()));
+        assertEquals("Failed to parse value [-42s] for setting [indices.memory.interval] must be >= 0s", e.getMessage());
+
+    }
+
+    public void testNegativeShardInactiveTime() {
+        Exception e = expectThrows(IllegalArgumentException.class,
+                                   () -> new MockController(Settings.builder()
+                                                            .put("indices.memory.shard_inactive_time", "-42s").build()));
+        assertEquals("Failed to parse value [-42s] for setting [indices.memory.shard_inactive_time] must be >= 0s", e.getMessage());
+
+    }
+
+    public void testNegativeMaxIndexBufferSize() {
+        Exception e = expectThrows(IllegalArgumentException.class,
+                                   () -> new MockController(Settings.builder()
+                                                            .put("indices.memory.max_index_buffer_size", "-6mb").build()));
+        assertEquals("Failed to parse value [-6mb] for setting [indices.memory.max_index_buffer_size] must be >= -1b", e.getMessage());
+
+    }
+
     public void testMaxBufferSizes() {
         MockController controller = new MockController(Settings.builder()
-                .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "90%")
-                .put(IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING, "6mb").build());
+                                                       .put("indices.memory.index_buffer_size", "90%")
+                                                       .put("indices.memory.max_index_buffer_size", "6mb").build());
 
         assertThat(controller.indexingBufferSize(), equalTo(new ByteSizeValue(6, ByteSizeUnit.MB)));
     }
 
     public void testThrottling() throws Exception {
-        createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
+        createIndex("test", Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0).build());
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
 
         MockController controller = new MockController(Settings.builder()
-                .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "4mb").build());
+                                                       .put("indices.memory.index_buffer_size", "4mb").build());
         IndexShard shard0 = test.getShard(0);
         IndexShard shard1 = test.getShard(1);
         IndexShard shard2 = test.getShard(2);
@@ -326,8 +356,8 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
     // #10312
     public void testDeletesAloneCanTriggerRefresh() throws Exception {
         createIndex("index",
-                    Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)
-                                      .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    Settings.builder().put("index.number_of_shards", 1)
+                                      .put("index.number_of_replicas", 0)
                                       .put("index.refresh_interval", -1)
                                       .build());
         ensureGreen();
@@ -347,7 +377,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         assertNoFailures(r);
 
         // Make a shell of an IMC to check up on indexing buffer usage:
-        Settings settings = Settings.builder().put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
+        Settings settings = Settings.builder().put("indices.memory.index_buffer_size", "1kb").build();
 
         // TODO: would be cleaner if I could pass this 1kb setting to the single node this test created....
         IndexingMemoryController imc = new IndexingMemoryController(settings, null, null) {
@@ -408,7 +438,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {};
         shard.close("simon says", false);
         AtomicReference<IndexShard> shardRef = new AtomicReference<>();
-        Settings settings = Settings.builder().put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "50kb").build();
+        Settings settings = Settings.builder().put("indices.memory.index_buffer_size", "50kb").build();
         Iterable<IndexShard> iterable = () -> (shardRef.get() == null) ? Collections.<IndexShard>emptyList().iterator()
             : Collections.singleton(shardRef.get()).iterator();
         AtomicInteger flushes = new AtomicInteger();

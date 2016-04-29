@@ -22,19 +22,19 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AlreadyExpiredException;
-import org.elasticsearch.index.analysis.NumericLongAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -51,7 +51,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_ttl";
     public static final String CONTENT_TYPE = "_ttl";
 
-    public static class Defaults extends LongFieldMapper.Defaults {
+    public static class Defaults extends LegacyLongFieldMapper.Defaults {
         public static final String NAME = TTLFieldMapper.CONTENT_TYPE;
 
         public static final TTLFieldType TTL_FIELD_TYPE = new TTLFieldType();
@@ -61,9 +61,9 @@ public class TTLFieldMapper extends MetadataFieldMapper {
             TTL_FIELD_TYPE.setStored(true);
             TTL_FIELD_TYPE.setTokenized(false);
             TTL_FIELD_TYPE.setNumericPrecisionStep(Defaults.PRECISION_STEP_64_BIT);
-            TTL_FIELD_TYPE.setIndexAnalyzer(NumericLongAnalyzer.buildNamedAnalyzer(Defaults.PRECISION_STEP_64_BIT));
-            TTL_FIELD_TYPE.setSearchAnalyzer(NumericLongAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE));
             TTL_FIELD_TYPE.setName(NAME);
+            TTL_FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            TTL_FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             TTL_FIELD_TYPE.freeze();
         }
 
@@ -104,7 +104,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
             Builder builder = new Builder();
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     EnabledAttributeMapper enabledState = lenientNodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
@@ -127,7 +127,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final class TTLFieldType extends LongFieldMapper.LongFieldType {
+    public static final class TTLFieldType extends LegacyLongFieldMapper.LongFieldType {
 
         public TTLFieldType() {
         }
@@ -151,7 +151,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
             } else {
                 now = System.currentTimeMillis();
             }
-            long val = value(value);
+            Long val = (Long) super.valueForSearch(value);
             return val - now;
         }
     }
@@ -226,7 +226,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
                     throw new AlreadyExpiredException(context.index(), context.type(), context.id(), timestamp, ttl, now);
                 }
                 // the expiration timestamp (timestamp + ttl) is set as field
-                fields.add(new LongFieldMapper.CustomLongNumericField(expire, fieldType()));
+                fields.add(new LegacyLongFieldMapper.CustomLongNumericField(expire, fieldType()));
             }
         }
     }

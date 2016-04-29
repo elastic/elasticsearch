@@ -39,11 +39,6 @@ public class MinParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalMin.TYPE.name();
-    }
-
-    @Override
     protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
             ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
         return false;
@@ -53,10 +48,5 @@ public class MinParser extends NumericValuesSourceParser {
     protected MinAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         return new MinAggregatorBuilder(aggregationName);
-    }
-
-    @Override
-    public MinAggregatorBuilder getFactoryPrototypes() {
-        return MinAggregatorBuilder.PROTOTYPE;
     }
 }

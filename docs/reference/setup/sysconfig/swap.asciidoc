@@ -83,8 +83,7 @@ export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
 
 The second option is to completely disable swap. Usually Elasticsearch
 is the only service running on a box, and its memory usage is controlled
-by the `ES_HEAP_SIZE` environment variable.  There should be no need
-to have swap enabled.
+by the JVM options.  There should be no need to have swap enabled.
 
 On Linux systems, you can disable swap temporarily
 by running: `sudo swapoff -a`. To disable it permanently, you will need

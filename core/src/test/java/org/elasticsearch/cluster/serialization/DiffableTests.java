@@ -28,7 +28,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.StreamableReader;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 
@@ -399,12 +398,7 @@ public class DiffableTests extends ESTestCase {
 
             @Override
             public Diff<TestDiffable> readDiff(StreamInput in, K key) throws IOException {
-                return AbstractDiffable.readDiffFrom(new StreamableReader<TestDiffable>() {
-                    @Override
-                    public TestDiffable readFrom(StreamInput in) throws IOException {
-                        return new TestDiffable(in.readString());
-                    }
-                }, in);
+                return AbstractDiffable.readDiffFrom(TestDiffable.PROTO, in);
             }
         };
     }

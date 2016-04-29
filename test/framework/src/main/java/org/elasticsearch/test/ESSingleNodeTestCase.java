@@ -77,7 +77,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         startNode();
     }
 
-    private void startNode() {
+    protected void startNode() {
         assert NODE == null;
         NODE = newNode();
         // we must wait for the node to actually be up and running. otherwise the node might have started, elected itself master but might not yet have removed the
@@ -92,7 +92,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
     }
 
-    private static void stopNode() throws IOException {
+    protected static void stopNode() throws IOException {
         Node node = NODE;
         NODE = null;
         IOUtils.close(node);
@@ -180,7 +180,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put("node.name", nodeName())
 
             .put("script.inline", "true")
-            .put("script.indexed", "true")
+            .put("script.stored", "true")
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("http.enabled", false)
             .put(Node.NODE_LOCAL_SETTING.getKey(), true)

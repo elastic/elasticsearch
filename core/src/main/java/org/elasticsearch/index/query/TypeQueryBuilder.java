@@ -42,8 +42,6 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
 
     private final BytesRef type;
 
-    public static final TypeQueryBuilder PROTOTYPE = new TypeQueryBuilder("type");
-
     public TypeQueryBuilder(String type) {
         if (type == null) {
             throw new IllegalArgumentException("[type] cannot be null");
@@ -56,6 +54,19 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
             throw new IllegalArgumentException("[type] cannot be null");
         }
         this.type = type;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public TypeQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        type = in.readBytesRef();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeBytesRef(type);
     }
 
     public String type() {
@@ -83,11 +94,11 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
                     type = parser.utf8Bytes();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -124,16 +135,6 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
         } else {
             return documentMapper.typeFilter();
         }
-    }
-
-    @Override
-    protected TypeQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new TypeQueryBuilder(in.readBytesRef());
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeBytesRef(type);
     }
 
     @Override

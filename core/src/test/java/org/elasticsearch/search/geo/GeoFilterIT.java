@@ -30,7 +30,6 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
-import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.apache.lucene.spatial.util.GeoProjectionUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -41,6 +40,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.LineStringBuilder;
@@ -375,7 +375,7 @@ public class GeoFilterIT extends ESIntegTestCase {
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("country")

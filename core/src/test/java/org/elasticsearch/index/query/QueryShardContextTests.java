@@ -47,7 +47,7 @@ public class QueryShardContextTests extends ESTestCase {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         QueryShardContext context = new QueryShardContext(
-            indexSettings, null, null, mapperService, null, null, null, null, null
+            indexSettings, null, null, mapperService, null, null, null, null, null, null, null
         );
 
         context.setAllowUnmappedFields(false);

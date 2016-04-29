@@ -51,6 +51,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -134,6 +135,30 @@ class InstallPluginCommand extends Command {
     private final OptionSpec<Void> batchOption;
     private final OptionSpec<String> arguments;
 
+    public static final Set<PosixFilePermission> DIR_AND_EXECUTABLE_PERMS;
+    public static final Set<PosixFilePermission> FILE_PERMS;
+
+    static {
+        Set<PosixFilePermission> dirAndExecutablePerms = new HashSet<>(7);
+        // Directories and executables get chmod 755
+        dirAndExecutablePerms.add(PosixFilePermission.OWNER_EXECUTE);
+        dirAndExecutablePerms.add(PosixFilePermission.OWNER_READ);
+        dirAndExecutablePerms.add(PosixFilePermission.OWNER_WRITE);
+        dirAndExecutablePerms.add(PosixFilePermission.GROUP_EXECUTE);
+        dirAndExecutablePerms.add(PosixFilePermission.GROUP_READ);
+        dirAndExecutablePerms.add(PosixFilePermission.OTHERS_READ);
+        dirAndExecutablePerms.add(PosixFilePermission.OTHERS_EXECUTE);
+        DIR_AND_EXECUTABLE_PERMS = Collections.unmodifiableSet(dirAndExecutablePerms);
+
+        Set<PosixFilePermission> filePerms = new HashSet<>(4);
+        // Files get chmod 644
+        filePerms.add(PosixFilePermission.OWNER_READ);
+        filePerms.add(PosixFilePermission.OWNER_WRITE);
+        filePerms.add(PosixFilePermission.GROUP_READ);
+        filePerms.add(PosixFilePermission.OTHERS_READ);
+        FILE_PERMS = Collections.unmodifiableSet(filePerms);
+    }
+
     InstallPluginCommand(Environment env) {
         super("Install a plugin");
         this.env = env;
@@ -197,7 +222,7 @@ class InstallPluginCommand extends Command {
                         version);
             }
             terminal.println("-> Downloading " + pluginId + " from elastic");
-            return downloadZipAndChecksum(url, tmpDir);
+            return downloadZipAndChecksum(terminal, url, tmpDir);
         }
 
         // now try as maven coordinates, a valid URL would only have a colon and slash
@@ -206,16 +231,17 @@ class InstallPluginCommand extends Command {
             String mavenUrl = String.format(Locale.ROOT, "https://repo1.maven.org/maven2/%1$s/%2$s/%3$s/%2$s-%3$s.zip",
                     coordinates[0].replace(".", "/") /* groupId */, coordinates[1] /* artifactId */, coordinates[2] /* version */);
             terminal.println("-> Downloading " + pluginId + " from maven central");
-            return downloadZipAndChecksum(mavenUrl, tmpDir);
+            return downloadZipAndChecksum(terminal, mavenUrl, tmpDir);
         }
 
         // fall back to plain old URL
         terminal.println("-> Downloading " + URLDecoder.decode(pluginId, "UTF-8"));
-        return downloadZip(pluginId, tmpDir);
+        return downloadZip(terminal, pluginId, tmpDir);
     }
 
     /** Downloads a zip from the url, into a temp file under the given temp dir. */
-    private Path downloadZip(String urlString, Path tmpDir) throws IOException {
+    private Path downloadZip(Terminal terminal, String urlString, Path tmpDir) throws IOException {
+        terminal.println(VERBOSE, "Retrieving zip from " + urlString);
         URL url = new URL(urlString);
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
         try (InputStream in = url.openStream()) {
@@ -226,8 +252,8 @@ class InstallPluginCommand extends Command {
     }
 
     /** Downloads a zip from the url, as well as a SHA1 checksum, and checks the checksum. */
-    private Path downloadZipAndChecksum(String urlString, Path tmpDir) throws Exception {
-        Path zip = downloadZip(urlString, tmpDir);
+    private Path downloadZipAndChecksum(Terminal terminal, String urlString, Path tmpDir) throws Exception {
+        Path zip = downloadZip(terminal, urlString, tmpDir);
 
         URL checksumUrl = new URL(urlString + ".sha1");
         final String expectedChecksum;
@@ -298,15 +324,7 @@ class InstallPluginCommand extends Command {
 
     private Path stagingDirectory(Path pluginsDir) throws IOException {
         try {
-            Set<PosixFilePermission> perms = new HashSet<>();
-            perms.add(PosixFilePermission.OWNER_EXECUTE);
-            perms.add(PosixFilePermission.OWNER_READ);
-            perms.add(PosixFilePermission.OWNER_WRITE);
-            perms.add(PosixFilePermission.GROUP_READ);
-            perms.add(PosixFilePermission.GROUP_EXECUTE);
-            perms.add(PosixFilePermission.OTHERS_READ);
-            perms.add(PosixFilePermission.OTHERS_EXECUTE);
-            return Files.createTempDirectory(pluginsDir, ".installing-", PosixFilePermissions.asFileAttribute(perms));
+            return Files.createTempDirectory(pluginsDir, ".installing-", PosixFilePermissions.asFileAttribute(DIR_AND_EXECUTABLE_PERMS));
         } catch (IllegalArgumentException e) {
             // Jimfs throws an IAE where it should throw an UOE
             // remove when google/jimfs#30 is integrated into Jimfs
@@ -409,6 +427,15 @@ class InstallPluginCommand extends Command {
             }
 
             Files.move(tmpRoot, destination, StandardCopyOption.ATOMIC_MOVE);
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(destination)) {
+                for (Path pluginFile : stream) {
+                    if (Files.isDirectory(pluginFile)) {
+                        setFileAttributes(pluginFile, DIR_AND_EXECUTABLE_PERMS);
+                    } else {
+                        setFileAttributes(pluginFile, FILE_PERMS);
+                    }
+                }
+            }
             terminal.println("-> Installed " + info.getName());
 
         } catch (Exception installProblem) {
@@ -427,17 +454,7 @@ class InstallPluginCommand extends Command {
             throw new UserError(ExitCodes.IO_ERROR, "bin in plugin " + info.getName() + " is not a directory");
         }
         Files.createDirectory(destBinDir);
-
-        // setup file attributes for the installed files to those of the parent dir
-        final Set<PosixFilePermission> perms = new HashSet<>();
-        final PosixFileAttributeView binAttributeView = Files.getFileAttributeView(destBinDir.getParent(), PosixFileAttributeView.class);
-        if (binAttributeView != null) {
-            perms.addAll(binAttributeView.readAttributes().permissions());
-            // setting execute bits, since this just means "the file is executable", and actual execution requires read
-            perms.add(PosixFilePermission.OWNER_EXECUTE);
-            perms.add(PosixFilePermission.GROUP_EXECUTE);
-            perms.add(PosixFilePermission.OTHERS_EXECUTE);
-        }
+        setFileAttributes(destBinDir, DIR_AND_EXECUTABLE_PERMS);
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpBinDir)) {
             for (Path srcFile : stream) {
@@ -449,11 +466,7 @@ class InstallPluginCommand extends Command {
 
                 Path destFile = destBinDir.resolve(tmpBinDir.relativize(srcFile));
                 Files.copy(srcFile, destFile);
-
-                final PosixFileAttributeView view = Files.getFileAttributeView(destFile, PosixFileAttributeView.class);
-                if (view != null) {
-                    view.setPermissions(perms);
-                }
+                setFileAttributes(destFile, DIR_AND_EXECUTABLE_PERMS);
             }
         }
         IOUtils.rm(tmpBinDir); // clean up what we just copied
@@ -468,8 +481,8 @@ class InstallPluginCommand extends Command {
             throw new UserError(ExitCodes.IO_ERROR, "config in plugin " + info.getName() + " is not a directory");
         }
 
-        // create the plugin's config dir "if necessary"
         Files.createDirectories(destConfigDir);
+        setFileAttributes(destConfigDir, DIR_AND_EXECUTABLE_PERMS);
         final PosixFileAttributeView destConfigDirAttributesView =
             Files.getFileAttributeView(destConfigDir.getParent(), PosixFileAttributeView.class);
         final PosixFileAttributes destConfigDirAttributes =
@@ -487,6 +500,7 @@ class InstallPluginCommand extends Command {
                 Path destFile = destConfigDir.resolve(tmpConfigDir.relativize(srcFile));
                 if (Files.exists(destFile) == false) {
                     Files.copy(srcFile, destFile);
+                    setFileAttributes(destFile, FILE_PERMS);
                     if (destConfigDirAttributes != null) {
                         setOwnerGroup(destFile, destConfigDirAttributes);
                     }
@@ -504,4 +518,13 @@ class InstallPluginCommand extends Command {
         fileAttributeView.setGroup(attributes.group());
     }
 
+    /**
+     * Sets the attributes for a path iff posix attributes are supported
+     */
+    private static void setFileAttributes(final Path path, final Set<PosixFilePermission> permissions) throws IOException {
+        PosixFileAttributeView fileAttributeView = Files.getFileAttributeView(path, PosixFileAttributeView.class);
+        if (fileAttributeView != null) {
+            Files.setPosixFilePermissions(path, permissions);
+        }
+    }
 }

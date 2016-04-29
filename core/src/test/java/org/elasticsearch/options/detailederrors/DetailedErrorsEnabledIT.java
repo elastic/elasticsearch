@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.not;
 public class DetailedErrorsEnabledIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();

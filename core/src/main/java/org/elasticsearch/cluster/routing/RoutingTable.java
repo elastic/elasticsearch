@@ -145,20 +145,13 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             .orElse(null);
     }
 
-    public RoutingTable validateRaiseException(MetaData metaData) throws RoutingValidationException {
-        RoutingTableValidation validation = validate(metaData);
-        if (!validation.valid()) {
-            throw new RoutingValidationException(validation);
-        }
-        return this;
-    }
-
-    public RoutingTableValidation validate(MetaData metaData) {
-        RoutingTableValidation validation = new RoutingTableValidation();
+    public boolean validate(MetaData metaData) {
         for (IndexRoutingTable indexRoutingTable : this) {
-            indexRoutingTable.validate(validation, metaData);
+            if (indexRoutingTable.validate(metaData) == false) {
+                return false;
+            }
         }
-        return validation;
+        return true;
     }
 
     public List<ShardRouting> shardsWithState(ShardRoutingState state) {
@@ -546,7 +539,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             if (indicesRouting == null) {
                 throw new IllegalStateException("once build is called the builder cannot be reused");
             }
-            indexRoutingTable.validate();
             indicesRouting.put(indexRoutingTable.getIndex().getName(), indexRoutingTable);
             return this;
         }

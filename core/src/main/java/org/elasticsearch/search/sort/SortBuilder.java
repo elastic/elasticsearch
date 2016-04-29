@@ -34,7 +34,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +48,7 @@ import static java.util.Collections.unmodifiableMap;
 /**
  *
  */
-public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentToBytes implements NamedWriteable<T> {
+public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentToBytes implements NamedWriteable {
 
     protected SortOrder order = SortOrder.ASC;
     public static final ParseField ORDER_FIELD = new ParseField("order");
@@ -94,7 +93,7 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
         if (token == XContentParser.Token.START_ARRAY) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 if (token == XContentParser.Token.START_OBJECT) {
-                    parseCompoundSortField(parser, context, sortFields);
+                    parseCompoundSortField(context, sortFields);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     String fieldName = parser.text();
                     sortFields.add(fieldOrScoreSort(fieldName));
@@ -107,7 +106,7 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
             String fieldName = parser.text();
             sortFields.add(fieldOrScoreSort(fieldName));
         } else if (token == XContentParser.Token.START_OBJECT) {
-            parseCompoundSortField(parser, context, sortFields);
+            parseCompoundSortField(context, sortFields);
         } else {
             throw new IllegalArgumentException("malformed sort format, either start with array, object, or an actual string");
         }
@@ -122,9 +121,10 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
         }
     }
 
-    private static void parseCompoundSortField(XContentParser parser, QueryParseContext context, List<SortBuilder<?>> sortFields)
+    private static void parseCompoundSortField(QueryParseContext context, List<SortBuilder<?>> sortFields)
             throws IOException {
         XContentParser.Token token;
+        XContentParser parser = context.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String fieldName = parser.currentName();
@@ -140,15 +140,6 @@ public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentTo
                     }
                 }
             }
-        }
-    }
-
-    public static void parseSort(XContentParser parser, SearchContext context) throws IOException {
-        QueryParseContext parseContext = context.getQueryShardContext().parseContext();
-        parseContext.reset(parser);
-        Optional<Sort> sortOptional = buildSort(SortBuilder.fromXContent(parseContext), context.getQueryShardContext());
-        if (sortOptional.isPresent()) {
-            context.sort(sortOptional.get());
         }
     }
 

@@ -213,12 +213,12 @@ public class HunspellService extends AbstractComponent {
     private static Settings loadDictionarySettings(Path dir, Settings defaults) {
         Path file = dir.resolve("settings.yml");
         if (Files.exists(file)) {
-            return Settings.settingsBuilder().loadFromPath(file).put(defaults).build();
+            return Settings.builder().loadFromPath(file).put(defaults).build();
         }
 
         file = dir.resolve("settings.json");
         if (Files.exists(file)) {
-            return Settings.settingsBuilder().loadFromPath(file).put(defaults).build();
+            return Settings.builder().loadFromPath(file).put(defaults).build();
         }
 
         return defaults;

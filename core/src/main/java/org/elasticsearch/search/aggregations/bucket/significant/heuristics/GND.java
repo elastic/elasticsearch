@@ -33,15 +33,23 @@ import org.elasticsearch.index.query.QueryShardException;
 import java.io.IOException;
 
 public class GND extends NXYSignificanceHeuristic {
-
-    static final GND PROTOTYPE = new GND(false);
-
-    protected static final ParseField NAMES_FIELD = new ParseField("gnd");
+    public static final ParseField NAMES_FIELD = new ParseField("gnd");
 
     public GND(boolean backgroundIsSuperset) {
         super(true, backgroundIsSuperset);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public GND(StreamInput in) throws IOException {
+        super(true, in.readBoolean());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeBoolean(backgroundIsSuperset);
+    }
 
     @Override
     public boolean equals(Object other) {
@@ -92,16 +100,6 @@ public class GND extends NXYSignificanceHeuristic {
     }
 
     @Override
-    public SignificanceHeuristic readFrom(StreamInput in) throws IOException {
-        return new GND(in.readBoolean());
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(backgroundIsSuperset);
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAMES_FIELD.getPreferredName());
         builder.field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
@@ -109,13 +107,7 @@ public class GND extends NXYSignificanceHeuristic {
         return builder;
     }
 
-    public static class GNDParser extends NXYParser {
-
-        @Override
-        public String[] getNames() {
-            return NAMES_FIELD.getAllNamesIncludedDeprecated();
-        }
-
+    public static final SignificanceHeuristicParser PARSER = new NXYParser() {
         @Override
         protected SignificanceHeuristic newHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
             return new GND(backgroundIsSuperset);
@@ -138,8 +130,7 @@ public class GND extends NXYSignificanceHeuristic {
             }
             return newHeuristic(true, backgroundIsSuperset);
         }
-
-    }
+    };
 
     public static class GNDBuilder extends NXYBuilder {
 

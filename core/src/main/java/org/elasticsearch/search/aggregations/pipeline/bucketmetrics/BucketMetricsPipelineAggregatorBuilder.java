@@ -39,9 +39,27 @@ public abstract class BucketMetricsPipelineAggregatorBuilder<AF extends BucketMe
     private String format = null;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
 
-    public BucketMetricsPipelineAggregatorBuilder(String name, String type, String[] bucketsPaths) {
+    protected BucketMetricsPipelineAggregatorBuilder(String name, String type, String[] bucketsPaths) {
         super(name, type, bucketsPaths);
     }
+
+    /**
+     * Read from a stream.
+     */
+    protected BucketMetricsPipelineAggregatorBuilder(StreamInput in, String type) throws IOException {
+        super(in, type);
+        format = in.readOptionalString();
+        gapPolicy = GapPolicy.readFrom(in);
+    }
+
+    @Override
+    protected final void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(format);
+        gapPolicy.writeTo(out);
+        innerWriteTo(out);
+    }
+
+    protected abstract void innerWriteTo(StreamOutput out) throws IOException;
 
     /**
      * Sets the format to use on the output of this aggregation.
@@ -108,26 +126,6 @@ public abstract class BucketMetricsPipelineAggregatorBuilder<AF extends BucketMe
     }
 
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
-
-    @Override
-    protected final PipelineAggregatorBuilder<AF> doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-        BucketMetricsPipelineAggregatorBuilder<AF> factory = innerReadFrom(name, bucketsPaths, in);
-        factory.format = in.readOptionalString();
-        factory.gapPolicy = GapPolicy.readFrom(in);
-        return factory;
-    }
-
-    protected abstract BucketMetricsPipelineAggregatorBuilder<AF> innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
-            throws IOException;
-
-    @Override
-    protected final void doWriteTo(StreamOutput out) throws IOException {
-        innerWriteTo(out);
-        out.writeOptionalString(format);
-        gapPolicy.writeTo(out);
-    }
-
-    protected abstract void innerWriteTo(StreamOutput out) throws IOException;
 
     @Override
     protected final int doHashCode() {

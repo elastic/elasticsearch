@@ -23,7 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
@@ -60,15 +61,15 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<
     private final ScriptService scriptService;
     private final CompiledScript script;
 
-    public AbstractAsyncBulkIndexByScrollAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService,
-            Client client, ThreadPool threadPool, Request mainRequest, SearchRequest firstSearchRequest,
+    public AbstractAsyncBulkIndexByScrollAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService, ClusterState state,
+            ParentTaskAssigningClient client, ThreadPool threadPool, Request mainRequest, SearchRequest firstSearchRequest,
             ActionListener<Response> listener) {
         super(task, logger, client, threadPool, mainRequest, firstSearchRequest, listener);
         this.scriptService = scriptService;
         if (mainRequest.getScript() == null) {
             script = null;
         } else {
-            script = scriptService.compile(mainRequest.getScript(), ScriptContext.Standard.UPDATE, emptyMap());
+            script = scriptService.compile(mainRequest.getScript(), ScriptContext.Standard.UPDATE, emptyMap(), state);
         }
     }
 
@@ -86,6 +87,14 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<
         Map<String, Object> scriptCtx = null;
 
         for (SearchHit doc : docs) {
+            if (doc.hasSource()) {
+                /*
+                 * Either the document didn't store _source or we didn't fetch it for some reason. Since we don't allow the user to
+                 * change the "fields" part of the search request it is unlikely that we got here because we didn't fetch _source.
+                 * Thus the error message assumes that it wasn't stored.
+                 */
+                throw new IllegalArgumentException("[" + doc.index() + "][" + doc.type() + "][" + doc.id() + "] didn't store _source");
+            }
             IndexRequest index = buildIndexRequest(doc);
             copyMetadata(index, doc);
             if (script != null) {

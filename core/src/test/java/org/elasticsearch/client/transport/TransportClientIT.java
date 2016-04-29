@@ -34,7 +34,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -66,8 +65,10 @@ public class TransportClientIT extends ESIntegTestCase {
         try {
             TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);
-            assertThat(nodeService.connectedNodes().size(), greaterThanOrEqualTo(1)); // since we force transport clients there has to be one node started that we connect to.
-            for (DiscoveryNode discoveryNode : nodeService.connectedNodes()) {  // connected nodes have updated version
+            // since we force transport clients there has to be one node started that we connect to.
+            assertThat(nodeService.connectedNodes().size(), greaterThanOrEqualTo(1));
+            // connected nodes have updated version
+            for (DiscoveryNode discoveryNode : nodeService.connectedNodes()) {
                 assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT));
             }
 
@@ -92,7 +93,7 @@ public class TransportClientIT extends ESIntegTestCase {
     }
 
     public void testThatTransportClientSettingCannotBeChanged() {
-        Settings baseSettings = settingsBuilder()
+        Settings baseSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
              .build();
         try (TransportClient client = TransportClient.builder().settings(baseSettings).build()) {

@@ -19,11 +19,13 @@
 
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -77,6 +79,7 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -103,6 +106,7 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.search.suggest.completion2x.Completion090PostingsFormat;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -473,7 +477,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (docMapper.getMapping() != null) {
             doc.addDynamicMappingsUpdate(docMapper.getMapping());
         }
-        return new Engine.Index(docMapper.getDocumentMapper().uidMapper().term(doc.uid().stringValue()), doc, version, versionType, origin, startTime);
+        MappedFieldType uidFieldType = docMapper.getDocumentMapper().uidMapper().fieldType();
+        Query uidQuery = uidFieldType.termQuery(doc.uid().stringValue(), null);
+        Term uid = MappedFieldType.extractTerm(uidQuery);
+        return new Engine.Index(uid, doc, version, versionType, origin, startTime);
     }
 
     /**
@@ -509,12 +516,18 @@ public class IndexShard extends AbstractIndexShardComponent {
     public Engine.Delete prepareDeleteOnPrimary(String type, String id, long version, VersionType versionType) {
         verifyPrimary();
         final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
-        return prepareDelete(type, id, documentMapper.uidMapper().term(Uid.createUid(type, id)), version, versionType, Engine.Operation.Origin.PRIMARY);
+        final MappedFieldType uidFieldType = documentMapper.uidMapper().fieldType();
+        final Query uidQuery = uidFieldType.termQuery(Uid.createUid(type, id), null);
+        final Term uid = MappedFieldType.extractTerm(uidQuery);
+        return prepareDelete(type, id, uid, version, versionType, Engine.Operation.Origin.PRIMARY);
     }
 
     public Engine.Delete prepareDeleteOnReplica(String type, String id, long version, VersionType versionType) {
         final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
-        return prepareDelete(type, id, documentMapper.uidMapper().term(Uid.createUid(type, id)), version, versionType, Engine.Operation.Origin.REPLICA);
+        final MappedFieldType uidFieldType = documentMapper.uidMapper().fieldType();
+        final Query uidQuery = uidFieldType.termQuery(Uid.createUid(type, id), null);
+        final Term uid = MappedFieldType.extractTerm(uidQuery);
+        return prepareDelete(type, id, uid, version, versionType, Engine.Operation.Origin.REPLICA);
     }
 
     static Engine.Delete prepareDelete(String type, String id, Term uid, long version, VersionType versionType, Engine.Operation.Origin origin) {
@@ -667,6 +680,9 @@ public class IndexShard extends AbstractIndexShardComponent {
         CompletionStats completionStats = new CompletionStats();
         try (final Engine.Searcher currentSearcher = acquireSearcher("completion_stats")) {
             completionStats.add(CompletionFieldStats.completionStats(currentSearcher.reader(), fields));
+            Completion090PostingsFormat postingsFormat = ((Completion090PostingsFormat)
+                PostingsFormat.forName(Completion090PostingsFormat.CODEC_NAME));
+            completionStats.add(postingsFormat.completionStats(currentSearcher.reader(), fields));
         }
         return completionStats;
     }
@@ -1393,7 +1409,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return new EngineConfig(openMode, shardId,
             threadPool, indexSettings, warmer, store, deletionPolicy, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig,
-            indexSettings.getSettings().getAsTime(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, IndexingMemoryController.SHARD_DEFAULT_INACTIVE_TIME));
+            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()));
     }
 
     public Releasable acquirePrimaryOperationLock() {

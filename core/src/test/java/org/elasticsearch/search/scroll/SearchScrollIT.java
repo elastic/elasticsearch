@@ -72,7 +72,7 @@ import static org.hamcrest.Matchers.startsWith;
  */
 public class SearchScrollIT extends ESIntegTestCase {
     public void testSimpleScrollQueryThenFetch() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -123,7 +123,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     }
 
     public void testSimpleScrollQueryThenFetchSmallSizeUnevenDistribution() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -196,7 +196,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     }
 
     public void testScrollAndUpdateIndex() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 5)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 5)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 500; i++) {
@@ -240,7 +240,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     }
 
     public void testSimpleScrollQueryThenFetch_clearScrollIds() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -351,7 +351,7 @@ public class SearchScrollIT extends ESIntegTestCase {
     }
 
     public void testSimpleScrollQueryThenFetchClearAllScrollIds() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -464,7 +464,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
     public void testStringSortMissingAscTerminates() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(Settings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                 .addMapping("test", "no_field", "type=keyword", "some_field", "type=keyword"));
         client().prepareIndex("test", "test", "1").setSource("some_field", "test").get();
         refresh();

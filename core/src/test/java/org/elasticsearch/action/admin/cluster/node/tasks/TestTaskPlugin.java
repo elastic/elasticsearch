@@ -208,8 +208,8 @@ public class TestTaskPlugin extends Plugin {
         }
 
         @Override
-        public Task createTask(long id, String type, String action) {
-            return new CancellableTask(id, type, action, getDescription());
+        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId);
         }
     }
 
@@ -322,24 +322,17 @@ public class TestTaskPlugin extends Plugin {
     }
 
 
-    public static class UnblockTestTaskResponse implements Writeable<UnblockTestTaskResponse> {
+    public static class UnblockTestTaskResponse implements Writeable {
 
         public UnblockTestTaskResponse() {
 
         }
 
         public UnblockTestTaskResponse(StreamInput in) {
-
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-
-        }
-
-        @Override
-        public UnblockTestTaskResponse readFrom(StreamInput in) throws IOException {
-            return new UnblockTestTaskResponse(in);
         }
     }
 

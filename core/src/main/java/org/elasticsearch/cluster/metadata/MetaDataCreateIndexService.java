@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -86,7 +87,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUI
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  * Service responsible for submitting create index requests
@@ -175,7 +175,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     }
 
     public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        Settings.Builder updatedSettingsBuilder = Settings.settingsBuilder();
+        Settings.Builder updatedSettingsBuilder = Settings.builder();
         updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         indexScopedSettings.validate(updatedSettingsBuilder);
         request.settings(updatedSettingsBuilder.build());
@@ -265,29 +265,19 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 }
                             }
 
-                            Settings.Builder indexSettingsBuilder = settingsBuilder();
+                            Settings.Builder indexSettingsBuilder = Settings.builder();
                             // apply templates, here, in reverse order, since first ones are better matching
                             for (int i = templates.size() - 1; i >= 0; i--) {
                                 indexSettingsBuilder.put(templates.get(i).settings());
                             }
                             // now, put the request settings, so they override templates
                             indexSettingsBuilder.put(request.settings());
-                            if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 1));
-                            } else {
-                                if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
-                                    indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
-                                }
+                            if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
+                                indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
                             }
-                            if (request.index().equals(ScriptService.SCRIPT_INDEX)) {
-                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 0));
-                                indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, "0-all");
-                            } else {
-                                if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
-                                    indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
-                                }
+                            if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
+                                indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, 1));
                             }
-
                             if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
                                 indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
                             }
@@ -302,7 +292,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 indexSettingsBuilder.put(SETTING_CREATION_DATE, new DateTime(DateTimeZone.UTC).getMillis());
                             }
 
-                            indexSettingsBuilder.put(SETTING_INDEX_UUID, Strings.randomBase64UUID());
+                            indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
                             Settings actualIndexSettings = indexSettingsBuilder.build();
 

@@ -45,7 +45,7 @@ import java.util.Locale;
 /**
  * Defines what values to pick in the case a document contains multiple values for a particular field.
  */
-public enum MultiValueMode implements Writeable<MultiValueMode> {
+public enum MultiValueMode implements Writeable {
 
     /**
      * Pick the sum of all the values.

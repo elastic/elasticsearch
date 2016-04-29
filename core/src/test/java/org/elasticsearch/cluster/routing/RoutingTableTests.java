@@ -33,7 +33,6 @@ import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -49,7 +48,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
     private int shardsPerIndex;
     private int totalNumberOfShards;
     private final static Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-    private final AllocationService ALLOCATION_SERVICE = createAllocationService(settingsBuilder()
+    private final AllocationService ALLOCATION_SERVICE = createAllocationService(Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", Integer.MAX_VALUE) // don't limit recoveries
             .put("cluster.routing.allocation.node_initial_primaries_recoveries", Integer.MAX_VALUE)
             .build());
@@ -286,5 +285,46 @@ public class RoutingTableTests extends ESAllocationTestCase {
             assertThat(e.getMessage(), containsString("cannot be reused"));
         }
 
+    }
+
+    public void testValidations() {
+        final String indexName = "test";
+        final int numShards = 1;
+        final int numReplicas = randomIntBetween(0, 1);
+        IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
+                                                   .settings(settings(Version.CURRENT))
+                                                   .numberOfShards(numShards)
+                                                   .numberOfReplicas(numReplicas)
+                                                   .build();
+        MetaData metaData = MetaData.builder().put(indexMetaData, true).build();
+        final RoutingTableGenerator routingTableGenerator = new RoutingTableGenerator();
+        final RoutingTableGenerator.ShardCounter counter = new RoutingTableGenerator.ShardCounter();
+        final IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetaData, counter);
+        // test no validation errors
+        assertTrue(indexRoutingTable.validate(metaData));
+        // test wrong number of shards causes validation errors
+        indexMetaData = IndexMetaData.builder(indexName)
+                                     .settings(settings(Version.CURRENT))
+                                     .numberOfShards(numShards + 1)
+                                     .numberOfReplicas(numReplicas)
+                                     .build();
+        final MetaData metaData2 = MetaData.builder().put(indexMetaData, true).build();
+        expectThrows(IllegalStateException.class, () -> indexRoutingTable.validate(metaData2));
+        // test wrong number of replicas causes validation errors
+        indexMetaData = IndexMetaData.builder(indexName)
+                                     .settings(settings(Version.CURRENT))
+                                     .numberOfShards(numShards)
+                                     .numberOfReplicas(numReplicas + 1)
+                                     .build();
+        final MetaData metaData3 = MetaData.builder().put(indexMetaData, true).build();
+        expectThrows(IllegalStateException.class, () -> indexRoutingTable.validate(metaData3));
+        // test wrong number of shards and replicas causes validation errors
+        indexMetaData = IndexMetaData.builder(indexName)
+                                     .settings(settings(Version.CURRENT))
+                                     .numberOfShards(numShards + 1)
+                                     .numberOfReplicas(numReplicas + 1)
+                                     .build();
+        final MetaData metaData4 = MetaData.builder().put(indexMetaData, true).build();
+        expectThrows(IllegalStateException.class, () -> indexRoutingTable.validate(metaData4));
     }
 }

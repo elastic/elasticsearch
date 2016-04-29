@@ -37,7 +37,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.hamcrest.Matcher;
@@ -52,7 +51,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -198,7 +196,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping)
                 .addAlias(new Alias("alias"))
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
@@ -285,7 +283,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .endObject()
                 .endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping)
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
         ensureYellow();
@@ -431,7 +429,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .startObject("field").field("type", "text").field("term_vector", "with_positions_offsets_payloads")
                 .field("analyzer", "payload_test").endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                settingsBuilder()
+                Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.payload_test.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.payload_test.filter", "my_delimited_payload_filter")
@@ -597,7 +595,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
         assertAcked(prepareCreate("test")
                 .addMapping("type1", mapping)
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
@@ -785,7 +783,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
     public void testArtificialVsExisting() throws ExecutionException, InterruptedException, IOException {
         // setup indices
-        Settings.Builder settings = settingsBuilder()
+        Settings.Builder settings = Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer", "standard");
         assertAcked(prepareCreate("test")
@@ -843,7 +841,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
     public void testArtificialNoDoc() throws IOException {
         // setup indices
-        Settings.Builder settings = settingsBuilder()
+        Settings.Builder settings = Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer", "standard");
         assertAcked(prepareCreate("test")
@@ -891,7 +889,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         mapping.endObject().endObject().endObject();
 
         // setup indices with mapping
-        Settings.Builder settings = settingsBuilder()
+        Settings.Builder settings = Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer", "standard");
         assertAcked(prepareCreate("test")
@@ -982,7 +980,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
     public void testTermVectorsWithVersion() {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         TermVectorsResponse response = client().prepareTermVectors("test", "type1", "1").get();
@@ -1085,7 +1083,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
     public void testFilterLength() throws ExecutionException, InterruptedException, IOException {
         logger.info("Setting up the index ...");
-        Settings.Builder settings = settingsBuilder()
+        Settings.Builder settings = Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer", "keyword");
         assertAcked(prepareCreate("test")
@@ -1123,7 +1121,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
     public void testFilterTermFreq() throws ExecutionException, InterruptedException, IOException {
         logger.info("Setting up the index ...");
-        Settings.Builder settings = settingsBuilder()
+        Settings.Builder settings = Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer", "keyword");
         assertAcked(prepareCreate("test")
@@ -1163,7 +1161,7 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
 
     public void testFilterDocFreq() throws ExecutionException, InterruptedException, IOException {
         logger.info("Setting up the index ...");
-        Settings.Builder settings = settingsBuilder()
+        Settings.Builder settings = Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer", "keyword")
                 .put("index.number_of_shards", 1); // no dfs

@@ -71,7 +71,7 @@ public class GeoUtils {
      * maximum distance/radius from the point 'center' before overlapping
      **/
     public static double maxRadialDistance(GeoPoint center, double initialRadius) {
-        final double maxRadius = maxRadialDistanceMeters(center.lon(), center.lat());
+        final double maxRadius = maxRadialDistanceMeters(center.lat(), center.lon());
         return Math.min(initialRadius, maxRadius);
     }
 
@@ -89,14 +89,6 @@ public class GeoUtils {
             return false;
         }
         return true;
-    }
-
-    /**
-     * Return an approximate value of the diameter of the earth (in meters) at the given latitude (in radians).
-     */
-    public static double earthDiameter(double latitude) {
-        // SloppyMath impl returns a result in kilometers
-        return SloppyMath.earthDiameter(latitude) * 1000;
     }
 
     /**

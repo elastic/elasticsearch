@@ -115,7 +115,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
         Version version = randomBoolean() ? Version.CURRENT
                 : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("node.name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
@@ -123,7 +123,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
 
         namedWriteableRegistry = new NamedWriteableRegistry();
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
-        Settings indexSettings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         final ThreadPool threadPool = new ThreadPool(settings);
         final ClusterService clusterService = createClusterService(threadPool);
         setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder()
@@ -225,9 +225,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
         XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(shuffled.bytes());
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
-        parseContext.reset(parser);
-        parseContext.parseFieldMatcher(parseFieldMatcher);
+        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.name, parser.currentName());
@@ -235,7 +233,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.type.name(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        AggregatorBuilder newAgg = aggParsers.parser(testAgg.getType()).parse(testAgg.name, parser, parseContext);
+        AggregatorBuilder<?> newAgg = aggParsers.parser(testAgg.getType(), ParseFieldMatcher.STRICT).parse(testAgg.name, parseContext);
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
@@ -253,13 +251,12 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
     public void testSerialization() throws IOException {
         AB testAgg = createTestAggregatorBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            testAgg.writeTo(output);
+            output.writeNamedWriteable(testAgg);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorBuilder deserializedQuery = namedWriteableRegistry.getReader(AggregatorBuilder.class, testAgg.getWriteableName())
-                        .read(in);
-                assertEquals(testAgg, deserializedQuery);
-                assertEquals(testAgg.hashCode(), deserializedQuery.hashCode());
-                assertNotSame(testAgg, deserializedQuery);
+                AggregatorBuilder<?> deserialized = in.readNamedWriteable(AggregatorBuilder.class);
+                assertEquals(testAgg, deserialized);
+                assertEquals(testAgg.hashCode(), deserialized.hashCode());
+                assertNotSame(testAgg, deserialized);
             }
         }
     }

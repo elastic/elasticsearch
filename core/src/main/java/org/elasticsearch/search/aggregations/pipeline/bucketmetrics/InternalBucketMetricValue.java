@@ -99,14 +99,14 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readValueFormat();
+        format = in.readNamedWriteable(DocValueFormat.class);
         value = in.readDouble();
         keys = in.readStringArray();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(format);
+        out.writeNamedWriteable(format);
         out.writeDouble(value);
         out.writeStringArray(keys);
     }

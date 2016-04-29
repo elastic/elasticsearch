@@ -137,7 +137,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     private TranslogConfig getTranslogConfig(Path path) {
-        Settings build = Settings.settingsBuilder()
+        Settings build = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
                 .build();
         ByteSizeValue bufferSize = randomBoolean() ? TranslogConfig.DEFAULT_BUFFER_SIZE : new ByteSizeValue(10 + randomInt(128 * 1024), ByteSizeUnit.BYTES);

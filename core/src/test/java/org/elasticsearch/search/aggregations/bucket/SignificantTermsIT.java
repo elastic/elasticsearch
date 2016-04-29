@@ -69,15 +69,15 @@ public class SignificantTermsIT extends ESIntegTestCase {
                 .build();
     }
 
-    public static final int MUSIC_CATEGORY=1;
-    public static final int OTHER_CATEGORY=2;
-    public static final int SNOWBOARDING_CATEGORY=3;
+    public static final String MUSIC_CATEGORY="1";
+    public static final String OTHER_CATEGORY="2";
+    public static final String SNOWBOARDING_CATEGORY="3";
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 5, SETTING_NUMBER_OF_REPLICAS, 0).addMapping("fact",
                 "_routing", "required=true", "routing_id", "type=keyword", "fact_category",
-                "type=integer,index=true", "description", "type=text,fielddata=true"));
+                "type=keyword,index=true", "description", "type=text,fielddata=true"));
         createIndex("idx_unmapped");
 
         ensureGreen();
@@ -123,12 +123,12 @@ public class SignificantTermsIT extends ESIntegTestCase {
                 .actionGet();
         assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
-        Number topCategory = (Number) topTerms.getBuckets().iterator().next().getKey();
-        assertTrue(topCategory.equals(new Long(SNOWBOARDING_CATEGORY)));
+        String topCategory = (String) topTerms.getBuckets().iterator().next().getKey();
+        assertTrue(topCategory.equals(SNOWBOARDING_CATEGORY));
     }
 
     public void testStructuredAnalysisWithIncludeExclude() throws Exception {
-        long[] excludeTerms = { MUSIC_CATEGORY };
+        String[] excludeTerms = { MUSIC_CATEGORY };
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("_all", "paul"))
@@ -139,8 +139,8 @@ public class SignificantTermsIT extends ESIntegTestCase {
                 .actionGet();
         assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
-        Number topCategory = (Number) topTerms.getBuckets().iterator().next().getKey();
-        assertTrue(topCategory.equals(new Long(OTHER_CATEGORY)));
+        String topCategory = topTerms.getBuckets().iterator().next().getKeyAsString();
+        assertTrue(topCategory.equals(OTHER_CATEGORY));
     }
 
     public void testIncludeExclude() throws Exception {

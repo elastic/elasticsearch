@@ -53,8 +53,6 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     public static final String NAME = "wrapper";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
-    public static final WrapperQueryBuilder PROTOTYPE = new WrapperQueryBuilder((byte[]) new byte[]{0});
-
     private static final ParseField QUERY_FIELD = new ParseField("query");
 
     private final byte[] source;
@@ -89,6 +87,19 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
         this.source = source.array();
     }
 
+    /**
+     * Read from a stream.
+     */
+    public WrapperQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        source = in.readByteArray();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeByteArray(this.source);
+    }
+
     public byte[] source() {
         return this.source;
     }
@@ -113,7 +124,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
             throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed");
         }
         String fieldName = parser.currentName();
-        if (! parseContext.parseFieldMatcher().match(fieldName, QUERY_FIELD)) {
+        if (! parseContext.getParseFieldMatcher().match(fieldName, QUERY_FIELD)) {
             throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed, expected `query` but was" + fieldName);
         }
         parser.nextToken();
@@ -139,16 +150,6 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     }
 
     @Override
-    protected WrapperQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new WrapperQueryBuilder(in.readByteArray());
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeByteArray(this.source);
-    }
-
-    @Override
     protected int doHashCode() {
         return Arrays.hashCode(source);
     }
@@ -161,8 +162,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     @Override
     protected QueryBuilder<?> doRewrite(QueryRewriteContext context) throws IOException {
         try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(source)) {
-            QueryParseContext parseContext = context.newParseContext();
-            parseContext.reset(qSourceParser);
+            QueryParseContext parseContext = context.newParseContext(qSourceParser);
 
             final QueryBuilder<?> queryBuilder = parseContext.parseInnerQueryBuilder();
             if (boost() != DEFAULT_BOOST || queryName() != null) {

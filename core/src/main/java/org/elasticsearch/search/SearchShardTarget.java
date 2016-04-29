@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  * The target that the search request was executed on.
  */
-public class SearchShardTarget implements Writeable<SearchShardTarget>, Comparable<SearchShardTarget> {
+public class SearchShardTarget implements Writeable, Comparable<SearchShardTarget> {
 
     private Text nodeId;
     private Text index;
@@ -101,11 +101,6 @@ public class SearchShardTarget implements Writeable<SearchShardTarget>, Comparab
     }
 
     @Override
-    public SearchShardTarget readFrom(StreamInput in) throws IOException {
-        return new SearchShardTarget(in);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (nodeId == null) {
             out.writeBoolean(false);
@@ -138,8 +133,8 @@ public class SearchShardTarget implements Writeable<SearchShardTarget>, Comparab
     @Override
     public String toString() {
         if (nodeId == null) {
-            return "[_na_][" + index + "][" + shardId + "]";
+            return "[_na_]" + shardId;
         }
-        return "[" + nodeId + "][" + index + "][" + shardId + "]";
+        return "[" + nodeId + "]" + shardId;
     }
 }

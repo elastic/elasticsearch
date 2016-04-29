@@ -53,17 +53,23 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
         super(true, false);
     }
 
-    @Override
-    public String type() {
-        return InternalGeoDistance.TYPE.name();
-    }
-
     public static class Range extends RangeAggregator.Range {
-
-        static final Range PROTOTYPE = new Range(null, null, null);
-
         public Range(String key, Double from, Double to) {
             super(key(key, from, to), from == null ? 0 : from, to);
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public Range(StreamInput in) throws IOException {
+            super(in.readOptionalString(), in.readDouble(), in.readDouble());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(key);
+            out.writeDouble(from);
+            out.writeDouble(to);
         }
 
         private static String key(String key, Double from, Double to) {
@@ -76,22 +82,6 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
             sb.append((to == null || Double.isInfinite(to)) ? "*" : to);
             return sb.toString();
         }
-
-        @Override
-        public Range readFrom(StreamInput in) throws IOException {
-            String key = in.readOptionalString();
-            double from = in.readDouble();
-            double to = in.readDouble();
-            return new Range(key, from, to);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(key);
-            out.writeDouble(from);
-            out.writeDouble(to);
-        }
-
     }
 
     @Override
@@ -181,10 +171,4 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
         }
         return false;
     }
-
-    @Override
-    public GeoDistanceAggregatorBuilder getFactoryPrototypes() {
-        return GeoDistanceAggregatorBuilder.PROTOTYPE;
-    }
-
 }

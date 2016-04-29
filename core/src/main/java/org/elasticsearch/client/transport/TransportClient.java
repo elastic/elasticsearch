@@ -57,8 +57,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
  * or more nodes directly by adding their respective addresses using {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
@@ -107,7 +105,7 @@ public class TransportClient extends AbstractClient {
         }
 
         private PluginsService newPluginService(final Settings settings) {
-            final Settings.Builder settingsBuilder = settingsBuilder()
+            final Settings.Builder settingsBuilder = Settings.builder()
                     .put(NettyTransport.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
                     .put(InternalSettingsPreparer.prepareSettings(settings))
                     .put(NetworkService.NETWORK_SERVER.getKey(), false)

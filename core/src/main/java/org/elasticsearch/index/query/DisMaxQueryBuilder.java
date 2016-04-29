@@ -43,16 +43,34 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
 
     public static final String NAME = "dis_max";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final DisMaxQueryBuilder PROTOTYPE = new DisMaxQueryBuilder();
+
+    /** Default multiplication factor for breaking ties in document scores.*/
+    public static final float DEFAULT_TIE_BREAKER = 0.0f;
 
     private static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
     private static final ParseField QUERIES_FIELD = new ParseField("queries");
 
     private final List<QueryBuilder<?>> queries = new ArrayList<>();
 
-    /** Default multiplication factor for breaking ties in document scores.*/
-    public static float DEFAULT_TIE_BREAKER = 0.0f;
     private float tieBreaker = DEFAULT_TIE_BREAKER;
+
+    public DisMaxQueryBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public DisMaxQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        queries.addAll(readQueries(in));
+        tieBreaker = in.readFloat();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        writeQueries(out, queries);
+        out.writeFloat(tieBreaker);
+    }
 
     /**
      * Add a sub-query to this disjunction.
@@ -120,7 +138,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERIES_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERIES_FIELD)) {
                     queriesFound = true;
                     QueryBuilder<?> query = parseContext.parseInnerQueryBuilder();
                     queries.add(query);
@@ -128,7 +146,7 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
                     throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERIES_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, QUERIES_FIELD)) {
                     queriesFound = true;
                     while (token != XContentParser.Token.END_ARRAY) {
                         QueryBuilder<?> query = parseContext.parseInnerQueryBuilder();
@@ -139,11 +157,11 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
                     throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, TIE_BREAKER_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TIE_BREAKER_FIELD)) {
                     tieBreaker = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");
@@ -174,21 +192,6 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
         }
 
         return new DisjunctionMaxQuery(luceneQueries, tieBreaker);
-    }
-
-    @Override
-    protected DisMaxQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        DisMaxQueryBuilder disMax = new DisMaxQueryBuilder();
-        List<QueryBuilder<?>> queryBuilders = readQueries(in);
-        disMax.queries.addAll(queryBuilders);
-        disMax.tieBreaker = in.readFloat();
-        return disMax;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        writeQueries(out, queries);
-        out.writeFloat(tieBreaker);
     }
 
     @Override

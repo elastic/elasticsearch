@@ -23,7 +23,6 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -67,8 +66,6 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
      * instead of the `reverse` field that we render in toXContent
      */
     public void testParseOrder() throws IOException {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
         String scoreSortString = "{ \"_score\": { \"order\": \""+ order.toString() +"\" }}";
         XContentParser parser = XContentFactory.xContent(scoreSortString).createParser(scoreSortString);
@@ -77,14 +74,12 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         parser.nextToken();
         parser.nextToken();
 
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         ScoreSortBuilder scoreSort = ScoreSortBuilder.fromXContent(context, "_score");
         assertEquals(order, scoreSort.order());
     }
 
     public void testReverseOptionFails() throws IOException {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         String json = "{ \"_score\": { \"reverse\": true }}";
         XContentParser parser = XContentFactory.xContent(json).createParser(json);
         // need to skip until parser is located on second START_OBJECT
@@ -92,7 +87,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         parser.nextToken();
         parser.nextToken();
 
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
 
         try {
           ScoreSortBuilder.fromXContent(context, "_score");

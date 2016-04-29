@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -28,6 +29,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -54,7 +56,6 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
@@ -382,7 +383,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testCommonTermsQueryStackedTokens() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(indexSettings())
                         .put(SETTING_NUMBER_OF_SHARDS,1)
                         .put("index.analysis.filter.syns.type","synonym")
@@ -1577,7 +1578,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     // see #3881 - for extensive description of the issue
     public void testMatchQueryWithSynonyms() throws IOException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.index.type", "custom")
                 .put("index.analysis.analyzer.index.tokenizer", "standard")
@@ -1607,14 +1608,14 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testMatchQueryWithStackedStems() throws IOException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.index.type", "custom")
                 .put("index.analysis.analyzer.index.tokenizer", "standard")
                 .put("index.analysis.analyzer.index.filter", "lowercase")
                 .put("index.analysis.analyzer.search.type", "custom")
                 .put("index.analysis.analyzer.search.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.search.filter", "lowercase", "keyword_repeat", "porterStem", "unique_stem")
+                .putArray("index.analysis.analyzer.search.filter", "lowercase", "keyword_repeat", "porter_stem", "unique_stem")
                 .put("index.analysis.filter.unique_stem.type", "unique")
                 .put("index.analysis.filter.unique_stem.only_on_same_position", true));
         assertAcked(builder.addMapping("test", "text", "type=text,analyzer=index,search_analyzer=search"));
@@ -1631,7 +1632,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testQueryStringWithSynonyms() throws IOException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.index.type", "custom")
                 .put("index.analysis.analyzer.index.tokenizer", "standard")
@@ -1773,7 +1774,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         //has_child fails if executed on "simple" index
         try {
             client().prepareSearch("simple")
-                    .setQuery(hasChildQuery("child", matchQuery("text", "value"))).get();
+                    .setQuery(hasChildQuery("child", matchQuery("text", "value"), ScoreMode.None)).get();
             fail("Should have failed as has_child query can only be executed against parent-child types");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.shardFailures().length, greaterThan(0));
@@ -1784,7 +1785,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         //has_child doesn't get parsed for "simple" index
         SearchResponse searchResponse = client().prepareSearch("related", "simple")
-                .setQuery(indicesQuery(hasChildQuery("child", matchQuery("text", "value2")), "related")
+                .setQuery(indicesQuery(hasChildQuery("child", matchQuery("text", "value2"), ScoreMode.None), "related")
                         .noMatchQuery(matchQuery("text", "value1"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "2");
@@ -2019,7 +2020,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     // see #5120
     public void testNGramCopyField() {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.my_ngram_analyzer.type", "custom")
                 .put("index.analysis.analyzer.my_ngram_analyzer.tokenizer", "my_ngram_tokenizer")

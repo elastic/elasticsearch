@@ -159,8 +159,9 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
         return new FieldValueFactorFunction(field, factor, modifier, missing, fieldData);
     }
 
-    public static FieldValueFactorFunctionBuilder fromXContent(QueryParseContext parseContext, XContentParser parser)
+    public static FieldValueFactorFunctionBuilder fromXContent(QueryParseContext parseContext)
             throws IOException, ParsingException {
+        XContentParser parser = parseContext.parser();
         String currentFieldName = null;
         String field = null;
         float boostFactor = FieldValueFactorFunctionBuilder.DEFAULT_FACTOR;

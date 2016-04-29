@@ -21,6 +21,8 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -40,7 +42,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper.DoubleFieldType;
+import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper.DoubleFieldType;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper.Nested;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -94,13 +96,13 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         scriptService = new ScriptService(baseSettings, environment, Collections.singleton(new TestEngineService()),
                 new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
-            public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
+            public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params, ClusterState state) {
                 return new CompiledScript(ScriptType.INLINE, "mockName", "test", script);
             }
         };
 
         namedWriteableRegistry = new NamedWriteableRegistry();
-        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).buildQueryParserRegistry();
+        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).getQueryParserRegistry();
     }
 
     @AfterClass
@@ -141,8 +143,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             String elementName = itemParser.currentName();
             itemParser.nextToken();
 
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-            context.reset(itemParser);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
             T parsedItem = fromXContent(context, elementName);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
@@ -226,7 +227,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
         });
         return new QueryShardContext(idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                indicesQueriesRegistry, null, null) {
+                indicesQueriesRegistry, null, null, null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);

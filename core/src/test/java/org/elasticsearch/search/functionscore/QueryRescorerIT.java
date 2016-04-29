@@ -112,7 +112,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                         "type1",
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
                                 .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
-                .setSettings(Settings.settingsBuilder().put(indexSettings()).put("index.number_of_shards", 1)));
+                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree ").get();
@@ -691,7 +691,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
     }
 
     private int indexRandomNumbers(String analyzer, int shards, boolean dummyDocs) throws Exception {
-        Builder builder = Settings.settingsBuilder().put(indexSettings());
+        Builder builder = Settings.builder().put(indexSettings());
 
         if (shards > 0) {
             builder.put(SETTING_NUMBER_OF_SHARDS, shards);

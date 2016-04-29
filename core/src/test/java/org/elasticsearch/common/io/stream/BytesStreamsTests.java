@@ -285,6 +285,9 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeOptionalBytesReference(new BytesArray("test"));
         out.writeOptionalDouble(null);
         out.writeOptionalDouble(1.2);
+        out.writeTimeZone(DateTimeZone.forID("CET"));
+        out.writeOptionalTimeZone(DateTimeZone.getDefault());
+        out.writeOptionalTimeZone(null);
         final byte[] bytes = out.bytes().toBytes();
         StreamInput in = StreamInput.wrap(out.bytes().toBytes());
         assertEquals(in.available(), bytes.length);
@@ -311,6 +314,9 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readOptionalBytesReference(), equalTo(new BytesArray("test")));
         assertNull(in.readOptionalDouble());
         assertThat(in.readOptionalDouble(), closeTo(1.2, 0.0001));
+        assertEquals(DateTimeZone.forID("CET"), in.readTimeZone());
+        assertEquals(DateTimeZone.getDefault(), in.readOptionalTimeZone());
+        assertNull(in.readOptionalTimeZone());
         assertEquals(0, in.available());
         in.close();
         out.close();
@@ -361,11 +367,6 @@ public class BytesStreamsTests extends ESTestCase {
             @Override
             public void writeTo(StreamOutput out) throws IOException {
             }
-
-            @Override
-            public Object readFrom(StreamInput in) throws IOException {
-                return null;
-            }
         });
         StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytes()), namedWriteableRegistry);
         try {
@@ -411,11 +412,30 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(e.getMessage(), endsWith("] returned null which is not allowed and probably means it screwed up the stream."));
     }
 
-    private static abstract class BaseNamedWriteable<T> implements NamedWriteable<T> {
+    public void testWriteableReaderReturnsWrongName() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, (StreamInput in) -> new TestNamedWriteable(in) {
+            @Override
+            public String getWriteableName() {
+                return "intentionally-broken";
+            }
+        });
+        TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+        out.writeNamedWriteable(namedWriteableIn);
+        byte[] bytes = out.bytes().toBytes();
+        StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry);
+        assertEquals(in.available(), bytes.length);
+        AssertionError e = expectThrows(AssertionError.class, () -> in.readNamedWriteable(BaseNamedWriteable.class));
+        assertThat(e.getMessage(),
+                endsWith(" claims to have a different name [intentionally-broken] than it was read from [test-named-writeable]."));
+    }
+
+    private static abstract class BaseNamedWriteable implements NamedWriteable {
 
     }
 
-    private static class TestNamedWriteable extends BaseNamedWriteable<TestNamedWriteable> {
+    private static class TestNamedWriteable extends BaseNamedWriteable {
 
         private static final String NAME = "test-named-writeable";
 
@@ -524,5 +544,4 @@ public class BytesStreamsTests extends ESTestCase {
             assertEquals(point, geoPoint);
         }
     }
-
 }

@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -91,12 +90,12 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
     }
 
     static final class Fields {
-        static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
+        static final String SHARDS = "shards";
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.startObject(getIndex());
         shardsStats.toXContent(builder, params);
         stats.toXContent(builder, params);
         builder.startObject(Fields.SHARDS);

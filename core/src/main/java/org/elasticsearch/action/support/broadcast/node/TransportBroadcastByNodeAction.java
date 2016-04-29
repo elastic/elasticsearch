@@ -25,7 +25,6 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ChildTaskRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -51,6 +50,7 @@ import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -434,7 +434,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
     }
 
-    public class NodeRequest extends ChildTaskRequest implements IndicesRequest {
+    public class NodeRequest extends TransportRequest implements IndicesRequest {
         private String nodeId;
 
         private List<ShardRouting> shards;

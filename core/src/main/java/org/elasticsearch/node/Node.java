@@ -47,6 +47,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -60,6 +61,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -121,8 +123,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
  * in order to use a {@link Client} to perform actions/operations against the cluster.
@@ -162,7 +162,7 @@ public class Node implements Closeable {
     }
 
     protected Node(Environment tmpEnv, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
-        Settings tmpSettings = settingsBuilder().put(tmpEnv.settings())
+        Settings tmpSettings = Settings.builder().put(tmpEnv.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
         tmpSettings = TribeService.processSettings(tmpSettings);
 
@@ -175,6 +175,12 @@ public class Node implements Closeable {
         if (logger.isDebugEnabled()) {
             logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
                     tmpEnv.configFile(), Arrays.toString(tmpEnv.dataFiles()), tmpEnv.logsFile(), tmpEnv.pluginsFile());
+        }
+        // TODO: Remove this in Elasticsearch 6.0.0
+        if (JsonXContent.unquotedFieldNamesSet) {
+            DeprecationLogger dLogger = new DeprecationLogger(logger);
+            dLogger.deprecated("[{}] has been set, but will be removed in Elasticsearch 6.0.0",
+                    JsonXContent.JSON_ALLOW_UNQUOTED_FIELD_NAMES);
         }
 
         this.pluginsService = new PluginsService(tmpSettings, tmpEnv.modulesFile(), tmpEnv.pluginsFile(), classpathPlugins);
@@ -310,10 +316,12 @@ public class Node implements Closeable {
         final TribeService tribeService = injector.getInstance(TribeService.class);
         tribeService.start();
 
-
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);
         transportService.start();
+
+        validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress());
+
         DiscoveryNode localNode = injector.getInstance(DiscoveryNodeService.class)
                 .buildLocalNode(transportService.boundAddress().publishAddress());
 
@@ -521,6 +529,20 @@ public class Node implements Closeable {
 
     public Injector injector() {
         return this.injector;
+    }
+
+    /**
+     * Hook for validating the node after network
+     * services are started but before the cluster service is started
+     * and before the network service starts accepting incoming network
+     * requests.
+     *
+     * @param settings              the fully-resolved settings
+     * @param boundTransportAddress the network addresses the node is
+     *                              bound and publishing to
+     */
+    @SuppressWarnings("unused")
+    protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
     }
 
     /** Writes a file to the logs dir containing the ports for the given transport type */

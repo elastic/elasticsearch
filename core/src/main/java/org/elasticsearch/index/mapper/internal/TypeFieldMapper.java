@@ -119,19 +119,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
-        }
-
-        @Override
-        public boolean useTermQueryWithQueryString() {
-            return true;
-        }
-
-        @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
             if (indexOptions() == IndexOptions.NONE) {
                 throw new AssertionError();

@@ -23,7 +23,6 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -160,8 +159,6 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseJson() throws IOException {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         String scriptSort = "{\n" +
                 "\"_script\" : {\n" +
                     "\"type\" : \"number\",\n" +
@@ -179,7 +176,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         parser.nextToken();
         parser.nextToken();
 
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(context, null);
         assertEquals("doc['field_name'].value * factor", builder.script().getScript());
         assertNull(builder.script().getLang());
@@ -193,8 +190,6 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseJsonOldStyle() throws IOException {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         String scriptSort = "{\n" +
                 "\"_script\" : {\n" +
                     "\"type\" : \"number\",\n" +
@@ -210,7 +205,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         parser.nextToken();
         parser.nextToken();
 
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(context, null);
         assertEquals("doc['field_name'].value * factor", builder.script().getScript());
         assertNull(builder.script().getLang());
@@ -224,23 +219,19 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseBadFieldNameExceptions() throws IOException {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         String scriptSort = "{\"_script\" : {" + "\"bad_field\" : \"number\"" + "} }";
         XContentParser parser = XContentFactory.xContent(scriptSort).createParser(scriptSort);
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
 
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         exceptionRule.expect(ParsingException.class);
         exceptionRule.expectMessage("failed to parse field [bad_field]");
         ScriptSortBuilder.fromXContent(context, null);
     }
 
     public void testParseBadFieldNameExceptionsOnStartObject() throws IOException {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
 
         String scriptSort = "{\"_script\" : {" + "\"bad_field\" : { \"order\" : \"asc\" } } }";
         XContentParser parser = XContentFactory.xContent(scriptSort).createParser(scriptSort);
@@ -248,23 +239,20 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         parser.nextToken();
         parser.nextToken();
 
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         exceptionRule.expect(ParsingException.class);
         exceptionRule.expectMessage("failed to parse field [bad_field]");
         ScriptSortBuilder.fromXContent(context, null);
     }
 
     public void testParseUnexpectedToken() throws IOException {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
-
         String scriptSort = "{\"_script\" : {" + "\"script\" : [ \"order\" : \"asc\" ] } }";
         XContentParser parser = XContentFactory.xContent(scriptSort).createParser(scriptSort);
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
 
-        context.reset(parser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         exceptionRule.expect(ParsingException.class);
         exceptionRule.expectMessage("unexpected token [START_ARRAY]");
         ScriptSortBuilder.fromXContent(context, null);

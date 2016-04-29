@@ -27,7 +27,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -52,7 +51,8 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject().string();
         MapperService mapperService = createIndex("test").mapperService();
-        DocumentMapper stage1 = mapperService.merge("person", new CompressedXContent(stage1Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+        DocumentMapper stage1 = mapperService.merge("person",
+                new CompressedXContent(stage1Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         String stage2Mapping = XContentFactory.jsonBuilder().startObject()
                 .startObject("person")
@@ -63,7 +63,8 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject().endObject().string();
-        DocumentMapper stage2 = mapperService.merge("person", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+        DocumentMapper stage2 = mapperService.merge("person",
+                new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         // previous mapper has not been modified
         assertThat(((TokenCountFieldMapper) stage1.mappers().smartNameFieldMapper("tc")).analyzer(), equalTo("keyword"));

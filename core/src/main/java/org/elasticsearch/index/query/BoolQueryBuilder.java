@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -47,7 +48,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     public static final String NAME = "bool";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(BoolQueryBuilder.NAME);
-    public static final BoolQueryBuilder PROTOTYPE = new BoolQueryBuilder();
 
     public static final boolean ADJUST_PURE_NEGATIVE_DEFAULT = true;
     public static final boolean DISABLE_COORD_DEFAULT = false;
@@ -75,6 +75,37 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     private boolean adjustPureNegative = ADJUST_PURE_NEGATIVE_DEFAULT;
 
     private String minimumShouldMatch;
+
+    /**
+     * Build an empty bool query.
+     */
+    public BoolQueryBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public BoolQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        mustClauses.addAll(readQueries(in));
+        mustNotClauses.addAll(readQueries(in));
+        shouldClauses.addAll(readQueries(in));
+        filterClauses.addAll(readQueries(in));
+        adjustPureNegative = in.readBoolean();
+        disableCoord = in.readBoolean();
+        minimumShouldMatch = in.readOptionalString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        writeQueries(out, mustClauses);
+        writeQueries(out, mustNotClauses);
+        writeQueries(out, shouldClauses);
+        writeQueries(out, filterClauses);
+        out.writeBoolean(adjustPureNegative);
+        out.writeBoolean(disableCoord);
+        out.writeOptionalString(minimumShouldMatch);
+    }
 
     /**
      * Adds a query that <b>must</b> appear in the matching documents and will
@@ -338,17 +369,17 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
                     }
                 }
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, DISABLE_COORD_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, DISABLE_COORD_FIELD)) {
                     disableCoord = parser.booleanValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MINIMUM_SHOULD_MATCH)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MINIMUM_SHOULD_MATCH)) {
                     minimumShouldMatch = parser.textOrNull();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MINIMUM_NUMBER_SHOULD_MATCH)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MINIMUM_NUMBER_SHOULD_MATCH)) {
                     minimumShouldMatch = parser.textOrNull();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, ADJUST_PURE_NEGATIVE)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ADJUST_PURE_NEGATIVE)) {
                     adjustPureNegative = parser.booleanValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[bool] query does not support [" + currentFieldName + "]");
@@ -442,35 +473,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     @Override
-    protected BoolQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        List<QueryBuilder<?>> queryBuilders = readQueries(in);
-        boolQueryBuilder.mustClauses.addAll(queryBuilders);
-        queryBuilders = readQueries(in);
-        boolQueryBuilder.mustNotClauses.addAll(queryBuilders);
-        queryBuilders = readQueries(in);
-        boolQueryBuilder.shouldClauses.addAll(queryBuilders);
-        queryBuilders = readQueries(in);
-        boolQueryBuilder.filterClauses.addAll(queryBuilders);
-        boolQueryBuilder.adjustPureNegative = in.readBoolean();
-        boolQueryBuilder.disableCoord = in.readBoolean();
-        boolQueryBuilder.minimumShouldMatch = in.readOptionalString();
-        return boolQueryBuilder;
-
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        writeQueries(out, mustClauses);
-        writeQueries(out, mustNotClauses);
-        writeQueries(out, shouldClauses);
-        writeQueries(out, filterClauses);
-        out.writeBoolean(adjustPureNegative);
-        out.writeBoolean(disableCoord);
-        out.writeOptionalString(minimumShouldMatch);
-    }
-
-    @Override
     protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         BoolQueryBuilder newBuilder = new BoolQueryBuilder();
         boolean changed = false;
@@ -492,6 +494,17 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             return newBuilder;
         }
         return this;
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+        List<QueryBuilder<?>> clauses = new ArrayList<>(filter());
+        clauses.addAll(must());
+        clauses.addAll(should());
+        // no need to include must_not (since there will be no hits for it)
+        for (QueryBuilder<?> clause : clauses) {
+            InnerHitBuilder.extractInnerHits(clause, innerHits);
+        }
     }
 
     private static boolean rewriteClauses(QueryRewriteContext queryRewriteContext, List<QueryBuilder<?>> builders,

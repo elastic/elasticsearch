@@ -166,7 +166,6 @@ import java.util.function.Function;
 import static org.elasticsearch.client.Requests.syncedFlushRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
@@ -400,7 +399,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // always default delayed allocation to 0 to make sure we have tests are not delayed
             randomSettingsBuilder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0);
             if (randomBoolean()) {
-                randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_TYPE_SETTING.getKey(), randomBoolean() ? IndexModule.INDEX_QUERY_CACHE : IndexModule.NONE_QUERY_CACHE);
+                randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), randomBoolean());
             }
 
             if (randomBoolean()) {
@@ -987,7 +986,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public void setMinimumMasterNodes(int n) {
         assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), n))
+                Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), n))
                 .get().isAcknowledged());
     }
 
@@ -1407,7 +1406,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Sets or unsets the cluster read_only mode **/
     public static void setClusterReadOnly(boolean value) {
-        Settings settings = settingsBuilder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), value).build();
+        Settings settings = Settings.builder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), value).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
     }
 
@@ -1617,12 +1616,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * In other words subclasses must ensure this method is idempotent.
      */
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = settingsBuilder()
+        Settings.Builder builder = Settings.builder()
                 // Default the watermarks to absurdly low to prevent the tests
                 // from failing on nodes without enough disk space
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
-                .put("script.indexed", "true")
+                .put("script.stored", "true")
                 .put("script.inline", "true")
                         // wait short time for other active shards before actually deleting, default 30s not needed in tests
                 .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));

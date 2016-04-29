@@ -19,24 +19,23 @@
 
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceParser.Range;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,8 +43,8 @@ import java.util.List;
 import java.util.Objects;
 
 public class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoDistanceAggregatorBuilder> {
-
-    static final GeoDistanceAggregatorBuilder PROTOTYPE = new GeoDistanceAggregatorBuilder("", new GeoPoint());
+    public static final String NAME = InternalGeoDistance.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private final GeoPoint origin;
     private List<Range> ranges = new ArrayList<>();
@@ -64,6 +63,36 @@ public class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<
             throw new IllegalArgumentException("[origin] must not be null: [" + name + "]");
         }
         this.origin = origin;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public GeoDistanceAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalGeoDistance.FACTORY.type(), InternalGeoDistance.FACTORY.getValueSourceType(),
+                InternalGeoDistance.FACTORY.getValueType());
+        origin = new GeoPoint(in.readDouble(), in.readDouble());
+        int size = in.readVInt();
+        ranges = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            ranges.add(new Range(in));
+        }
+        keyed = in.readBoolean();
+        distanceType = GeoDistance.readFromStream(in);
+        unit = DistanceUnit.readFromStream(in);
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeDouble(origin.lat());
+        out.writeDouble(origin.lon());
+        out.writeVInt(ranges.size());
+        for (Range range : ranges) {
+            range.writeTo(out);
+        }
+        out.writeBoolean(keyed);
+        distanceType.writeTo(out);
+        unit.writeTo(out);
     }
 
     public GeoDistanceAggregatorBuilder addRange(Range range) {
@@ -146,7 +175,7 @@ public class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<
 
     @Override
     public String getWriteableName() {
-        return InternalGeoDistance.TYPE.name();
+        return NAME;
     }
 
     public GeoDistanceAggregatorBuilder unit(DistanceUnit unit) {
@@ -198,34 +227,6 @@ public class GeoDistanceAggregatorBuilder extends ValuesSourceAggregatorBuilder<
         builder.field(GeoDistanceParser.UNIT_FIELD.getPreferredName(), unit);
         builder.field(GeoDistanceParser.DISTANCE_TYPE_FIELD.getPreferredName(), distanceType);
         return builder;
-    }
-
-    @Override
-    protected GeoDistanceAggregatorBuilder innerReadFrom(
-            String name, ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in) throws IOException {
-        GeoPoint origin = new GeoPoint(in.readDouble(), in.readDouble());
-        int size = in.readVInt();
-        GeoDistanceAggregatorBuilder factory = new GeoDistanceAggregatorBuilder(name, origin);
-        for (int i = 0; i < size; i++) {
-            factory.addRange(Range.PROTOTYPE.readFrom(in));
-        }
-        factory.keyed = in.readBoolean();
-        factory.distanceType = GeoDistance.readGeoDistanceFrom(in);
-        factory.unit = DistanceUnit.readFromStream(in);
-        return factory;
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeDouble(origin.lat());
-        out.writeDouble(origin.lon());
-        out.writeVInt(ranges.size());
-        for (Range range : ranges) {
-            range.writeTo(out);
-        }
-        out.writeBoolean(keyed);
-        distanceType.writeTo(out);
-        unit.writeTo(out);
     }
 
     @Override

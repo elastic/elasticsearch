@@ -46,11 +46,8 @@ curl -XHEAD -i 'http://localhost:9200/twitter/tweet/1'
 === Realtime
 
 By default, the get API is realtime, and is not affected by the refresh
-rate of the index (when data will become visible for search).
-
-In order to disable realtime GET, one can either set `realtime`
-parameter to `false`, or globally default it to by setting the
-`action.get.realtime` to `false` in the node configuration.
+rate of the index (when data will become visible for search). In order
+to disable realtime GET, one can set `realtime` parameter to `false`.
 
 When getting a document, one can specify `fields` to fetch from it. They
 will, when possible, be fetched as stored fields (fields mapped as
@@ -224,7 +221,7 @@ better GET scaling we will have.
 === Versioning support
 
 You can use the `version` parameter to retrieve the document only if
-it's current version is equal to the specified one. This behavior is the same
+its current version is equal to the specified one. This behavior is the same
 for all version types with the exception of version type `FORCE` which always
 retrieves the document.
 

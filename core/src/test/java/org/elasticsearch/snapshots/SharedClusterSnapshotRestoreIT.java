@@ -77,7 +77,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -106,7 +105,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
@@ -218,7 +217,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository(repoName)
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", absolutePath)
                         ));
 
@@ -246,7 +245,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
@@ -294,7 +293,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
@@ -342,7 +341,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder().put("location", randomRepoPath())).get();
+                .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> snapshot");
@@ -358,7 +357,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder().put("location", randomRepoPath())));
+                .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())));
 
         logger.info("--> create test indices");
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
@@ -413,7 +412,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder().put("location", randomRepoPath())));
+                .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())));
 
         logger.info("-->  creating test template");
         assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", "{}").get().isAcknowledged(), equalTo(true));
@@ -446,7 +445,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("-->  creating repository");
         Path location = randomRepoPath();
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder().put("location", location)));
+                .setType("fs").setSettings(Settings.builder().put("location", location)));
 
         logger.info("-->  creating test template");
         assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", "{}").get().isAcknowledged(), equalTo(true));
@@ -524,7 +523,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(
-                        Settings.settingsBuilder()
+                        Settings.builder()
                                 .put("location", randomRepoPath())
                                 .put("random", randomAsciiOfLength(10))
                                 .put("random_control_io_exception_rate", 0.2))
@@ -573,7 +572,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(
-                        Settings.settingsBuilder()
+                        Settings.builder()
                                 .put("location", randomRepoPath())
                                 .put("random", randomAsciiOfLength(10))
                                 .put("random_data_file_io_exception_rate", 0.3)));
@@ -638,7 +637,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Client client = client();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder().put("location", repositoryLocation)));
+                .setType("fs").setSettings(Settings.builder().put("location", repositoryLocation)));
 
         createIndex("test-idx");
         ensureGreen();
@@ -658,7 +657,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("-->  update repository with mock version");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(
-                        Settings.settingsBuilder()
+                        Settings.builder()
                                 .put("location", repositoryLocation)
                                 .put("random", randomAsciiOfLength(10))
                                 .put("random_data_file_io_exception_rate", 0.3)));
@@ -679,7 +678,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Client client = client();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder().put("location", repositoryLocation)));
+                .setType("fs").setSettings(Settings.builder().put("location", repositoryLocation)));
 
         createIndex("test-idx");
         ensureGreen();
@@ -699,7 +698,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("-->  update repository with mock version");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(
-                        Settings.settingsBuilder()
+                        Settings.builder()
                                 .put("location", repositoryLocation)
                                 .put("random", randomAsciiOfLength(10))
                                 .put("random_data_file_io_exception_rate", 1.0) // Fail completely
@@ -726,7 +725,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> restoring working repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder().put("location", repositoryLocation)));
+                .setType("fs").setSettings(Settings.builder().put("location", repositoryLocation)));
 
         logger.info("--> trying to restore index again");
         restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
@@ -742,7 +741,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath())));
 
         logger.info("-->  creating index that cannot be allocated");
@@ -763,7 +762,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Path repo = randomRepoPath();
         logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", repo)
                         .put("compress", false)
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
@@ -819,7 +818,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Path repo = randomRepoPath();
         logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", repo)
                         .put("compress", false)
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
@@ -857,7 +856,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Path repo = randomRepoPath();
         logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", repo)
                         .put("compress", false)
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
@@ -891,7 +890,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Path repo = randomRepoPath();
         logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", repo)
                         .put("compress", false)
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
@@ -930,7 +929,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath())));
 
         createIndex("test-idx", "test-idx-closed");
@@ -958,7 +957,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath())));
 
         createIndex("test-idx");
@@ -976,7 +975,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath())));
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
@@ -1096,7 +1095,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(
-                        Settings.settingsBuilder()
+                        Settings.builder()
                                 .put("location", repositoryLocation)
                                 .put("random", randomAsciiOfLength(10))
                                 .put("wait_after_unblock", 200)));
@@ -1142,7 +1141,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> replace mock repository with real one at the same location");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder().put("location", repositoryLocation)));
+                .setType("fs").setSettings(Settings.builder().put("location", repositoryLocation)));
 
         logger.info("--> restore index");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
@@ -1157,7 +1156,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("-->  creating repository");
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(
-                        Settings.settingsBuilder()
+                        Settings.builder()
                                 .put("location", repositoryLocation)
                                 .put("random", randomAsciiOfLength(10))
                                 .put("wait_after_unblock", 200)
@@ -1195,7 +1194,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> trying to move repository to another location");
         try {
             client.admin().cluster().preparePutRepository("test-repo")
-                    .setType("fs").setSettings(Settings.settingsBuilder().put("location", repositoryLocation.resolve("test"))
+                    .setType("fs").setSettings(Settings.builder().put("location", repositoryLocation.resolve("test"))
             ).get();
             fail("shouldn't be able to replace in-use repository");
         } catch (Exception ex) {
@@ -1204,7 +1203,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> trying to create a repository with different name");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo-2")
-                .setType("fs").setSettings(Settings.settingsBuilder().put("location", repositoryLocation.resolve("test"))));
+                .setType("fs").setSettings(Settings.builder().put("location", repositoryLocation.resolve("test"))));
 
         logger.info("--> unblocking blocked node");
         unblockNode(blockedNode);
@@ -1224,7 +1223,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> replace mock repository with real one at the same location");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder().put("location", repositoryLocation)));
+                .setType("fs").setSettings(Settings.builder().put("location", repositoryLocation)));
 
         logger.info("--> restore index");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
@@ -1239,7 +1238,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("-->  creating repository");
         Path repositoryLocation = randomRepoPath();
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", repositoryLocation)
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
@@ -1266,7 +1265,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> create read-only URL repository");
         assertAcked(client.admin().cluster().preparePutRepository("url-repo")
-                .setType("url").setSettings(Settings.settingsBuilder()
+                .setType("url").setSettings(Settings.builder()
                         .put("url", repositoryLocation.toUri().toURL())
                         .put("list_directories", randomBoolean())));
         logger.info("--> restore index after deletion");
@@ -1296,7 +1295,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("-->  creating repository");
         Path repositoryLocation = randomRepoPath();
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", repositoryLocation)
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
@@ -1322,7 +1321,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> create read-only URL repository");
         assertAcked(client.admin().cluster().preparePutRepository("readonly-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", repositoryLocation)
                         .put("compress", randomBoolean())
                         .put("readonly", true)
@@ -1353,7 +1352,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         boolean throttleSnapshot = randomBoolean();
         boolean throttleRestore = randomBoolean();
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", repositoryLocation)
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
@@ -1409,7 +1408,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("-->  creating repository");
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(
-                        Settings.settingsBuilder()
+                        Settings.builder()
                                 .put("location", repositoryLocation)
                                 .put("random", randomAsciiOfLength(10))
                                 .put("wait_after_unblock", 200)
@@ -1505,7 +1504,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Client client = client();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
@@ -1553,7 +1552,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
@@ -1615,7 +1614,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
@@ -1729,7 +1728,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
@@ -1823,7 +1822,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         boolean initBlocking = allowPartial || randomBoolean();
         if (initBlocking) {
             assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("mock").setSettings(Settings.settingsBuilder()
+                .setType("mock").setSettings(Settings.builder()
                     .put("location", randomRepoPath())
                     .put("compress", randomBoolean())
                     .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
@@ -1831,7 +1830,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 ));
         } else {
             assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("mock").setSettings(Settings.settingsBuilder()
+                .setType("mock").setSettings(Settings.builder()
                     .put("location", randomRepoPath())
                     .put("compress", randomBoolean())
                     .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
@@ -1921,7 +1920,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-            .setType("mock").setSettings(Settings.settingsBuilder()
+            .setType("mock").setSettings(Settings.builder()
                 .put("location", randomRepoPath())
                 .put("compress", randomBoolean())
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
@@ -1985,7 +1984,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("mock").setSettings(Settings.settingsBuilder()
+                .setType("mock").setSettings(Settings.builder()
                                 .put("location", randomRepoPath())
                                 .put("compress", randomBoolean())
                                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
@@ -2050,12 +2049,12 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
-        assertAcked(prepareCreate("test-idx", 0, settingsBuilder().put("number_of_shards", between(1, 10))
+        assertAcked(prepareCreate("test-idx", 0, Settings.builder().put("number_of_shards", between(1, 10))
                 .put("number_of_replicas", 0)));
         ensureGreen();
 
@@ -2129,7 +2128,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
@@ -2168,7 +2167,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Path repo = randomRepoPath();
         logger.info("-->  creating repository at {}", repo.toAbsolutePath());
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", repo)
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 

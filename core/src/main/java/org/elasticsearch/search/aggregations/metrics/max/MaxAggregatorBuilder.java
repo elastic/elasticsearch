@@ -19,45 +19,46 @@
 
 package org.elasticsearch.search.aggregations.metrics.max;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 
 import java.io.IOException;
 
 public class MaxAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, MaxAggregatorBuilder> {
-
-    static final MaxAggregatorBuilder PROTOTYPE = new MaxAggregatorBuilder("");
+    public static final String NAME = InternalMax.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public MaxAggregatorBuilder(String name) {
         super(name, InternalMax.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MaxAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalMax.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) {
+        // Do nothing, no extra state to write to stream
     }
 
     @Override
     protected MaxAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new MaxAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
-    }
-
-    @Override
-    protected MaxAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) {
-        return new MaxAggregatorBuilder(name);
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) {
-        // Do nothing, no extra state to write to stream
     }
 
     @Override
@@ -75,4 +76,8 @@ public class MaxAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly
         return true;
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

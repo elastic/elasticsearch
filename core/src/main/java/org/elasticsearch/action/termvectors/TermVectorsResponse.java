@@ -38,7 +38,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
@@ -51,30 +50,30 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
 
     private static class FieldStrings {
         // term statistics strings
-        public static final XContentBuilderString TTF = new XContentBuilderString("ttf");
-        public static final XContentBuilderString DOC_FREQ = new XContentBuilderString("doc_freq");
-        public static final XContentBuilderString TERM_FREQ = new XContentBuilderString("term_freq");
-        public static final XContentBuilderString SCORE = new XContentBuilderString("score");
+        public static final String TTF = "ttf";
+        public static final String DOC_FREQ = "doc_freq";
+        public static final String TERM_FREQ = "term_freq";
+        public static final String SCORE = "score";
 
         // field statistics strings
-        public static final XContentBuilderString FIELD_STATISTICS = new XContentBuilderString("field_statistics");
-        public static final XContentBuilderString DOC_COUNT = new XContentBuilderString("doc_count");
-        public static final XContentBuilderString SUM_DOC_FREQ = new XContentBuilderString("sum_doc_freq");
-        public static final XContentBuilderString SUM_TTF = new XContentBuilderString("sum_ttf");
+        public static final String FIELD_STATISTICS = "field_statistics";
+        public static final String DOC_COUNT = "doc_count";
+        public static final String SUM_DOC_FREQ = "sum_doc_freq";
+        public static final String SUM_TTF = "sum_ttf";
 
-        public static final XContentBuilderString TOKENS = new XContentBuilderString("tokens");
-        public static final XContentBuilderString POS = new XContentBuilderString("position");
-        public static final XContentBuilderString START_OFFSET = new XContentBuilderString("start_offset");
-        public static final XContentBuilderString END_OFFSET = new XContentBuilderString("end_offset");
-        public static final XContentBuilderString PAYLOAD = new XContentBuilderString("payload");
-        public static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        public static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        public static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        public static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        public static final XContentBuilderString FOUND = new XContentBuilderString("found");
-        public static final XContentBuilderString TOOK = new XContentBuilderString("took");
-        public static final XContentBuilderString TERMS = new XContentBuilderString("terms");
-        public static final XContentBuilderString TERM_VECTORS = new XContentBuilderString("term_vectors");
+        public static final String TOKENS = "tokens";
+        public static final String POS = "position";
+        public static final String START_OFFSET = "start_offset";
+        public static final String END_OFFSET = "end_offset";
+        public static final String PAYLOAD = "payload";
+        public static final String _INDEX = "_index";
+        public static final String _TYPE = "_type";
+        public static final String _ID = "_id";
+        public static final String _VERSION = "_version";
+        public static final String FOUND = "found";
+        public static final String TOOK = "took";
+        public static final String TERMS = "terms";
+        public static final String TERM_VECTORS = "term_vectors";
     }
 
     private BytesReference termVectors;
@@ -326,8 +325,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         }
     }
 
-    public void updateTookInMillis(long startTime) {
-        this.tookInMillis = Math.max(1, System.currentTimeMillis() - startTime);
+    public void setTookInMillis(long tookInMillis) {
+        this.tookInMillis = tookInMillis;
     }
 
     public TimeValue getTook() {
@@ -337,7 +336,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
     public long getTookInMillis() {
         return tookInMillis;
     }
-    
+
     private void buildScore(XContentBuilder builder, BoostAttribute boostAtt) throws IOException {
         if (hasScores) {
             builder.field(FieldStrings.SCORE, boostAtt.getBoost());
@@ -347,7 +346,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
     public boolean isExists() {
         return exists;
     }
-    
+
     public void setExists(boolean exists) {
          this.exists = exists;
     }

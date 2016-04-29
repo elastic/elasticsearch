@@ -33,6 +33,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ESTestCaseTests extends ESTestCase {
 
@@ -108,5 +113,18 @@ public class ESTestCaseTests extends ESTestCase {
             result.put(randomAsciiOfLengthBetween(5, 15), randomStringObjectMap(depth - 1));
         }
         return result;
+    }
+
+    public void testRandomUniqueNotUnique() {
+        assertThat(randomUnique(() -> 1, 10), hasSize(1));
+    }
+
+    public void testRandomUniqueTotallyUnique() {
+        AtomicInteger i = new AtomicInteger();
+        assertThat(randomUnique(i::incrementAndGet, 100), hasSize(100));
+    }
+
+    public void testRandomUniqueNormalUsageAlwayMoreThanOne() {
+        assertThat(randomUnique(() -> randomAsciiOfLengthBetween(1, 20), 10), hasSize(greaterThan(0)));
     }
 }

@@ -31,11 +31,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -67,9 +64,7 @@ public class RestHealthAction extends AbstractCatAction {
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
         Table t = new Table();
-        t.startHeaders();
-        t.addCell("epoch", "alias:t,time;desc:seconds since 1970-01-01 00:00:00");
-        t.addCell("timestamp", "alias:ts,hms,hhmmss;desc:time in HH:MM:SS");
+        t.startHeadersWithTimestamp();
         t.addCell("cluster", "alias:cl;desc:cluster name");
         t.addCell("status", "alias:st;desc:health status");
         t.addCell("node.total", "alias:nt,nodeTotal;text-align:right;desc:total number of nodes");
@@ -87,14 +82,9 @@ public class RestHealthAction extends AbstractCatAction {
         return t;
     }
 
-    private DateTimeFormatter dateFormat = DateTimeFormat.forPattern("HH:mm:ss");
-
     private Table buildTable(final ClusterHealthResponse health, final RestRequest request) {
-        long time = System.currentTimeMillis();
         Table t = getTableWithHeader(request);
         t.startRow();
-        t.addCell(TimeUnit.SECONDS.convert(time, TimeUnit.MILLISECONDS));
-        t.addCell(dateFormat.print(time));
         t.addCell(health.getClusterName());
         t.addCell(health.getStatus().name().toLowerCase(Locale.ROOT));
         t.addCell(health.getNumberOfNodes());

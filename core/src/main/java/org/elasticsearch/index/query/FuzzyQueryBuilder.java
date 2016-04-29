@@ -49,7 +49,6 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
 
     public static final String NAME = "fuzzy";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final FuzzyQueryBuilder PROTOTYPE = new FuzzyQueryBuilder();
 
     /** Default maximum edit distance. Defaults to AUTO. */
     public static final Fuzziness DEFAULT_FUZZINESS = Fuzziness.AUTO;
@@ -163,10 +162,29 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         this.value = convertToBytesRefIfString(value);
     }
 
-    private FuzzyQueryBuilder() {
-        // for prototype
-        this.fieldName = null;
-        this.value = null;
+    /**
+     * Read from a stream.
+     */
+    public FuzzyQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        value = in.readGenericValue();
+        fuzziness = new Fuzziness(in);
+        prefixLength = in.readVInt();
+        maxExpansions = in.readVInt();
+        transpositions = in.readBoolean();
+        rewrite = in.readOptionalString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(this.fieldName);
+        out.writeGenericValue(this.value);
+        this.fuzziness.writeTo(out);
+        out.writeVInt(this.prefixLength);
+        out.writeVInt(this.maxExpansions);
+        out.writeBoolean(this.transpositions);
+        out.writeOptionalString(this.rewrite);
     }
 
     public String fieldName() {
@@ -266,23 +284,23 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else {
-                    if (parseContext.parseFieldMatcher().match(currentFieldName, TERM_FIELD)) {
+                    if (parseContext.getParseFieldMatcher().match(currentFieldName, TERM_FIELD)) {
                         value = parser.objectBytes();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
                         value = parser.objectBytes();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                         boost = parser.floatValue();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fuzziness.FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Fuzziness.FIELD)) {
                         fuzziness = Fuzziness.parse(parser);
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, PREFIX_LENGTH_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, PREFIX_LENGTH_FIELD)) {
                         prefixLength = parser.intValue();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, MAX_EXPANSIONS_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MAX_EXPANSIONS_FIELD)) {
                         maxExpansions = parser.intValue();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, TRANSPOSITIONS_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TRANSPOSITIONS_FIELD)) {
                         transpositions = parser.booleanValue();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
                         rewrite = parser.textOrNull();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                         queryName = parser.text();
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "[fuzzy] query does not support [" + currentFieldName + "]");
@@ -330,32 +348,10 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
             query = new FuzzyQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), maxEdits, prefixLength, maxExpansions, transpositions);
         }
         if (query instanceof MultiTermQuery) {
-            MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(context.parseFieldMatcher(), rewrite, null);
+            MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(context.getParseFieldMatcher(), rewrite, null);
             QueryParsers.setRewriteMethod((MultiTermQuery) query, rewriteMethod);
         }
         return query;
-    }
-
-    @Override
-    protected FuzzyQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        FuzzyQueryBuilder fuzzyQueryBuilder = new FuzzyQueryBuilder(in.readString(), in.readGenericValue());
-        fuzzyQueryBuilder.fuzziness = Fuzziness.readFuzzinessFrom(in);
-        fuzzyQueryBuilder.prefixLength = in.readVInt();
-        fuzzyQueryBuilder.maxExpansions = in.readVInt();
-        fuzzyQueryBuilder.transpositions = in.readBoolean();
-        fuzzyQueryBuilder.rewrite = in.readOptionalString();
-        return fuzzyQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(this.fieldName);
-        out.writeGenericValue(this.value);
-        this.fuzziness.writeTo(out);
-        out.writeVInt(this.prefixLength);
-        out.writeVInt(this.maxExpansions);
-        out.writeBoolean(this.transpositions);
-        out.writeOptionalString(this.rewrite);
     }
 
     @Override

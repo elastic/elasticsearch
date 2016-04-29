@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
@@ -38,7 +39,6 @@ import org.elasticsearch.test.junit.annotations.Network;
 import java.net.InetAddress;
 import java.util.Locale;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -59,7 +59,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
             randomPort = randomIntBetween(49152, 65525);
             randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort+10);
         }
-        Settings.Builder builder = settingsBuilder()
+        Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("network.host", "127.0.0.1")
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty")
@@ -72,7 +72,7 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
     }
 
     public void testThatTransportClientCanConnect() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("cluster.name", internalCluster().getClusterName())
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
@@ -90,19 +90,21 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
         for (NodeInfo nodeInfo : response.getNodes()) {
             assertThat(nodeInfo.getTransport().getProfileAddresses().keySet(), hasSize(1));
             assertThat(nodeInfo.getTransport().getProfileAddresses(), hasKey("client1"));
-            for (TransportAddress transportAddress : nodeInfo.getTransport().getProfileAddresses().get("client1").boundAddresses()) {
+            BoundTransportAddress boundTransportAddress = nodeInfo.getTransport().getProfileAddresses().get("client1");
+            for (TransportAddress transportAddress : boundTransportAddress.boundAddresses()) {
                 assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
             }
 
             // bound addresses
-            for (TransportAddress transportAddress : nodeInfo.getTransport().getProfileAddresses().get("client1").boundAddresses()) {
+            for (TransportAddress transportAddress : boundTransportAddress.boundAddresses()) {
                 assertThat(transportAddress, instanceOf(InetSocketTransportAddress.class));
-                assertThat(((InetSocketTransportAddress) transportAddress).address().getPort(), is(allOf(greaterThanOrEqualTo(randomPort), lessThanOrEqualTo(randomPort + 10))));
+                assertThat(((InetSocketTransportAddress) transportAddress).address().getPort(),
+                    is(allOf(greaterThanOrEqualTo(randomPort), lessThanOrEqualTo(randomPort + 10))));
             }
 
             // publish address
-            assertThat(nodeInfo.getTransport().getProfileAddresses().get("client1").publishAddress(), instanceOf(InetSocketTransportAddress.class));
-            InetSocketTransportAddress publishAddress = (InetSocketTransportAddress) nodeInfo.getTransport().getProfileAddresses().get("client1").publishAddress();
+            assertThat(boundTransportAddress.publishAddress(), instanceOf(InetSocketTransportAddress.class));
+            InetSocketTransportAddress publishAddress = (InetSocketTransportAddress) boundTransportAddress.publishAddress();
             assertThat(NetworkAddress.format(publishAddress.address().getAddress()), is("127.0.0.7"));
             assertThat(publishAddress.address().getPort(), is(4321));
         }

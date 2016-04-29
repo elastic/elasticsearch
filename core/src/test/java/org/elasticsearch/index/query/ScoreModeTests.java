@@ -84,37 +84,37 @@ public class ScoreModeTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(FiltersFunctionScoreQuery.ScoreMode.readScoreModeFrom(in), equalTo(FiltersFunctionScoreQuery.ScoreMode.FIRST));
+                assertThat(FiltersFunctionScoreQuery.ScoreMode.readFromStream(in), equalTo(FiltersFunctionScoreQuery.ScoreMode.FIRST));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(1);
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(FiltersFunctionScoreQuery.ScoreMode.readScoreModeFrom(in), equalTo(FiltersFunctionScoreQuery.ScoreMode.AVG));
+                assertThat(FiltersFunctionScoreQuery.ScoreMode.readFromStream(in), equalTo(FiltersFunctionScoreQuery.ScoreMode.AVG));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(2);
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(FiltersFunctionScoreQuery.ScoreMode.readScoreModeFrom(in), equalTo(FiltersFunctionScoreQuery.ScoreMode.MAX));
+                assertThat(FiltersFunctionScoreQuery.ScoreMode.readFromStream(in), equalTo(FiltersFunctionScoreQuery.ScoreMode.MAX));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(3);
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(FiltersFunctionScoreQuery.ScoreMode.readScoreModeFrom(in), equalTo(FiltersFunctionScoreQuery.ScoreMode.SUM));
+                assertThat(FiltersFunctionScoreQuery.ScoreMode.readFromStream(in), equalTo(FiltersFunctionScoreQuery.ScoreMode.SUM));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(4);
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(FiltersFunctionScoreQuery.ScoreMode.readScoreModeFrom(in), equalTo(FiltersFunctionScoreQuery.ScoreMode.MIN));
+                assertThat(FiltersFunctionScoreQuery.ScoreMode.readFromStream(in), equalTo(FiltersFunctionScoreQuery.ScoreMode.MIN));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(5);
             try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                assertThat(FiltersFunctionScoreQuery.ScoreMode.readScoreModeFrom(in), equalTo(FiltersFunctionScoreQuery.ScoreMode.MULTIPLY));
+                assertThat(FiltersFunctionScoreQuery.ScoreMode.readFromStream(in), equalTo(FiltersFunctionScoreQuery.ScoreMode.MULTIPLY));
             }
         }
     }

@@ -92,7 +92,7 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
                         pt[0] = pt[0] + (value.getLon() - pt[0]) / ++prevCounts;
                         pt[1] = pt[1] + (value.getLat() - pt[1]) / prevCounts;
                     }
-                    centroids.set(bucket, GeoEncodingUtils.mortonHash(pt[0], pt[1]));
+                    centroids.set(bucket, GeoEncodingUtils.mortonHash(pt[1], pt[0]));
                 }
             }
         };

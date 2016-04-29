@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class WriteConsistencyLevelIT extends ESIntegTestCase {
     public void testWriteConsistencyLevelReplication2() throws Exception {
-        prepareCreate("test", 1, Settings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 2)).execute().actionGet();
+        prepareCreate("test", 1, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 2)).execute().actionGet();
 
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(1).setWaitForYellowStatus().execute().actionGet();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());

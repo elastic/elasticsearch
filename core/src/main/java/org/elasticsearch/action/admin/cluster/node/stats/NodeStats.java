@@ -224,7 +224,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
             threadPool = ThreadPoolStats.readThreadPoolStats(in);
         }
         if (in.readBoolean()) {
-            fs = FsInfo.readFsInfo(in);
+            fs = new FsInfo(in);
         }
         if (in.readBoolean()) {
             transport = TransportStats.readTransportStats(in);
@@ -299,10 +299,10 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (!params.param("node_info_format", "default").equals("none")) {
-            builder.field("name", getNode().getName(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("transport_address", getNode().getAddress().toString(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("host", getNode().getHostName(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("ip", getNode().getAddress(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("name", getNode().getName());
+            builder.field("transport_address", getNode().getAddress().toString());
+            builder.field("host", getNode().getHostName());
+            builder.field("ip", getNode().getAddress());
 
             builder.startArray("roles");
             for (DiscoveryNode.Role role : getNode().getRoles()) {
@@ -313,7 +313,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
             if (!getNode().getAttributes().isEmpty()) {
                 builder.startObject("attributes");
                 for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
-                    builder.field(attrEntry.getKey(), attrEntry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
+                    builder.field(attrEntry.getKey(), attrEntry.getValue());
                 }
                 builder.endObject();
             }

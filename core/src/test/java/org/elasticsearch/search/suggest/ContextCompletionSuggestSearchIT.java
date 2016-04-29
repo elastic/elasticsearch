@@ -20,10 +20,10 @@ package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
-import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -683,7 +683,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
 
         assertAcked(client().admin().indices().prepareCreate(INDEX)
-                .setSettings(Settings.settingsBuilder().put(indexSettings()).put(settings))
+                .setSettings(Settings.builder().put(indexSettings()).put(settings))
                 .addMapping(TYPE, mapping)
                 .get());
         ensureYellow();

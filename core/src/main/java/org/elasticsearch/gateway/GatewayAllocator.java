@@ -153,7 +153,7 @@ public class GatewayAllocator extends AbstractComponent {
                 asyncFetchStarted.put(shard.shardId(), fetch);
             }
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState =
-                    fetch.fetchData(allocation.nodes(), allocation.metaData(), allocation.getIgnoreNodes(shard.shardId()));
+                    fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
 
             if (shardState.hasData() == true) {
                 shardState.processAllocation(allocation);
@@ -179,7 +179,7 @@ public class GatewayAllocator extends AbstractComponent {
                 asyncFetchStore.put(shard.shardId(), fetch);
             }
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores =
-                    fetch.fetchData(allocation.nodes(), allocation.metaData(), allocation.getIgnoreNodes(shard.shardId()));
+                    fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
             if (shardStores.hasData() == true) {
                 shardStores.processAllocation(allocation);
             }

@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -35,8 +34,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.List;
-
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class TransportAnalyzeActionTests extends ESTestCase {
 
@@ -49,7 +46,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         super.setUp();
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
 
-        Settings indexSettings = settingsBuilder()
+        Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.filter.wordDelimiter.type", "word_delimiter")
                 .put("index.analysis.filter.wordDelimiter.split_on_numerics", false)

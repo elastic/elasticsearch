@@ -236,11 +236,7 @@ public class InstallPluginCommandTests extends ESTestCase {
                     assertFalse("not a dir", Files.isDirectory(file));
                     if (isPosix) {
                         PosixFileAttributes attributes = Files.readAttributes(file, PosixFileAttributes.class);
-                        Set<PosixFilePermission> expectedPermissions = new HashSet<>(binAttributes.permissions());
-                        expectedPermissions.add(PosixFilePermission.OWNER_EXECUTE);
-                        expectedPermissions.add(PosixFilePermission.GROUP_EXECUTE);
-                        expectedPermissions.add(PosixFilePermission.OTHERS_EXECUTE);
-                        assertEquals(expectedPermissions, attributes.permissions());
+                        assertEquals(InstallPluginCommand.DIR_AND_EXECUTABLE_PERMS, attributes.permissions());
                     }
                 }
             }

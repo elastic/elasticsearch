@@ -23,6 +23,7 @@ import com.vividsolutions.jts.geom.Coordinate;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
@@ -43,11 +44,12 @@ import org.junit.After;
 
 import java.io.IOException;
 
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
 
@@ -91,6 +93,10 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             if (strategy != SpatialStrategy.TERM) {
                 builder.relation(randomFrom(ShapeRelation.values()));
             }
+        }
+
+        if (randomBoolean()) {
+            builder.ignoreUnmapped(randomBoolean());
         }
         return builder;
     }
@@ -233,6 +239,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
                 "      },\n" +
                 "      \"relation\" : \"intersects\"\n" +
                 "    },\n" +
+                "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 42.0\n" +
                 "  }\n" +
                 "}";
@@ -249,15 +256,30 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             // do this until we get one without a shape
         } while (sqb.shape() != null);
         try {
-            sqb.toQuery(queryShardContext());
+            sqb.toQuery(createShardContext());
             fail();
         } catch (UnsupportedOperationException e) {
             assertEquals("query must be rewritten first", e.getMessage());
         }
-        QueryBuilder<?> rewrite = sqb.rewrite(queryShardContext());
+        QueryBuilder<?> rewrite = sqb.rewrite(createShardContext());
         GeoShapeQueryBuilder geoShapeQueryBuilder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, indexedShapeToReturn);
         geoShapeQueryBuilder.strategy(sqb.strategy());
         geoShapeQueryBuilder.relation(sqb.relation());
         assertEquals(geoShapeQueryBuilder, rewrite);
+    }
+
+    public void testIgnoreUnmapped() throws IOException {
+        ShapeType shapeType = ShapeType.randomType(random());
+        ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
+        final GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder("unmapped", shape);
+        queryBuilder.ignoreUnmapped(true);
+        Query query = queryBuilder.toQuery(createShardContext());
+        assertThat(query, notNullValue());
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+
+        final GeoShapeQueryBuilder failingQueryBuilder = new GeoShapeQueryBuilder("unmapped", shape);
+        failingQueryBuilder.ignoreUnmapped(false);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
+        assertThat(e.getMessage(), containsString("failed to find geo_shape field [unmapped]"));
     }
 }

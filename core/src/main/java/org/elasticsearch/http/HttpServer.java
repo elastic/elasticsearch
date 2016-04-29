@@ -19,21 +19,29 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
@@ -42,24 +50,22 @@ import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
  * A component to serve http requests, backed by rest handlers.
  */
 public class HttpServer extends AbstractLifecycleComponent<HttpServer> implements HttpServerAdapter {
-
-    private final Environment environment;
-
     private final HttpServerTransport transport;
 
     private final RestController restController;
 
     private final NodeService nodeService;
 
+    private final CircuitBreakerService circuitBreakerService;
+
     @Inject
-    public HttpServer(Settings settings, Environment environment, HttpServerTransport transport,
-                      RestController restController,
-                      NodeService nodeService) {
+    public HttpServer(Settings settings, HttpServerTransport transport, RestController restController, NodeService nodeService,
+                      CircuitBreakerService circuitBreakerService) {
         super(settings);
-        this.environment = environment;
         this.transport = transport;
         this.restController = restController;
         this.nodeService = nodeService;
+        this.circuitBreakerService = circuitBreakerService;
         nodeService.setHttpServer(this);
         transport.httpServerAdapter(this);
     }
@@ -93,15 +99,23 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> implement
         return transport.stats();
     }
 
-    public void dispatchRequest(HttpRequest request, HttpChannel channel, ThreadContext threadContext) {
+    public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
         if (request.rawPath().equals("/favicon.ico")) {
             handleFavicon(request, channel);
             return;
         }
-        restController.dispatchRequest(request, channel, threadContext);
+        RestChannel responseChannel = channel;
+        try {
+            inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(request.content().length(), "<http_request>");
+            // iff we could reserve bytes for the request we need to send the response also over this channel
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService);
+            restController.dispatchRequest(request, responseChannel, threadContext);
+        } catch (Throwable t) {
+            restController.sendErrorResponse(request, responseChannel, t);
+        }
     }
 
-    void handleFavicon(HttpRequest request, HttpChannel channel) {
+    void handleFavicon(RestRequest request, RestChannel channel) {
         if (request.method() == RestRequest.Method.GET) {
             try {
                 try (InputStream stream = getClass().getResourceAsStream("/config/favicon.ico")) {
@@ -116,5 +130,66 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> implement
         } else {
             channel.sendResponse(new BytesRestResponse(FORBIDDEN));
         }
+    }
+
+    private static final class ResourceHandlingHttpChannel implements RestChannel {
+        private final RestChannel delegate;
+        private final CircuitBreakerService circuitBreakerService;
+        private final AtomicBoolean closed = new AtomicBoolean();
+
+        public ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService) {
+            this.delegate = delegate;
+            this.circuitBreakerService = circuitBreakerService;
+        }
+
+        @Override
+        public XContentBuilder newBuilder() throws IOException {
+            return delegate.newBuilder();
+        }
+
+        @Override
+        public XContentBuilder newErrorBuilder() throws IOException {
+            return delegate.newErrorBuilder();
+        }
+
+        @Override
+        public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException {
+            return delegate.newBuilder(autoDetectSource, useFiltering);
+        }
+
+        @Override
+        public BytesStreamOutput bytesOutput() {
+            return delegate.bytesOutput();
+        }
+
+        @Override
+        public RestRequest request() {
+            return delegate.request();
+        }
+
+        @Override
+        public boolean detailedErrorsEnabled() {
+            return delegate.detailedErrorsEnabled();
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            close();
+            delegate.sendResponse(response);
+        }
+
+        private void close() {
+            // attempt to close once atomically
+            if (closed.compareAndSet(false, true) == false) {
+                throw new IllegalStateException("Channel is already closed");
+            }
+            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-request().content().length());
+        }
+
+    }
+
+    private static CircuitBreaker inFlightRequestsBreaker(CircuitBreakerService circuitBreakerService) {
+        // We always obtain a fresh breaker to reflect changes to the breaker configuration.
+        return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
     }
 }

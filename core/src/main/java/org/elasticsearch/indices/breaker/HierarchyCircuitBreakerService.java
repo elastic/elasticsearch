@@ -45,7 +45,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     private static final String CHILD_LOGGER_PREFIX = "org.elasticsearch.indices.breaker.";
 
-    private final ConcurrentMap<String, CircuitBreaker> breakers = new ConcurrentHashMap();
+    private final ConcurrentMap<String, CircuitBreaker> breakers = new ConcurrentHashMap<>();
 
     public static final Setting<ByteSizeValue> TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING =
         Setting.byteSizeSetting("indices.breaker.total.limit", "70%", Property.Dynamic, Property.NodeScope);
@@ -64,10 +64,16 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public static final Setting<CircuitBreaker.Type> REQUEST_CIRCUIT_BREAKER_TYPE_SETTING =
         new Setting<>("indices.breaker.request.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
-
+    public static final Setting<ByteSizeValue> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING =
+        Setting.byteSizeSetting("network.breaker.inflight_requests.limit", "100%", Property.Dynamic, Property.NodeScope);
+    public static final Setting<Double> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING =
+        Setting.doubleSetting("network.breaker.inflight_requests.overhead", 1.0d, 0.0d, Property.Dynamic, Property.NodeScope);
+    public static final Setting<CircuitBreaker.Type> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING =
+        new Setting<>("network.breaker.inflight_requests.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
     private volatile BreakerSettings parentSettings;
     private volatile BreakerSettings fielddataSettings;
+    private volatile BreakerSettings inFlightRequestsSettings;
     private volatile BreakerSettings requestSettings;
 
     // Tripped count for when redistribution was attempted but wasn't successful
@@ -80,6 +86,12 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).bytes(),
                 FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
                 FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING.get(settings)
+        );
+
+        this.inFlightRequestsSettings = new BreakerSettings(CircuitBreaker.IN_FLIGHT_REQUESTS,
+                IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).bytes(),
+                IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
+                IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING.get(settings)
         );
 
         this.requestSettings = new BreakerSettings(CircuitBreaker.REQUEST,
@@ -95,17 +107,28 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         registerBreaker(this.requestSettings);
         registerBreaker(this.fielddataSettings);
+        registerBreaker(this.inFlightRequestsSettings);
 
         clusterSettings.addSettingsUpdateConsumer(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, this::setTotalCircuitBreakerLimit, this::validateTotalCircuitBreakerLimit);
         clusterSettings.addSettingsUpdateConsumer(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setFieldDataBreakerLimit);
+        clusterSettings.addSettingsUpdateConsumer(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING, IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setInFlightRequestsBreakerLimit);
         clusterSettings.addSettingsUpdateConsumer(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setRequestBreakerLimit);
     }
+
     private void setRequestBreakerLimit(ByteSizeValue newRequestMax, Double newRequestOverhead) {
         BreakerSettings newRequestSettings = new BreakerSettings(CircuitBreaker.REQUEST, newRequestMax.bytes(), newRequestOverhead,
                 HierarchyCircuitBreakerService.this.requestSettings.getType());
         registerBreaker(newRequestSettings);
         HierarchyCircuitBreakerService.this.requestSettings = newRequestSettings;
         logger.info("Updated breaker settings request: {}", newRequestSettings);
+    }
+
+    private void setInFlightRequestsBreakerLimit(ByteSizeValue newInFlightRequestsMax, Double newInFlightRequestsOverhead) {
+        BreakerSettings newInFlightRequestsSettings = new BreakerSettings(CircuitBreaker.IN_FLIGHT_REQUESTS, newInFlightRequestsMax.bytes(),
+            newInFlightRequestsOverhead, HierarchyCircuitBreakerService.this.inFlightRequestsSettings.getType());
+        registerBreaker(newInFlightRequestsSettings);
+        HierarchyCircuitBreakerService.this.inFlightRequestsSettings = newInFlightRequestsSettings;
+        logger.info("Updated breaker settings for in-flight requests: {}", newInFlightRequestsSettings);
     }
 
     private void setFieldDataBreakerLimit(ByteSizeValue newFielddataMax, Double newFielddataOverhead) {

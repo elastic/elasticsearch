@@ -95,11 +95,11 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
 
     @Override
     public void doReadFrom(StreamInput in) throws IOException {
-        formatter = in.readValueFormat();
+        formatter = in.readNamedWriteable(DocValueFormat.class);
     }
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(formatter);
+        out.writeNamedWriteable(formatter);
     }
 }

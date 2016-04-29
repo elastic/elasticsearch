@@ -19,15 +19,16 @@
 
 package org.elasticsearch.http.netty;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
-import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.netty.cors.CorsHandler;
 import org.elasticsearch.http.netty.pipelining.OrderedDownstreamChannelEvent;
 import org.elasticsearch.http.netty.pipelining.OrderedUpstreamMessageEvent;
+import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -53,24 +54,27 @@ import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Values.CLOSE;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Values.KEEP_ALIVE;
 
-public final class NettyHttpChannel extends HttpChannel {
+public final class NettyHttpChannel extends AbstractRestChannel {
 
     private final NettyHttpServerTransport transport;
     private final Channel channel;
     private final org.jboss.netty.handler.codec.http.HttpRequest nettyRequest;
-    private OrderedUpstreamMessageEvent orderedUpstreamMessageEvent = null;
+    private final OrderedUpstreamMessageEvent orderedUpstreamMessageEvent;
 
+    /**
+     * @param transport                   The corresponding <code>NettyHttpServerTransport</code> where this channel belongs to.
+     * @param request                     The request that is handled by this channel.
+     * @param orderedUpstreamMessageEvent If HTTP pipelining is enabled provide the corresponding Netty upstream event. May be null if
+     *                                    HTTP pipelining is disabled.
+     * @param detailedErrorsEnabled       true iff error messages should include stack traces.
+     */
     public NettyHttpChannel(NettyHttpServerTransport transport, NettyHttpRequest request,
+                            @Nullable OrderedUpstreamMessageEvent orderedUpstreamMessageEvent,
                             boolean detailedErrorsEnabled) {
         super(request, detailedErrorsEnabled);
         this.transport = transport;
         this.channel = request.getChannel();
         this.nettyRequest = request.request();
-    }
-
-    public NettyHttpChannel(NettyHttpServerTransport transport, NettyHttpRequest request,
-                            OrderedUpstreamMessageEvent orderedUpstreamMessageEvent, boolean detailedErrorsEnabled) {
-        this(transport, request, detailedErrorsEnabled);
         this.orderedUpstreamMessageEvent = orderedUpstreamMessageEvent;
     }
 
@@ -114,7 +118,8 @@ public final class NettyHttpChannel extends HttpChannel {
             ChannelFuture future;
 
             if (orderedUpstreamMessageEvent != null) {
-                OrderedDownstreamChannelEvent downstreamChannelEvent = new OrderedDownstreamChannelEvent(orderedUpstreamMessageEvent, 0, true, resp);
+                OrderedDownstreamChannelEvent downstreamChannelEvent =
+                    new OrderedDownstreamChannelEvent(orderedUpstreamMessageEvent, 0, true, resp);
                 future = downstreamChannelEvent.getFuture();
                 channel.getPipeline().sendDownstream(downstreamChannelEvent);
             } else {

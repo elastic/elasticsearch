@@ -45,15 +45,6 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalGeoHashGrid.TYPE.name();
-    }
-    @Override
-    public GeoGridAggregatorBuilder getFactoryPrototypes() {
-        return GeoGridAggregatorBuilder.PROTOTYPE;
-    }
-
-    @Override
     protected GeoGridAggregatorBuilder createFactory(
             String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {

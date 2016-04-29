@@ -72,6 +72,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         public static final ParentFieldType FIELD_TYPE = new ParentFieldType();
 
         static {
+            FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setDocValuesType(DocValuesType.SORTED);
@@ -119,7 +120,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             Builder builder = new Builder(parserContext.type());
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("type")) {
                     builder.type(fieldNode.toString());
@@ -183,14 +184,6 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        /**
-         * We don't need to analyzer the text, and we need to convert it to UID...
-         */
-        @Override
-        public boolean useTermQueryWithQueryString() {
-            return true;
         }
 
         @Override

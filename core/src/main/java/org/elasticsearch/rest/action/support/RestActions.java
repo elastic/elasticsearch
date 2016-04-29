@@ -29,7 +29,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -40,9 +39,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.suggest.Suggesters;
 
 import java.io.IOException;
 
@@ -68,11 +64,11 @@ public class RestActions {
     }
 
     static final class Fields {
-        static final XContentBuilderString _SHARDS = new XContentBuilderString("_shards");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString SUCCESSFUL = new XContentBuilderString("successful");
-        static final XContentBuilderString FAILED = new XContentBuilderString("failed");
-        static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
+        static final String _SHARDS = "_shards";
+        static final String TOTAL = "total";
+        static final String SUCCESSFUL = "successful";
+        static final String FAILED = "failed";
+        static final String FAILURES = "failures";
     }
 
     public static void buildBroadcastShardsHeader(XContentBuilder builder, ToXContent.Params params, BroadcastResponse response) throws IOException {
@@ -135,15 +131,11 @@ public class RestActions {
     }
 
     public static QueryBuilder<?> getQueryContent(BytesReference source, IndicesQueriesRegistry indicesQueriesRegistry, ParseFieldMatcher parseFieldMatcher) {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
         try (XContentParser requestParser = XContentFactory.xContent(source).createParser(source)) {
-            context.reset(requestParser);
-            context.parseFieldMatcher(parseFieldMatcher);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, requestParser, parseFieldMatcher);
             return context.parseTopLevelQueryBuilder();
         } catch (IOException e) {
             throw new ElasticsearchException("failed to parse source", e);
-        } finally {
-            context.reset(null);
         }
     }
 

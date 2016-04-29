@@ -52,7 +52,7 @@ public class ExplainActionIT extends ESIntegTestCase {
     public void testSimple() throws Exception {
         assertAcked(prepareCreate("test")
                 .addAlias(new Alias("alias"))
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen("test");
 
         client().prepareIndex("test", "test", "1").setSource("field", "value1").get();

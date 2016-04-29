@@ -49,12 +49,27 @@ public class DummyQueryParserPlugin extends Plugin {
     }
 
     public void onModule(SearchModule module) {
-        module.registerQuery(new DummyQueryBuilder()::readFrom, DummyQueryBuilder::fromXContent, DummyQueryBuilder.QUERY_NAME_FIELD);
+        module.registerQuery(DummyQueryBuilder::new, DummyQueryBuilder::fromXContent, DummyQueryBuilder.QUERY_NAME_FIELD);
     }
 
     public static class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
         private static final String NAME = "dummy";
         private static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+
+        public DummyQueryBuilder() {
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public DummyQueryBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            // only the superclass has state
+        }
 
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -70,16 +85,6 @@ public class DummyQueryParserPlugin extends Plugin {
         @Override
         protected Query doToQuery(QueryShardContext context) throws IOException {
             return new DummyQuery(context.isFilter());
-        }
-
-        @Override
-        protected DummyQueryBuilder doReadFrom(StreamInput in) throws IOException {
-            return new DummyQueryBuilder();
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-            // Do Nothing
         }
 
         @Override

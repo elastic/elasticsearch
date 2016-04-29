@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class KeepTypesFilterFactoryTests extends ESTokenStreamTestCase {
     public void testKeepTypes() throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.keep_numbers.type", "keep_types")
                 .putArray("index.analysis.filter.keep_numbers.types", new String[] {"<NUM>", "<SOMETHINGELSE>"})

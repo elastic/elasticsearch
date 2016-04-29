@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -64,11 +63,11 @@ public class ProcessInfo implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString PROCESS = new XContentBuilderString("process");
-        static final XContentBuilderString REFRESH_INTERVAL = new XContentBuilderString("refresh_interval");
-        static final XContentBuilderString REFRESH_INTERVAL_IN_MILLIS = new XContentBuilderString("refresh_interval_in_millis");
-        static final XContentBuilderString ID = new XContentBuilderString("id");
-        static final XContentBuilderString MLOCKALL = new XContentBuilderString("mlockall");
+        static final String PROCESS = "process";
+        static final String REFRESH_INTERVAL = "refresh_interval";
+        static final String REFRESH_INTERVAL_IN_MILLIS = "refresh_interval_in_millis";
+        static final String ID = "id";
+        static final String MLOCKALL = "mlockall";
     }
 
     @Override

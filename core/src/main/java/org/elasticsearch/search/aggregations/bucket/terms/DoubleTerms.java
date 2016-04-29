@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -152,17 +151,14 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
         }
     }
 
-    private DocValueFormat format;
-
     DoubleTerms() {
     } // for serialization
 
     public DoubleTerms(String name, Terms.Order order, DocValueFormat format, int requiredSize, int shardSize,
             long minDocCount, List<? extends InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError,
             long otherDocCount, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, pipelineAggregators,
+        super(name, order, format, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, pipelineAggregators,
                 metaData);
-        this.format = format;
     }
 
     @Override
@@ -194,7 +190,7 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
     protected void doReadFrom(StreamInput in) throws IOException {
         this.docCountError = in.readLong();
         this.order = InternalOrder.Streams.readOrder(in);
-        this.format = in.readValueFormat();
+        this.format = in.readNamedWriteable(DocValueFormat.class);
         this.requiredSize = readSize(in);
         this.shardSize = readSize(in);
         this.showTermDocCountError = in.readBoolean();
@@ -215,7 +211,7 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeLong(docCountError);
         InternalOrder.Streams.writeOrder(order, out);
-        out.writeValueFormat(format);
+        out.writeNamedWriteable(format);
         writeSize(requiredSize, out);
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);

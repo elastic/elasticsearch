@@ -56,6 +56,9 @@ public abstract class Command {
             terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
             return ExitCodes.USAGE;
         } catch (UserError e) {
+            if (e.exitCode == ExitCodes.USAGE) {
+                printHelp(terminal);
+            }
             terminal.println(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
             return e.exitCode;
         }

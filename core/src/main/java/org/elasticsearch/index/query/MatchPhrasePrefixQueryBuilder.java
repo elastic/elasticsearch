@@ -42,8 +42,6 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
     public static final ParseField MAX_EXPANSIONS_FIELD = new ParseField("max_expansions");
 
-    public static final MatchPhrasePrefixQueryBuilder PROTOTYPE = new MatchPhrasePrefixQueryBuilder("", "");
-
     private final String fieldName;
 
     private final Object value;
@@ -63,6 +61,27 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         }
         this.fieldName = fieldName;
         this.value = value;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MatchPhrasePrefixQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        value = in.readGenericValue();
+        slop = in.readVInt();
+        maxExpansions = in.readVInt();
+        analyzer = in.readOptionalString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeGenericValue(value);
+        out.writeVInt(slop);
+        out.writeVInt(maxExpansions);
+        out.writeOptionalString(analyzer);
     }
 
     /** Returns the field name used in this query. */
@@ -159,24 +178,6 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
     }
 
     @Override
-    protected MatchPhrasePrefixQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(in.readString(), in.readGenericValue());
-        matchQuery.slop = in.readVInt();
-        matchQuery.maxExpansions = in.readVInt();
-        matchQuery.analyzer = in.readOptionalString();
-        return matchQuery;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeGenericValue(value);
-        out.writeVInt(slop);
-        out.writeVInt(maxExpansions);
-        out.writeOptionalString(analyzer);
-    }
-
-    @Override
     protected boolean doEquals(MatchPhrasePrefixQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
                 Objects.equals(value, other.value) &&
@@ -213,17 +214,17 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    if (parseContext.parseFieldMatcher().match(currentFieldName, MatchQueryBuilder.QUERY_FIELD)) {
+                    if (parseContext.getParseFieldMatcher().match(currentFieldName, MatchQueryBuilder.QUERY_FIELD)) {
                         value = parser.objectText();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, MatchQueryBuilder.ANALYZER_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MatchQueryBuilder.ANALYZER_FIELD)) {
                         analyzer = parser.text();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                         boost = parser.floatValue();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, MatchPhraseQueryBuilder.SLOP_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MatchPhraseQueryBuilder.SLOP_FIELD)) {
                         slop = parser.intValue();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, MAX_EXPANSIONS_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MAX_EXPANSIONS_FIELD)) {
                         maxExpansion = parser.intValue();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                         queryName = parser.text();
                     } else {
                         throw new ParsingException(parser.getTokenLocation(),

@@ -19,12 +19,16 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -34,8 +38,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorBuilder> {
-
-    static final FilterAggregatorBuilder PROTOTYPE = new FilterAggregatorBuilder("", EmptyQueryBuilder.PROTOTYPE);
+    public static final String NAME = InternalFilter.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private final QueryBuilder<?> filter;
 
@@ -59,6 +63,19 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
         }
     }
 
+    /**
+     * Read from a stream.
+     */
+    public FilterAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalFilter.TYPE);
+        filter = in.readNamedWriteable(QueryBuilder.class);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(filter);
+    }
+
     @Override
     protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
@@ -73,16 +90,17 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
         return builder;
     }
 
-    @Override
-    protected FilterAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-        FilterAggregatorBuilder factory = new FilterAggregatorBuilder(name, in.readQuery());
-        return factory;
+    public static FilterAggregatorBuilder parse(String aggregationName, QueryParseContext context)
+            throws IOException {
+        QueryBuilder<?> filter = context.parseInnerQueryBuilder();
+
+        if (filter == null) {
+            throw new ParsingException(null, "filter cannot be null in filter aggregation [{}]", aggregationName);
+        }
+
+        return new FilterAggregatorBuilder(aggregationName, filter);
     }
 
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(filter);
-    }
 
     @Override
     protected int doHashCode() {
@@ -95,4 +113,8 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
         return Objects.equals(filter, other.filter);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

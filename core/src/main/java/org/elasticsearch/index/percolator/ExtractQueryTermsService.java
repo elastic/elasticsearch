@@ -57,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -234,6 +235,9 @@ public final class ExtractQueryTermsService {
      * Creates a boolean query with a should clause for each term on all fields of the specified index reader.
      */
     public static Query createQueryTermsQuery(IndexReader indexReader, String queryMetadataField, String unknownQueryField) throws IOException {
+        Objects.requireNonNull(queryMetadataField);
+        Objects.requireNonNull(unknownQueryField);
+
         List<Term> extractedTerms = new ArrayList<>();
         extractedTerms.add(new Term(unknownQueryField));
         Fields fields = MultiFields.getFields(indexReader);

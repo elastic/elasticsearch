@@ -27,7 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -80,9 +79,7 @@ public class RestSuggestAction extends BaseRestHandler {
         if (RestActions.hasBodyContent(request)) {
             final BytesReference sourceBytes = RestActions.getRestContent(request);
             try (XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes)) {
-                final QueryParseContext context = new QueryParseContext(queryRegistry);
-                context.reset(parser);
-                context.parseFieldMatcher(parseFieldMatcher);
+                final QueryParseContext context = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
                 searchRequest.source().suggest(SuggestBuilder.fromXContent(context, suggesters));
             }
         } else {

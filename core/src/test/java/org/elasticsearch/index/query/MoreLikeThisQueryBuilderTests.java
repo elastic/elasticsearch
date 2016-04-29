@@ -272,7 +272,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             queryBuilder.toQuery(createShardContext());
             fail("should have failed with IllegalArgumentException for field: " + unsupportedField);
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("more_like_this doesn't support binary/numeric fields"));
+            assertThat(e.getMessage(), containsString("more_like_this only supports text/keyword fields"));
         }
     }
 

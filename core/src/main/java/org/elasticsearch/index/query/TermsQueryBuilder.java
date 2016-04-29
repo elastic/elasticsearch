@@ -57,10 +57,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     public static final String NAME = "terms";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME, "in");
-    public static final TermsQueryBuilder PROTOTYPE = new TermsQueryBuilder("field", "value");
 
     private final String fieldName;
-    private final List<Object> values;
+    private final List<?> values;
     private final TermsLookup termsLookup;
 
     public TermsQueryBuilder(String fieldName, TermsLookup termsLookup) {
@@ -164,6 +163,23 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         this.termsLookup = null;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public TermsQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        termsLookup = in.readOptionalWriteable(TermsLookup::new);
+        values = (List<?>) in.readGenericValue();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeOptionalWriteable(termsLookup);
+        out.writeGenericValue(values);
+    }
+
     public String fieldName() {
         return this.fieldName;
     }
@@ -255,9 +271,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 fieldName = currentFieldName;
                 termsLookup = TermsLookup.parseTermsLookup(parser);
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -301,7 +317,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
         if (values == null || values.isEmpty()) {
-            return Queries.newMatchNoDocsQuery();
+            return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
         return handleTermsQuery(values, fieldName, context);
     }
@@ -318,7 +334,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return terms;
     }
 
-    private static Query handleTermsQuery(List<Object> terms, String fieldName, QueryShardContext context) {
+    private static Query handleTermsQuery(List<?> terms, String fieldName, QueryShardContext context) {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         String indexFieldName;
         if (fieldType != null) {
@@ -350,28 +366,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             query = bq.build();
         }
         return query;
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    protected TermsQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        String field = in.readString();
-        TermsLookup lookup = null;
-        if (in.readBoolean()) {
-            lookup = TermsLookup.readTermsLookupFrom(in);
-        }
-        List<Object> values = (List<Object>) in.readGenericValue();
-        return new TermsQueryBuilder(field, values, lookup);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeBoolean(termsLookup != null);
-        if (termsLookup != null) {
-            termsLookup.writeTo(out);
-        }
-        out.writeGenericValue(values);
     }
 
     @Override

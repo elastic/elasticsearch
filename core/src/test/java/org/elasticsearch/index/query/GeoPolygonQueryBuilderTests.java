@@ -19,8 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
+
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.search.GeoPointInPolygonQuery;
 import org.elasticsearch.Version;
@@ -33,15 +34,18 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygonQueryBuilder> {
@@ -51,6 +55,10 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, polygon);
         if (randomBoolean()) {
             builder.setValidationMethod(randomFrom(GeoValidationMethod.values()));
+        }
+
+        if (randomBoolean()) {
+            builder.ignoreUnmapped(randomBoolean());
         }
         return builder;
     }
@@ -336,6 +344,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                 "    },\n" +
                 "    \"coerce\" : false,\n" +
                 "    \"ignore_malformed\" : false,\n" +
+                "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
@@ -348,5 +357,19 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     public void testMustRewrite() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         super.testMustRewrite();
+    }
+
+    public void testIgnoreUnmapped() throws IOException {
+        List<GeoPoint> polygon = randomPolygon(randomIntBetween(4, 50));
+        final GeoPolygonQueryBuilder queryBuilder = new GeoPolygonQueryBuilder("unmapped", polygon);
+        queryBuilder.ignoreUnmapped(true);
+        Query query = queryBuilder.toQuery(createShardContext());
+        assertThat(query, notNullValue());
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+
+        final GeoPolygonQueryBuilder failingQueryBuilder = new GeoPolygonQueryBuilder("unmapped", polygon);
+        failingQueryBuilder.ignoreUnmapped(false);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
+        assertThat(e.getMessage(), containsString("failed to find geo_point field [unmapped]"));
     }
 }

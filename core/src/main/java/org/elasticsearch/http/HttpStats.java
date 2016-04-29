@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -69,9 +68,9 @@ public class HttpStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString HTTP = new XContentBuilderString("http");
-        static final XContentBuilderString CURRENT_OPEN = new XContentBuilderString("current_open");
-        static final XContentBuilderString TOTAL_OPENED = new XContentBuilderString("total_opened");
+        static final String HTTP = "http";
+        static final String CURRENT_OPEN = "current_open";
+        static final String TOTAL_OPENED = "total_opened";
     }
 
     @Override

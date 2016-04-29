@@ -37,6 +37,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -151,15 +152,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     private static Injector injector;
     private static IndicesQueriesRegistry indicesQueriesRegistry;
-    private static QueryShardContext queryShardContext;
     private static IndexFieldDataService indexFieldDataService;
     private static int queryNameId = 0;
     private static SearchModule searchModule;
-
-
-    protected static QueryShardContext queryShardContext() {
-        return queryShardContext;
-    }
 
     protected static IndexFieldDataService indexFieldDataService() {
         return indexFieldDataService;
@@ -169,6 +164,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     protected static Index getIndex() {
         return index;
+    }
+
+    private static Version indexVersionCreated;
+
+    protected static Version getIndexVersionCreated() {
+        return indexVersionCreated;
     }
 
     private static String[] currentTypes;
@@ -185,6 +186,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     private static String[] randomTypes;
     private static ClientInvocationHandler clientInvocationHandler = new ClientInvocationHandler();
+    private static IndexSettings idxSettings;
+    private static SimilarityService similarityService;
+    private static MapperService mapperService;
+    private static PercolatorQueryCache percolatorQueryCache;
+    private static BitsetFilterCache bitsetFilterCache;
+    private static ScriptService scriptService;
 
     /**
      * Setup for the whole base test class.
@@ -192,17 +199,19 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     @BeforeClass
     public static void init() throws IOException {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder()
+        indexVersionCreated = randomBoolean() ? Version.CURRENT
+                : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
+        Settings settings = Settings.builder()
                 .put("node.name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
-        Settings indexSettings = Settings.settingsBuilder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings indexSettings = Settings.builder()
+                .put(ParseFieldMatcher.PARSE_STRICT, true)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated).build();
         final ThreadPool threadPool = new ThreadPool(settings);
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
+        idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         ClusterService clusterService = createClusterService(threadPool);
         setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder().put(
                 new IndexMetaData.Builder(index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
@@ -228,14 +237,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 Set<ScriptEngineService> engines = new HashSet<>();
                 engines.add(mockScriptEngine);
                 List<ScriptContext.Plugin> customContexts = new ArrayList<>();
-                ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
+                ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections
+                        .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
                 bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
                 ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
                 bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
                 ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
                 bind(ScriptSettings.class).toInstance(scriptSettings);
                 try {
-                    ScriptService scriptService = new ScriptService(settings, new Environment(settings), engines, null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
+                    ScriptService scriptService = new ScriptService(settings, new Environment(settings), engines, null,
+                            scriptEngineRegistry, scriptContextRegistry, scriptSettings);
                     bind(ScriptService.class).toInstance(scriptService);
                 } catch (IOException e) {
                     throw new IllegalStateException("error while binding ScriptService", e);
@@ -274,14 +285,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 }
         ).createInjector();
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
-        ScriptService scriptService = injector.getInstance(ScriptService.class);
-        SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
+        scriptService = injector.getInstance(ScriptService.class);
+        similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
         MapperRegistry mapperRegistry = injector.getInstance(MapperRegistry.class);
-        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry, () -> queryShardContext);
+        mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry,
+                () -> createShardContext());
         IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
         });
-        indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache, injector.getInstance(CircuitBreakerService.class), mapperService);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
+        indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache,
+                injector.getInstance(CircuitBreakerService.class), mapperService);
+        bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
 
@@ -292,9 +305,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
             }
         });
-        PercolatorQueryCache percolatorQueryCache = new PercolatorQueryCache(idxSettings, () -> queryShardContext);
+        percolatorQueryCache = new PercolatorQueryCache(idxSettings, () -> createShardContext());
         indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
-        queryShardContext = new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry, percolatorQueryCache, null);
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
@@ -325,13 +337,18 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         terminate(injector.getInstance(ThreadPool.class));
         injector = null;
         index = null;
-        queryShardContext = null;
         currentTypes = null;
         namedWriteableRegistry = null;
         randomTypes = null;
         indicesQueriesRegistry = null;
         indexFieldDataService = null;
         searchModule = null;
+        idxSettings = null;
+        similarityService = null;
+        mapperService = null;
+        percolatorQueryCache = null;
+        bitsetFilterCache = null;
+        scriptService = null;
     }
 
     @Before
@@ -341,8 +358,18 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         randomTypes = getRandomTypes();
     }
 
-    protected void setSearchContext(String[] types) {
-        TestSearchContext testSearchContext = new TestSearchContext(queryShardContext);
+    private static void setSearchContext(String[] types, QueryShardContext context) {
+        TestSearchContext testSearchContext = new TestSearchContext(context) {
+            @Override
+            public MapperService mapperService() {
+                return mapperService; // need to build / parse inner hits sort fields
+            }
+
+            @Override
+            public IndexFieldDataService fieldData() {
+                return indexFieldDataService(); // need to build / parse inner hits sort fields
+            }
+        };
         testSearchContext.getQueryShardContext().setTypes(types);
         SearchContext.setCurrent(testSearchContext);
     }
@@ -516,9 +543,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     private QueryBuilder<?> parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
-        QueryParseContext context = createParseContext();
-        context.reset(parser);
-        context.parseFieldMatcher(matcher);
+        QueryParseContext context = createParseContext(parser, matcher);
         QueryBuilder<?> parseInnerQueryBuilder = context.parseInnerQueryBuilder();
         assertNull(parser.nextToken());
         return parseInnerQueryBuilder;
@@ -534,7 +559,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             context.setAllowUnmappedFields(true);
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
-            setSearchContext(randomTypes); // only set search context for toQuery to be more realistic
+            setSearchContext(randomTypes, context); // only set search context for toQuery to be more realistic
             Query firstLuceneQuery = rewriteQuery(firstQuery, context).toQuery(context);
             assertLuceneQuery(firstQuery, firstLuceneQuery, context);
             SearchContext.removeCurrent(); // remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
@@ -552,7 +577,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName()
                         + randomAsciiOfLengthBetween(1, 10));
             }
-            setSearchContext(randomTypes);
+            setSearchContext(randomTypes, context);
             Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
             assertLuceneQuery(secondQuery, secondLuceneQuery, context);
             SearchContext.removeCurrent();
@@ -562,7 +587,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             // if the initial lucene query is null, changing its boost won't have any effect, we shouldn't test that
             if (firstLuceneQuery != null && supportsBoostAndQueryName()) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
-                setSearchContext(randomTypes);
+                setSearchContext(randomTypes, context);
                 Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
                 SearchContext.removeCurrent();
                 assertNotEquals("modifying the boost doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
@@ -653,12 +678,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     @SuppressWarnings("unchecked")
     protected <QB extends QueryBuilder> QB assertSerialization(QB testQuery) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeQuery(testQuery);
+            output.writeNamedWriteable(testQuery);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QueryBuilder<?> deserializedQuery = in.readQuery();
-                assertEquals(deserializedQuery, testQuery);
-                assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());
-                assertNotSame(deserializedQuery, testQuery);
+                QueryBuilder<?> deserializedQuery = in.readNamedWriteable(QueryBuilder.class);
+                assertEquals(testQuery, deserializedQuery);
+                assertEquals(testQuery.hashCode(), deserializedQuery.hashCode());
+                assertNotSame(testQuery, deserializedQuery);
                 return (QB) deserializedQuery;
             }
         }
@@ -702,9 +727,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     @SuppressWarnings("unchecked")
     protected QB copyQuery(QB query) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeQuery(query);
+            output.writeNamedWriteable(query);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                return (QB) in.readQuery();
+                return (QB) in.readNamedWriteable(QueryBuilder.class);
             }
         }
     }
@@ -713,19 +738,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * @return a new {@link QueryShardContext} based on the base test index and queryParserService
      */
     protected static QueryShardContext createShardContext() {
-        QueryShardContext queryCreationContext = new QueryShardContext(queryShardContext);
-        queryCreationContext.reset();
-        queryCreationContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
-        return queryCreationContext;
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
+        Client client = injector.getInstance(Client.class);
+        return new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
+                scriptService, indicesQueriesRegistry, client, percolatorQueryCache, null, state);
     }
 
     /**
      * @return a new {@link QueryParseContext} based on the base test index and queryParserService
      */
-    protected static QueryParseContext createParseContext() {
-        QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry);
-        queryParseContext.reset(null);
-        queryParseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
+    protected static QueryParseContext createParseContext(XContentParser parser, ParseFieldMatcher matcher) {
+        QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry, parser, matcher);
         return queryParseContext;
     }
 
@@ -977,7 +1000,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
         QB queryBuilder = createTestQueryBuilder();
-        setSearchContext(randomTypes); // only set search context for toQuery to be more realistic
+        setSearchContext(randomTypes, context); // only set search context for toQuery to be more realistic
         queryBuilder.toQuery(context);
     }
 

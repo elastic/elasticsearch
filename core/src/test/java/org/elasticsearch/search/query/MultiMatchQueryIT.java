@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -46,7 +47,6 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.disMaxQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -74,7 +74,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
 
     @Before
     public void init() throws Exception {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(indexSettings())
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)

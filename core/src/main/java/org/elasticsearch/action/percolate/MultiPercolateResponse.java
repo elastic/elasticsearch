@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -176,8 +175,8 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
     }
 
     static final class Fields {
-        static final XContentBuilderString RESPONSES = new XContentBuilderString("responses");
-        static final XContentBuilderString ERROR = new XContentBuilderString("error");
+        static final String RESPONSES = "responses";
+        static final String ERROR = "error";
     }
 
 }

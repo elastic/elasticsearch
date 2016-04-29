@@ -91,7 +91,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("required")) {
                     builder.required(lenientNodeBooleanValue(fieldNode));
@@ -125,14 +125,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
-
-        @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
-        }
     }
 
     private boolean required;
@@ -152,11 +144,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public boolean required() {
         return this.required;
-    }
-
-    public String value(Document document) {
-        Field field = (Field) document.getField(fieldType().name());
-        return field == null ? null : (String)fieldType().value(field);
     }
 
     @Override

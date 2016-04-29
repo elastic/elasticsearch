@@ -45,7 +45,7 @@ public class RepositoryBlocksIT extends ESIntegTestCase {
             assertBlocked(client().admin().cluster().preparePutRepository("test-repo-blocks")
                     .setType("fs")
                     .setVerify(false)
-                    .setSettings(Settings.settingsBuilder().put("location",  randomRepoPath())), MetaData.CLUSTER_READ_ONLY_BLOCK);
+                    .setSettings(Settings.builder().put("location",  randomRepoPath())), MetaData.CLUSTER_READ_ONLY_BLOCK);
         } finally {
             setClusterReadOnly(false);
         }
@@ -54,14 +54,14 @@ public class RepositoryBlocksIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().preparePutRepository("test-repo-blocks")
                 .setType("fs")
                 .setVerify(false)
-                .setSettings(Settings.settingsBuilder().put("location",  randomRepoPath())));
+                .setSettings(Settings.builder().put("location",  randomRepoPath())));
     }
 
     public void testVerifyRepositoryWithBlocks() {
         assertAcked(client().admin().cluster().preparePutRepository("test-repo-blocks")
                 .setType("fs")
                 .setVerify(false)
-                .setSettings(Settings.settingsBuilder().put("location",  randomRepoPath())));
+                .setSettings(Settings.builder().put("location",  randomRepoPath())));
 
         // This test checks that the Get Repository operation is never blocked, even if the cluster is read only.
         try {
@@ -77,7 +77,7 @@ public class RepositoryBlocksIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().preparePutRepository("test-repo-blocks")
                 .setType("fs")
                 .setVerify(false)
-                .setSettings(Settings.settingsBuilder().put("location",  randomRepoPath())));
+                .setSettings(Settings.builder().put("location",  randomRepoPath())));
 
         logger.info("-->  deleting a repository is blocked when the cluster is read only");
         try {
@@ -95,7 +95,7 @@ public class RepositoryBlocksIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().preparePutRepository("test-repo-blocks")
                 .setType("fs")
                 .setVerify(false)
-                .setSettings(Settings.settingsBuilder().put("location",  randomRepoPath())));
+                .setSettings(Settings.builder().put("location",  randomRepoPath())));
 
         // This test checks that the Get Repository operation is never blocked, even if the cluster is read only.
         try {

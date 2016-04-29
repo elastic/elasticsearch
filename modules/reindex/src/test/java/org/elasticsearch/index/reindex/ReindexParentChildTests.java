@@ -102,8 +102,8 @@ public class ReindexParentChildTests extends ReindexTestCase {
                         .setSource("foo", "bar").setRouting("united states"));
 
         findsCountry = idsQuery("country").addIds("united states");
-        findsCity = hasParentQuery("country", findsCountry);
-        findsNeighborhood = hasParentQuery("city", findsCity);
+        findsCity = hasParentQuery("country", findsCountry, false);
+        findsNeighborhood = hasParentQuery("city", findsCity, false);
 
         // Make sure we built the parent/child relationship
         assertSearchHits(client().prepareSearch(indexName).setQuery(findsCity).get(), "pittsburgh");

@@ -23,12 +23,12 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -50,7 +50,6 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     public static final String NAME = "wildcard";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-    public static final WildcardQueryBuilder PROTOTYPE = new WildcardQueryBuilder("field", "value");
 
     private static final ParseField WILDCARD_FIELD = new ParseField("wildcard");
     private static final ParseField VALUE_FIELD = new ParseField("value");
@@ -82,6 +81,23 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         }
         this.fieldName = fieldName;
         this.value = value;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public WildcardQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fieldName = in.readString();
+        value = in.readString();
+        rewrite = in.readOptionalString();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeString(value);
+        out.writeOptionalString(rewrite);
     }
 
     public String fieldName() {
@@ -139,15 +155,15 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else {
-                    if (parseContext.parseFieldMatcher().match(currentFieldName, WILDCARD_FIELD)) {
+                    if (parseContext.getParseFieldMatcher().match(currentFieldName, WILDCARD_FIELD)) {
                         value = parser.text();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
                         value = parser.text();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                         boost = parser.floatValue();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
                         rewrite = parser.textOrNull();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                         queryName = parser.text();
                     } else {
                         throw new ParsingException(parser.getTokenLocation(),
@@ -162,7 +178,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         }
 
         if (value == null) {
-            throw new ParsingException(parser.getTokenLocation(), "No value specified for prefix query");
+            throw new ParsingException(parser.getTokenLocation(), "No value specified for wildcard query");
         }
         return new WildcardQueryBuilder(fieldName, value)
                 .rewrite(rewrite)
@@ -172,36 +188,19 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        String indexFieldName;
-        BytesRef valueBytes;
-
         MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType != null) {
-            indexFieldName = fieldType.name();
-            valueBytes = fieldType.indexedValueForSearch(value);
+        Term term;
+        if (fieldType == null) {
+            term = new Term(fieldName, BytesRefs.toBytesRef(value));
         } else {
-            indexFieldName = fieldName;
-            valueBytes = new BytesRef(value);
+            Query termQuery = fieldType.termQuery(value, context);
+            term = MappedFieldType.extractTerm(termQuery);
         }
 
-        WildcardQuery query = new WildcardQuery(new Term(indexFieldName, valueBytes));
-        MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(context.parseFieldMatcher(), rewrite, null);
+        WildcardQuery query = new WildcardQuery(term);
+        MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(context.getParseFieldMatcher(), rewrite, null);
         QueryParsers.setRewriteMethod(query, rewriteMethod);
         return query;
-    }
-
-    @Override
-    protected WildcardQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(in.readString(), in.readString());
-        wildcardQueryBuilder.rewrite = in.readOptionalString();
-        return wildcardQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeString(value);
-        out.writeOptionalString(rewrite);
     }
 
     @Override

@@ -18,21 +18,6 @@
         }
       },
       "params" : {
-        "op_type": {
-          "type" : "enum",
-          "options" : ["index", "create"],
-          "default" : "index",
-          "description" : "Explicit operation type"
-        },
-        "version": {
-          "type": "number",
-          "description": "Explicit version number for concurrency control"
-        },
-        "version_type": {
-          "type": "enum",
-          "options": ["internal", "external", "external_gte", "force"],
-          "description": "Specific version type"
-        }
       }
     },
     "body": {

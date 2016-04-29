@@ -28,18 +28,14 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.core.ByteFieldMapper;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
-import org.elasticsearch.index.mapper.core.FloatFieldMapper;
-import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.ShortFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyTokenCountFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
@@ -87,12 +83,9 @@ public class IndicesModule extends AbstractModule {
     }
 
     private void registerBuiltInMappers() {
-        registerMapper(ByteFieldMapper.CONTENT_TYPE, new ByteFieldMapper.TypeParser());
-        registerMapper(ShortFieldMapper.CONTENT_TYPE, new ShortFieldMapper.TypeParser());
-        registerMapper(IntegerFieldMapper.CONTENT_TYPE, new IntegerFieldMapper.TypeParser());
-        registerMapper(LongFieldMapper.CONTENT_TYPE, new LongFieldMapper.TypeParser());
-        registerMapper(FloatFieldMapper.CONTENT_TYPE, new FloatFieldMapper.TypeParser());
-        registerMapper(DoubleFieldMapper.CONTENT_TYPE, new DoubleFieldMapper.TypeParser());
+        for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
+            registerMapper(type.typeName(), new NumberFieldMapper.TypeParser(type));
+        }
         registerMapper(BooleanFieldMapper.CONTENT_TYPE, new BooleanFieldMapper.TypeParser());
         registerMapper(BinaryFieldMapper.CONTENT_TYPE, new BinaryFieldMapper.TypeParser());
         registerMapper(DateFieldMapper.CONTENT_TYPE, new DateFieldMapper.TypeParser());

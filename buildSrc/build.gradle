@@ -80,6 +80,7 @@ dependencies {
 File tempPropertiesFile = new File(project.buildDir, "version.properties")
 task writeVersionProperties {
   inputs.properties(props)
+  outputs.file(tempPropertiesFile)
   doLast {
     OutputStream stream = Files.newOutputStream(tempPropertiesFile.toPath());
     try {

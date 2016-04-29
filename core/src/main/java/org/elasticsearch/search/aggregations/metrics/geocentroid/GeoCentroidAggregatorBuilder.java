@@ -19,46 +19,46 @@
 
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.GeoPoint;
 
 import java.io.IOException;
 
 public class GeoCentroidAggregatorBuilder
         extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.GeoPoint, GeoCentroidAggregatorBuilder> {
-
-    static final GeoCentroidAggregatorBuilder PROTOTYPE = new GeoCentroidAggregatorBuilder("");
+    public static final String NAME = InternalGeoCentroid.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public GeoCentroidAggregatorBuilder(String name) {
         super(name, InternalGeoCentroid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public GeoCentroidAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalGeoCentroid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) {
+        // Do nothing, no extra state to write to stream
     }
 
     @Override
     protected GeoCentroidAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource.GeoPoint> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new GeoCentroidAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
-    }
-
-    @Override
-    protected GeoCentroidAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        return new GeoCentroidAggregatorBuilder(name);
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) {
-        // Do nothing, no extra state to write to stream
     }
 
     @Override
@@ -74,5 +74,10 @@ public class GeoCentroidAggregatorBuilder
     @Override
     protected boolean innerEquals(Object obj) {
         return true;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

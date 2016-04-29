@@ -40,16 +40,23 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class IPv4RangeAggregatorBuilder extends AbstractRangeBuilder<IPv4RangeAggregatorBuilder, IPv4RangeAggregatorBuilder.Range> {
-
-    static final IPv4RangeAggregatorBuilder PROTOTYPE = new IPv4RangeAggregatorBuilder("");
+    public static final String NAME = InternalIPv4Range.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public IPv4RangeAggregatorBuilder(String name) {
         super(name, InternalIPv4Range.FACTORY);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public IPv4RangeAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalIPv4Range.FACTORY, Range::new);
+    }
+
     @Override
     public String getWriteableName() {
-        return InternalIPv4Range.TYPE.name();
+        return NAME;
     }
 
     /**
@@ -132,19 +139,7 @@ public class IPv4RangeAggregatorBuilder extends AbstractRangeBuilder<IPv4RangeAg
                 metaData);
     }
 
-    @Override
-    protected IPv4RangeAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
-        int size = in.readVInt();
-        IPv4RangeAggregatorBuilder factory = new IPv4RangeAggregatorBuilder(name);
-        for (int i = 0; i < size; i++) {
-            factory.addRange(Range.PROTOTYPE.readFrom(in));
-        }
-        return factory;
-    }
-
     public static class Range extends RangeAggregator.Range {
-
-        static final Range PROTOTYPE = new Range(null, null, null, null, null, null);
         static final ParseField MASK_FIELD = new ParseField("mask");
 
         private final String cidr;
@@ -164,6 +159,20 @@ public class IPv4RangeAggregatorBuilder extends AbstractRangeBuilder<IPv4RangeAg
         private Range(String key, Double from, String fromAsStr, Double to, String toAsStr, String cidr) {
             super(key, from, fromAsStr, to, toAsStr);
             this.cidr = cidr;
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public Range(StreamInput in) throws IOException {
+            super(in);
+            cidr = in.readOptionalString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalString(cidr);
         }
 
         public String mask() {
@@ -193,9 +202,7 @@ public class IPv4RangeAggregatorBuilder extends AbstractRangeBuilder<IPv4RangeAg
             return new Range(key, from, to);
         }
 
-        @Override
-        public Range fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-
+        public static Range fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
             XContentParser.Token token;
             String currentFieldName = null;
             double from = Double.NEGATIVE_INFINITY;
@@ -252,27 +259,6 @@ public class IPv4RangeAggregatorBuilder extends AbstractRangeBuilder<IPv4RangeAg
             }
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public Range readFrom(StreamInput in) throws IOException {
-            String key = in.readOptionalString();
-            String fromAsStr = in.readOptionalString();
-            String toAsStr = in.readOptionalString();
-            double from = in.readDouble();
-            double to = in.readDouble();
-            String mask = in.readOptionalString();
-            return new Range(key, from, fromAsStr, to, toAsStr, mask);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(key);
-            out.writeOptionalString(fromAsStr);
-            out.writeOptionalString(toAsStr);
-            out.writeDouble(from);
-            out.writeDouble(to);
-            out.writeOptionalString(cidr);
         }
 
         @Override

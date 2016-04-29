@@ -27,8 +27,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.cache.query.QueryCache;
-import org.elasticsearch.index.cache.query.index.IndexQueryCache;
-import org.elasticsearch.index.cache.query.none.NoneQueryCache;
+import org.elasticsearch.index.cache.query.IndexQueryCache;
+import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
@@ -75,14 +75,15 @@ public final class IndexModule {
     public static final Setting<String> INDEX_STORE_TYPE_SETTING =
         new Setting<>("index.store.type", "", Function.identity(), Property.IndexScope, Property.NodeScope);
     public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
-    public static final String INDEX_QUERY_CACHE = "index";
-    public static final String NONE_QUERY_CACHE = "none";
-    public static final Setting<String> INDEX_QUERY_CACHE_TYPE_SETTING =
-        new Setting<>("index.queries.cache.type", INDEX_QUERY_CACHE, Function.identity(), Property.IndexScope);
+
+    // whether to use the query cache
+    public static final Setting<Boolean> INDEX_QUERY_CACHE_ENABLED_SETTING =
+            Setting.boolSetting("index.queries.cache.enabled", true, Property.IndexScope);
 
     // for test purposes only
     public static final Setting<Boolean> INDEX_QUERY_CACHE_EVERYTHING_SETTING =
         Setting.boolSetting("index.queries.cache.everything", false, Property.IndexScope);
+
     private final IndexSettings indexSettings;
     private final IndexStoreConfig indexStoreConfig;
     private final AnalysisRegistry analysisRegistry;
@@ -92,8 +93,7 @@ public final class IndexModule {
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, BiFunction<String, Settings, SimilarityProvider>> similarities = new HashMap<>();
     private final Map<String, BiFunction<IndexSettings, IndexStoreConfig, IndexStore>> storeTypes = new HashMap<>();
-    private final Map<String, BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> queryCaches = new HashMap<>();
-    private final SetOnce<String> forceQueryCacheType = new SetOnce<>();
+    private final SetOnce<BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> forceQueryCacheProvider = new SetOnce<>();
     private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
     private final List<IndexingOperationListener> indexOperationListeners = new ArrayList<>();
     private final AtomicBoolean frozen = new AtomicBoolean(false);
@@ -102,8 +102,6 @@ public final class IndexModule {
         this.indexStoreConfig = indexStoreConfig;
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
-        registerQueryCache(INDEX_QUERY_CACHE, IndexQueryCache::new);
-        registerQueryCache(NONE_QUERY_CACHE, (a, b) -> new NoneQueryCache(a));
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
         this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
     }
@@ -236,22 +234,6 @@ public final class IndexModule {
     }
 
     /**
-     * Registers a {@link QueryCache} provider for a given name
-     * @param name the providers / caches name
-     * @param provider the provider instance
-     */
-    public void registerQueryCache(String name, BiFunction<IndexSettings, IndicesQueryCache, QueryCache> provider) {
-        ensureNotFrozen();
-        if (provider == null) {
-            throw new IllegalArgumentException("provider must not be null");
-        }
-        if (queryCaches.containsKey(name)) {
-            throw new IllegalArgumentException("Can't register the same [query_cache] more than once for [" + name + "]");
-        }
-        queryCaches.put(name, provider);
-    }
-
-    /**
      * Sets a {@link org.elasticsearch.index.IndexModule.IndexSearcherWrapperFactory} that is called once the IndexService
      * is fully constructed.
      * Note: this method can only be called once per index. Multiple wrappers are not supported.
@@ -283,6 +265,7 @@ public final class IndexModule {
         MMAPFS,
         SIMPLEFS,
         FS,
+        @Deprecated
         DEFAULT;
 
         public String getSettingsKey() {
@@ -330,26 +313,33 @@ public final class IndexModule {
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING, store::setType);
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING,
             store::setMaxRate);
-        final String queryCacheType = forceQueryCacheType.get() != null
-            ? forceQueryCacheType.get() : indexSettings.getValue(INDEX_QUERY_CACHE_TYPE_SETTING);
-        final BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = queryCaches.get(queryCacheType);
-        final QueryCache queryCache = queryCacheProvider.apply(indexSettings, indicesQueryCache);
+        final QueryCache queryCache;
+        if (indexSettings.getValue(INDEX_QUERY_CACHE_ENABLED_SETTING)) {
+            BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = forceQueryCacheProvider.get();
+            if (queryCacheProvider == null) {
+                queryCache = new IndexQueryCache(indexSettings, indicesQueryCache);
+            } else {
+                queryCache = queryCacheProvider.apply(indexSettings, indicesQueryCache);
+            }
+        } else {
+            queryCache = new DisabledQueryCache(indexSettings);
+        }
         return new IndexService(indexSettings, environment, new SimilarityService(indexSettings, similarities), shardStoreDeleter,
             analysisRegistry, engineFactory.get(), servicesProvider, queryCache, store, eventListener, searcherWrapperFactory,
             mapperRegistry, indicesFieldDataCache, searchOperationListeners, indexOperationListeners);
     }
 
     /**
-     * Forces a certain query cache type. If this is set
-     * the given cache type is overriding the default as well as the type
-     * set on the index level.
+     * Forces a certain query cache to use instead of the default one. If this is set
+     * and query caching is not disabled with {@code index.queries.cache.enabled}, then
+     * the given provider will be used.
      * NOTE: this can only be set once
      *
-     * @see #INDEX_QUERY_CACHE_TYPE_SETTING
+     * @see #INDEX_QUERY_CACHE_ENABLED_SETTING
      */
-    public void forceQueryCacheType(String type) {
+    public void forceQueryCacheProvider(BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider) {
         ensureNotFrozen();
-        this.forceQueryCacheType.set(type);
+        this.forceQueryCacheProvider.set(queryCacheProvider);
     }
 
     private void ensureNotFrozen() {

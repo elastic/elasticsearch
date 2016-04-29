@@ -28,56 +28,60 @@ import static org.hamcrest.collection.IsArrayContainingInAnyOrder.arrayContainin
 
 public class ParseFieldTests extends ESTestCase {
     public void testParse() {
-        String[] values = new String[]{"foo_bar", "fooBar"};
-        ParseField field = new ParseField(randomFrom(values));
-        String[] deprecated = new String[]{"barFoo", "bar_foo"};
-        ParseField withDeprecations = field.withDeprecation("Foobar", randomFrom(deprecated));
+        String name = "foo_bar";
+        ParseField field = new ParseField(name);
+        String[] deprecated = new String[]{"barFoo", "bar_foo", "Foobar"};
+        ParseField withDeprecations = field.withDeprecation(deprecated);
         assertThat(field, not(sameInstance(withDeprecations)));
-        assertThat(field.match(randomFrom(values), false), is(true));
+        assertThat(field.match(name, false), is(true));
         assertThat(field.match("foo bar", false), is(false));
-        assertThat(field.match(randomFrom(deprecated), false), is(false));
-        assertThat(field.match("barFoo", false), is(false));
+        for (String deprecatedName : deprecated) {
+            assertThat(field.match(deprecatedName, false), is(false));
+        }
 
-        assertThat(withDeprecations.match(randomFrom(values), false), is(true));
+        assertThat(withDeprecations.match(name, false), is(true));
         assertThat(withDeprecations.match("foo bar", false), is(false));
-        assertThat(withDeprecations.match(randomFrom(deprecated), false), is(true));
-        assertThat(withDeprecations.match("barFoo", false), is(true));
+        for (String deprecatedName : deprecated) {
+            assertThat(withDeprecations.match(deprecatedName, false), is(true));
+        }
 
         // now with strict mode
-        assertThat(field.match(randomFrom(values), true), is(true));
+        assertThat(field.match(name, true), is(true));
         assertThat(field.match("foo bar", true), is(false));
-        assertThat(field.match(randomFrom(deprecated), true), is(false));
-        assertThat(field.match("barFoo", true), is(false));
+        for (String deprecatedName : deprecated) {
+            assertThat(field.match(deprecatedName, true), is(false));
+        }
 
-        assertThat(withDeprecations.match(randomFrom(values), true), is(true));
+        assertThat(withDeprecations.match(name, true), is(true));
         assertThat(withDeprecations.match("foo bar", true), is(false));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> withDeprecations.match(randomFrom(deprecated), true));
-        assertThat(e.getMessage(), containsString("used, expected [foo_bar] instead"));
-        e = expectThrows(IllegalArgumentException.class, () -> withDeprecations.match("barFoo", true));
-        assertThat(e.getMessage(), containsString("Deprecated field [barFoo] used, expected [foo_bar] instead"));
+        for (String deprecatedName : deprecated) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+                withDeprecations.match(deprecatedName, true);
+            });
+            assertThat(e.getMessage(), containsString("used, expected [foo_bar] instead"));
+        }
     }
 
     public void testAllDeprecated() {
-        String[] values = new String[]{"like_text", "likeText"};
+        String name = "like_text";
 
         boolean withDeprecatedNames = randomBoolean();
         String[] deprecated = new String[]{"text", "same_as_text"};
         String[] allValues;
         if (withDeprecatedNames) {
-            String[] newArray = new String[values.length + deprecated.length];
-            System.arraycopy(values, 0, newArray, 0, values.length);
-            System.arraycopy(deprecated, 0, newArray, values.length, deprecated.length);
+            String[] newArray = new String[1 + deprecated.length];
+            newArray[0] = name;
+            System.arraycopy(deprecated, 0, newArray, 1, deprecated.length);
             allValues = newArray;
         } else {
-            allValues = values;
+            allValues = new String[] {name};
         }
 
         ParseField field;
         if (withDeprecatedNames) {
-            field = new ParseField(randomFrom(values)).withDeprecation(deprecated).withAllDeprecated("like");
+            field = new ParseField(name).withDeprecation(deprecated).withAllDeprecated("like");
         } else {
-            field = new ParseField(randomFrom(values)).withAllDeprecated("like");
+            field = new ParseField(name).withAllDeprecated("like");
         }
 
         // strict mode off
@@ -94,6 +98,6 @@ public class ParseFieldTests extends ESTestCase {
         assertThat(parseField.getAllNamesIncludedDeprecated(), arrayContainingInAnyOrder("terms", "in"));
 
         parseField = new ParseField("more_like_this", "mlt");
-        assertThat(parseField.getAllNamesIncludedDeprecated(), arrayContainingInAnyOrder("more_like_this", "moreLikeThis", "mlt"));
+        assertThat(parseField.getAllNamesIncludedDeprecated(), arrayContainingInAnyOrder("more_like_this", "mlt"));
     }
 }

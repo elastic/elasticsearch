@@ -26,8 +26,17 @@ import org.jboss.netty.buffer.ChannelBuffers;
 /**
  */
 public class NettyHeader {
+    public static final int MARKER_BYTES_SIZE = 2 * 1;
 
-    public static final int HEADER_SIZE = 2 + 4 + 8 + 1 + 4;
+    public static final int MESSAGE_LENGTH_SIZE = 4;
+
+    public static final int REQUEST_ID_SIZE = 8;
+
+    public static final int STATUS_SIZE = 1;
+
+    public static final int VERSION_ID_SIZE = 4;
+
+    public static final int HEADER_SIZE = MARKER_BYTES_SIZE + MESSAGE_LENGTH_SIZE + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE;
 
     /**
      * The magic number (must be lower than 0) for a ping message. This is handled
@@ -56,12 +65,12 @@ public class NettyHeader {
         buffer.setByte(index, 'S');
         index += 1;
         // write the size, the size indicates the remaining message size, not including the size int
-        buffer.setInt(index, buffer.readableBytes() - 6);
-        index += 4;
+        buffer.setInt(index, buffer.readableBytes() - MARKER_BYTES_SIZE - MESSAGE_LENGTH_SIZE);
+        index += MESSAGE_LENGTH_SIZE;
         buffer.setLong(index, requestId);
-        index += 8;
+        index += REQUEST_ID_SIZE;
         buffer.setByte(index, status);
-        index += 1;
+        index += STATUS_SIZE;
         buffer.setInt(index, version.id);
     }
 }

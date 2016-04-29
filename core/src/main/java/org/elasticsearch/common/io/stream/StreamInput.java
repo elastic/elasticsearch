@@ -33,18 +33,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
-import org.elasticsearch.search.rescore.RescoreBuilder;
-import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.suggest.SuggestionBuilder;
-import org.elasticsearch.search.suggest.phrase.SmoothingModel;
-import org.elasticsearch.tasks.Task;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -75,6 +64,14 @@ import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
 /**
  * A stream from this node to another node. Technically, it can also be streamed to a byte array but that is mostly for testing.
+ *
+ * This class's methods are optimized so you can put the methods that read and write a class next to each other and you can scan them
+ * visually for differences. That means that most variables should be read and written in a single line so even large objects fit both
+ * reading and writing on the screen. It also means that the methods on this class are named very similarly to {@link StreamOutput}. Finally
+ * it means that the "barrier to entry" for adding new methods to this class is relatively low even though it is a shared class with code
+ * everywhere. That being said, this class deals primarily with {@code List}s rather than Arrays. For the most part calls should adapt to
+ * lists, either by storing {@code List}s internally or just converting to and from a {@code List} when calling. This comment is repeated
+ * on {@link StreamInput}.
  */
 public abstract class StreamInput extends InputStream {
     private Version version = Version.CURRENT;
@@ -511,6 +508,23 @@ public abstract class StreamInput extends InputStream {
         return new GeoPoint(readDouble(), readDouble());
     }
 
+    /**
+     * Read a {@linkplain DateTimeZone}.
+     */
+    public DateTimeZone readTimeZone() throws IOException {
+        return DateTimeZone.forID(readString());
+    }
+
+    /**
+     * Read an optional {@linkplain DateTimeZone}.
+     */
+    public DateTimeZone readOptionalTimeZone() throws IOException {
+        if (readBoolean()) {
+            return DateTimeZone.forID(readString());
+        }
+        return null;
+    }
+
     public int[] readIntArray() throws IOException {
         int length = readVInt();
         int[] values = new int[length];
@@ -707,95 +721,19 @@ public abstract class StreamInput extends InputStream {
      * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
      * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
      */
-    <C> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
+    @Nullable
+    public <C extends NamedWriteable> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
         throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }
 
     /**
-     * Reads a {@link AggregatorBuilder} from the current stream
+     * Reads an optional {@link NamedWriteable}.
      */
-    public AggregatorBuilder<?> readAggregatorFactory() throws IOException {
-        return readNamedWriteable(AggregatorBuilder.class);
-    }
-
-    /**
-     * Reads a {@link PipelineAggregatorBuilder} from the current stream
-     */
-    public PipelineAggregatorBuilder<?> readPipelineAggregatorFactory() throws IOException {
-        return readNamedWriteable(PipelineAggregatorBuilder.class);
-    }
-
-    /**
-     * Reads a {@link QueryBuilder} from the current stream
-     */
-    public QueryBuilder<?> readQuery() throws IOException {
-        return readNamedWriteable(QueryBuilder.class);
-    }
-
-    /**
-     * Reads an optional {@link QueryBuilder}.
-     */
-    public QueryBuilder<?> readOptionalQuery() throws IOException {
+    public <C extends NamedWriteable> C readOptionalNamedWriteable(Class<C> categoryClass) throws IOException {
         if (readBoolean()) {
-            return readNamedWriteable(QueryBuilder.class);
+            return readNamedWriteable(categoryClass);
         }
         return null;
-    }
-
-    /**
-     * Reads a {@link ShapeBuilder} from the current stream
-     */
-    public ShapeBuilder readShape() throws IOException {
-        return readNamedWriteable(ShapeBuilder.class);
-    }
-
-    /**
-     * Reads a {@link RescoreBuilder} from the current stream
-     */
-    public RescoreBuilder<?> readRescorer() throws IOException {
-        return readNamedWriteable(RescoreBuilder.class);
-    }
-
-    /**
-     * Reads a {@link SuggestionBuilder} from the current stream
-     */
-    public SuggestionBuilder<?> readSuggestion() throws IOException {
-        return readNamedWriteable(SuggestionBuilder.class);
-    }
-
-    /**
-     * Reads a {@link SortBuilder} from the current stream
-     */
-    public SortBuilder<?> readSortBuilder() throws IOException {
-        return readNamedWriteable(SortBuilder.class);
-    }
-
-    /**
-     * Reads a {@link org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder} from the current stream
-     */
-    public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
-        return readNamedWriteable(ScoreFunctionBuilder.class);
-    }
-
-    /**
-     * Reads a {@link SmoothingModel} from the current stream
-     */
-    public SmoothingModel readPhraseSuggestionSmoothingModel() throws IOException {
-        return readNamedWriteable(SmoothingModel.class);
-    }
-
-    /**
-     * Reads a {@link Task.Status} from the current stream.
-     */
-    public Task.Status readTaskStatus() throws IOException {
-        return readNamedWriteable(Task.Status.class);
-    }
-
-    /**
-     * Reads a {@link DocValueFormat} from the current stream.
-     */
-    public DocValueFormat readValueFormat() throws IOException {
-        return readNamedWriteable(DocValueFormat.class);
     }
 
     /**

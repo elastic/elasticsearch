@@ -238,7 +238,7 @@ public class PluginsService extends AbstractComponent {
 
     public Settings updatedSettings() {
         Map<String, String> foundSettings = new HashMap<>();
-        final Settings.Builder builder = Settings.settingsBuilder();
+        final Settings.Builder builder = Settings.builder();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             Settings settings = plugin.v2().additionalSettings();
             for (String setting : settings.getAsMap().keySet()) {

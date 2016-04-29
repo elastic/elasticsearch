@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -816,7 +817,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client()
                 .prepareSearch("articles")
-                .setQuery(nestedQuery("comments", matchQuery("comments.message", "comment").queryName("test")))
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "comment").queryName("test"), ScoreMode.Avg))
                 .addAggregation(
                         nested("to-comments", "comments").subAggregation(
                                 topHits("top-comments").size(1).highlighter(new HighlightBuilder().field(hlField)).explain(true)

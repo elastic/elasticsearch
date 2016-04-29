@@ -60,7 +60,7 @@ public class PercolatorBackwardsCompatibilityIT extends ESIntegTestCase {
         assertThat(state.metaData().indices().get(INDEX_NAME).getUpgradedVersion(), equalTo(Version.CURRENT));
         assertThat(state.metaData().indices().get(INDEX_NAME).getMappings().size(), equalTo(2));
         assertThat(state.metaData().indices().get(INDEX_NAME).getMappings().get(".percolator"), notNullValue());
-        // important: verify that the query field in the .percolator mapping is of type object (from 3.0.0 this is of type percolator)
+        // important: verify that the query field in the .percolator mapping is of type object (from 5.x this is of type percolator)
         MappingMetaData mappingMetaData = state.metaData().indices().get(INDEX_NAME).getMappings().get(".percolator");
         assertThat(XContentMapValues.extractValue("properties.query.type", mappingMetaData.sourceAsMap()), equalTo("object"));
         assertThat(state.metaData().indices().get(INDEX_NAME).getMappings().get("message"), notNullValue());

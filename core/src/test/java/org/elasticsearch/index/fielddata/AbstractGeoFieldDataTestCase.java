@@ -48,7 +48,7 @@ public abstract class AbstractGeoFieldDataTestCase extends AbstractFieldDataImpl
         final GeoPointField.TermEncoding termEncoding;
         termEncoding = indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_2_3_0) ?
             GeoPointField.TermEncoding.PREFIX : GeoPointField.TermEncoding.NUMERIC;
-        return new GeoPointField(fieldName, point.lon(), point.lat(), termEncoding, store);
+        return new GeoPointField(fieldName, point.lat(), point.lon(), termEncoding, store);
     }
 
     @Override

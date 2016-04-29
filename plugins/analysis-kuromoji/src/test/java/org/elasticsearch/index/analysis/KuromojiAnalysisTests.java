@@ -193,7 +193,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         Files.copy(dict, config.resolve("user_dict.txt"));
         String json = "/org/elasticsearch/index/analysis/kuromoji_analysis.json";
 
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
             .loadFromStream(json, KuromojiAnalysisTests.class.getResourceAsStream(json))
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();

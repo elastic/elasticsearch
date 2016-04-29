@@ -46,8 +46,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
  * This abstract class holds parameters shared by {@link HighlightBuilder} and {@link HighlightBuilder.Field}
  * and provides the common setters, equality, hashCode calculation and common serialization
  */
-public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> extends ToXContentToBytes
-        implements Writeable<HB> {
+public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> extends ToXContentToBytes implements Writeable {
     public static final ParseField PRE_TAGS_FIELD = new ParseField("pre_tags");
     public static final ParseField POST_TAGS_FIELD = new ParseField("post_tags");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
@@ -115,7 +114,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         highlighterType(in.readOptionalString());
         fragmenter(in.readOptionalString());
         if (in.readBoolean()) {
-            highlightQuery(in.readQuery());
+            highlightQuery(in.readNamedWriteable(QueryBuilder.class));
         }
         order(in.readOptionalWriteable(Order::readFromStream));
         highlightFilter(in.readOptionalBoolean());
@@ -146,7 +145,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         boolean hasQuery = highlightQuery != null;
         out.writeBoolean(hasQuery);
         if (hasQuery) {
-            out.writeQuery(highlightQuery);
+            out.writeNamedWriteable(highlightQuery);
         }
         out.writeOptionalWriteable(order);
         out.writeOptionalBoolean(highlightFilter);

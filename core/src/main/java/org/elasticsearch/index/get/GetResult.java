@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -199,12 +198,12 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString FOUND = new XContentBuilderString("found");
-        static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
+        static final String _INDEX = "_index";
+        static final String _TYPE = "_type";
+        static final String _ID = "_id";
+        static final String _VERSION = "_version";
+        static final String FOUND = "found";
+        static final String FIELDS = "fields";
     }
 
     public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {

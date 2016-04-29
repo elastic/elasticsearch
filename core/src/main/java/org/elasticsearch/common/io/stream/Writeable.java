@@ -31,24 +31,12 @@ import java.io.IOException;
  *
  * Prefer implementing this interface over implementing {@link Streamable} where possible. Lots of code depends on {@linkplain Streamable}
  * so this isn't always possible.
- *
- * The fact that this interface extends {@link StreamableReader} should be consider vestigial. Instead of using its
- * {@link #readFrom(StreamInput)} method you should prefer using the Reader interface as a reference to a constructor that takes
- * {@link StreamInput}. The reasoning behind this is that most "good" readFrom implementations just delegated to such a constructor anyway
- * and they required an unsightly PROTOTYPE object.
  */
-public interface Writeable<T> extends StreamableReader<T> { // TODO remove extends StreamableReader<T> from this interface, and remove <T>
+public interface Writeable {
     /**
      * Write this into the {@linkplain StreamOutput}.
      */
     void writeTo(StreamOutput out) throws IOException;
-
-    @Override
-    default T readFrom(StreamInput in) throws IOException {
-        // See class javadoc for reasoning
-        throw new UnsupportedOperationException(
-                "Prefer calling a constructor or static method that takes a StreamInput to calling readFrom.");
-    }
 
     /**
      * Reference to a method that can read some object from a stream. By convention this is a constructor that takes

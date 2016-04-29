@@ -739,6 +739,48 @@ Here is an example that adds the parsed date to the `timestamp` field based on t
 }
 --------------------------------------------------
 
+[[deduplicate-processor]]
+=== Deduplicate Processor
+
+Removes duplicate elements from an array.  If the `dedupe` processor is immediately
+preceded by a `sort` processor, deduplication can be done in `O(n)` time and require no
+temporary data structures in memory.
+
+If the input is not sorted, the `dedupe` processor must use a temporary Set datastructure
+to remove duplicates.  This will introduce a small memory and computation overhead.
+
+Raises an exception if the input is not an array.
+
+[[date-options]]
+.Date options
+[options="header"]
+|======
+| Name       | Required  | Default    | Description
+| `field`    | yes       | -          | The field to get the date from.
+| `ordered`  | no        | `true`     | True if the processor should maintain the input's order, false otherwise
+|======
+
+Note: setting `ordered: false` will allow the processor to use an unordered Set internally, which will require
+slightly less memory than an ordered Set.  If you do not need to maintain the order of the elements, consider
+setting `ordered: false`.
+
+Here is an example deduplication processor:
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "...",
+  "processors" : [
+    {
+      "dedupe" : {
+        "field" : "prices",
+        "ordered" : false
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
 [[fail-processor]]
 === Fail Processor
 Raises an exception. This is useful for when

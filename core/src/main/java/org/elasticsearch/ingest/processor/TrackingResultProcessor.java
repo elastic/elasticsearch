@@ -66,6 +66,11 @@ public final class TrackingResultProcessor implements Processor {
         return actualProcessor.getTag();
     }
 
+    @Override
+    public void setLastType(String lastType) {
+        actualProcessor.setLastType(lastType);
+    }
+
     public static CompoundProcessor decorate(CompoundProcessor compoundProcessor, List<SimulateProcessorResult> processorResultList) {
         List<Processor> processors = new ArrayList<>(compoundProcessor.getProcessors().size());
         for (Processor processor : compoundProcessor.getProcessors()) {

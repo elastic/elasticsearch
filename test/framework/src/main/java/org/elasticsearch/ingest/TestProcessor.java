@@ -37,6 +37,7 @@ public class TestProcessor implements Processor {
     private final String tag;
     private final Consumer<IngestDocument> ingestDocumentConsumer;
     private final AtomicInteger invokedCounter = new AtomicInteger();
+    private String lastType;
 
     public TestProcessor(Consumer<IngestDocument> ingestDocumentConsumer) {
         this(null, "test-processor", ingestDocumentConsumer);
@@ -62,6 +63,11 @@ public class TestProcessor implements Processor {
     @Override
     public String getTag() {
         return tag;
+    }
+
+    @Override
+    public void setLastType(String lastType) {
+        this.lastType = lastType;
     }
 
     public int getInvokedCounter() {

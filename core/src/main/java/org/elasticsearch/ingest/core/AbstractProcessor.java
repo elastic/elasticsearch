@@ -26,6 +26,7 @@ package org.elasticsearch.ingest.core;
  */
 public abstract class AbstractProcessor implements Processor {
     protected final String tag;
+    protected String lastType;
 
     protected AbstractProcessor(String tag) {
         this.tag = tag;
@@ -34,5 +35,10 @@ public abstract class AbstractProcessor implements Processor {
     @Override
     public String getTag() {
         return tag;
+    }
+
+    @Override
+    public void setLastType(String lastType) {
+        this.lastType = lastType;
     }
 }

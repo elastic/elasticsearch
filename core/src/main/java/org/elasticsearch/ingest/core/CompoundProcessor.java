@@ -20,14 +20,12 @@
 
 package org.elasticsearch.ingest.core;
 
-import org.elasticsearch.common.util.iterable.Iterables;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -38,6 +36,8 @@ public class CompoundProcessor implements Processor {
     public static final String ON_FAILURE_MESSAGE_FIELD = "on_failure_message";
     public static final String ON_FAILURE_PROCESSOR_TYPE_FIELD = "on_failure_processor_type";
     public static final String ON_FAILURE_PROCESSOR_TAG_FIELD = "on_failure_processor_tag";
+
+    protected String lastType;
 
     private final List<Processor> processors;
     private final List<Processor> onFailureProcessors;
@@ -89,10 +89,18 @@ public class CompoundProcessor implements Processor {
     }
 
     @Override
+    public void setLastType(String lastType) {
+        this.lastType = lastType;
+    }
+
+    @Override
     public void execute(IngestDocument ingestDocument) throws Exception {
+        String lastType = null;
         for (Processor processor : processors) {
             try {
+                processor.setLastType(lastType);
                 processor.execute(ingestDocument);
+                lastType = processor.getType();
             } catch (Exception e) {
                 if (onFailureProcessors.isEmpty()) {
                     throw e;

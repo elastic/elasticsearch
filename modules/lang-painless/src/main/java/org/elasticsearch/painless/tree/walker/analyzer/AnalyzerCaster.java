@@ -47,19 +47,44 @@ class AnalyzerCaster {
 
         final Cast cast = getLegalCast(node, me.actual, me.expected, me.explicit || !me.typesafe);
 
-        if (me.constant != null) {
-            Object constant = me.constant;
+        if (cast == null) {
+            if (me.constant == null) {
+                return node;
+            } else {
+                final Node rtn = new Node(node.location, ACONSTANT);
+                rtn.data.put("constant", me.constant);
 
-            if (me.expected.sort.constant && cast != null) {
-                constant = constCast(node, me.constant, cast);
+                return rtn;
+            }
+        } else {
+            final Node child;
+
+            if (me.constant == null) {
+                child = node;
+            } else {
+                Object constant = me.constant;
+
+                if (me.expected.sort.constant) {
+                    constant = constCast(node, me.constant, cast);
+                }
+
+                child = new Node(node.location, ACONSTANT);
+                child.data.put("constant", constant);
             }
 
-            final Node rtn = new Node(node.location, ACONSTANT);
-            rtn.data.put("constant", constant);
+            final Node rtn = new Node(node.location, cast instanceof Transform ? ATRANSFORM : ACAST);
+            rtn.data.put("cast", cast);
+            rtn.children.add(child);
 
             return rtn;
-        } else if (cast == null) {
-            return node;
+        }
+    }
+
+    Node markCast(final Node node, final Type before, final Type after, final boolean explicit) {
+        final Cast cast = getLegalCast(node, before, after, explicit);
+
+        if (cast == null) {
+            return null;
         } else {
             final Node rtn = new Node(node.location, cast instanceof Transform ? ATRANSFORM : ACAST);
             rtn.data.put("cast", cast);

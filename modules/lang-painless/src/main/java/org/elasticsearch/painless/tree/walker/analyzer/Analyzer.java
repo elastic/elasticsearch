@@ -49,28 +49,40 @@ import static org.elasticsearch.painless.tree.node.Operation.RSH;
 import static org.elasticsearch.painless.tree.node.Operation.SUB;
 import static org.elasticsearch.painless.tree.node.Operation.USH;
 import static org.elasticsearch.painless.tree.node.Operation.XOR;
+import static org.elasticsearch.painless.tree.node.Type.ASSIGNMENT;
 import static org.elasticsearch.painless.tree.node.Type.BINARY;
 import static org.elasticsearch.painless.tree.node.Type.BLOCK;
+import static org.elasticsearch.painless.tree.node.Type.BRACE;
 import static org.elasticsearch.painless.tree.node.Type.BREAK;
+import static org.elasticsearch.painless.tree.node.Type.CALL;
 import static org.elasticsearch.painless.tree.node.Type.CAST;
 import static org.elasticsearch.painless.tree.node.Type.CHAR;
+import static org.elasticsearch.painless.tree.node.Type.COMPOUND;
 import static org.elasticsearch.painless.tree.node.Type.CONDITIONAL;
 import static org.elasticsearch.painless.tree.node.Type.CONTINUE;
 import static org.elasticsearch.painless.tree.node.Type.DECLARATION;
 import static org.elasticsearch.painless.tree.node.Type.DO;
 import static org.elasticsearch.painless.tree.node.Type.EXPRESSION;
+import static org.elasticsearch.painless.tree.node.Type.EXTERNAL;
 import static org.elasticsearch.painless.tree.node.Type.FALSE;
+import static org.elasticsearch.painless.tree.node.Type.FIELD;
 import static org.elasticsearch.painless.tree.node.Type.FOR;
 import static org.elasticsearch.painless.tree.node.Type.IF;
+import static org.elasticsearch.painless.tree.node.Type.NEWARRAY;
+import static org.elasticsearch.painless.tree.node.Type.NEWOBJ;
 import static org.elasticsearch.painless.tree.node.Type.NULL;
 import static org.elasticsearch.painless.tree.node.Type.NUMERIC;
+import static org.elasticsearch.painless.tree.node.Type.POST;
+import static org.elasticsearch.painless.tree.node.Type.PRE;
 import static org.elasticsearch.painless.tree.node.Type.RETURN;
 import static org.elasticsearch.painless.tree.node.Type.SOURCE;
+import static org.elasticsearch.painless.tree.node.Type.STRING;
 import static org.elasticsearch.painless.tree.node.Type.THROW;
 import static org.elasticsearch.painless.tree.node.Type.TRAP;
 import static org.elasticsearch.painless.tree.node.Type.TRUE;
 import static org.elasticsearch.painless.tree.node.Type.TRY;
 import static org.elasticsearch.painless.tree.node.Type.UNARY;
+import static org.elasticsearch.painless.tree.node.Type.VAR;
 import static org.elasticsearch.painless.tree.node.Type.WHILE;
 
 public final class Analyzer {
@@ -80,6 +92,7 @@ public final class Analyzer {
 
     private final AnalyzerStatement statement;
     private final AnalyzerExpression expression;
+    private final AnalyzerExternal external;
 
     private Analyzer(final CompilerSettings settings, final Definition definition, final Variables variables, final Node source) {
         final AnalyzerCaster caster = new AnalyzerCaster(definition);
@@ -87,6 +100,7 @@ public final class Analyzer {
 
         statement = new AnalyzerStatement(definition, variables, this, caster);
         expression = new AnalyzerExpression(definition, settings, this, caster, promoter);
+        external = new AnalyzerExternal(definition, variables, this, caster, promoter);
 
         if (source.type != SOURCE) {
             throw new IllegalStateException(source.error("Illegal tree structure."));
@@ -234,6 +248,40 @@ public final class Analyzer {
             }
         } else if (type == CONDITIONAL) {
             expression.visitConditional(node, me);
+        } else if (type == EXTERNAL) {
+            external.visitExternal(node, me);
+        } else if (type == PRE) {
+            external.visitPreinc(node, me);
+        } else if (type == POST) {
+            external.visitPostinc(node, me);
+        } else if (type == COMPOUND) {
+            external.visitCompound(node, me);
+        } else if (type == ASSIGNMENT) {
+            external.visitAssignment(node, me);
+        } else {
+            throw new IllegalStateException(node.error("Illegal tree structure."));
+        }
+    }
+
+    Node visit(final Node node, final MetadataExternal me) {
+        final Type type = node.type;
+
+        if (type == CAST) {
+            return external.visitCast(node, me);
+        } else if (type == BRACE) {
+            return external.visitBrace(node, me);
+        } else if (type == CALL) {
+            return external.visitCall(node, me);
+        } else if (type == VAR) {
+            return external.visitVar(node, me);
+        } else if (type == FIELD) {
+            return external.visitField(node, me);
+        } else if (type == NEWOBJ) {
+            return external.visitNewobj(node, me);
+        } else if (type == NEWARRAY) {
+            return external.visitNewarray(node, me);
+        } else if (type == STRING) {
+            return external.visitString(node, me);
         } else {
             throw new IllegalStateException(node.error("Illegal tree structure."));
         }

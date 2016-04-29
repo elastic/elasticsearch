@@ -59,7 +59,14 @@ public enum Type {
 
     ACAST ( "acast" ),
     ATRANSFORM ( "atranform" ),
-    ACONSTANT ( "aconstant" );
+    ACONSTANT ( "aconstant" ),
+    ASHORTCUT ( "ashortcut" ),
+    AMAPSHORTCUT ( "amapshortcut" ),
+    ALISTSHORTCUT ( "alistshorcut" ),
+    ADEFBRACE ( "adefbrace" ),
+    ADEFCALL ( "adefcall" ),
+    ADEFFIELD ( "adeffield" ),
+    AALENGTH ( "aalength" );
 
     public final String symbol;
 

@@ -599,6 +599,7 @@ public class Walker extends PainlessParserBaseVisitor<Node> {
             }
         }
 
+        node.children.add(visit(ctx.expression()));
         visitExtstart(ctx.extstart(), node);
 
         return node;
@@ -666,6 +667,9 @@ public class Walker extends PainlessParserBaseVisitor<Node> {
         } else {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
+        long x = 0;
+        int y = 0;
+        long z = 1;
 
         final Node node = new Node(location(ctx), CAST);
 

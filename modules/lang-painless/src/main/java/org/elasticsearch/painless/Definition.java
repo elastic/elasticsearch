@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public final class Definition {
+public class Definition {
     public enum Sort {
         VOID(       void.class      , 0 , true  , false , false , false ),
         BOOL(       boolean.class   , 1 , true  , true  , false , true  ),

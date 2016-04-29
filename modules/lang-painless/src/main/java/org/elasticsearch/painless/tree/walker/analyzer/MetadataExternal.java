@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.tree.walker.analyzer;
 
-import org.elasticsearch.painless.input.antlr.Walker;
-import org.elasticsearch.painless.tree.node.Node;
+import org.elasticsearch.painless.Definition.Type;
 
-public class Tests extends ScriptTestCase {
-    public void testCast() {
-        assertEquals(4, exec("int x = 1 long y = 2 long z = 1 (int)y z"));
-    }
+class MetadataExternal {
+    boolean load = true;
+    boolean store = false;
 
-    /*public void testWalker() {
-        Node test = Walker.buildPainlessTree("int<blah>[][] x = new int[1][1] 1+1");
-        String location = test.location;
-    }*/
+    boolean statik = false;
+    Type before = null;
+    Type after = null;
+
+    boolean statement = false;
+    Object constant = null;
 }

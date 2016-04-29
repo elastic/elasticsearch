@@ -23,7 +23,7 @@ public class InternalEmailService extends AbstractLifecycleComponent<EmailServic
 
     private final SecretService secretService;
     public static final Setting<Settings> EMAIL_ACCOUNT_SETTING =
-            Setting.groupSetting("xpack.notification.email.service.", Setting.Property.Dynamic, Setting.Property.NodeScope);
+            Setting.groupSetting("xpack.notification.email.", Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private volatile Accounts accounts;
 

@@ -183,7 +183,6 @@ public class Watcher {
         module.registerSetting(Setting.boolSetting(XPackPlugin.featureEnabledSetting(Watcher.NAME), true, Setting.Property.NodeScope));
         module.registerSetting(SecretService.Secure.ENCRYPT_SENSITIVE_DATA_SETTING);
 
-        // TODO add real settings for these
         module.registerSetting(Setting.simpleString("xpack.watcher.internal.ops.search.default_timeout", Setting.Property.NodeScope));
         module.registerSetting(Setting.simpleString("xpack.watcher.internal.ops.bulk.default_timeout", Setting.Property.NodeScope));
         module.registerSetting(Setting.simpleString("xpack.watcher.internal.ops.index.default_timeout", Setting.Property.NodeScope));
@@ -201,12 +200,12 @@ public class Watcher {
         module.registerSetting(Setting.simpleString("xpack.watcher.start_immediately", Setting.Property.NodeScope));
         module.registerSetting(Setting.simpleString("xpack.watcher.http.default_connection_timeout", Setting.Property.NodeScope));
 
-        module.registerSettingsFilter("xpack.notification.email.service.account.*.smtp.password");
-        module.registerSettingsFilter("xpack.notification.slack.service.account.*.url");
-        module.registerSettingsFilter("xpack.notification.pagerduty.service.account.*.url");
-        module.registerSettingsFilter("xpack.notification.pagerduty.service." + PagerDutyAccount.SERVICE_KEY_SETTING);
-        module.registerSettingsFilter("xpack.notification.pagerduty.service.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);
-        module.registerSettingsFilter("xpack.notification.hipchat.service.account.*.auth_token");
+        module.registerSettingsFilter("xpack.notification.email.account.*.smtp.password");
+        module.registerSettingsFilter("xpack.notification.slack.account.*.url");
+        module.registerSettingsFilter("xpack.notification.pagerduty.account.*.url");
+        module.registerSettingsFilter("xpack.notification.pagerduty." + PagerDutyAccount.SERVICE_KEY_SETTING);
+        module.registerSettingsFilter("xpack.notification.pagerduty.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);
+        module.registerSettingsFilter("xpack.notification.hipchat.account.*.auth_token");
     }
 
     public void onModule(NetworkModule module) {

@@ -20,7 +20,7 @@ public class InternalHipChatService extends AbstractLifecycleComponent<HipChatSe
     private final HttpClient httpClient;
     private volatile HipChatAccounts accounts;
     public static final Setting<Settings> HIPCHAT_ACCOUNT_SETTING =
-            Setting.groupSetting("xpack.notification.hipchat.service.", Setting.Property.Dynamic, Setting.Property.NodeScope);
+            Setting.groupSetting("xpack.notification.hipchat.", Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     @Inject
     public InternalHipChatService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {

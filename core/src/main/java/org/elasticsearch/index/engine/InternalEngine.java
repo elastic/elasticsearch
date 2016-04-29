@@ -41,8 +41,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
@@ -50,6 +50,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
@@ -70,10 +71,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.LinkedTransferQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 
 /**
@@ -100,7 +107,8 @@ public class InternalEngine extends Engine {
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
     private final LiveVersionMap versionMap;
 
-    private final Object[] dirtyLocks;
+    private final ConcurrentHashMap<BytesRef, Tuple<ReleasableLock, AbstractRefCounted>> lockMap = new ConcurrentHashMap<>(2 * Runtime.getRuntime().availableProcessors(), 0.75f, 2 * Runtime.getRuntime().availableProcessors());
+    private final ConcurrentLinkedQueue<ReleasableLock> locks = new ConcurrentLinkedQueue<>();
 
     private final AtomicBoolean versionMapRefreshPending = new AtomicBoolean();
 
@@ -128,9 +136,8 @@ public class InternalEngine extends Engine {
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
-            this.dirtyLocks = new Object[Runtime.getRuntime().availableProcessors() * 10]; // we multiply it to have enough...
-            for (int i = 0; i < dirtyLocks.length; i++) {
-                dirtyLocks[i] = new Object();
+            for (int i = 0; i < 2 * Runtime.getRuntime().availableProcessors(); i++) {
+                locks.add(new ReleasableLock(new ReentrantLock()));
             }
             throttle = new IndexThrottle();
             this.searcherFactory = new SearchFactory(logger, isClosed, engineConfig);
@@ -356,7 +363,7 @@ public class InternalEngine extends Engine {
     }
 
     private boolean innerIndex(Index index) throws IOException {
-        synchronized (dirtyLock(index.uid())) {
+        try (ReleasableLock ignored = dirtyLock(index.uid()).acquire()) {
             lastWriteNanos = index.startTime();
             final long currentVersion;
             final boolean deleted;
@@ -398,6 +405,8 @@ public class InternalEngine extends Engine {
             versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
             index.setTranslogLocation(translogLocation);
             return created;
+        } finally {
+            remove(index.uid());
         }
     }
 
@@ -451,7 +460,7 @@ public class InternalEngine extends Engine {
     }
 
     private void innerDelete(Delete delete) throws IOException {
-        synchronized (dirtyLock(delete.uid())) {
+        try (ReleasableLock ignored = dirtyLock(delete.uid()).acquire()) {
             lastWriteNanos = delete.startTime();
             final long currentVersion;
             final boolean deleted;
@@ -496,6 +505,8 @@ public class InternalEngine extends Engine {
             Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
             versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), translogLocation));
             delete.setTranslogLocation(translogLocation);
+        } finally {
+            remove(delete.uid());
         }
     }
 
@@ -708,7 +719,7 @@ public class InternalEngine extends Engine {
         // we only need to prune the deletes map; the current/old version maps are cleared on refresh:
         for (Map.Entry<BytesRef, VersionValue> entry : versionMap.getAllTombstones()) {
             BytesRef uid = entry.getKey();
-            synchronized (dirtyLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
+            try (ReleasableLock ignored = dirtyLock(uid).acquire()) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
 
                 // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
                 VersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
@@ -717,6 +728,8 @@ public class InternalEngine extends Engine {
                         versionMap.removeTombstoneUnderLock(uid);
                     }
                 }
+            } finally {
+                remove(uid);
             }
         }
 
@@ -908,13 +921,35 @@ public class InternalEngine extends Engine {
         return searcherManager;
     }
 
-    private Object dirtyLock(BytesRef uid) {
-        int hash = Murmur3HashFunction.hash(uid.bytes, uid.offset, uid.length);
-        return dirtyLocks[Math.floorMod(hash, dirtyLocks.length)];
+    private ReleasableLock dirtyLock(BytesRef uid) {
+        final Tuple<ReleasableLock, AbstractRefCounted> tuple = lockMap.compute(uid, (k, v) -> {
+            if (v == null || !v.v2().tryIncRef()) {
+                final ReleasableLock lock = locks.poll();
+                final AbstractRefCounted ref = new AbstractRefCounted(null) {
+                    @Override
+                    protected void closeInternal() {
+                        locks.offer(lock);
+                        lockMap.remove(k);
+                    }
+                };
+                return Tuple.tuple(lock, ref);
+            } else {
+                return v;
+            }
+        });
+        return tuple.v1();
     }
 
-    private Object dirtyLock(Term uid) {
+    private ReleasableLock dirtyLock(Term uid) {
         return dirtyLock(uid.bytes());
+    }
+
+    private void remove(BytesRef uid) {
+        lockMap.get(uid).v2().decRef();
+    }
+
+    private void remove(Term uid) {
+        remove(uid.bytes());
     }
 
     private long loadCurrentVersionFromIndex(Term uid) throws IOException {

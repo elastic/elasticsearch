@@ -352,7 +352,7 @@ public class InternalEngine extends Engine {
     }
 
     private boolean innerIndex(Index index) throws IOException {
-        try (Releasable ignored = dirtyLock(index.uid())) {
+        try (Releasable ignored = acquireLock(index.uid())) {
             lastWriteNanos = index.startTime();
             final long currentVersion;
             final boolean deleted;
@@ -447,7 +447,7 @@ public class InternalEngine extends Engine {
     }
 
     private void innerDelete(Delete delete) throws IOException {
-        try (Releasable ignored = dirtyLock(delete.uid())) {
+        try (Releasable ignored = acquireLock(delete.uid())) {
             lastWriteNanos = delete.startTime();
             final long currentVersion;
             final boolean deleted;
@@ -704,7 +704,7 @@ public class InternalEngine extends Engine {
         // we only need to prune the deletes map; the current/old version maps are cleared on refresh:
         for (Map.Entry<BytesRef, VersionValue> entry : versionMap.getAllTombstones()) {
             BytesRef uid = entry.getKey();
-            try (Releasable ignored = dirtyLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
+            try (Releasable ignored = acquireLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
 
                 // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
                 VersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
@@ -904,12 +904,12 @@ public class InternalEngine extends Engine {
         return searcherManager;
     }
 
-    private Releasable dirtyLock(BytesRef uid) {
+    private Releasable acquireLock(BytesRef uid) {
         return keyedLock.acquire(uid);
     }
 
-    private Releasable dirtyLock(Term uid) {
-        return dirtyLock(uid.bytes());
+    private Releasable acquireLock(Term uid) {
+        return acquireLock(uid.bytes());
     }
 
     private long loadCurrentVersionFromIndex(Term uid) throws IOException {

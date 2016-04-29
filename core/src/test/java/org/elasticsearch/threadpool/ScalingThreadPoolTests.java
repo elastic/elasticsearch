@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
@@ -193,7 +194,6 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            assertThat(stats(threadPool, threadPoolName).getCompleted(), equalTo(128L));
         }));
     }
 

@@ -70,6 +70,7 @@ import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
 import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
 import org.jboss.netty.handler.codec.http.HttpContentCompressor;
+import org.jboss.netty.handler.codec.http.HttpContentDecompressor;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
 import org.jboss.netty.handler.timeout.ReadTimeoutException;
@@ -218,6 +219,19 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     @Inject
     public NettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool) {
+        this(settings, Settings.EMPTY, networkService, bigArrays, threadPool);
+    }
+
+    /**
+     * @param settings         Primary settings object. Must not be null.
+     * @param overrideSettings Fallback settings that will override settings in case none have been defined for this key. Currently, we
+     *                         only allow to override SETTING_HTTP_COMPRESSION. All other settings will be ignored. Must not be null.
+     * @param networkService   used to determine bound addresses.
+     * @param bigArrays        used to limit the amount of memory used for response processing.
+     * @param threadPool       provides a thread context.
+     */
+    protected NettyHttpServerTransport(Settings settings, Settings overrideSettings, NetworkService networkService, BigArrays bigArrays,
+                                       ThreadPool threadPool) {
         super(settings);
         this.networkService = networkService;
         this.bigArrays = bigArrays;
@@ -253,7 +267,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                 (int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
         }
 
-        this.compression = SETTING_HTTP_COMPRESSION.get(settings);
+        this.compression = SETTING_HTTP_COMPRESSION.get(settings, overrideSettings);
         this.compressionLevel = SETTING_HTTP_COMPRESSION_LEVEL.get(settings);
         this.pipelining = SETTING_PIPELINING.get(settings);
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
@@ -544,18 +558,18 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                 requestDecoder.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }
             pipeline.addLast("decoder", requestDecoder);
-            pipeline.addLast("decoder_compress", new ESHttpContentDecompressor(transport.compression));
+            pipeline.addLast("decoder_compress", new HttpContentDecompressor());
             HttpChunkAggregator httpChunkAggregator = new HttpChunkAggregator((int) transport.maxContentLength.bytes());
             if (transport.maxCompositeBufferComponents != -1) {
                 httpChunkAggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }
             pipeline.addLast("aggregator", httpChunkAggregator);
-            if (SETTING_CORS_ENABLED.get(transport.settings())) {
-                pipeline.addLast("cors", new CorsHandler(transport.getCorsConfig()));
-            }
             pipeline.addLast("encoder", new ESHttpResponseEncoder());
             if (transport.compression) {
                 pipeline.addLast("encoder_compress", new HttpContentCompressor(transport.compressionLevel));
+            }
+            if (SETTING_CORS_ENABLED.get(transport.settings())) {
+                pipeline.addLast("cors", new CorsHandler(transport.getCorsConfig()));
             }
             if (transport.pipelining) {
                 pipeline.addLast("pipelining", new HttpPipeliningHandler(transport.pipeliningMaxEvents));

@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -2040,14 +2041,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected HttpRequestBuilder httpClient() {
+        return httpClient(HttpClients.createDefault());
+    }
+
+    protected HttpRequestBuilder httpClient(CloseableHttpClient httpClient) {
         final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         final NodeInfo[] nodes = nodeInfos.getNodes();
         assertTrue(nodes.length > 0);
         TransportAddress publishAddress = randomFrom(nodes).getHttp().address().publishAddress();
         assertEquals(1, publishAddress.uniqueAddressTypeId());
         InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
-        return new HttpRequestBuilder(HttpClients.createDefault()).host(NetworkAddress.format(address.getAddress())).port(address.getPort());
+        return new HttpRequestBuilder(httpClient).host(NetworkAddress.format(address.getAddress())).port(address.getPort());
     }
+
 
     /**
      * This method is executed iff the test is annotated with {@link SuiteScopeTestCase}

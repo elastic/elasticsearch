@@ -50,9 +50,9 @@ public final class HttpTransportSettings {
     public static final Setting<Integer> SETTING_PIPELINING_MAX_EVENTS =
         Setting.intSetting("http.pipelining.max_events", 10000, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_COMPRESSION =
-        Setting.boolSetting("http.compression", false, Property.NodeScope);
+        Setting.boolSetting("http.compression", true, Property.NodeScope);
     public static final Setting<Integer> SETTING_HTTP_COMPRESSION_LEVEL =
-        Setting.intSetting("http.compression_level", 6, Property.NodeScope);
+        Setting.intSetting("http.compression_level", 3, Property.NodeScope);
     public static final Setting<List<String>> SETTING_HTTP_HOST =
         listSetting("http.host", emptyList(), Function.identity(), Property.NodeScope);
     public static final Setting<List<String>> SETTING_HTTP_PUBLISH_HOST =

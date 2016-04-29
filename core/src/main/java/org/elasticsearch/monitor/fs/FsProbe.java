@@ -117,9 +117,10 @@ public class FsProbe extends AbstractComponent {
             }
 
             return new FsInfo.IoStats(devicesStats.toArray(new FsInfo.DeviceStats[devicesStats.size()]));
-        } catch (IOException e) {
+        } catch (Exception e) {
             // do not fail Elasticsearch if something unexpected
             // happens here
+            logger.debug("unexpected exception processing /proc/diskstats for devices {}", e, devicesNumbers);
             return null;
         }
     }

@@ -151,11 +151,8 @@ public interface AwsS3Service extends LifecycleComponent<AwsS3Service> {
          * cloud.aws.s3.endpoint: Endpoint. If not set, endpoint will be guessed based on region setting.
          */
         Setting<String> ENDPOINT_SETTING = Setting.simpleString("cloud.aws.s3.endpoint", Property.NodeScope);
-
-        // TODO CHANGEME
-        public static final String PATH_STYLE_ACCESS = "repositories.s3.path_style_access";
-
     }
 
-    AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries, Boolean pathStyleAccess);
+    AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries,
+                    Boolean pathStyleAccess);
 }

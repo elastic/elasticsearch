@@ -58,7 +58,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
     }
 
     @Override
-    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries, Boolean pathStyleAccess) {
+    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries,
+                                        Boolean pathStyleAccess) {
         if (Strings.isNullOrEmpty(endpoint)) {
             // We need to set the endpoint based on the region
             if (region != null) {
@@ -73,7 +74,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         return getClient(endpoint, protocol, account, key, maxRetries, pathStyleAccess);
     }
 
-    private synchronized AmazonS3 getClient(String endpoint, Protocol protocol, String account, String key, Integer maxRetries, Boolean pathStyleAccess) {
+    private synchronized AmazonS3 getClient(String endpoint, Protocol protocol, String account, String key, Integer maxRetries,
+                                            Boolean pathStyleAccess) {
         Tuple<String, String> clientDescriptor = new Tuple<>(endpoint, account);
         AmazonS3Client client = clients.get(clientDescriptor);
         if (client != null) {

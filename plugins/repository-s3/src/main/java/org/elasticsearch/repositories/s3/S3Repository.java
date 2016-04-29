@@ -141,6 +141,15 @@ public class S3Repository extends BlobStoreRepository {
          * repositories.s3.base_path: Specifies the path within bucket to repository data. Defaults to root directory.
          */
         Setting<String> BASE_PATH_SETTING = Setting.simpleString("repositories.s3.base_path", Property.NodeScope);
+        /**
+         * repositories.s3.path_style_access: When set to true configures the client to use path-style access for all requests.
+         Amazon S3 supports virtual-hosted-style and path-style access in all Regions. The path-style syntax, however,
+         requires that you use the region-specific endpoint when attempting to access a bucket.
+         The default behaviour is to detect which access style to use based on the configured endpoint (an IP will result
+         in path-style access) and the bucket being accessed (some buckets are not valid DNS names). Setting this flag
+         will result in path-style access being used for all requests.
+         */
+        Setting<Boolean> PATH_STYLE_ACCESS_SETTING = Setting.boolSetting("repositories.s3.path_style_access", false, Property.NodeScope);
     }
 
     /**
@@ -224,6 +233,11 @@ public class S3Repository extends BlobStoreRepository {
          * @see  Repositories#BASE_PATH_SETTING
          */
         Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", Property.NodeScope);
+        /**
+         * path_style_access
+         * @see  Repositories#PATH_STYLE_ACCESS_SETTING
+         */
+        Setting<Boolean> PATH_STYLE_ACCESS_SETTING = Setting.boolSetting("path_style_access", false, Property.NodeScope);
     }
 
     private final S3BlobStore blobStore;
@@ -275,15 +289,23 @@ public class S3Repository extends BlobStoreRepository {
         // Parse and validate the user's S3 Storage Class setting
         String storageClass = getValue(repositorySettings, Repository.STORAGE_CLASS_SETTING, Repositories.STORAGE_CLASS_SETTING);
         String cannedACL = getValue(repositorySettings, Repository.CANNED_ACL_SETTING, Repositories.CANNED_ACL_SETTING);
-        Boolean pathStyleAccess = repositorySettings.settings().getAsBoolean("path_style_access", settings.getAsBoolean(REPOSITORY_S3.PATH_STYLE_ACCESS, null));
 
-            logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], max_retries [{}], canned_acl [{}], storage_class [{}], path_style_access [{}]",
-                bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass, pathStyleAccess);
+        // If the user defined a path style access setting, we rely on it otherwise we use the default
+        // value set by the SDK
+        Boolean pathStyleAccess = null;
+        if (Repository.PATH_STYLE_ACCESS_SETTING.exists(repositorySettings.settings()) ||
+            Repositories.PATH_STYLE_ACCESS_SETTING.exists(repositorySettings.globalSettings())) {
+            pathStyleAccess = getValue(repositorySettings, Repository.PATH_STYLE_ACCESS_SETTING, Repositories.PATH_STYLE_ACCESS_SETTING);
+        }
+
+        logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], max_retries [{}], canned_acl [{}], storage_class [{}], path_style_access [{}]",
+            bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass,
+            pathStyleAccess);
 
         String key = getValue(repositorySettings, Repository.KEY_SETTING, Repositories.KEY_SETTING);
         String secret = getValue(repositorySettings, Repository.SECRET_SETTING, Repositories.SECRET_SETTING);
 
-        blobStore = new S3BlobStore(settings, s3Service.client(endpoint, protocol, region, key, secret, maxRetries),
+        blobStore = new S3BlobStore(settings, s3Service.client(endpoint, protocol, region, key, secret, maxRetries, pathStyleAccess),
                 bucket, region, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
 
         String basePath = getValue(repositorySettings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING);

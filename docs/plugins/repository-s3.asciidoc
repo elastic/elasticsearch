@@ -239,7 +239,8 @@ The following settings are supported:
 `path_style_access`::
 
     Activate path style access for [virtual hosting of buckets](http://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html).
-    Defaults to `false`.
+    The default behaviour is to detect which access style to use based on the configured endpoint (an IP will result
+    in path-style access) and the bucket being accessed (some buckets are not valid DNS names).
 
 The S3 repositories use the same credentials as the rest of the AWS services
 provided by this plugin (`discovery`). See <<repository-s3-usage>> for details.

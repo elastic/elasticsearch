@@ -53,3 +53,4 @@ PUT index_4/_settings
 }
 ------------------------------
 // AUTOSENSE
+// TEST[continued]

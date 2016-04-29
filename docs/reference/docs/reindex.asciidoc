@@ -8,7 +8,7 @@ This will copy documents from the `twitter` index into the `new_twitter` index:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "twitter"
@@ -19,20 +19,29 @@ POST /_reindex
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[setup:big_twitter]
 
 That will return something like this:
 
 [source,js]
 --------------------------------------------------
 {
-  "took" : 639,
-  "updated": 112,
-  "batches": 130,
+  "took" : 147,
+  "timed_out": false,
+  "created": 120,
+  "updated": 0,
+  "batches": 2,
   "version_conflicts": 0,
-  "failures" : [ ],
-  "created": 12344
+  "noops": 0,
+  "retries": 0,
+  "throttled_millis": 0,
+  "requests_per_second": "unlimited",
+  "throttled_until_millis": 0,
+  "total": 120,
+  "failures" : [ ]
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took" : 147/"took" : "$body.took"/]
 
 Just like <<docs-update-by-query,`_update_by_query`>>, `_reindex` gets a
 snapshot of the source index but its target must be a **different** index so
@@ -44,7 +53,7 @@ the same type and id:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "twitter"
@@ -56,6 +65,7 @@ POST /_reindex
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[setup:twitter]
 
 Setting `version_type` to `external` will cause Elasticsearch to preserve the
 `version` from the source, create any documents that are missing, and update
@@ -64,7 +74,7 @@ in the source index:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "twitter"
@@ -76,6 +86,7 @@ POST /_reindex
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[setup:twitter]
 
 Settings `op_type` to `create` will cause `_reindex` to only create missing
 documents in the target index. All existing documents will cause a version
@@ -83,7 +94,7 @@ conflict:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "twitter"
@@ -95,13 +106,14 @@ POST /_reindex
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[setup:twitter]
 
 By default version conflicts abort the `_reindex` process but you can just
 count them by settings `"conflicts": "proceed"` in the request body:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "conflicts": "proceed",
   "source": {
@@ -114,13 +126,14 @@ POST /_reindex
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[setup:twitter]
 
 You can limit the documents by adding a type to the `source` or by adding a
 query. This will only copy ++tweet++&apos;s made by `kimchy` into `new_twitter`:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "twitter",
@@ -137,6 +150,7 @@ POST /_reindex
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[setup:twitter]
 
 `index` and `type` in `source` can both be lists, allowing you to copy from
 lots of sources in one request. This will copy documents from the `tweet` and
@@ -148,7 +162,7 @@ which document will survive because the iteration order isn't well defined.
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": ["twitter", "blog"],
@@ -160,6 +174,7 @@ POST /_reindex
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[s/^/PUT twitter\nPUT blog\n/]
 
 It's also possible to limit the number of processed documents by setting
 `size`. This will only copy a single document from `twitter` to
@@ -167,7 +182,7 @@ It's also possible to limit the number of processed documents by setting
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "size": 1,
   "source": {
@@ -179,6 +194,7 @@ POST /_reindex
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[setup:twitter]
 
 If you want a particular set of documents from the twitter index you'll
 need to sort. Sorting makes the scroll less efficient but in some contexts
@@ -187,7 +203,7 @@ This will copy 10000 documents from `twitter` into `new_twitter`:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "size": 10000,
   "source": {
@@ -200,6 +216,7 @@ POST /_reindex
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[setup:twitter]
 
 Like `_update_by_query`, `_reindex` supports a script that modifies the
 document. Unlike `_update_by_query`, the script is allowed to modify the
@@ -207,21 +224,22 @@ document's metadata. This example bumps the version of the source document:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
-    "index": "twitter",
+    "index": "twitter"
   },
   "dest": {
     "index": "new_twitter",
     "version_type": "external"
-  }
+  },
   "script": {
-    "internal": "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}"
+    "script": "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}"
   }
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[setup:twitter]
 
 Think of the possibilities! Just be careful! With great power.... You can
 change:
@@ -264,7 +282,7 @@ routing set to `cat`.
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "source",
@@ -281,13 +299,14 @@ POST /_reindex
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[s/^/PUT source\n/]
 
 By default `_reindex` uses scroll batches of 100. You can change the
 batch size with the `size` field in the `source` element:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "source",
@@ -300,13 +319,14 @@ POST /_reindex
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[s/^/PUT source\n/]
 
 Reindex can also use the <<ingest>> feature by specifying a
 `pipeline` like this:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "source"
@@ -318,6 +338,7 @@ POST /_reindex
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[s/^/PUT source\n/]
 
 [float]
 === URL Parameters
@@ -414,7 +435,7 @@ While Reindex is running you can fetch their status using the
 
 [source,js]
 --------------------------------------------------
-GET /_tasks/?pretty&detailed=true&actions=*reindex
+GET _tasks/?pretty&detailed=true&actions=*reindex
 --------------------------------------------------
 // AUTOSENSE
 
@@ -473,7 +494,7 @@ Any Reindex can be canceled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST /_tasks/{task_id}/_cancel
+POST _tasks/taskid:1/_cancel
 --------------------------------------------------
 // AUTOSENSE
 
@@ -492,7 +513,7 @@ the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex/{task_id}/_rethrottle?requests_per_second=unlimited
+POST _reindex/taskid:1/_rethrottle?requests_per_second=unlimited
 --------------------------------------------------
 // AUTOSENSE
 
@@ -540,6 +561,7 @@ POST _reindex?pretty
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[continued]
 
 Now you can get the new document:
 
@@ -548,15 +570,24 @@ Now you can get the new document:
 GET test2/test/1?pretty
 --------------------------------------------------
 // AUTOSENSE
+// TEST[continued]
 
 and it'll look like:
 
 [source,js]
 --------------------------------------------------
 {
-  "text": "words words",
-  "tag": "foo"
+  "found": true,
+  "_id": "1",
+  "_index": "test2",
+  "_type": "test",
+  "_version": 1,
+  "_source": {
+    "text": "words words",
+    "tag": "foo"
+  }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 Or you can search by `tag` or whatever you want.

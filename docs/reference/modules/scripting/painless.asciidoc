@@ -40,11 +40,9 @@ to `painless`.
 
 To illustrate how Painless works, let's load some hockey stats into an Elasticsearch index:
 
-[source,sh]
+[source,js]
 ----------------------------------------------------------------
-DELETE /hockey-stats
-
-PUT /hockey-stats/player/_bulk
+PUT hockey/player/_bulk?refresh
 {"index":{"_id":1}}
 {"first":"johnny","last":"gaudreau","goals":[9,27,1],"assists":[17,46,0],"gp":[26,82,1]}
 {"index":{"_id":2}}
@@ -69,6 +67,7 @@ PUT /hockey-stats/player/_bulk
 {"first":"joe","last":"colborne","goals":[3,18,13],"assists":[6,20,24],"gp":[26,67,82]}
 ----------------------------------------------------------------
 // AUTOSENSE
+// TESTSETUP
 
 [float]
 === Accessing Doc Values from Painless
@@ -77,9 +76,9 @@ All Painless scripts take in a `Map<String,def>` of values called `input`.  Docu
 
 For example, the following script calculates a player's total goals. This example uses a strongly typed `int` and a `for` loop.
 
-[source,sh]
+[source,js]
 ----------------------------------------------------------------
-GET /hockey-stats/_search
+GET hockey/_search
 {
   "query": {
     "function_score": {
@@ -97,9 +96,9 @@ GET /hockey-stats/_search
 
 Alternatively, you could do the same thing using a script field instead of a function score:
 
-[source,sh]
+[source,js]
 ----------------------------------------------------------------
-GET /hockey-stats/_search
+GET hockey/_search
 {
   "query": {
     "match_all": {}
@@ -120,16 +119,16 @@ You must always specify the index of the field value you want, even if there's o
 All fields in Elasticsearch are multi-valued and Painless does not provide a `.value` shortcut. The following example uses a Painless script to sort the players by their combined first and last names. The names are accessed using
 `input.doc['first'].0` and `input.doc['last'].0`.
 
-[source,sh]
+[source,js]
 ----------------------------------------------------------------
-GET /hockey-stats/_search
+GET hockey/_search
 {
   "query": {
     "match_all": {}
   },
   "sort": {
     "_script": {
-      "type": "keyword",
+      "type": "string",
       "order": "asc",
       "script": {
         "lang": "painless",
@@ -148,9 +147,9 @@ You can also easily update fields. You access the original source for a field as
 
 First, let's look at the source data for a player by submitting the following request:
 
-[source,sh]
+[source,js]
 ----------------------------------------------------------------
-GET /hockey-stats/_search
+GET hockey/_search
 {
   "fields": [
     "_id",
@@ -167,9 +166,9 @@ GET /hockey-stats/_search
 
 To change player 1's last name to `hockey`, simply set `input.ctx._source.last` to the new value:
 
-[source,sh]
+[source,js]
 ----------------------------------------------------------------
-POST /hockey-stats/player/1/_update
+POST hockey/player/1/_update
 {
   "script": {
     "lang": "painless",
@@ -185,9 +184,9 @@ POST /hockey-stats/player/1/_update
 You can also add fields to a document. For example, this script adds a new field that contains
 the player's nickname,  _hockey_.
 
-[source,sh]
+[source,js]
 ----------------------------------------------------------------
-POST /hockey-stats/player/1/_update
+POST hockey/player/1/_update
 {
   "script": {
     "lang": "painless",
@@ -208,9 +207,9 @@ If you explicitly specify types, the compiler doesn't have to perform type looku
 improve performance. For example, the following script performs the same first name, last name sort we showed before,
 but it's fully type-safe.
 
-[source,sh]
+[source,js]
 ----------------------------------------------------------------
-GET /hockey-stats/_search
+GET hockey/_search
 {
   "query": {
     "match_all": {}

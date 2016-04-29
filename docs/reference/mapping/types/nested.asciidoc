@@ -62,6 +62,7 @@ GET my_index/_search
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[continued]
 
 ==== Using `nested` fields for arrays of objects
 
@@ -137,7 +138,7 @@ GET my_index/_search
             "user.first": {}
           }
         }
-
+      }
     }
   }
 }

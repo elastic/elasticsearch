@@ -116,6 +116,7 @@ PUT my_index
 }
 --------------------------------
 // AUTOSENSE
+// TEST[s/\.\.\.//]
 
 <1> The `_all` field in `type_1` is enabled.
 <2> The `_all` field in `type_2` is completely disabled.
@@ -143,7 +144,7 @@ PUT my_index
   },
   "settings": {
     "index.query.default_field": "content" <2>
-  },
+  }
 }
 --------------------------------
 // AUTOSENSE
@@ -337,7 +338,7 @@ GET _search
   "highlight": {
     "fields": {
       "*_name": { <2>
-        "require_field_match": "false"  <3>
+        "require_field_match": false  <3>
       }
     }
   }
@@ -348,5 +349,3 @@ GET _search
 <1> The query inspects the `_all` field to find matching documents.
 <2> Highlighting is performed on the two name fields, which are available from the `_source`.
 <3> The query wasn't run against the name fields, so set `require_field_match` to `false`.
-
-

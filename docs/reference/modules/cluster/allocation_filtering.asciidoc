@@ -14,7 +14,7 @@ For instance, we could decommission a node using its IP address as follows:
 
 [source,js]
 --------------------------------------------------
-PUT /_cluster/settings
+PUT _cluster/settings
 {
   "transient" : {
     "cluster.routing.allocation.exclude._ip" : "10.0.0.1"
@@ -67,4 +67,4 @@ PUT _cluster/settings
 }
 ------------------------
 // AUTOSENSE
-
+// TEST[skip:indexes don't assign]

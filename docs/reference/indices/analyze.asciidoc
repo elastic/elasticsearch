@@ -112,7 +112,7 @@ experimental[The format of the additional detail information is experimental and
 
 [source,js]
 --------------------------------------------------
-GET test/_analyze
+GET _analyze
 {
   "tokenizer" : "standard",
   "token_filter" : ["snowball"],
@@ -172,4 +172,3 @@ The request returns the following result:
 }
 --------------------------------------------------
 <1> Output only "keyword" attribute, since specify "attributes" in the request.
-

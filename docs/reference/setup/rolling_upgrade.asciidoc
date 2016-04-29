@@ -21,7 +21,7 @@ allocation before shutting down a node:
 
 [source,js]
 --------------------------------------------------
-PUT /_cluster/settings
+PUT _cluster/settings
 {
   "transient": {
     "cluster.routing.allocation.enable": "none"
@@ -29,6 +29,7 @@ PUT /_cluster/settings
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[skip:indexes don't assign]
 
 ==== Step 2: Stop non-essential indexing and perform a synced flush (Optional)
 
@@ -38,7 +39,7 @@ will be much faster if you temporarily stop non-essential indexing and issue a
 
 [source,js]
 --------------------------------------------------
-POST /_flush/synced
+POST _flush/synced
 --------------------------------------------------
 // AUTOSENSE
 
@@ -111,7 +112,7 @@ the node:
 
 [source,js]
 --------------------------------------------------
-PUT /_cluster/settings
+PUT _cluster/settings
 {
   "transient": {
     "cluster.routing.allocation.enable": "all"
@@ -172,4 +173,3 @@ recovery has completed.
 
 When the cluster is stable and the node has recovered, repeat the above steps
 for all remaining nodes.
-

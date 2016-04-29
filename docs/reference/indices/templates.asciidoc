@@ -13,7 +13,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT /_template/template_1
+PUT _template/template_1
 {
   "template": "te*",
   "settings": {

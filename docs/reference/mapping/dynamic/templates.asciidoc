@@ -347,7 +347,7 @@ PUT my_index
 --------------------------------------------------
 
 The sub `keyword` field appears in this template to be consistent with the
-default rules of dynamic mappings. Of course if you do not need them because 
+default rules of dynamic mappings. Of course if you do not need them because
 you don't need to perform exact search or aggregate on this field, you could
 remove it as described in the previous section.
 
@@ -406,14 +406,12 @@ new indices, you could create the following index template:
 --------------------------------------------------
 PUT _template/disable_all_field
 {
-  "disable_all_field": {
-    "order": 0,
-    "template": "*", <1>
-    "mappings": {
-      "_default_": { <2>
-        "_all": { <3>
-          "enabled": false
-        }
+  "order": 0,
+  "template": "*", <1>
+  "mappings": {
+    "_default_": { <2>
+      "_all": { <3>
+        "enabled": false
       }
     }
   }

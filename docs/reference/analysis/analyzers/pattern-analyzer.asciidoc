@@ -33,9 +33,7 @@ before running each example.
 
 [source,js]
 --------------------------------------------------
-DELETE test
-
-PUT /test
+PUT test
 {
   "settings": {
     "analysis": {
@@ -49,8 +47,9 @@ PUT /test
   }
 }
 
-GET /test/_analyze?analyzer=whitespace&text=foo,bar baz
+GET _cluster/health?wait_for_status=yellow
 
+GET test/_analyze?analyzer=whitespace&text=foo,bar baz
 # "foo,bar", "baz"
 --------------------------------------------------
 // AUTOSENSE
@@ -60,9 +59,7 @@ GET /test/_analyze?analyzer=whitespace&text=foo,bar baz
 
 [source,js]
 --------------------------------------------------
-DELETE test
-
-PUT /test
+PUT test
 {
   "settings": {
     "analysis": {
@@ -76,10 +73,12 @@ PUT /test
   }
 }
 
-GET /test/_analyze?analyzer=nonword&text=foo,bar baz
+GET _cluster/health?wait_for_status=yellow
+
+GET test/_analyze?analyzer=nonword&text=foo,bar baz
 # "foo,bar baz" becomes "foo", "bar", "baz"
 
-GET /test/_analyze?analyzer=nonword&text=type_1-type_4
+GET test/_analyze?analyzer=nonword&text=type_1-type_4
 # "type_1","type_4"
 --------------------------------------------------
 // AUTOSENSE
@@ -90,9 +89,7 @@ GET /test/_analyze?analyzer=nonword&text=type_1-type_4
 
 [source,js]
 --------------------------------------------------
-DELETE test
-
-PUT /test?pretty=1
+PUT test?pretty=1
 {
   "settings": {
     "analysis": {
@@ -106,7 +103,7 @@ PUT /test?pretty=1
   }
 }
 
-GET /test/_analyze?analyzer=camel&text=MooseX::FTPClass2_beta
+GET test/_analyze?analyzer=camel&text=MooseX::FTPClass2_beta
 # "moose","x","ftp","class","2","beta"
 --------------------------------------------------
 // AUTOSENSE

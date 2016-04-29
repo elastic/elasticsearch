@@ -140,6 +140,7 @@ PUT my_index <1>
       }
     },
     "blogpost": { <2>
+      "_all":       { "enabled": false  }, <3>
       "properties": { <4>
         "title":    { "type": "text"  }, <5>
         "body":     { "type": "text"  }, <5>

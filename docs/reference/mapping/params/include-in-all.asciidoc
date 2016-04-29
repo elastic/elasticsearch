@@ -15,7 +15,7 @@ PUT my_index
       "properties": {
         "title": { <1>
           "type": "text"
-        }
+        },
         "content": { <1>
           "type": "text"
         },

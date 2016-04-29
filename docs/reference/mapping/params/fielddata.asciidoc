@@ -100,14 +100,11 @@ PUT my_index
       "properties": {
         "tag": {
           "type": "text",
-          "fielddata": {
-            "filter": {
-              "frequency": {
-                "min": 0.001,
-                "max": 0.1,
-                "min_segment_size": 500
-              }
-            }
+          "fielddata": true,
+          "fielddata_frequency_filter": {
+            "min": 0.001,
+            "max": 0.1,
+            "min_segment_size": 500
           }
         }
       }

@@ -3,6 +3,7 @@ rootProject.name = 'elasticsearch'
 List projects = [
   'rest-api-spec',
   'core',
+  'docs',
   'distribution:integ-test-zip',
   'distribution:zip',
   'distribution:tar',

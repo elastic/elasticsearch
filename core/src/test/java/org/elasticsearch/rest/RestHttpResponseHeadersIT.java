@@ -23,7 +23,6 @@ import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -45,11 +44,11 @@ import static org.hamcrest.Matchers.is;
  * methods on REST endpoints should respond with status code 405</a> for more
  * information.
  */
-public class RestHTTPResponseHeadersTests extends ESSingleNodeTestCase {
+public class RestHttpResponseHeadersIT extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), true).put(super.nodeSettings()).build();
+        return Settings.builder().put("http.enabled", true).put(super.nodeSettings()).build();
     }
 
     /**
@@ -59,13 +58,13 @@ public class RestHTTPResponseHeadersTests extends ESSingleNodeTestCase {
      * <a href="https://tools.ietf.org/html/rfc2616#section-9.2">HTTP/1.1 - 9.2
      * - Options</a>).
      */
-    public void testValidEndpointOptionsResponseHTTPHeader() throws Exception {
+    public void testValidEndpointOptionsResponseHttpHeader() throws Exception {
         createIndex("test");
         HttpResponse httpResponse = httpClient().method("OPTIONS").path("/test").execute();
         assertThat(httpResponse.getStatusCode(), is(200));
         assertThat(httpResponse.getHeaders().get("Allow"), notNullValue());
-        List<String> allowHeader = Arrays.asList(httpResponse.getHeaders().get("Allow").split(","));
-        assertThat(allowHeader, containsInAnyOrder("HEAD", "GET", "PUT", "POST", "DELETE"));
+        List<String> responseAllowHeaderStringArray = Arrays.asList(httpResponse.getHeaders().get("Allow").split(","));
+        assertThat(responseAllowHeaderStringArray, containsInAnyOrder("HEAD", "GET", "PUT", "POST", "DELETE"));
     }
 
     /**
@@ -76,24 +75,24 @@ public class RestHTTPResponseHeadersTests extends ESSingleNodeTestCase {
      * <a href="https://tools.ietf.org/html/rfc2616#section-10.4.6">HTTP/1.1 -
      * 10.4.6 - 405 Method Not Allowed</a>).
      */
-    public void testUnsupportedMethodResponseHTTPHeader() throws Exception {
+    public void testUnsupportedMethodResponseHttpHeader() throws Exception {
         createIndex("test");
         HttpResponse httpResponse = httpClient().method("DELETE").path("/test/_analyze").execute();
         assertThat(httpResponse.getStatusCode(), is(405));
         assertThat(httpResponse.getHeaders().get("Allow"), notNullValue());
-        List<String> allowHeader = Arrays.asList(httpResponse.getHeaders().get("Allow").split(","));
-        assertThat(allowHeader, containsInAnyOrder("HEAD", "GET", "POST"));
+        List<String> responseAllowHeaderStringArray = Arrays.asList(httpResponse.getHeaders().get("Allow").split(","));
+        assertThat(responseAllowHeaderStringArray, containsInAnyOrder("HEAD", "GET", "POST"));
     }
 
     private HttpRequestBuilder httpClient() {
-        final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
-        final NodeInfo[] nodes = nodeInfos.getNodes();
-        assertTrue(nodes.length > 0);
-        TransportAddress publishAddress = nodes[0].getHttp().address().publishAddress();
+        final NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+        final NodeInfo[] nodeInfoArray = nodesInfoResponse.getNodes();
+        assertTrue(nodeInfoArray.length > 0);
+        TransportAddress publishAddress = nodeInfoArray[0].getHttp().address().publishAddress();
         assertEquals(1, publishAddress.uniqueAddressTypeId());
-        InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
-        return new HttpRequestBuilder(HttpClients.createDefault()).host(NetworkAddress.format(address.getAddress()))
-                .port(address.getPort());
+        InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) publishAddress).address();
+        return new HttpRequestBuilder(HttpClients.createDefault()).host(NetworkAddress.format(inetSocketAddress.getAddress()))
+                .port(inetSocketAddress.getPort());
     }
 
 }

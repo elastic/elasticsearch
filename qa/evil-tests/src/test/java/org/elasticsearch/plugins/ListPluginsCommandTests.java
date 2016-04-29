@@ -112,12 +112,13 @@ public class ListPluginsCommandTests extends ESTestCase {
     
     public void testPluginWithVerbose() throws Exception {
         Environment env = createEnv();
-        Files.createDirectory(env.pluginsFile().resolve("fake1"));
-        Path configFile = Files.createFile(env.pluginsFile().resolve("fake1").resolve(PluginInfo.ES_PLUGIN_PROPERTIES));
-        List<String> config = Arrays.asList("description=fake plugin",
-                "version=" + Version.CURRENT.toString(), "name=fake_plugin", "name=fake_plugin",
-                "elasticsearch.version=" + Version.CURRENT.toString(), "java.version=1.8", "classname=org.fake");
-        Files.write(configFile, config, Charset.forName("UTF-8"));
+        PluginTestUtil.writeProperties(env.pluginsFile().resolve("fake1"),
+                "description", "fake desc",
+                "name", "fake_plugin",
+                "version", "1.0",
+                "elasticsearch.version", Version.CURRENT.toString(),
+                "java.version", System.getProperty("java.specification.version"),
+                "classname", "org.fake");
         String[] params = { "-v" };
         MockTerminal terminal = listPlugins(env, params);
         String output = terminal.getOutput();

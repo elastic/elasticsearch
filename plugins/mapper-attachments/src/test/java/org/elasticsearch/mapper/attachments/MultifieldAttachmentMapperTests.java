@@ -151,7 +151,6 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         String forcedContentType = randomAsciiOfLength(20);
 
         String bytes = Base64.encodeBytes(originalText.getBytes(StandardCharsets.ISO_8859_1));
-        threadPool = new ThreadPool("testing-only");
 
         MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(),
             Settings.builder().put(AttachmentMapper.INDEX_ATTACHMENT_DETECT_LANGUAGE_SETTING.getKey(), true).build(),

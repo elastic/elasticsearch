@@ -73,16 +73,18 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         invalidHttpMethodArray.removeAll(validHttpMethodArray);
         assertTrue(invalidHttpMethodArray.size() > 0);
 
+        // Initialize test candidate RestController
+        RestController restController = new RestController(Settings.EMPTY);
+
         // A basic RestHandler handles requests to the endpoint
         RestHandler restHandler = new RestHandler() {
+
             @Override
             public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
                 channel.sendResponse(new TestResponse());
             }
-        };
 
-        // Initialize test candidate RestController
-        RestController restController = new RestController(Settings.EMPTY);
+        };
 
         // Register valid test handlers with test RestController
         for (RestRequest.Method method : validHttpMethodArray) {
@@ -123,6 +125,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
     }
 
     private static class TestResponse extends RestResponse {
+
         @Override
         public String contentType() {
             return null;
@@ -137,6 +140,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         public RestStatus status() {
             return RestStatus.OK;
         }
+
     }
 
     /**

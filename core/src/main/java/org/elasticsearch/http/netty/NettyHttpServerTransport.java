@@ -219,19 +219,6 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     @Inject
     public NettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool) {
-        this(settings, Settings.EMPTY, networkService, bigArrays, threadPool);
-    }
-
-    /**
-     * @param settings         Primary settings object. Must not be null.
-     * @param overrideSettings Fallback settings that will override settings in case none have been defined for this key. Currently, we
-     *                         only allow to override SETTING_HTTP_COMPRESSION. All other settings will be ignored. Must not be null.
-     * @param networkService   used to determine bound addresses.
-     * @param bigArrays        used to limit the amount of memory used for response processing.
-     * @param threadPool       provides a thread context.
-     */
-    protected NettyHttpServerTransport(Settings settings, Settings overrideSettings, NetworkService networkService, BigArrays bigArrays,
-                                       ThreadPool threadPool) {
         super(settings);
         this.networkService = networkService;
         this.bigArrays = bigArrays;
@@ -267,7 +254,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                 (int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
         }
 
-        this.compression = SETTING_HTTP_COMPRESSION.get(settings, overrideSettings);
+        this.compression = SETTING_HTTP_COMPRESSION.get(settings);
         this.compressionLevel = SETTING_HTTP_COMPRESSION_LEVEL.get(settings);
         this.pipelining = SETTING_PIPELINING.get(settings);
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);

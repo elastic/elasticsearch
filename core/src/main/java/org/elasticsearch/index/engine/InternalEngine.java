@@ -58,6 +58,7 @@ import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.indexing.ShardIndexingService;
@@ -114,7 +115,7 @@ public class InternalEngine extends Engine {
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
     private final LiveVersionMap versionMap;
 
-    private final Object[] dirtyLocks;
+    private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
 
     private final AtomicBoolean versionMapRefreshPending = new AtomicBoolean();
 
@@ -137,10 +138,6 @@ public class InternalEngine extends Engine {
             this.warmer = engineConfig.getWarmer();
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(),
                     engineConfig.getMergeSchedulerConfig());
-            this.dirtyLocks = new Object[Runtime.getRuntime().availableProcessors() * 10]; // we multiply it to have enough...
-            for (int i = 0; i < dirtyLocks.length; i++) {
-                dirtyLocks[i] = new Object();
-            }
             throttle = new IndexThrottle();
             this.searcherFactory = new SearchFactory(logger, isClosed, engineConfig);
             final Translog.TranslogGeneration translogGeneration;
@@ -361,7 +358,7 @@ public class InternalEngine extends Engine {
             // We don't need to lock because this ID cannot be concurrently updated:
             innerCreateNoLock(create, Versions.NOT_FOUND, null);
         } else {
-            synchronized (dirtyLock(create.uid())) {
+            try (Releasable ignored = acquireLock(create.uid())) {
                 final long currentVersion;
                 final VersionValue versionValue;
                 versionValue = versionMap.getUnderLock(create.uid().bytes());
@@ -494,7 +491,7 @@ public class InternalEngine extends Engine {
     }
 
     private boolean innerIndex(Index index) throws IOException {
-        synchronized (dirtyLock(index.uid())) {
+        try (Releasable ignored = acquireLock(index.uid())) {
             final long currentVersion;
             VersionValue versionValue = versionMap.getUnderLock(index.uid().bytes());
             if (versionValue == null) {
@@ -575,7 +572,7 @@ public class InternalEngine extends Engine {
     }
 
     private void innerDelete(Delete delete) throws IOException {
-        synchronized (dirtyLock(delete.uid())) {
+        try (Releasable ignored = acquireLock(delete.uid())) {
             final long currentVersion;
             VersionValue versionValue = versionMap.getUnderLock(delete.uid().bytes());
             if (versionValue == null) {
@@ -809,7 +806,7 @@ public class InternalEngine extends Engine {
         // we only need to prune the deletes map; the current/old version maps are cleared on refresh:
         for (Map.Entry<BytesRef, VersionValue> entry : versionMap.getAllTombstones()) {
             BytesRef uid = entry.getKey();
-            synchronized (dirtyLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once
+            try (Releasable ignored = acquireLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once
                 // per set?
 
                 // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
@@ -1018,13 +1015,12 @@ public class InternalEngine extends Engine {
         return searcherManager;
     }
 
-    private Object dirtyLock(BytesRef uid) {
-        int hash = DjbHashFunction.DJB_HASH(uid.bytes, uid.offset, uid.length);
-        return dirtyLocks[MathUtils.mod(hash, dirtyLocks.length)];
+    private Releasable acquireLock(BytesRef uid) {
+        return keyedLock.acquire(uid);
     }
 
-    private Object dirtyLock(Term uid) {
-        return dirtyLock(uid.bytes());
+    private Releasable acquireLock(Term uid) {
+        return acquireLock(uid.bytes());
     }
 
     private long loadCurrentVersionFromIndex(Term uid) throws IOException {

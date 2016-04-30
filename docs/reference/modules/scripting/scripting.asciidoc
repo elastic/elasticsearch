@@ -455,10 +455,24 @@ for details on what operators and functions are available.
 
 Variables in `expression` scripts are available to access:
 
-* Single valued document fields, e.g. `doc['myfield'].value`
-* Single valued document fields can also be accessed without `.value` e.g. `doc['myfield']`
+* document fields, e.g. `doc['myfield'].value` or just `doc['myfield']`.
+* whether the field is empty, e.g. `doc['myfield'].empty`
 * Parameters passed into the script, e.g. `mymodifier`
 * The current document's score, `_score` (only available when used in a `script_score`)
+
+When a document is missing the field completely, by default the value will be treated as `0`.
+You can treat it as another value instead, e.g. `doc['myfield'].empty ? 100 : doc['myfield'].value`
+
+When a document has multiple values for the field, by default the minimum value is returned.
+You can choose a different value instead, e.g. `doc['myfield'].sum()`. The following methods are available
+for any field:
+
+* min()
+* max()
+* avg()
+* median()
+* sum()
+* count() 
 
 Variables in `expression` scripts that are of type `date` may use the following member methods:
 
@@ -477,7 +491,6 @@ There are a few limitations relative to other script languages:
 
 * Only numeric fields may be accessed
 * Stored fields are not available
-* If a field is sparse (only some documents contain a value), documents missing the field will have a value of `0`
 
 [float]
 === Score

@@ -164,10 +164,10 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testMultiValueMethods() throws Exception {
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double0", "type=double", "double1", "type=double"));
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double0", "type=double", "double1", "type=double", "double2", "type=double"));
         ensureGreen("test");
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("double0", "5.0", "double0", "1.0", "double0", "1.5", "double1", "1.2", "double1", "2.4"),
+                client().prepareIndex("test", "doc", "1").setSource("double0", "5.0", "double0", "1.0", "double0", "1.5", "double1", "1.2", "double1", "2.4", "double2", "3.0"),
                 client().prepareIndex("test", "doc", "2").setSource("double0", "5.0", "double1", "3.0"),
                 client().prepareIndex("test", "doc", "3").setSource("double0", "5.0", "double0", "1.0", "double0", "1.5", "double0", "-1.5", "double1", "4.0"));
 
@@ -227,6 +227,24 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertEquals(2.5, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(1.5, hits.getAt(2).field("foo").getValue(), 0.0D);
+        
+        // make sure count() works for missing
+        rsp = buildRequest("doc['double2'].count()").get();
+        assertSearchResponse(rsp);
+        hits = rsp.getHits();
+        assertEquals(3, hits.getTotalHits());
+        assertEquals(1.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(0.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        assertEquals(0.0, hits.getAt(2).field("foo").getValue(), 0.0D);
+        
+        // make sure .empty works in the same way
+        rsp = buildRequest("doc['double2'].empty ? 5.0 : 2.0").get();
+        assertSearchResponse(rsp);
+        hits = rsp.getHits();
+        assertEquals(3, hits.getTotalHits());
+        assertEquals(2.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        assertEquals(5.0, hits.getAt(2).field("foo").getValue(), 0.0D);
     }
 
     public void testInvalidDateMethodCall() throws Exception {
@@ -363,8 +381,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should have contained ScriptException",
                     e.toString().contains("ScriptException"), equalTo(true));
-            assertThat(e.toString() + "should have contained member variable [value] or member methods may be accessed",
-                    e.toString().contains("member variable [value] or member methods may be accessed"), equalTo(true));
+            assertThat(e.toString() + "should have contained member variable [bogus] does not exist",
+                    e.toString().contains("Member variable [bogus] does not exist"), equalTo(true));
         }
     }
 

@@ -65,6 +65,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
 
     public static final List<String> TYPES = Collections.singletonList(NAME);
 
+    // these methods only work on dates, e.g. doc['datefield'].getYear()
     protected static final String GET_YEAR_METHOD         = "getYear";
     protected static final String GET_MONTH_METHOD        = "getMonth";
     protected static final String GET_DAY_OF_MONTH_METHOD = "getDayOfMonth";
@@ -72,12 +73,17 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     protected static final String GET_MINUTES_METHOD      = "getMinutes";
     protected static final String GET_SECONDS_METHOD      = "getSeconds";
 
+    // these methods work on any field, e.g. doc['field'].sum()
     protected static final String MINIMUM_METHOD          = "min";
     protected static final String MAXIMUM_METHOD          = "max";
     protected static final String AVERAGE_METHOD          = "avg";
     protected static final String MEDIAN_METHOD           = "median";
     protected static final String SUM_METHOD              = "sum";
     protected static final String COUNT_METHOD            = "count";
+
+    // these variables work on any field, e.g. doc['field'].value
+    protected static final String VALUE_VARIABLE          = "value";
+    protected static final String EMPTY_VARIABLE          = "empty";
 
     @Inject
     public ExpressionScriptEngineService(Settings settings) {
@@ -169,6 +175,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                 } else {
                     String fieldname = null;
                     String methodname = null;
+                    String variablename = VALUE_VARIABLE; // .value is the default for doc['field'], its optional.
                     VariableContext[] parts = VariableContext.parse(variable);
                     if (parts[0].text.equals("doc") == false) {
                         throw new ScriptException("Unknown variable [" + parts[0].text + "] in expression");
@@ -181,8 +188,10 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     if (parts.length == 3) {
                         if (parts[2].type == VariableContext.Type.METHOD) {
                             methodname = parts[2].text;
-                        } else if (parts[2].type != VariableContext.Type.MEMBER || !"value".equals(parts[2].text)) {
-                            throw new ScriptException("Only the member variable [value] or member methods may be accessed on a field when not accessing the field directly");
+                        } else if (parts[2].type == VariableContext.Type.MEMBER) {
+                            variablename = parts[2].text;
+                        } else {
+                            throw new ScriptException("Only member variables or member methods may be accessed on a field when not accessing the field directly");
                         }
                     }
                     if (parts.length > 3) {
@@ -201,7 +210,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                         throw new ScriptException("Field [" + fieldname + "] used in expression must be numeric");
                     }
                     if (methodname == null) {
-                        bindings.add(variable, new FieldDataValueSource(fieldData, MultiValueMode.MIN));
+                        bindings.add(variable, getVariableValueSource(fieldType, fieldData, fieldname, variablename));
                     } else {
                         bindings.add(variable, getMethodValueSource(fieldType, fieldData, fieldname, methodname));
                     }
@@ -243,6 +252,17 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                 return new CountMethodValueSource(fieldData);
             default:
                 throw new IllegalArgumentException("Member method [" + methodName + "] does not exist.");
+        }
+    }
+    
+    protected ValueSource getVariableValueSource(MappedFieldType fieldType, IndexFieldData<?> fieldData, String fieldName, String memberName) {
+        switch (memberName) {
+            case VALUE_VARIABLE:
+                return new FieldDataValueSource(fieldData, MultiValueMode.MIN);
+            case EMPTY_VARIABLE:
+                return new EmptyMemberValueSource(fieldData);
+            default:
+                throw new IllegalArgumentException("Member variable [" + memberName + "] does not exist.");
         }
     }
 

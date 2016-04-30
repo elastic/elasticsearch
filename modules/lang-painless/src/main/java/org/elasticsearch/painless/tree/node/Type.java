@@ -66,7 +66,17 @@ public enum Type {
     ADEFBRACE ( "adefbrace" ),
     ADEFCALL ( "adefcall" ),
     ADEFFIELD ( "adeffield" ),
-    AALENGTH ( "aalength" );
+    AALENGTH ( "aalength" ),
+
+    TBRANCH ( "tbranch" ),
+    TMARK ( "tmark" ),
+    TGOTO ( "tgoto" ),
+    TLOOPCOUNT ( "tloopcount" ),
+    TTRAP ( "ttrap" ),
+    TVARLOAD ( "tvarload" ),
+    TVARSTORE ( "tvarstore" ),
+    TDUP ( "tdup" ),
+    TPOP ( "tpop" );
 
     public final String symbol;
 

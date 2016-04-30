@@ -19,5 +19,64 @@
 
 package org.elasticsearch.painless.tree.walker.transformer;
 
+import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.tree.node.Node;
+import org.elasticsearch.painless.tree.node.Type;
+import org.objectweb.asm.Label;
+
+import static org.elasticsearch.painless.tree.node.Type.IF;
+import static org.elasticsearch.painless.tree.node.Type.NULL;
+import static org.elasticsearch.painless.tree.node.Type.RETURN;
+import static org.elasticsearch.painless.tree.node.Type.SOURCE;
+
 public class Transformer {
+    public static void transform(final CompilerSettings settings, final Definition definition, final Node source) {
+        new Transformer(settings, definition, source);
+    }
+
+    private TransformerStatement statement;
+
+    private Transformer(final CompilerSettings settings, final Definition definition, final Node source) {
+        final TransformerUtility marker = new TransformerUtility();
+
+        statement = new TransformerStatement(this, marker);
+
+        if (source.type != SOURCE) {
+            throw new IllegalStateException(source.error("Illegal tree structure."));
+        }
+
+        visitSource(source);
+    }
+
+    private void visitSource(final Node source) {
+        int index = 0;
+
+        for (final Node child : source.children) {
+            final Node transform = visit(child, null, null);
+
+            if (transform != child) {
+                source.children.set(index, transform);
+            }
+
+            ++index;
+        }
+
+        final boolean escape = (boolean)source.data.get("escape");
+
+        if (!escape) {
+            source.children.add(new Node(source.location, NULL));
+            source.children.add(new Node(source.location, RETURN));
+        }
+    }
+
+    Node visit(final Node node, final Label label0, final Label label1) {
+        final Type type = node.type;
+
+        if (type == IF) {
+            return statement.visitIf(node, label0, label1);
+        } else {
+            throw new IllegalStateException(node.error("Illegal tree structure"));
+        }
+    }
 }

@@ -89,6 +89,8 @@ class AnalyzerStatement {
             ifblockms.anyContinue |= elseblockms.anyContinue;
             ifblockms.anyBreak |= elseblockms.anyBreak;
             ifblockms.statementCount = Math.max(ifblockms.statementCount, elseblockms.statementCount);
+
+            ifelse.data.put("escape", ifblockms.allEscape);
         }
     }
 
@@ -103,7 +105,7 @@ class AnalyzerStatement {
         final Node cast = caster.markCast(condition, conditionme);
         whil.children.set(0, cast);
 
-        final Node whilblock = whil.children.get(1);
+        final Node block = whil.children.get(1);
 
         boolean continuous = false;
 
@@ -114,36 +116,38 @@ class AnalyzerStatement {
                 throw new IllegalArgumentException(whil.error("Extraneous while loop."));
             }
 
-            if (whilblock == null) {
+            if (block == null) {
                 throw new IllegalArgumentException(whil.error("While loop has no escape."));
             }
         }
 
-        if (whilblock != null) {
-            final MetadataStatement whilblockms = new MetadataStatement();
+        int count = 1;
 
-            whilblockms.beginLoop = true;
-            whilblockms.inLoop = true;
+        if (block != null) {
+            final MetadataStatement blockms = new MetadataStatement();
 
-            analyzer.visit(whilblock, whilblockms);
+            blockms.beginLoop = true;
+            blockms.inLoop = true;
 
-            if (whilblockms.loopEscape && !whilblockms.anyContinue) {
+            analyzer.visit(block, blockms);
+
+            if (blockms.loopEscape && !blockms.anyContinue) {
                 throw new IllegalArgumentException(whil.error("Extranous while loop."));
             }
 
-            if (continuous && !whilblockms.anyBreak) {
+            if (continuous && !blockms.anyBreak) {
                 whilems.methodEscape = true;
                 whilems.allEscape = true;
             }
 
-            whil.data.put("count", whilblockms.statementCount);
-        } else {
-            whil.data.put("count", 1);
+            count = Math.max(count, blockms.statementCount);
         }
 
-        whilems.statementCount = 1;
-
+        whil.data.put("counter", variables.getVariable(null, "#loop"));
+        whil.data.put("count", count);
         whil.data.put("escape", whilems.allEscape);
+
+        whilems.statementCount = 1;
 
         variables.decrementScope();
     }
@@ -151,19 +155,20 @@ class AnalyzerStatement {
     void visitDo(final Node dowhile, final MetadataStatement dowhilems) {
         variables.incrementScope();
 
-        final Node dowhileblock = dowhile.children.get(0);
-        final MetadataStatement dowhileblockms = new MetadataStatement();
+        final Node block = dowhile.children.get(0);
+        final MetadataStatement blockms = new MetadataStatement();
 
-        dowhileblockms.beginLoop = true;
-        dowhileblockms.inLoop = true;
+        blockms.beginLoop = true;
+        blockms.inLoop = true;
 
-        analyzer.visit(dowhileblock, dowhileblockms);
+        analyzer.visit(block, blockms);
 
-        if (dowhileblockms.loopEscape && !dowhileblockms.anyContinue) {
+        if (blockms.loopEscape && !blockms.anyContinue) {
             throw new IllegalArgumentException(dowhile.error("Extraneous do while loop."));
         }
 
-        dowhile.data.put("count", dowhileblockms.statementCount);
+        dowhile.data.put("count", Math.max(1, blockms.statementCount));
+        dowhile.data.put("counter", variables.getVariable(null, "#loop"));
 
         final Node condition = dowhile.children.get(0);
         final MetadataExpression conditionme = new MetadataExpression();
@@ -180,7 +185,7 @@ class AnalyzerStatement {
                 throw new IllegalArgumentException(dowhile.error("Extraneous do while loop."));
             }
 
-            if (!dowhileblockms.anyBreak) {
+            if (!blockms.anyBreak) {
                 dowhilems.methodEscape = true;
                 dowhilems.allEscape = true;
             }
@@ -197,13 +202,15 @@ class AnalyzerStatement {
         final Node initializer = fr.children.get(0);
         final Node condition = fr.children.get(1);
         final Node afterthought = fr.children.get(2);
-        final Node frblock = fr.children.get(3);
+        final Node block = fr.children.get(3);
 
         boolean continuous = false;
 
         if (initializer != null) {
             if (initializer.type == DECLARATION) {
                 analyzer.visit(initializer, new MetadataStatement());
+
+                initializer.data.put("size", 0);
             } else if (initializer.type == EXPRESSION) {
                 final MetadataExpression initializerme = new MetadataExpression();
 
@@ -211,11 +218,11 @@ class AnalyzerStatement {
 
                 analyzer.visit(initializer, initializerme);
 
-                initializer.data.put("type", initializerme.actual);
-
                 if (!initializerme.statement) {
                     throw new IllegalArgumentException(initializer.error("Not a statement."));
                 }
+
+                initializer.data.put("size", initializerme.actual.sort.size);
             }
         }
 
@@ -234,7 +241,7 @@ class AnalyzerStatement {
                     throw new IllegalArgumentException(fr.error("Extraneous for loop."));
                 }
 
-                if (frblock == null) {
+                if (block == null) {
                     throw new IllegalArgumentException(fr.error("For loop has no escape."));
                 }
             }
@@ -247,40 +254,42 @@ class AnalyzerStatement {
 
             afterthoughtme.read = false;
 
-            analyzer.visit(initializer, afterthoughtme);
-
-            afterthought.data.put("type", afterthoughtme.actual);
+            analyzer.visit(afterthought, afterthoughtme);
 
             if (!afterthoughtme.statement) {
                 throw new IllegalArgumentException(afterthought.error("Not a statement."));
             }
+
+            afterthought.data.put("size", afterthoughtme.actual.sort.size);
         }
 
-        if (frblock != null) {
-            final MetadataStatement frblockms = new MetadataStatement();
+        int count = 1;
 
-            frblockms.beginLoop = true;
-            frblockms.inLoop = true;
+        if (block != null) {
+            final MetadataStatement blockms = new MetadataStatement();
 
-            analyzer.visit(frblock, frblockms);
+            blockms.beginLoop = true;
+            blockms.inLoop = true;
 
-            if (frblockms.loopEscape && !frblockms.anyContinue) {
+            analyzer.visit(block, blockms);
+
+            if (blockms.loopEscape && !blockms.anyContinue) {
                 throw new IllegalArgumentException(fr.error("Extraneous for loop."));
             }
 
-            if (continuous && !frblockms.anyBreak) {
+            if (continuous && !blockms.anyBreak) {
                 frms.methodEscape = true;
                 frms.allEscape = true;
             }
 
-            fr.data.put("count", frblockms.statementCount);
-        } else {
-            fr.data.put("count", 1);
+            count = Math.max(count, blockms.statementCount) + (afterthought != null ? 1 : 0);
         }
 
-        frms.statementCount = 1;
-
+        fr.data.put("counter", variables.getVariable(null, "#loop"));
+        fr.data.put("count", count);
         fr.data.put("escape", frms.allEscape);
+
+        frms.statementCount = 1;
 
         variables.decrementScope();
     }
@@ -342,6 +351,8 @@ class AnalyzerStatement {
         tyms.anyContinue = tyblockms.anyContinue;
         tyms.anyBreak = tyblockms.anyBreak;
 
+        ty.data.put("escape", tyblockms.allEscape);
+
         int statementCount = 0;
 
         for (int trapCount = 1; trapCount < ty.children.size(); ++trapCount) {
@@ -366,6 +377,42 @@ class AnalyzerStatement {
         }
 
         tyms.statementCount = tyblockms.statementCount + statementCount;
+    }
+
+    void visitTrap(final Node trap, final MetadataStatement trapms) {
+        final String type = (String)trap.data.get("type");
+        final String symbol = (String)trap.data.get("symbol");
+
+        final Variable exception = variables.addVariable(definition, trap.location, type, symbol);
+
+        try {
+            exception.type.clazz.asSubclass(Exception.class);
+        } catch (final ClassCastException cce) {
+            throw new IllegalArgumentException(trap.error("Not an exception type [" + exception.type.name + "]."));
+        }
+
+        trap.data.put("variable", exception);
+
+        final Node block = trap.children.get(0);
+
+        if (block != null) {
+            final MetadataStatement blockms = new MetadataStatement();
+
+            blockms.lastSource = trapms.lastSource;
+            blockms.inLoop = trapms.inLoop;
+            blockms.lastLoop = trapms.lastLoop;
+
+            analyzer.visit(block, blockms);
+
+            trapms.methodEscape = blockms.methodEscape;
+            trapms.loopEscape = blockms.loopEscape;
+            trapms.allEscape = blockms.allEscape;
+            trapms.anyContinue = blockms.anyContinue;
+            trapms.anyBreak = blockms.anyBreak;
+            trapms.statementCount = blockms.statementCount;
+        }
+
+        trap.data.put("escape", trapms.allEscape);
     }
 
     void visitThrow(final Node thro, final MetadataStatement throms) {
@@ -402,6 +449,9 @@ class AnalyzerStatement {
         exprms.loopEscape = rtn;
         exprms.allEscape = rtn;
         exprms.statementCount = 1;
+
+        expr.data.put("escape", exprms.methodEscape);
+        expr.data.put("size", expressionme.expected.sort.size);
     }
 
     void visitBlock(final Node block, final MetadataStatement blockms) {
@@ -435,42 +485,19 @@ class AnalyzerStatement {
             final Variable variable = variables.addVariable(definition, child.location, type, symbol);
 
             child.data.put("variable", variable);
+
+            final Node expression = child.children.get(0);
+
+            if (expression != null) {
+                final MetadataExpression expressionme = new MetadataExpression();
+                expressionme.expected = variable.type;
+
+                analyzer.visit(expression, expressionme);
+
+                child.children.set(0, caster.markCast(expression, expressionme));
+            }
         }
 
         declarationms.statementCount = declaration.children.size();
-    }
-
-    void visitTrap(final Node trap, final MetadataStatement trapms) {
-        final String type = (String)trap.data.get("type");
-        final String symbol = (String)trap.data.get("symbol");
-
-        final Variable exception = variables.addVariable(definition, trap.location, type, symbol);
-
-        try {
-            exception.type.clazz.asSubclass(Exception.class);
-        } catch (final ClassCastException cce) {
-            throw new IllegalArgumentException(trap.error("Not an exception type [" + exception.type.name + "]."));
-        }
-
-        trap.data.put("variable", exception);
-
-        final Node block = trap.children.get(0);
-
-        if (block != null) {
-            final MetadataStatement blockms = new MetadataStatement();
-
-            blockms.lastSource = trapms.lastSource;
-            blockms.inLoop = trapms.inLoop;
-            blockms.lastLoop = trapms.lastLoop;
-
-            analyzer.visit(block, blockms);
-
-            trapms.methodEscape = blockms.methodEscape;
-            trapms.loopEscape = blockms.loopEscape;
-            trapms.allEscape = blockms.allEscape;
-            trapms.anyContinue = blockms.anyContinue;
-            trapms.anyBreak = blockms.anyBreak;
-            trapms.statementCount = blockms.statementCount;
-        }
     }
 }

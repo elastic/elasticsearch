@@ -591,7 +591,7 @@ class AnalyzerExpression {
 
         analyzer.visit(right, rightme);
 
-        final Type promote = promoter.promoteNumeric(leftme.actual, rightme.actual, false, true);
+        final Type promote = promoter.promoteNumeric(leftme.actual, false, true);
 
         if (promote == null) {
             throw new ClassCastException(binary.error("Cannot apply left shift [<<] to types " +
@@ -599,7 +599,8 @@ class AnalyzerExpression {
         }
 
         leftme.expected = promote;
-        rightme.expected = promote;
+        rightme.explicit = true;
+        rightme.expected = definition.intType;
 
         final Node lcast = caster.markCast(left, leftme);
         final Node rcast = caster.markCast(right, rightme);
@@ -636,7 +637,7 @@ class AnalyzerExpression {
 
         analyzer.visit(right, rightme);
 
-        final Type promote = promoter.promoteNumeric(leftme.actual, rightme.actual, false, true);
+        final Type promote = promoter.promoteNumeric(leftme.actual, false, true);
 
         if (promote == null) {
             throw new ClassCastException(binary.error("Cannot apply right shift [>>] to types " +
@@ -644,7 +645,8 @@ class AnalyzerExpression {
         }
 
         leftme.expected = promote;
-        rightme.expected = promote;
+        rightme.explicit = true;
+        rightme.expected = definition.intType;
 
         final Node lcast = caster.markCast(left, leftme);
         final Node rcast = caster.markCast(right, rightme);
@@ -681,7 +683,7 @@ class AnalyzerExpression {
 
         analyzer.visit(right, rightme);
 
-        final Type promote = promoter.promoteNumeric(leftme.actual, rightme.actual, false, true);
+        final Type promote = promoter.promoteNumeric(leftme.actual, false, true);
 
         if (promote == null) {
             throw new ClassCastException(binary.error("Cannot apply unsigned shift [>>>] to types " +
@@ -689,7 +691,8 @@ class AnalyzerExpression {
         }
 
         leftme.expected = promote;
-        rightme.expected = promote;
+        rightme.explicit = true;
+        rightme.expected = definition.intType;
 
         final Node lcast = caster.markCast(left, leftme);
         final Node rcast = caster.markCast(right, rightme);

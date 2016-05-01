@@ -49,9 +49,12 @@ class AnalyzerCaster {
 
         if (cast == null) {
             if (me.constant == null) {
+                node.data.put("type", me.actual);
+
                 return node;
             } else {
                 final Node rtn = new Node(node.location, ACONSTANT);
+                rtn.data.put("type", me.actual);
                 rtn.data.put("constant", me.constant);
 
                 return rtn;
@@ -72,7 +75,10 @@ class AnalyzerCaster {
                 child.data.put("constant", constant);
             }
 
+            child.data.put("type", me.actual);
+
             final Node rtn = new Node(node.location, cast instanceof Transform ? ATRANSFORM : ACAST);
+            rtn.data.put("type", me.expected);
             rtn.data.put("cast", cast);
             rtn.children.add(child);
 

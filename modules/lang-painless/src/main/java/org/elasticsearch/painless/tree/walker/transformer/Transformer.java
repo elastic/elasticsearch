@@ -25,10 +25,23 @@ import org.elasticsearch.painless.tree.node.Node;
 import org.elasticsearch.painless.tree.node.Type;
 import org.objectweb.asm.Label;
 
+import static org.elasticsearch.painless.tree.node.Type.ACAST;
+import static org.elasticsearch.painless.tree.node.Type.ACONSTANT;
+import static org.elasticsearch.painless.tree.node.Type.ATRANSFORM;
+import static org.elasticsearch.painless.tree.node.Type.BLOCK;
+import static org.elasticsearch.painless.tree.node.Type.BREAK;
+import static org.elasticsearch.painless.tree.node.Type.CONTINUE;
+import static org.elasticsearch.painless.tree.node.Type.DECLARATION;
+import static org.elasticsearch.painless.tree.node.Type.DO;
+import static org.elasticsearch.painless.tree.node.Type.EXPRESSION;
+import static org.elasticsearch.painless.tree.node.Type.FOR;
 import static org.elasticsearch.painless.tree.node.Type.IF;
 import static org.elasticsearch.painless.tree.node.Type.NULL;
 import static org.elasticsearch.painless.tree.node.Type.RETURN;
 import static org.elasticsearch.painless.tree.node.Type.SOURCE;
+import static org.elasticsearch.painless.tree.node.Type.THROW;
+import static org.elasticsearch.painless.tree.node.Type.TRY;
+import static org.elasticsearch.painless.tree.node.Type.WHILE;
 
 public class Transformer {
     public static void transform(final CompilerSettings settings, final Definition definition, final Node source) {
@@ -70,11 +83,45 @@ public class Transformer {
         }
     }
 
+    Node visit(final Node node) {
+        return visit(node, null, null, false);
+    }
+
+    Node visit(final Node node, final boolean strings) {
+        return visit(node, null, null, strings);
+    }
+
     Node visit(final Node node, final Label label0, final Label label1) {
+        return visit(node, label0, label1, false);
+    }
+
+    Node visit(final Node node, final Label label0, final Label label1, final boolean strings) {
         final Type type = node.type;
 
         if (type == IF) {
             return statement.visitIf(node, label0, label1);
+        } else if (type == WHILE) {
+            return statement.visitWhile(node);
+        } else if (type == DO) {
+            return statement.visitDo(node);
+        } else if (type == FOR) {
+            return statement.visitFor(node);
+        } else if (type == CONTINUE) {
+            return statement.visitContinue(node, label0);
+        } else if (type == BREAK) {
+            return statement.visitBreak(node, label1);
+        } else if (type == RETURN) {
+            return statement.visitReturn(node);
+        } else if (type == TRY) {
+            return statement.visitTry(node, label0, label1);
+        } else if (type == THROW) {
+            return statement.visitThrow(node);
+        } else if (type == EXPRESSION) {
+            return statement.visitExpr(node);
+        } else if (type == BLOCK) {
+            return statement.visitBlock(node, label0, label1);
+        } else if (type == DECLARATION) {
+            return statement.visitDeclaration(node);
         } else {
             throw new IllegalStateException(node.error("Illegal tree structure"));
         }

@@ -65,7 +65,7 @@ class TransformerStatement {
         return branch;
     }
 
-    Node visitWhile(final Node whil, final Label continu, final Label brake) {
+    Node visitWhile(final Node whil) {
         final Node branch = new Node(whil.location, TBRANCH);
 
         final Node condition = whil.children.get(1);
@@ -99,7 +99,7 @@ class TransformerStatement {
         return branch;
     }
 
-    Node visitDo(final Node dowhile, final Label continu, final Label brake) {
+    Node visitDo(final Node dowhile) {
         final Node branch = new Node(dowhile.location, TBRANCH);
 
         final Node condition = dowhile.children.get(1);
@@ -127,7 +127,7 @@ class TransformerStatement {
         return branch;
     }
 
-    Node visitFor(final Node fr, final Label continu, final Label brake) {
+    Node visitFor(final Node fr) {
         final Node branch = new Node(fr.location, TBRANCH);
 
         final Node initializer = fr.children.get(0);
@@ -140,7 +140,7 @@ class TransformerStatement {
         final Label end = new Label();
 
         if (initializer != null) {
-            branch.children.add(transformer.visit(initializer, null, null));
+            branch.children.add(transformer.visit(initializer));
 
             final int size = (int)initializer.data.get("size");
 
@@ -163,12 +163,12 @@ class TransformerStatement {
         }
 
         if (block != null) {
-            branch.children.add(transformer.visit(block, null, null));
+            branch.children.add(transformer.visit(block));
         }
 
         if (afterthought != null) {
             branch.children.add(utility.mark(fr.location, begin));
-            branch.children.add(transformer.visit(afterthought, null, null));
+            branch.children.add(transformer.visit(afterthought));
 
             final int size = (int)afterthought.data.get("size");
 
@@ -188,15 +188,15 @@ class TransformerStatement {
         return branch;
     }
 
-    Node visitContinue(final Node node, final Label continu, final Label brake) {
+    Node visitContinue(final Node node, final Label continu) {
         return utility.jump(node.location, continu);
     }
 
-    Node visitBreak(final Node node, final Label continu, final Label brake) {
+    Node visitBreak(final Node node, final Label brake) {
         return utility.jump(node.location, brake);
     }
 
-    Node visitReturn(final Node rtn, final Label continu, final Label brake) {
+    Node visitReturn(final Node rtn) {
         rtn.children.set(0, transformer.visit(rtn.children.get(0), null, null));
 
         return rtn;
@@ -255,13 +255,13 @@ class TransformerStatement {
         return branch;
     }
 
-    Node visitThrow(final Node thro, final Label continu, final Label brake) {
-        thro.children.set(0, transformer.visit(thro.children.get(0), continu, brake));
+    Node visitThrow(final Node thro) {
+        thro.children.set(0, transformer.visit(thro.children.get(0), null, null));
 
         return thro;
     }
 
-    Node visitExpr(final Node expr, final Label continu, final Label brake) {
+    Node visitExpr(final Node expr) {
         final Node expression = transformer.visit(expr.children.get(0), null, null);
 
         final boolean escape = (boolean)expr.data.get("escape");
@@ -299,14 +299,14 @@ class TransformerStatement {
         return block;
     }
 
-    Node visitDeclaration(final Node declaration, final Label continu, final Label brake) {
+    Node visitDeclaration(final Node declaration) {
         for (final Node child : declaration.children) {
             final Variable variable = (Variable)child.data.get("variable");
 
             final Node expression = child.children.get(0);
 
             if (expression != null) {
-                child.children.set(0, transformer.visit(expression, null, null));
+                child.children.set(0, transformer.visit(expression));
 
             } else {
                 switch (variable.type.sort) {
@@ -315,7 +315,7 @@ class TransformerStatement {
                     case BYTE:
                     case SHORT:
                     case CHAR:
-                    case INT:    child.children.add(utility.constant(child.location, 0)); break;
+                    case INT:    child.children.add(utility.constant(child.location, 0 )); break;
                     case LONG:   child.children.add(utility.constant(child.location, 0L)); break;
                     case FLOAT:  child.children.add(utility.constant(child.location, 0F)); break;
                     case DOUBLE: child.children.add(utility.constant(child.location, 0D)); break;

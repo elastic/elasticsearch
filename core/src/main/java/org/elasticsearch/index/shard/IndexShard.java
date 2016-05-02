@@ -753,16 +753,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         CompletionStats completionStats = new CompletionStats();
         final Engine.Searcher currentSearcher = acquireSearcher("completion_stats");
         try {
-            PostingsFormat postingsFormat = PostingsFormat.forName(Completion090PostingsFormat.CODEC_NAME);
-            if (postingsFormat instanceof Completion090PostingsFormat) {
-                Completion090PostingsFormat completionPostingsFormat = (Completion090PostingsFormat) postingsFormat;
-                completionStats.add(completionPostingsFormat.completionStats(currentSearcher.reader(), fields));
-            }
+            Completion090PostingsFormat postingsFormat = ((Completion090PostingsFormat) PostingsFormat.forName(Completion090PostingsFormat.CODEC_NAME));
+            completionStats.add(postingsFormat.completionStats(currentSearcher.reader(), fields));
         } finally {
             currentSearcher.close();
-            Completion090PostingsFormat postingsFormat = ((Completion090PostingsFormat) PostingsFormat.forName
-                    (Completion090PostingsFormat.CODEC_NAME));
-            completionStats.add(postingsFormat.completionStats(currentSearcher.reader(), fields));
         }
         return completionStats;
     }

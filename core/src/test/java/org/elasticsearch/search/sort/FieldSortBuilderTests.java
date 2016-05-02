@@ -53,27 +53,23 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
 
         if (randomBoolean()) {
-            builder.missing(ESTestCase.randomValueOtherThan(builder.missing(), () -> randomFrom(missingContent)));
+            builder.missing(randomFrom(missingContent));
         }
 
         if (randomBoolean()) {
-            builder.unmappedType(ESTestCase.randomValueOtherThan(
-                    builder.unmappedType(),
-                    () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
+            builder.unmappedType(ESTestCase.randomAsciiOfLengthBetween(1, 10));
         }
 
         if (randomBoolean()) {
-            builder.sortMode(ESTestCase.randomValueOtherThan(builder.sortMode(), () -> randomFrom(SortMode.values())));
+            builder.sortMode(randomFrom(SortMode.values()));
         }
 
         if (randomBoolean()) {
-            builder.setNestedFilter(NestedQueryBuilderGenerator.nestedFilter(builder.getNestedFilter()));
+            builder.setNestedFilter(NestedQueryBuilderGenerator.randomNestedFilter());
         }
 
         if (randomBoolean()) {
-            builder.setNestedPath(ESTestCase.randomValueOtherThan(
-                    builder.getNestedPath(),
-                    () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
+            builder.setNestedPath(ESTestCase.randomAsciiOfLengthBetween(1, 10));
         }
 
         return builder;
@@ -86,25 +82,27 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         switch (parameter) {
         case 0:
             mutated.setNestedPath(ESTestCase.randomValueOtherThan(
-                    mutated.getNestedPath(),
+                    original.getNestedPath(),
                     () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
             break;
         case 1:
-            mutated.setNestedFilter(NestedQueryBuilderGenerator.nestedFilter(mutated.getNestedFilter()));
+            mutated.setNestedFilter(ESTestCase.randomValueOtherThan(
+                    original.getNestedFilter(),
+                    () -> NestedQueryBuilderGenerator.randomNestedFilter()));
             break;
         case 2:
-            mutated.sortMode(ESTestCase.randomValueOtherThan(mutated.sortMode(), () -> randomFrom(SortMode.values())));
+            mutated.sortMode(ESTestCase.randomValueOtherThan(original.sortMode(), () -> randomFrom(SortMode.values())));
             break;
         case 3:
             mutated.unmappedType(ESTestCase.randomValueOtherThan(
-                    mutated.unmappedType(),
+                    original.unmappedType(),
                     () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
             break;
         case 4:
-            mutated.missing(ESTestCase.randomValueOtherThan(mutated.missing(), () -> randomFrom(missingContent)));
+            mutated.missing(ESTestCase.randomValueOtherThan(original.missing(), () -> randomFrom(missingContent)));
             break;
         case 5:
-            mutated.order(ESTestCase.randomValueOtherThan(mutated.order(), () -> randomFrom(SortOrder.values())));
+            mutated.order(ESTestCase.randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
             break;
         default:
             throw new IllegalStateException("Unsupported mutation.");

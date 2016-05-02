@@ -38,10 +38,7 @@ public class NestedQueryBuilderGenerator {
             new IdsQueryBuilder(),
             new TermQueryBuilder(ESTestCase.randomAsciiOfLengthBetween(1, 10), ESTestCase.randomDouble()));
 
-    public static QueryBuilder<?> nestedFilter(QueryBuilder<?> original) {
-        @SuppressWarnings("rawtypes")
-        QueryBuilder nested = ESTestCase.randomValueOtherThan(original, () -> ESTestCase.randomFrom(builders));
-        nested.boost((float) ESTestCase.randomDoubleBetween(0, 10, false));
-        return nested;
+    public static QueryBuilder<?> randomNestedFilter() {
+        return ESTestCase.randomFrom(builders).boost(ESTestCase.randomFloat());
     }
 }

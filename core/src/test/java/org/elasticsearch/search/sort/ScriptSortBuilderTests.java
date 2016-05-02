@@ -25,6 +25,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -63,12 +64,10 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             }
         }
         if (randomBoolean()) {
-            builder.setNestedFilter(NestedQueryBuilderGenerator.nestedFilter(builder.getNestedFilter()));
+            builder.setNestedFilter(NestedQueryBuilderGenerator.randomNestedFilter());
         }
         if (randomBoolean()) {
-            builder.setNestedPath(ESTestCase.randomValueOtherThan(
-                    builder.getNestedPath(),
-                    () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
+            builder.setNestedPath(ESTestCase.randomAsciiOfLengthBetween(1, 10));
         }
         return builder;
     }
@@ -115,7 +114,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 }
                 break;
             case 2:
-                result.setNestedFilter(NestedQueryBuilderGenerator.nestedFilter(original.getNestedFilter()));
+                result.setNestedFilter(ESTestCase.randomValueOtherThan(
+                        original.getNestedFilter(),
+                        () -> NestedQueryBuilderGenerator.randomNestedFilter()));
                 break;
             case 3:
                 result.setNestedPath(original.getNestedPath() + "_some_suffix");

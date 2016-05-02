@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -271,6 +272,15 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         return this;
+    }
+
+    /**
+     * For internal usage only!
+     *
+     * Extracts the inner hits from the query tree.
+     * While it extracts inner hits, child inner hits are inlined into the inner hit builder they belong to.
+     */
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
     }
 
     // Like Objects.requireNotNull(...) but instead throws a IllegalArgumentException

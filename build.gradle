@@ -21,6 +21,7 @@ import com.bmuschko.gradle.nexus.NexusPlugin
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
+import org.apache.tools.ant.taskdefs.condition.Os
 
 // common maven publishing configuration
 subprojects {
@@ -249,6 +250,9 @@ allprojects {
   // Name all the non-root projects after their path so that paths get grouped together when imported into eclipse.
   if (path != ':') {
     eclipse.project.name = path
+    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+      eclipse.project.name = eclipse.project.name.replace(':', '_')
+    }
   }
 
   plugins.withType(JavaBasePlugin) {

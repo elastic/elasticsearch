@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.query.support;
+package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.action.support.ToXContentToBytes;
@@ -30,11 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
@@ -62,15 +57,12 @@ import static org.elasticsearch.common.xcontent.XContentParser.Token.END_OBJECT;
 public final class InnerHitBuilder extends ToXContentToBytes implements Writeable {
 
     public static final ParseField NAME_FIELD = new ParseField("name");
-    public static final ParseField NESTED_PATH_FIELD = new ParseField("path");
-    public static final ParseField PARENT_CHILD_TYPE_FIELD = new ParseField("type");
+    public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
 
     private final static ObjectParser<InnerHitBuilder, QueryParseContext> PARSER = new ObjectParser<>("inner_hits", InnerHitBuilder::new);
 
     static {
         PARSER.declareString(InnerHitBuilder::setName, NAME_FIELD);
-        PARSER.declareString(InnerHitBuilder::setNestedPath, NESTED_PATH_FIELD);
-        PARSER.declareString(InnerHitBuilder::setParentChildType, PARENT_CHILD_TYPE_FIELD);
         PARSER.declareInt(InnerHitBuilder::setFrom, SearchSourceBuilder.FROM_FIELD);
         PARSER.declareInt(InnerHitBuilder::setSize, SearchSourceBuilder.SIZE_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setExplain, SearchSourceBuilder.EXPLAIN_FIELD);
@@ -100,20 +92,30 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }, SearchSourceBuilder._SOURCE_FIELD, ObjectParser.ValueType.OBJECT_OR_BOOLEAN);
         PARSER.declareObject(InnerHitBuilder::setHighlightBuilder, (p, c) -> HighlightBuilder.fromXContent(c),
                 SearchSourceBuilder.HIGHLIGHT_FIELD);
-        PARSER.declareObject(InnerHitBuilder::setQuery, (p, c) ->{
+        PARSER.declareObject(InnerHitBuilder::setChildInnerHits, (p, c) -> {
             try {
-                return c.parseInnerQueryBuilder();
+                Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+                String innerHitName = null;
+                for (XContentParser.Token token = p.nextToken(); token != XContentParser.Token.END_OBJECT; token = p.nextToken()) {
+                    switch (token) {
+                        case START_OBJECT:
+                            InnerHitBuilder innerHitBuilder = InnerHitBuilder.fromXContent(c);
+                            innerHitBuilder.setName(innerHitName);
+                            innerHitBuilders.put(innerHitName, innerHitBuilder);
+                            break;
+                        case FIELD_NAME:
+                            innerHitName = p.currentName();
+                            break;
+                        default:
+                            throw new ParsingException(p.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT + "] in ["
+                                    + p.currentName() + "] but found [" + token + "]", p.getTokenLocation());
+                    }
+                }
+                return innerHitBuilders;
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner query definition", e);
             }
-        }, SearchSourceBuilder.QUERY_FIELD);
-        PARSER.declareObject(InnerHitBuilder::setInnerHitsBuilder, (p, c) -> {
-            try {
-                return InnerHitsBuilder.fromXContent(c);
-            } catch (IOException e) {
-                throw new ParsingException(p.getTokenLocation(), "Could not parse inner query definition", e);
-            }
-        }, SearchSourceBuilder.INNER_HITS_FIELD);
+        }, INNER_HITS_FIELD);
     }
 
     private String name;
@@ -132,8 +134,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
     private List<String> fieldDataFields;
     private List<ScriptField> scriptFields;
     private HighlightBuilder highlightBuilder;
-    private InnerHitsBuilder innerHitsBuilder;
     private FetchSourceContext fetchSourceContext;
+    private Map<String, InnerHitBuilder> childInnerHits;
 
     public InnerHitBuilder() {
     }
@@ -165,7 +167,62 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
         query = in.readNamedWriteable(QueryBuilder.class);
-        innerHitsBuilder = in.readOptionalWriteable(InnerHitsBuilder::new);
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            childInnerHits = new HashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                childInnerHits.put(in.readString(), new InnerHitBuilder(in));
+            }
+        }
+    }
+
+    private InnerHitBuilder(InnerHitBuilder other) {
+        name = other.name;
+        from = other.from;
+        size = other.size;
+        explain = other.explain;
+        version = other.version;
+        trackScores = other.trackScores;
+        if (other.fieldNames != null) {
+            fieldNames = new ArrayList<>(other.fieldNames);
+        }
+        if (other.fieldDataFields != null) {
+            fieldDataFields = new ArrayList<>(other.fieldDataFields);
+        }
+        if (other.scriptFields != null) {
+            scriptFields = new ArrayList<>(other.scriptFields);
+        }
+        if (other.fetchSourceContext != null) {
+            fetchSourceContext = new FetchSourceContext(
+                    other.fetchSourceContext.fetchSource(), other.fetchSourceContext.includes(), other.fetchSourceContext.excludes()
+            );
+        }
+        if (other.sorts != null) {
+            sorts = new ArrayList<>(other.sorts);
+        }
+        highlightBuilder = other.highlightBuilder;
+        if (other.childInnerHits != null) {
+            childInnerHits = new HashMap<>(other.childInnerHits);
+        }
+    }
+
+
+    InnerHitBuilder(InnerHitBuilder other, String nestedPath, QueryBuilder query) {
+        this(other);
+        this.query = query;
+        this.nestedPath = nestedPath;
+        if (name == null) {
+            this.name = nestedPath;
+        }
+    }
+
+    InnerHitBuilder(InnerHitBuilder other, QueryBuilder query, String parentChildType) {
+        this(other);
+        this.query = query;
+        this.parentChildType = parentChildType;
+        if (name == null) {
+            this.name = parentChildType;
+        }
     }
 
     @Override
@@ -196,17 +253,15 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }
         out.writeOptionalWriteable(highlightBuilder);
         out.writeNamedWriteable(query);
-        out.writeOptionalWriteable(innerHitsBuilder);
-    }
-
-    public InnerHitBuilder setParentChildType(String parentChildType) {
-        this.parentChildType = parentChildType;
-        return this;
-    }
-
-    public InnerHitBuilder setNestedPath(String nestedPath) {
-        this.nestedPath = nestedPath;
-        return this;
+        boolean hasChildInnerHits = childInnerHits != null;
+        out.writeBoolean(hasChildInnerHits);
+        if (hasChildInnerHits) {
+            out.writeVInt(childInnerHits.size());
+            for (Map.Entry<String, InnerHitBuilder> entry : childInnerHits.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
+        }
     }
 
     public String getName() {
@@ -347,72 +402,53 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         return this;
     }
 
-    public QueryBuilder<?> getQuery() {
+    QueryBuilder<?> getQuery() {
         return query;
     }
 
-    public InnerHitBuilder setQuery(QueryBuilder<?> query) {
-        this.query = Objects.requireNonNull(query);
-        return this;
+    void setChildInnerHits(Map<String, InnerHitBuilder> childInnerHits) {
+        this.childInnerHits = childInnerHits;
     }
 
-    public InnerHitBuilder setInnerHitsBuilder(InnerHitsBuilder innerHitsBuilder) {
-        this.innerHitsBuilder = innerHitsBuilder;
-        return this;
+    String getParentChildType() {
+        return parentChildType;
     }
 
-    public InnerHitsContext.BaseInnerHits buildInline(SearchContext parentSearchContext, QueryShardContext context) throws IOException {
-        InnerHitsContext.BaseInnerHits innerHitsContext;
-        if (nestedPath != null) {
-            ObjectMapper nestedObjectMapper = context.getObjectMapper(nestedPath);
-            ObjectMapper parentObjectMapper = context.nestedScope().getObjectMapper();
-            innerHitsContext = new InnerHitsContext.NestedInnerHits(
-                    name, parentSearchContext, parentObjectMapper, nestedObjectMapper
-            );
-        } else if (parentChildType != null) {
-            DocumentMapper documentMapper = context.getMapperService().documentMapper(parentChildType);
-            innerHitsContext = new InnerHitsContext.ParentChildInnerHits(
-                    name, parentSearchContext, context.getMapperService(), documentMapper
-            );
-        } else {
-            throw new IllegalStateException("Neither a nested or parent/child inner hit");
+    String getNestedPath() {
+        return nestedPath;
+    }
+
+    void addChildInnerHit(InnerHitBuilder innerHitBuilder) {
+        if (childInnerHits == null) {
+            childInnerHits = new HashMap<>();
         }
-        setupInnerHitsContext(context, innerHitsContext);
-        return innerHitsContext;
+        this.childInnerHits.put(innerHitBuilder.getName(), innerHitBuilder);
     }
 
-    /**
-     * Top level inner hits are different than inline inner hits:
-     * 1) Nesting. Top level inner hits can be hold nested inner hits, that why this method is recursive (via buildChildInnerHits)
-     * 2) Top level inner hits query is an option, whereas with inline inner hits that is based on the nested, has_child
-     *    or has_parent's inner query.
-     *
-     *  Because of these changes there are different methods for building inline (which is simpler) and top level inner
-     *  hits. Also top level inner hits will soon be deprecated.
-     */
-    public InnerHitsContext.BaseInnerHits buildTopLevel(SearchContext parentSearchContext, QueryShardContext context,
-                                                        InnerHitsContext innerHitsContext) throws IOException {
+    public InnerHitsContext.BaseInnerHits build(SearchContext parentSearchContext,
+                                                InnerHitsContext innerHitsContext) throws IOException {
+        QueryShardContext queryShardContext = parentSearchContext.getQueryShardContext();
         if (nestedPath != null) {
-            ObjectMapper nestedObjectMapper = context.getObjectMapper(nestedPath);
-            ObjectMapper parentObjectMapper = context.nestedScope().nextLevel(nestedObjectMapper);
+            ObjectMapper nestedObjectMapper = queryShardContext.getObjectMapper(nestedPath);
+            ObjectMapper parentObjectMapper = queryShardContext.nestedScope().nextLevel(nestedObjectMapper);
             InnerHitsContext.NestedInnerHits nestedInnerHits = new InnerHitsContext.NestedInnerHits(
                     name, parentSearchContext, parentObjectMapper, nestedObjectMapper
             );
-            setupInnerHitsContext(context, nestedInnerHits);
-            if (innerHitsBuilder != null) {
-                buildChildInnerHits(parentSearchContext, context, nestedInnerHits);
+            setupInnerHitsContext(queryShardContext, nestedInnerHits);
+            if (childInnerHits != null) {
+                buildChildInnerHits(parentSearchContext, nestedInnerHits);
             }
-            context.nestedScope().previousLevel();
+            queryShardContext.nestedScope().previousLevel();
             innerHitsContext.addInnerHitDefinition(nestedInnerHits);
             return nestedInnerHits;
         } else if (parentChildType != null) {
-            DocumentMapper documentMapper = context.getMapperService().documentMapper(parentChildType);
+            DocumentMapper documentMapper = queryShardContext.getMapperService().documentMapper(parentChildType);
             InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(
-                    name, parentSearchContext, context.getMapperService(), documentMapper
+                    name, parentSearchContext, queryShardContext.getMapperService(), documentMapper
             );
-            setupInnerHitsContext(context, parentChildInnerHits);
-            if (innerHitsBuilder != null) {
-                buildChildInnerHits(parentSearchContext, context, parentChildInnerHits);
+            setupInnerHitsContext(queryShardContext, parentChildInnerHits);
+            if (childInnerHits != null) {
+                buildChildInnerHits(parentSearchContext, parentChildInnerHits);
             }
             innerHitsContext.addInnerHitDefinition( parentChildInnerHits);
             return parentChildInnerHits;
@@ -421,12 +457,11 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }
     }
 
-    private void buildChildInnerHits(SearchContext parentSearchContext, QueryShardContext context,
-                                     InnerHitsContext.BaseInnerHits innerHits) throws IOException {
+    private void buildChildInnerHits(SearchContext parentSearchContext, InnerHitsContext.BaseInnerHits innerHits) throws IOException {
         Map<String, InnerHitsContext.BaseInnerHits> childInnerHits = new HashMap<>();
-        for (Map.Entry<String, InnerHitBuilder> entry : innerHitsBuilder.getInnerHitsBuilders().entrySet()) {
-            InnerHitsContext.BaseInnerHits childInnerHit = entry.getValue().buildTopLevel(
-                    parentSearchContext, context, new InnerHitsContext()
+        for (Map.Entry<String, InnerHitBuilder> entry : this.childInnerHits.entrySet()) {
+            InnerHitsContext.BaseInnerHits childInnerHit = entry.getValue().build(
+                    parentSearchContext, new InnerHitsContext()
             );
             childInnerHits.put(entry.getKey(), childInnerHit);
         }
@@ -480,16 +515,23 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         innerHitsContext.parsedQuery(parsedQuery);
     }
 
+    public void inlineInnerHits(Map<String, InnerHitBuilder> innerHits) {
+        InnerHitBuilder copy = new InnerHitBuilder(this);
+        copy.parentChildType = this.parentChildType;
+        copy.nestedPath = this.nestedPath;
+        copy.query = this.query;
+        innerHits.put(copy.getName(), copy);
+
+        Map<String, InnerHitBuilder> childInnerHits = new HashMap<>();
+        extractInnerHits(query, childInnerHits);
+        if (childInnerHits.size() > 0) {
+            copy.setChildInnerHits(childInnerHits);
+        }
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-
-        if (nestedPath != null) {
-            builder.field(NESTED_PATH_FIELD.getPreferredName(), nestedPath);
-        }
-        if (parentChildType != null) {
-            builder.field(PARENT_CHILD_TYPE_FIELD.getPreferredName(), parentChildType);
-        }
         if (name != null) {
             builder.field(NAME_FIELD.getPreferredName(), name);
         }
@@ -536,9 +578,12 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         if (highlightBuilder != null) {
             builder.field(SearchSourceBuilder.HIGHLIGHT_FIELD.getPreferredName(), highlightBuilder, params);
         }
-        builder.field(SearchSourceBuilder.QUERY_FIELD.getPreferredName(), query, params);
-        if (innerHitsBuilder != null) {
-            builder.field(SearchSourceBuilder.INNER_HITS_FIELD.getPreferredName(), innerHitsBuilder, params);
+        if (childInnerHits != null) {
+            builder.startObject(INNER_HITS_FIELD.getPreferredName());
+            for (Map.Entry<String, InnerHitBuilder> entry : childInnerHits.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue(), params);
+            }
+            builder.endObject();
         }
         builder.endObject();
         return builder;
@@ -565,17 +610,26 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                 Objects.equals(sorts, that.sorts) &&
                 Objects.equals(highlightBuilder, that.highlightBuilder) &&
                 Objects.equals(query, that.query) &&
-                Objects.equals(innerHitsBuilder, that.innerHitsBuilder);
+                Objects.equals(childInnerHits, that.childInnerHits);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(name, nestedPath, parentChildType, from, size, explain, version, trackScores, fieldNames,
-                fieldDataFields, scriptFields, fetchSourceContext, sorts, highlightBuilder, query, innerHitsBuilder);
+                fieldDataFields, scriptFields, fetchSourceContext, sorts, highlightBuilder, query, childInnerHits);
     }
 
     public static InnerHitBuilder fromXContent(QueryParseContext context) throws IOException {
         return PARSER.parse(context.parser(), new InnerHitBuilder(), context);
+    }
+
+    public static void extractInnerHits(QueryBuilder<?> query, Map<String, InnerHitBuilder> innerHitBuilders) {
+        if (query instanceof AbstractQueryBuilder) {
+            ((AbstractQueryBuilder) query).extractInnerHitBuilders(innerHitBuilders);
+        } else {
+            throw new IllegalStateException("provided query builder [" + query.getClass() +
+                    "] class should inherit from AbstractQueryBuilder, but it doesn't");
+        }
     }
 
 }

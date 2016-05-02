@@ -40,7 +40,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.support.InnerHitsBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -93,7 +92,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField INDICES_BOOST_FIELD = new ParseField("indices_boost");
     public static final ParseField AGGREGATIONS_FIELD = new ParseField("aggregations", "aggs");
     public static final ParseField HIGHLIGHT_FIELD = new ParseField("highlight");
-    public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     public static final ParseField SUGGEST_FIELD = new ParseField("suggest");
     public static final ParseField RESCORE_FIELD = new ParseField("rescore");
     public static final ParseField STATS_FIELD = new ParseField("stats");
@@ -156,8 +154,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private SuggestBuilder suggestBuilder;
 
-    private InnerHitsBuilder innerHitsBuilder;
-
     private List<RescoreBuilder<?>> rescoreBuilders;
 
     private ObjectFloatHashMap<String> indexBoost = null;
@@ -205,13 +201,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         boolean hasIndexBoost = in.readBoolean();
         if (hasIndexBoost) {
             int size = in.readVInt();
-            indexBoost = new ObjectFloatHashMap<String>(size);
+            indexBoost = new ObjectFloatHashMap<>(size);
             for (int i = 0; i < size; i++) {
                 indexBoost.put(in.readString(), in.readFloat());
             }
-        }
-        if (in.readBoolean()) {
-            innerHitsBuilder = new InnerHitsBuilder(in);
         }
         if (in.readBoolean()) {
             minScore = in.readFloat();
@@ -302,11 +295,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 out.writeString(key.value);
                 out.writeFloat(indexBoost.get(key.value));
             }
-        }
-        boolean hasInnerHitsBuilder = innerHitsBuilder != null;
-        out.writeBoolean(hasInnerHitsBuilder);
-        if (hasInnerHitsBuilder) {
-            innerHitsBuilder.writeTo(out);
         }
         boolean hasMinScore = minScore != null;
         out.writeBoolean(hasMinScore);
@@ -653,15 +641,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return highlightBuilder;
     }
 
-    public SearchSourceBuilder innerHits(InnerHitsBuilder innerHitsBuilder) {
-        this.innerHitsBuilder = innerHitsBuilder;
-        return this;
-    }
-
-    public InnerHitsBuilder innerHits() {
-        return innerHitsBuilder;
-    }
-
     public SearchSourceBuilder suggest(SuggestBuilder suggestBuilder) {
         this.suggestBuilder = suggestBuilder;
         return this;
@@ -957,7 +936,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             rewrittenBuilder.from = from;
             rewrittenBuilder.highlightBuilder = highlightBuilder;
             rewrittenBuilder.indexBoost = indexBoost;
-            rewrittenBuilder.innerHitsBuilder = innerHitsBuilder;
             rewrittenBuilder.minScore = minScore;
             rewrittenBuilder.postQueryBuilder = postQueryBuilder;
             rewrittenBuilder.profile = profile;
@@ -1051,8 +1029,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     aggregations = aggParsers.parseAggregators(context);
                 } else if (context.getParseFieldMatcher().match(currentFieldName, HIGHLIGHT_FIELD)) {
                     highlightBuilder = HighlightBuilder.fromXContent(context);
-                } else if (context.getParseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
-                    innerHitsBuilder = InnerHitsBuilder.fromXContent(context);
                 } else if (context.getParseFieldMatcher().match(currentFieldName, SUGGEST_FIELD)) {
                     suggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
                 } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
@@ -1235,10 +1211,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.field(HIGHLIGHT_FIELD.getPreferredName(), highlightBuilder);
         }
 
-        if (innerHitsBuilder != null) {
-            builder.field(INNER_HITS_FIELD.getPreferredName(), innerHitsBuilder, params);
-        }
-
         if (suggestBuilder != null) {
             builder.field(SUGGEST_FIELD.getPreferredName(), suggestBuilder);
         }
@@ -1379,7 +1351,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     @Override
     public int hashCode() {
         return Objects.hash(aggregations, explain, fetchSourceContext, fieldDataFields, fieldNames, from,
-                highlightBuilder, indexBoost, innerHitsBuilder, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields,
+                highlightBuilder, indexBoost, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields,
                 size, sorts, searchAfterBuilder, stats, suggestBuilder, terminateAfter, timeoutInMillis, trackScores, version, profile);
     }
 
@@ -1400,7 +1372,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 && Objects.equals(from, other.from)
                 && Objects.equals(highlightBuilder, other.highlightBuilder)
                 && Objects.equals(indexBoost, other.indexBoost)
-                && Objects.equals(innerHitsBuilder, other.innerHitsBuilder)
                 && Objects.equals(minScore, other.minScore)
                 && Objects.equals(postQueryBuilder, other.postQueryBuilder)
                 && Objects.equals(queryBuilder, other.queryBuilder)

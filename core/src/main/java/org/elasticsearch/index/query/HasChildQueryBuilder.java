@@ -38,10 +38,10 @@ import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.query.support.InnerHitBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -151,9 +151,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     }
 
     public HasChildQueryBuilder innerHit(InnerHitBuilder innerHit) {
-        innerHit.setParentChildType(type);
-        innerHit.setQuery(query);
-        this.innerHitBuilder = innerHit;
+        this.innerHitBuilder = new InnerHitBuilder(Objects.requireNonNull(innerHit), query, type);
         return this;
     }
 
@@ -274,8 +272,11 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 }
             }
         }
-        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb, minChildren, maxChildren,
-                scoreMode, innerHitBuilder);
+        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb, scoreMode);
+        if (innerHitBuilder != null) {
+            hasChildQueryBuilder.innerHit(innerHitBuilder);
+        }
+        hasChildQueryBuilder.minMaxChildren(minChildren, maxChildren);
         hasChildQueryBuilder.queryName(queryName);
         hasChildQueryBuilder.boost(boost);
         hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
@@ -337,10 +338,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         if (parentFieldMapper.active() == false) {
             throw new QueryShardException(context, "[" + NAME + "] _parent field has no parent type configured");
         }
-        if (innerHitBuilder != null) {
-            context.addInnerHit(innerHitBuilder);
-        }
-
         String parentType = parentFieldMapper.type();
         DocumentMapper parentDocMapper = context.getMapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
@@ -476,5 +473,12 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             return new HasChildQueryBuilder(type, rewrite, minChildren, minChildren, scoreMode, innerHitBuilder);
         }
         return this;
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+        if (innerHitBuilder != null) {
+            innerHitBuilder.inlineInnerHits(innerHits);
+        }
     }
 }

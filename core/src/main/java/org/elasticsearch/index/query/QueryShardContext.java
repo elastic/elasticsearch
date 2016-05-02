@@ -57,12 +57,10 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.percolator.PercolatorQueryCache;
-import org.elasticsearch.index.query.support.InnerHitBuilder;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -183,16 +181,6 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public boolean isFilter() {
         return isFilter;
-    }
-
-    public void addInnerHit(InnerHitBuilder innerHitBuilder) throws IOException {
-        SearchContext sc = SearchContext.current();
-        if (sc == null) {
-            throw new QueryShardException(this, "inner_hits unsupported");
-        }
-
-        InnerHitsContext innerHitsContext = sc.innerHits();
-        innerHitsContext.addInnerHitDefinition(innerHitBuilder.buildInline(sc, this));
     }
 
     public Collection<String> simpleMatchToIndexNames(String pattern) {
@@ -373,7 +361,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private static Query toQuery(final QueryBuilder<?> queryBuilder, final QueryShardContext context) throws IOException {
         final Query query = QueryBuilder.rewriteQuery(queryBuilder, context).toQuery(context);
         if (query == null) {
-            return Queries.newMatchNoDocsQuery();
+            return Queries.newMatchNoDocsQuery("No query left after rewrite.");
         }
         return query;
     }

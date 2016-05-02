@@ -117,6 +117,18 @@ public final class IngestDocument {
     }
 
     /**
+     * Returns the value contained in the document with the provided templated path
+     * @param pathTemplate The path within the document in dot-notation
+     * @param clazz The expected class fo the field value
+     * @return the value fro the provided path if existing, null otherwise
+     * @throws IllegalArgumentException if the pathTemplate is null, empty, invalid, if the field doesn't exist,
+     * or if the field that is found at the provided path is not of the expected type.
+     */
+    public <T> T getFieldValue(TemplateService.Template pathTemplate, Class<T> clazz) {
+        return getFieldValue(renderTemplate(pathTemplate), clazz);
+    }
+
+    /**
      * Returns the value contained in the document for the provided path as a byte array.
      * If the path value is a string, a base64 decode operation will happen.
      * If the path value is a byte array, it is just returned
@@ -139,6 +151,16 @@ public final class IngestDocument {
             throw new IllegalArgumentException("Content field [" + path + "] of unknown type [" + object.getClass().getName() +
                 "], must be string or byte array");
         }
+    }
+
+    /**
+     * Checks whether the document contains a value for the provided templated path
+     * @param fieldPathTemplate the template for the path within the document in dot-notation
+     * @return true if the document contains a value for the field, false otherwise
+     * @throws IllegalArgumentException if the path is null, empty or invalid
+     */
+    public boolean hasField(TemplateService.Template fieldPathTemplate) {
+        return hasField(renderTemplate(fieldPathTemplate));
     }
 
     /**

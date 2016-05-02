@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -493,6 +494,17 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             return newBuilder;
         }
         return this;
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+        List<QueryBuilder<?>> clauses = new ArrayList<>(filter());
+        clauses.addAll(must());
+        clauses.addAll(should());
+        // no need to include must_not (since there will be no hits for it)
+        for (QueryBuilder<?> clause : clauses) {
+            InnerHitBuilder.extractInnerHits(clause, innerHits);
+        }
     }
 
     private static boolean rewriteClauses(QueryRewriteContext queryRewriteContext, List<QueryBuilder<?>> builders,

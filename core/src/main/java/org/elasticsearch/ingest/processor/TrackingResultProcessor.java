@@ -67,8 +67,8 @@ public final class TrackingResultProcessor implements Processor {
     }
 
     @Override
-    public void setLastType(String lastType) {
-        actualProcessor.setLastType(lastType);
+    public String getField() {
+        return null;
     }
 
     public static CompoundProcessor decorate(CompoundProcessor compoundProcessor, List<SimulateProcessorResult> processorResultList) {

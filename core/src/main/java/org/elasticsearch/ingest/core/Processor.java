@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.core;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -43,9 +44,9 @@ public interface Processor {
     String getTag();
 
     /**
-     * Sets the tag of the processor that ran last
+     * Gets the field the processor operates on
      */
-    void setLastType(String lastType);
+    String getField();
 
     /**
      * A factory that knows how to construct a processor based on a map of maps.
@@ -58,6 +59,6 @@ public interface Processor {
          * Implementations are responsible for removing the used keys, so that after creating a pipeline ingest can
          * verify if all configurations settings have been used.
          */
-        P create(Map<String, Object> config) throws Exception;
+        P create(Map<String, Object> config, List<Processor> processors) throws Exception;
     }
 }

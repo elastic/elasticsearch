@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.core.Processor;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -155,7 +156,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
         static final Set<Property> DEFAULT_PROPERTIES = EnumSet.allOf(Property.class);
 
         @Override
-        public AttachmentProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public AttachmentProcessor doCreate(String processorTag, Map<String, Object> config, List<Processor> otherProcessors) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "attachment");
             List<String> properyNames = readOptionalList(TYPE, processorTag, config, "properties");

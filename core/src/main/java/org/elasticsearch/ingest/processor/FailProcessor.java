@@ -23,8 +23,10 @@ import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.TemplateService;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -56,6 +58,11 @@ public final class FailProcessor extends AbstractProcessor {
         return TYPE;
     }
 
+    @Override
+    public String getField() {
+        return null;
+    }
+
     public static final class Factory extends AbstractProcessorFactory<FailProcessor> {
 
         private final TemplateService templateService;
@@ -65,7 +72,7 @@ public final class FailProcessor extends AbstractProcessor {
         }
 
         @Override
-        public FailProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public FailProcessor doCreate(String processorTag, Map<String, Object> config, List<Processor> otherProcessors) throws Exception {
             String message = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "message");
             return new FailProcessor(processorTag, templateService.compile(message));
         }

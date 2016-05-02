@@ -75,7 +75,8 @@ public final class ForEachProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    String getField() {
+    @Override
+    public String getField() {
         return field;
     }
 
@@ -92,7 +93,7 @@ public final class ForEachProcessor extends AbstractProcessor {
         }
 
         @Override
-        protected ForEachProcessor doCreate(String tag, Map<String, Object> config) throws Exception {
+        protected ForEachProcessor doCreate(String tag, Map<String, Object> config, List<Processor> otherProcessors) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
             List<Map<String, Map<String, Object>>> processorConfigs = readList(TYPE, tag, config, "processors");
             List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, processorRegistry);

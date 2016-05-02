@@ -24,7 +24,9 @@ import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
+import org.elasticsearch.ingest.core.Processor;
 
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -51,7 +53,8 @@ public final class GsubProcessor extends AbstractProcessor {
         this.replacement = replacement;
     }
 
-    String getField() {
+    @Override
+    public String getField() {
         return field;
     }
 
@@ -82,7 +85,7 @@ public final class GsubProcessor extends AbstractProcessor {
 
     public static final class Factory extends AbstractProcessorFactory<GsubProcessor> {
         @Override
-        public GsubProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public GsubProcessor doCreate(String processorTag, Map<String, Object> config, List<Processor> otherProcessors) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String pattern = readStringProperty(TYPE, processorTag, config, "pattern");
             String replacement = readStringProperty(TYPE, processorTag, config, "replacement");

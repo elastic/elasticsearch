@@ -238,14 +238,23 @@ public final class ConfigurationUtils {
         if (processorConfigs != null) {
             for (Map<String, Map<String, Object>> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Map<String, Object>> entry : processorConfigWithKey.entrySet()) {
-                    processors.add(readProcessor(processorRegistry, entry.getKey(), entry.getValue()));
+                    Processor processor = readProcessor(
+                        processorRegistry,
+                        entry.getKey(),
+                        entry.getValue(),
+                        Collections.unmodifiableList(processors)
+                    );
+                    processors.add(processor);
                 }
             }
         }
         return processors;
     }
 
-    private static Processor readProcessor(ProcessorsRegistry processorRegistry, String type, Map<String, Object> config) throws Exception {
+    private static Processor readProcessor(ProcessorsRegistry processorRegistry,
+                                           String type,
+                                           Map<String, Object> config,
+                                           List<Processor> processors) throws Exception {
         Processor.Factory factory = processorRegistry.getProcessorFactory(type);
         if (factory != null) {
             List<Map<String, Map<String, Object>>> onFailureProcessorConfigs =
@@ -253,7 +262,7 @@ public final class ConfigurationUtils {
 
             List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorRegistry);
             Processor processor;
-            processor = factory.create(config);
+            processor = factory.create(config, processors);
             if (!config.isEmpty()) {
                 throw new ElasticsearchParseException("processor [{}] doesn't support one or more provided configuration parameters {}",
                     type, Arrays.toString(config.keySet().toArray()));

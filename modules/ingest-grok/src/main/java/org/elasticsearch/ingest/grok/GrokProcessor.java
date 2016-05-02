@@ -23,8 +23,10 @@ import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.core.Processor;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.core.ConfigurationUtils.newConfigurationException;
@@ -75,7 +77,7 @@ public final class GrokProcessor extends AbstractProcessor {
         }
 
         @Override
-        public GrokProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public GrokProcessor doCreate(String processorTag, Map<String, Object> config, List<Processor> otherProcessors) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String matchPattern = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "pattern");
             Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "pattern_definitions");

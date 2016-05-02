@@ -24,6 +24,7 @@ import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
+import org.elasticsearch.ingest.core.Processor;
 
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -37,25 +38,26 @@ import java.util.Set;
  * Processor that removes duplicate entries from an array.
  * Throws exception is the specified field is not an array.
  */
-public final class DeduplicateProcessor extends AbstractProcessor {
+public abstract class DeduplicateProcessor extends AbstractProcessor {
 
     public static final String TYPE = "dedupe";
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField ORDERED = new ParseField("ordered");
     public static final boolean DEFAULT_ORDERED = true;
 
-    private final String field;
-    private final boolean ordered;
+    protected final String field;
 
-    DeduplicateProcessor(String tag, String field, boolean ordered) {
+    DeduplicateProcessor(String tag, String field) {
         super(tag);
         this.field = field;
-        this.ordered = ordered;
     }
 
-    String getField() {
+    @Override
+    public String getField() {
         return field;
     }
+
+    protected abstract <T> List<T> dedupe(List<T> list);
 
     @Override
     public void execute(IngestDocument document) {
@@ -68,41 +70,8 @@ public final class DeduplicateProcessor extends AbstractProcessor {
             return;
         }
 
-        if (lastType != null && lastType.equals("sort")) {
-            list = dedupeSorted(list);
-        } else {
-            list = dedupeUnsorted(list, ordered);
-        }
-
+        list = dedupe(list);
         document.setFieldValue(field, list);
-    }
-
-    private <T> List<T> dedupeSorted(List<T> list) {
-        T last = null;
-        ListIterator<T> iterator = list.listIterator();
-        while (iterator.hasNext()) {
-            T value = iterator.next();
-            if (value.equals(last)) {
-                iterator.remove();
-            } else {
-                last = value;
-            }
-        }
-
-        return list;
-    }
-
-    private <T> List<T> dedupeUnsorted(List<T> list, boolean ordered) {
-        Set<T> dedupeSet;
-        if (ordered) {
-            dedupeSet = new LinkedHashSet<>(list);
-        } else {
-            dedupeSet = new HashSet<>(list);
-        }
-
-        list.clear();
-        list.addAll(dedupeSet);
-        return list;
     }
 
     @Override
@@ -112,14 +81,84 @@ public final class DeduplicateProcessor extends AbstractProcessor {
 
     public final static class Factory extends AbstractProcessorFactory<DeduplicateProcessor> {
         @Override
-        public DeduplicateProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public DeduplicateProcessor doCreate(String processorTag, Map<String, Object> config, List<Processor> processors) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, FIELD.getPreferredName());
             boolean ordered = ConfigurationUtils.readBooleanProperty(TYPE,
                 processorTag,
                 config,
                 ORDERED.getPreferredName(),
                 DEFAULT_ORDERED);
-            return new DeduplicateProcessor(processorTag, field, ordered);
+
+            if (processors.size() <= 1) {
+                return getUnsortedProcessor(processorTag, field, ordered);
+            }
+
+            Processor previous = processors.get(processors.size() - 2);
+            if (previous != null && previous.getField().equals(field) && previous.getType().equals("sort")) {
+                return new DeduplicateSortedProcessor(processorTag, field);
+            }
+
+            return getUnsortedProcessor(processorTag, field, ordered);
+        }
+
+        private DeduplicateProcessor getUnsortedProcessor(String processorTag, String field, boolean ordered) {
+            if (ordered) {
+                return new DeduplicateUnsortedOrderedProcessor(processorTag, field);
+            }
+            return new DeduplicateUnsortedUnorderedProcessor(processorTag, field);
+        }
+    }
+
+    private final static class DeduplicateSortedProcessor extends DeduplicateProcessor {
+
+        DeduplicateSortedProcessor(String tag, String field) {
+            super(tag, field);
+        }
+
+        @Override
+        protected <T> List<T> dedupe(List<T> list) {
+            T last = null;
+            ListIterator<T> iterator = list.listIterator();
+            while (iterator.hasNext()) {
+                T value = iterator.next();
+                if (value.equals(last)) {
+                    iterator.remove();
+                } else {
+                    last = value;
+                }
+            }
+
+            return list;
+        }
+    }
+
+    private final static class DeduplicateUnsortedOrderedProcessor extends DeduplicateProcessor {
+
+        DeduplicateUnsortedOrderedProcessor(String tag, String field) {
+            super(tag, field);
+        }
+
+        @Override
+        protected <T> List<T> dedupe(List<T> list) {
+            Set<T> dedupeSet = new LinkedHashSet<>(list);
+            list.clear();
+            list.addAll(dedupeSet);
+            return list;
+        }
+    }
+
+    private final static class DeduplicateUnsortedUnorderedProcessor extends DeduplicateProcessor {
+
+        DeduplicateUnsortedUnorderedProcessor(String tag, String field) {
+            super(tag, field);
+        }
+
+        @Override
+        protected <T> List<T> dedupe(List<T> list) {
+            Set<T> dedupeSet = new HashSet<>(list);
+            list.clear();
+            list.addAll(dedupeSet);
+            return list;
         }
     }
 }

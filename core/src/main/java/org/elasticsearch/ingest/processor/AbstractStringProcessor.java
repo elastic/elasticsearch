@@ -23,7 +23,9 @@ import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.core.Processor;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -61,7 +63,7 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
         }
 
         @Override
-        public T doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public T doCreate(String processorTag, Map<String, Object> config, List<Processor> otherProcessors) throws Exception {
             String field = ConfigurationUtils.readStringProperty(processorType, processorTag, config, "field");
             return newProcessor(processorTag, field);
         }

@@ -22,10 +22,12 @@ package org.elasticsearch.ingest.processor;
 import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.ingest.core.ValueSource;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -72,7 +74,7 @@ public final class SetProcessor extends AbstractProcessor {
         }
 
         @Override
-        public SetProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public SetProcessor doCreate(String processorTag, Map<String, Object> config, List<Processor> otherProcessors) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
             return new SetProcessor(processorTag, templateService.compile(field), ValueSource.wrap(value, templateService));

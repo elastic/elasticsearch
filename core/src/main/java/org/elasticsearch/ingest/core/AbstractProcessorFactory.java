@@ -20,6 +20,8 @@
 
 package org.elasticsearch.ingest.core;
 
+
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -30,10 +32,10 @@ public abstract class AbstractProcessorFactory<P extends Processor> implements P
     public static final String TAG_KEY = "tag";
 
     @Override
-    public P create(Map<String, Object> config) throws Exception {
+    public P create(Map<String, Object> config, List<Processor> processors) throws Exception {
         String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
-        return doCreate(tag, config);
+        return doCreate(tag, config, processors);
     }
 
-    protected abstract P doCreate(String tag, Map<String, Object> config) throws Exception;
+    protected abstract P doCreate(String tag, Map<String, Object> config, List<Processor> otherProcessors) throws Exception;
 }

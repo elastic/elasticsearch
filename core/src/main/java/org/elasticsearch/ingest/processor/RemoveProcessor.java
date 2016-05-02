@@ -22,9 +22,11 @@ package org.elasticsearch.ingest.processor;
 import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.ingest.core.TemplateService;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -64,7 +66,7 @@ public final class RemoveProcessor extends AbstractProcessor {
         }
 
         @Override
-        public RemoveProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public RemoveProcessor doCreate(String processorTag, Map<String, Object> config, List<Processor> otherProcessors) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             return new RemoveProcessor(processorTag, templateService.compile(field));
         }

@@ -23,6 +23,7 @@ import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
+import org.elasticsearch.ingest.core.Processor;
 
 import java.util.List;
 import java.util.Map;
@@ -45,7 +46,8 @@ public final class JoinProcessor extends AbstractProcessor {
         this.separator = separator;
     }
 
-    String getField() {
+    @Override
+    public String getField() {
         return field;
     }
 
@@ -72,7 +74,7 @@ public final class JoinProcessor extends AbstractProcessor {
 
     public final static class Factory extends AbstractProcessorFactory<JoinProcessor> {
         @Override
-        public JoinProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public JoinProcessor doCreate(String processorTag, Map<String, Object> config, List<Processor> otherProcessors) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String separator = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "separator");
             return new JoinProcessor(processorTag, field, separator);

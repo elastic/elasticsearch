@@ -24,6 +24,7 @@ import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
 import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.core.Processor;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -96,7 +97,8 @@ public final class DateProcessor extends AbstractProcessor {
         return locale;
     }
 
-    String getField() {
+    @Override
+    public String getField() {
         return field;
     }
 
@@ -111,7 +113,7 @@ public final class DateProcessor extends AbstractProcessor {
     public static final class Factory extends AbstractProcessorFactory<DateProcessor> {
 
         @SuppressWarnings("unchecked")
-        public DateProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public DateProcessor doCreate(String processorTag, Map<String, Object> config, List<Processor> otherProcessors) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET_FIELD);
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "timezone");

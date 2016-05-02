@@ -23,6 +23,7 @@ import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.Processor;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -37,7 +38,6 @@ public class TestProcessor implements Processor {
     private final String tag;
     private final Consumer<IngestDocument> ingestDocumentConsumer;
     private final AtomicInteger invokedCounter = new AtomicInteger();
-    private String lastType;
 
     public TestProcessor(Consumer<IngestDocument> ingestDocumentConsumer) {
         this(null, "test-processor", ingestDocumentConsumer);
@@ -65,18 +65,13 @@ public class TestProcessor implements Processor {
         return tag;
     }
 
-    @Override
-    public void setLastType(String lastType) {
-        this.lastType = lastType;
-    }
-
     public int getInvokedCounter() {
         return invokedCounter.get();
     }
 
     public static final class Factory extends AbstractProcessorFactory<TestProcessor> {
         @Override
-        public TestProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public TestProcessor doCreate(String processorTag, Map<String, Object> config, List<Processor> otherProcessors) throws Exception {
             return new TestProcessor(processorTag, "test-processor", ingestDocument -> {});
         }
     }

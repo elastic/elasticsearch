@@ -23,7 +23,9 @@ import org.elasticsearch.ingest.core.AbstractProcessor;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
 import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.core.ConfigurationUtils;
+import org.elasticsearch.ingest.core.Processor;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -42,7 +44,8 @@ public final class RenameProcessor extends AbstractProcessor {
         this.targetField = targetField;
     }
 
-    String getField() {
+    @Override
+    public String getField() {
         return field;
     }
 
@@ -77,7 +80,7 @@ public final class RenameProcessor extends AbstractProcessor {
 
     public static final class Factory extends AbstractProcessorFactory<RenameProcessor> {
         @Override
-        public RenameProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public RenameProcessor doCreate(String processorTag, Map<String, Object> config, List<Processor> otherProcessors) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
             return new RenameProcessor(processorTag, field, targetField);

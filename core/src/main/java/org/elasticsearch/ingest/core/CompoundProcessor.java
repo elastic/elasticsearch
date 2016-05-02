@@ -89,18 +89,15 @@ public class CompoundProcessor implements Processor {
     }
 
     @Override
-    public void setLastType(String lastType) {
-        this.lastType = lastType;
+    public String getField() {
+        return null;
     }
 
     @Override
     public void execute(IngestDocument ingestDocument) throws Exception {
-        String lastType = null;
         for (Processor processor : processors) {
             try {
-                processor.setLastType(lastType);
                 processor.execute(ingestDocument);
-                lastType = processor.getType();
             } catch (Exception e) {
                 if (onFailureProcessors.isEmpty()) {
                     throw e;

@@ -103,6 +103,22 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         assertEquals(IndexOptions.NONE, field.fieldType().indexOptions());
     }
 
+    public void testIllegalIndexValue() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "string")
+                        .field("index", false)
+                    .endObject()
+                .endObject() .endObject().endObject().string();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertThat(e.getMessage(),
+                containsString("Can't parse [index] value [false] for field [field], expected [no], [not_analyzed] or [analyzed]"));
+    }
+
     public void testNotSupportedUpgrade() throws IOException {
         IndexService indexService = createIndex("test");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();

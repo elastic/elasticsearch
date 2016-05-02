@@ -34,10 +34,10 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 /**
  * ValueSource to return non-zero if a field is missing.
  */
-public class GeoEmptyValueSource extends ValueSource {
-    protected IndexFieldData<?> fieldData;
+final class GeoEmptyValueSource extends ValueSource {
+    IndexFieldData<?> fieldData;
 
-    protected GeoEmptyValueSource(IndexFieldData<?> fieldData) {
+    GeoEmptyValueSource(IndexFieldData<?> fieldData) {
         this.fieldData = Objects.requireNonNull(fieldData);
     }
 

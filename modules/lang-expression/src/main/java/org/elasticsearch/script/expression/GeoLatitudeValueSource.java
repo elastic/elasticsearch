@@ -34,10 +34,10 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 /**
  * ValueSource to return latitudes as a double "stream" for geopoint fields
  */
-public class GeoLatitudeValueSource extends ValueSource {
-    protected IndexFieldData<?> fieldData;
+final class GeoLatitudeValueSource extends ValueSource {
+    final IndexFieldData<?> fieldData;
 
-    protected GeoLatitudeValueSource(IndexFieldData<?> fieldData) {
+    GeoLatitudeValueSource(IndexFieldData<?> fieldData) {
         this.fieldData = Objects.requireNonNull(fieldData);
     }
 

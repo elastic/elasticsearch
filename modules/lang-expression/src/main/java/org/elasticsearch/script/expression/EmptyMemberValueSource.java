@@ -36,10 +36,10 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
  * <p>
  * This is essentially sugar over !count()
  */
-public class EmptyMemberValueSource extends ValueSource {
-    protected IndexFieldData<?> fieldData;
+final class EmptyMemberValueSource extends ValueSource {
+    final IndexFieldData<?> fieldData;
 
-    protected EmptyMemberValueSource(IndexFieldData<?> fieldData) {
+    EmptyMemberValueSource(IndexFieldData<?> fieldData) {
         this.fieldData = Objects.requireNonNull(fieldData);
     }
 

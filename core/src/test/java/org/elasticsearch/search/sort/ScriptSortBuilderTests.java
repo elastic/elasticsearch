@@ -60,7 +60,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 exceptThis.add(SortMode.SUM);
                 exceptThis.add(SortMode.AVG);
                 exceptThis.add(SortMode.MEDIAN);
-                builder.sortMode(ESTestCase.randomValueOtherThanMany(exceptThis, () -> randomFrom(SortMode.values())));
+                builder.sortMode(ESTestCase.randomValueOtherThanMany(exceptThis::contains, () -> randomFrom(SortMode.values())));
             }
         }
         if (randomBoolean()) {

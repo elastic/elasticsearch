@@ -114,22 +114,19 @@ final class BootstrapCheck {
             }
         }
 
-        if (!errors.isEmpty() || !ignoredErrors.isEmpty()) {
-
-            if (!ignoredErrors.isEmpty()) {
-                ignoredErrors.forEach(error -> log(logger, error));
-            }
-
-            if (!errors.isEmpty()) {
-                final List<String> messages = new ArrayList<>(1 + errors.size());
-                messages.add("bootstrap checks failed");
-                messages.addAll(errors);
-                final RuntimeException re = new RuntimeException(String.join("\n", messages));
-                errors.stream().map(IllegalStateException::new).forEach(re::addSuppressed);
-                throw re;
-            }
-
+        if (!ignoredErrors.isEmpty()) {
+            ignoredErrors.forEach(error -> log(logger, error));
         }
+
+        if (!errors.isEmpty()) {
+            final List<String> messages = new ArrayList<>(1 + errors.size());
+            messages.add("bootstrap checks failed");
+            messages.addAll(errors);
+            final RuntimeException re = new RuntimeException(String.join("\n", messages));
+            errors.stream().map(IllegalStateException::new).forEach(re::addSuppressed);
+            throw re;
+        }
+
     }
 
     static void log(final ESLogger logger, final String error) {

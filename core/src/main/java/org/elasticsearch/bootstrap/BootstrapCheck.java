@@ -473,7 +473,7 @@ final class BootstrapCheck {
         }
 
         @Override
-        public boolean isSystemCheck() {
+        public final boolean isSystemCheck() {
             return true;
         }
 

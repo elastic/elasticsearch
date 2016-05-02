@@ -27,12 +27,17 @@ import java.util.Map;
 
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -51,8 +56,10 @@ import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketScript;
@@ -257,8 +264,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should have contained IllegalArgumentException",
                     e.toString().contains("IllegalArgumentException"), equalTo(true));
-            assertThat(e.toString() + "should have contained can only be used with a date field type",
-                    e.toString().contains("can only be used with a date field type"), equalTo(true));
+            assertThat(e.toString() + "should have contained does not exist for numeric field",
+                    e.toString().contains("does not exist for numeric field"), equalTo(true));
         }
     }
 
@@ -586,4 +593,37 @@ public class MoreExpressionTests extends ESIntegTestCase {
             }
         }
     }
+    
+    public void testGeo() throws Exception {
+      XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
+              .startObject("properties").startObject("location").field("type", "geo_point");
+      xContentBuilder.endObject().endObject().endObject().endObject();
+      assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+      ensureGreen();
+      client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+          .field("name", "test")
+          .startObject("location").field("lat", 61.5240).field("lon", 105.3188).endObject()
+          .endObject()).execute().actionGet();
+      refresh();
+      // access .lat
+      SearchResponse rsp = buildRequest("doc['location'].lat").get();
+      assertSearchResponse(rsp);
+      assertEquals(1, rsp.getHits().getTotalHits());
+      assertEquals(61.5240, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
+      // access .lon
+      rsp = buildRequest("doc['location'].lon").get();
+      assertSearchResponse(rsp);
+      assertEquals(1, rsp.getHits().getTotalHits());
+      assertEquals(105.3188, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
+      // access .empty
+      rsp = buildRequest("doc['location'].empty ? 1 : 0").get();
+      assertSearchResponse(rsp);
+      assertEquals(1, rsp.getHits().getTotalHits());
+      assertEquals(0, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
+      // call haversin
+      rsp = buildRequest("haversin(38.9072, 77.0369, doc['location'].lat, doc['location'].lon)").get();
+      assertSearchResponse(rsp);
+      assertEquals(1, rsp.getHits().getTotalHits());
+      assertEquals(3170D, rsp.getHits().getAt(0).field("foo").getValue(), 50D);
+  }
 }

@@ -225,7 +225,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
             builder.prettyPrint();
         }
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+        XContentBuilder shuffled = shuffleXContent(builder);
         XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(shuffled.bytes());
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         String contentString = factoriesBuilder.toString();

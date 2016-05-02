@@ -426,11 +426,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
-     * Subclasses can override this method and return a set of fields which should be protected from
+     * Subclasses can override this method and return an array of fieldnames which should be protected from
      * recursive random shuffling in the {@link #testFromXContent()} test case
      */
-    protected Set<String> shuffleProtectedFields() {
-        return Collections.emptySet();
+    protected String[] shuffleProtectedFields() {
+        return new String[0];
     }
 
     protected static XContentBuilder toXContent(QueryBuilder query, XContentType contentType) throws IOException {

@@ -137,7 +137,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
                 builder.prettyPrint();
             }
             testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+            XContentBuilder shuffled = shuffleXContent(builder);
             XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
             itemParser.nextToken();
 

@@ -24,7 +24,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -93,7 +92,7 @@ public class InnerHitBuilderTests extends ESTestCase {
             InnerHitBuilder innerHit = randomInnerHits(true, false);
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             innerHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+            XContentBuilder shuffled = shuffleXContent(builder);
             if (randomBoolean()) {
                 shuffled.prettyPrint();
             }

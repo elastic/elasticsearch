@@ -595,35 +595,69 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
     
     public void testGeo() throws Exception {
-      XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-              .startObject("properties").startObject("location").field("type", "geo_point");
-      xContentBuilder.endObject().endObject().endObject().endObject();
-      assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
-      ensureGreen();
-      client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
-          .field("name", "test")
-          .startObject("location").field("lat", 61.5240).field("lon", 105.3188).endObject()
-          .endObject()).execute().actionGet();
-      refresh();
-      // access .lat
-      SearchResponse rsp = buildRequest("doc['location'].lat").get();
-      assertSearchResponse(rsp);
-      assertEquals(1, rsp.getHits().getTotalHits());
-      assertEquals(61.5240, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
-      // access .lon
-      rsp = buildRequest("doc['location'].lon").get();
-      assertSearchResponse(rsp);
-      assertEquals(1, rsp.getHits().getTotalHits());
-      assertEquals(105.3188, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
-      // access .empty
-      rsp = buildRequest("doc['location'].empty ? 1 : 0").get();
-      assertSearchResponse(rsp);
-      assertEquals(1, rsp.getHits().getTotalHits());
-      assertEquals(0, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
-      // call haversin
-      rsp = buildRequest("haversin(38.9072, 77.0369, doc['location'].lat, doc['location'].lon)").get();
-      assertSearchResponse(rsp);
-      assertEquals(1, rsp.getHits().getTotalHits());
-      assertEquals(3170D, rsp.getHits().getAt(0).field("foo").getValue(), 50D);
-  }
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location").field("type", "geo_point");
+        xContentBuilder.endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        ensureGreen();
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("name", "test")
+                .startObject("location").field("lat", 61.5240).field("lon", 105.3188).endObject()
+                .endObject()).execute().actionGet();
+        refresh();
+        // access .lat
+        SearchResponse rsp = buildRequest("doc['location'].lat").get();
+        assertSearchResponse(rsp);
+        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(61.5240, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
+        // access .lon
+        rsp = buildRequest("doc['location'].lon").get();
+        assertSearchResponse(rsp);
+        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(105.3188, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
+        // access .empty
+        rsp = buildRequest("doc['location'].empty ? 1 : 0").get();
+        assertSearchResponse(rsp);
+        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(0, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
+        // call haversin
+        rsp = buildRequest("haversin(38.9072, 77.0369, doc['location'].lat, doc['location'].lon)").get();
+        assertSearchResponse(rsp);
+        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(3170D, rsp.getHits().getAt(0).field("foo").getValue(), 50D);
+    }
+    
+    public void testBoolean() throws Exception {
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("vip").field("type", "boolean");
+        xContentBuilder.endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        ensureGreen();
+        indexRandom(true,
+                client().prepareIndex("test", "doc", "1").setSource("price", 1.0, "vip", true),
+                client().prepareIndex("test", "doc", "2").setSource("price", 2.0, "vip", false),
+                client().prepareIndex("test", "doc", "3").setSource("price", 2.0, "vip", false));
+        // access .value
+        SearchResponse rsp = buildRequest("doc['vip'].value").get();
+        assertSearchResponse(rsp);
+        assertEquals(3, rsp.getHits().getTotalHits());
+        assertEquals(1.0D, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
+        assertEquals(0.0D, rsp.getHits().getAt(1).field("foo").getValue(), 1.0D);
+        assertEquals(0.0D, rsp.getHits().getAt(2).field("foo").getValue(), 1.0D);
+        // access .empty
+        rsp = buildRequest("doc['vip'].empty ? 1 : 0").get();
+        assertSearchResponse(rsp);
+        assertEquals(3, rsp.getHits().getTotalHits());
+        assertEquals(0.0D, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
+        assertEquals(0.0D, rsp.getHits().getAt(1).field("foo").getValue(), 1.0D);
+        assertEquals(1.0D, rsp.getHits().getAt(2).field("foo").getValue(), 1.0D);
+        // ternary operator
+        // vip's have a 50% discount
+        rsp = buildRequest("doc['vip'] ? doc['price']/2 : doc['price']").get();
+        assertSearchResponse(rsp);
+        assertEquals(3, rsp.getHits().getTotalHits());
+        assertEquals(0.5D, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
+        assertEquals(2.0D, rsp.getHits().getAt(1).field("foo").getValue(), 1.0D);
+        assertEquals(2.0D, rsp.getHits().getAt(2).field("foo").getValue(), 1.0D);
+    }
 }

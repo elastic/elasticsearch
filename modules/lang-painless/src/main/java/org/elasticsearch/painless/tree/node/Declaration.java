@@ -22,19 +22,37 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.tree.utility.Variables.Variable;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public abstract class Node {
-    public final String location;
+public class Declaration extends Node {
+    protected final String type;
+    protected final String name;
+    protected Expression expression;
 
-    public Node(final String location) {
-        this.location = location;
+    protected Variable variable;
+
+    public Declaration(final String location, final String type, final String name, final Expression expression) {
+        super(location);
+
+        this.type = type;
+        this.name = name;
+        this.expression = expression;
     }
 
-    public String error(final String message) {
-        return "Error " + location  + ": " + message;
+    @Override
+    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        variable = variables.addVariable(location, type, name);
+
+        if (expression != null) {
+            expression.expected = variable.type;
+            expression.analyze(settings, definition, variables);
+            expression = expression.cast(definition);
+        }
     }
 
-    protected abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
-    protected abstract void write(final GeneratorAdapter adapter);
+    @Override
+    protected void write(final GeneratorAdapter adapter) {
+
+    }
 }

@@ -17,17 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.tree.walker.analyzer;
+package org.elasticsearch.painless.tree.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Pair;
-import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Definition.Type;
+import org.objectweb.asm.Label;
 
-class AnalyzerPromoter {
-    private final Definition definition;
+public abstract class Statement extends Node {
+    protected boolean lastSource = false;
 
-    AnalyzerPromoter(final Definition definition) {
-        this.definition = definition;
+    protected boolean beginLoop = false;
+    protected boolean inLoop = false;
+    protected boolean lastLoop = false;
+
+    protected boolean methodEscape = false;
+    protected boolean loopEscape = false;
+    protected boolean allEscape = false;
+
+    protected boolean anyContinue = false;
+    protected boolean anyBreak = false;
+
+    protected int statementCount = 0;
+
+    protected Label continu = null;
+    protected Label brake = null;
+
+    public Statement(final String location) {
+        super(location);
     }
 }

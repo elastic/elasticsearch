@@ -19,74 +19,87 @@
 
 package org.elasticsearch.painless.tree.utility;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Deque;
 import java.util.Iterator;
-import java.util.List;
 
-public class Variables {
-    public static class Variable {
+public final class Variables {
+    public static final class Special {
+        public boolean doc = false;
+        public boolean score = false;
+        public boolean loop = false;
+    }
+
+    public static final class Variable {
         public final String location;
         public final String name;
         public final Type type;
-
-        public boolean read = false;
         public int slot = -1;
+        public boolean read = false;
 
-        private Variable(final String location, final String name, final Type type) {
+        private Variable(final String location, final String name, final Type type, final int slot) {
             this.location = location;
             this.name = name;
             this.type = type;
+            this.slot = slot;
         }
     }
 
-    private final List<Deque<List<Variable>>> scopes = new ArrayList<>();
-    private int scopesIndex;
+    private final Definition definition;
 
-    public Variables() {
-        final Deque<List<Variable>> scope = new ArrayDeque<>();
-        scope.push(new ArrayList<>());
-        scopes.add(scope);
+    private final Deque<Integer> scopes = new ArrayDeque<>();
+    private final Deque<Variable> variables = new ArrayDeque<>();
 
-        scopesIndex = 0;
+    public Variables(final CompilerSettings settings, final Definition definition, final Special special) {
+        this.definition = definition;
+
+        incrementScope();
+
+        addVariable("[ #this ]", "Executable", "#this");
+
+        if (special.score) {
+            addVariable("[ score ]", "float", "score");
+        }
+
+        if (special.doc) {
+            addVariable("[ doc ]", "Map<String,def>", "doc");
+        }
+
+        if (special.loop && settings.getMaxLoopCounter() > 0) {
+            addVariable("[ #loop ]", "int", "#loop");
+        }
     }
 
     public void incrementScope() {
-        ++scopesIndex;
-
-        final Deque<List<Variable>> scope = scopes.size() == scopesIndex ? new ArrayDeque<>() : scopes.get(scopesIndex);
-        scope.add(new ArrayList<>());
-        scopes.add(scope);
+        scopes.push(0);
     }
 
     public void decrementScope() {
-        final List<Variable> variables = scopes.get(scopesIndex).peek();
+        int remove = scopes.pop();
 
-        for (final Variable variable : variables) {
-            if (!variable.read) {
+        while (remove > 0) {
+            final Variable variable = variables.pop();
+
+            if (variable.read) {
                 throw new IllegalArgumentException("Error [" + variable.location + "]: Variable [" + variable.name + "] never used.");
             }
-        }
 
-        --scopesIndex;
+            --remove;
+        }
     }
 
     public Variable getVariable(final String location, final String name) {
-        for (int index = 0; index < scopesIndex; ++index) {
-            final List<Variable> variables = scopes.get(index).peek();
-            final Iterator<Variable> itr = variables.iterator();
+        final Iterator<Variable> itr = variables.iterator();
 
-            while (itr.hasNext()) {
-                final Variable variable = itr.next();
+        while (itr.hasNext()) {
+            final Variable variable = itr.next();
 
-                if (variable.name.equals(name)) {
-                    return variable;
-                }
+            if (variable.name.equals(name)) {
+                return variable;
             }
         }
 
@@ -97,7 +110,7 @@ public class Variables {
         return null;
     }
 
-    public Variable addVariable(final Definition definition, final String location, final String typestr, final String name) {
+    public Variable addVariable(final String location, final String typestr, final String name) {
         if (getVariable(null, name) != null) {
             throw new IllegalArgumentException("Error " + location + ": Variable [" + name + "] already defined.");
         }
@@ -123,48 +136,20 @@ public class Variables {
             throw new IllegalArgumentException("Error " + location + ": Variable name [" + name + "] cannot be a type.");
         }
 
-        final Variable variable = new Variable(location, name, type);
-        final List<Variable> variables = scopes.get(scopesIndex).peek();
-        variables.add(variable);
-
-        return variable;
-    }
-
-    public void removeSpecial(final String... names) {
-        final List<String> remove = Arrays.asList(names);
-        final List<Variable> variables = new ArrayList<>();
-        final Deque<List<Variable>> scope = scopes.get(0);
-
-        for (final Variable variable : scope.peek()) {
-            if (!remove.contains(variable.name) || variable.read) {
-                variables.add(variable);
-            }
-        }
-
-        scope.pop();
-        scope.push(variables);
-    }
-
-    public void buildSlots() {
+        final Variable previous = variables.peekFirst();
         int slot = 0;
 
-        for (final Deque<List<Variable>> scope : scopes) {
-            final int scopeStart = slot;
-
-            for (final List<Variable> variables : scope) {
-                final int variableStart = slot;
-
-                for (final Variable variable : variables) {
-                    variable.slot = slot;
-                    slot += variable.type.sort.size;
-
-                }
-
-                slot = variableStart;
-            }
-
-            slot = scopeStart;
+        if (previous != null) {
+            slot = previous.slot + previous.type.type.getSize();
         }
+
+        final Variable variable = new Variable(location, name, type, slot);
+        variables.push(variable);
+
+        final int update = scopes.pop() + 1;
+        scopes.push(update);
+
+        return variable;
     }
 }
 

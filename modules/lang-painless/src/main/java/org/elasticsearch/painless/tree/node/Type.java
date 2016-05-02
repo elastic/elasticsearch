@@ -35,6 +35,7 @@ public enum Type {
     BLOCK ( "block" ),
     DECLARATION ( "declaration" ),
     DECLVAR ( "declvar" ),
+
     NUMERIC ( "numeric" ),
     CHAR ( "char" ),
     TRUE ( "true" ),
@@ -49,6 +50,7 @@ public enum Type {
     PRE ( "pre" ),
     ASSIGNMENT ( "assignment" ),
     COMPOUND ( "compound" ),
+
     BRACE ( "brace" ),
     CALL ( "call" ),
     VAR ( "var" ),
@@ -57,36 +59,13 @@ public enum Type {
     NEWARRAY ( "newarray" ),
     STRING ( "string" ),
 
-    ACAST ( "acast" ),
-    ATRANSFORM ( "atranform" ),
-    ACONSTANT ( "aconstant" ),
-    ASHORTCUT ( "ashortcut" ),
-    AMAPSHORTCUT ( "amapshortcut" ),
-    ALISTSHORTCUT ( "alistshorcut" ),
-    ADEFBRACE ( "adefbrace" ),
-    ADEFCALL ( "adefcall" ),
-    ADEFFIELD ( "adeffield" ),
-    AALENGTH ( "aalength" ),
-
-    TSERIES ( "tseries" ),
-    TMARK ( "tmark" ),
-    TGOTO ( "tgoto" ),
-    TJUMP ( "tjump" ),
-    TNULLJUMP ( "tnulljump" ),
-    TNONNULLJUMP ( "tnonnulljump" ),
-    TBRANCH ( "tbranch" ),
-    TWRITEBRANCH ( "twritebranch" ),
-    TLOOPCOUNT ( "tloopcount" ),
-    TTRAP ( "ttrap" ),
-    TCALL ( "tcall" ),
-    TVARLOAD ( "tvarload" ),
-    TVARSTORE ( "tvarstore" ),
-    TNEWSTRINGS ( "tnewstrings" ),
-    TAPPENDSTRINGS ( "tappendstrings" ),
-    TWRITESTRINGS ( "twritestrings" ),
-    TSTATICMETHOD( "tmethod" ),
-    TDUP ( "tdup" ),
-    TPOP ( "tpop" );
+    SHORTCUT ( "shortcut" ),
+    MAPSHORTCUT ( "mapshortcut" ),
+    LISTSHORTCUT ( "listshorcut" ),
+    DEFBRACE ( "defbrace" ),
+    DEFCALL ( "defcall" ),
+    DEFFIELD ( "deffield" ),
+    ALENGTH ( "alength" );
 
     public final String symbol;
 

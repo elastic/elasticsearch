@@ -17,17 +17,36 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.tree.walker.analyzer;
+package org.elasticsearch.painless.tree.utility;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Pair;
-import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Definition.Type;
+public enum Operation {
+    MUL     ( "+"   ),
+    DIV     ( "/"   ),
+    REM     ( "%"   ),
+    ADD     ( "+"   ),
+    SUB     ( "-"   ),
+    LSH     ( "<<"  ),
+    RSH     ( ">>"  ),
+    USH     ( ">>>" ),
+    BWNOT   ( "~"   ),
+    BWAND   ( "&"   ),
+    XOR     ( "^"   ),
+    BWOR    ( "|"   ),
+    NOT     ( "!"   ),
+    AND     ( "&&"  ),
+    OR      ( "||"  ),
+    LT      ( "<"   ),
+    LTE     ( "<="  ),
+    GT      ( ">"   ),
+    GTE     ( ">="  ),
+    EQ      ( "=="  ),
+    EQR     ( "===" ),
+    NE      ( "!="  ),
+    NER     ( "!==" );
 
-class AnalyzerPromoter {
-    private final Definition definition;
+    public final String symbol;
 
-    AnalyzerPromoter(final Definition definition) {
-        this.definition = definition;
+    Operation(final String symbol) {
+        this.symbol = symbol;
     }
 }

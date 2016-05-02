@@ -539,7 +539,7 @@ class Metadata {
         final ExternalMetadata sourceemd = externalMetadata.get(source);
 
         if (sourceemd == null) {
-            throw new IllegalStateException("External metadata does not exist at" +
+            throw new IllegalStateException("Chain metadata does not exist at" +
                 " the parse node with text [" + source.getText() + "].");
         }
 
@@ -567,7 +567,7 @@ class Metadata {
         final ExtNodeMetadata sourceemd = extNodeMetadata.get(source);
 
         if (sourceemd == null) {
-            throw new IllegalStateException("External metadata does not exist at" +
+            throw new IllegalStateException("Chain metadata does not exist at" +
                 " the parse node with text [" + source.getText() + "].");
         }
 

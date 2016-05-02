@@ -17,17 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.tree.walker.analyzer;
+package org.elasticsearch.painless.tree.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Pair;
-import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.tree.utility.Variables;
+import org.objectweb.asm.commons.GeneratorAdapter;
 
-class AnalyzerPromoter {
-    private final Definition definition;
+public class Break extends Statement {
+    public Break(final String location) {
+        super(location);
+    }
 
-    AnalyzerPromoter(final Definition definition) {
-        this.definition = definition;
+    @Override
+    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        if (!inLoop) {
+            throw new IllegalArgumentException(error("Break statement outside of a loop."));
+        }
+
+        loopEscape = true;
+        allEscape = true;
+        anyBreak = true;
+        statementCount = 1;
+    }
+
+    @Override
+    protected void write(final GeneratorAdapter adapter) {
+
     }
 }

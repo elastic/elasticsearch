@@ -19,34 +19,20 @@
 
 package org.elasticsearch.painless.tree.node;
 
-public enum Operation {
-    MUL     ( "+"   ),
-    DIV     ( "/"   ),
-    REM     ( "%"   ),
-    ADD     ( "+"   ),
-    SUB     ( "-"   ),
-    LSH     ( "<<"  ),
-    RSH     ( ">>"  ),
-    USH     ( ">>>" ),
-    BWNOT   ( "~"   ),
-    BWAND   ( "&"   ),
-    XOR     ( "^"   ),
-    BWOR    ( "|"   ),
-    NOT     ( "!"   ),
-    AND     ( "&&"  ),
-    OR      ( "||"  ),
-    LT      ( "<"   ),
-    LTE     ( "<="  ),
-    GT      ( ">"   ),
-    GTE     ( ">="  ),
-    EQ      ( "=="  ),
-    EQR     ( "===" ),
-    NE      ( "!="  ),
-    NER     ( "!==" );
+import org.elasticsearch.painless.Definition.Type;
 
-    public final String symbol;
+public abstract class Chain extends Node {
+    protected boolean load = true;
+    protected boolean store = false;
 
-    Operation(final String symbol) {
-        this.symbol = symbol;
+    protected boolean statik = false;
+    protected Type before = null;
+    protected Type after = null;
+
+    protected boolean statement = false;
+    protected Object constant = null;
+
+    public Chain(final String location) {
+        super(location);
     }
 }

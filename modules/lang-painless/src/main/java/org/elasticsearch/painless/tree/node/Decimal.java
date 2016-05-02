@@ -17,17 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.tree.walker.analyzer;
+package org.elasticsearch.painless.tree.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Pair;
-import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Definition.Type;
+public class Decimal extends Expression {
+    final String value;
 
-class AnalyzerPromoter {
-    private final Definition definition;
+    public Decimal(final String location, final String value) {
+        super(location);
 
-    AnalyzerPromoter(final Definition definition) {
-        this.definition = definition;
+        this.value = value;
     }
 }

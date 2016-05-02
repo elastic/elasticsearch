@@ -21,20 +21,41 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.tree.utility.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public abstract class Node {
-    public final String location;
+public class SExpression extends Statement {
+    protected Expression expression;
 
-    public Node(final String location) {
-        this.location = location;
+    public SExpression(final String location, final Expression expression) {
+        super(location);
+
+        this.expression = expression;
     }
 
-    public String error(final String message) {
-        return "Error " + location  + ": " + message;
+    @Override
+    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        expression.read = lastSource;
+        expression.analyze(settings, definition, variables);
+
+        if (!expression.statement && !lastSource) {
+            throw new IllegalArgumentException(error("Not a statement."));
+        }
+
+        final boolean rtn = lastSource && expression.actual.sort != Sort.VOID;
+
+        expression.expected = rtn ? definition.objectType : expression.actual;
+        expression = expression.cast(definition);
+
+        methodEscape = rtn;
+        loopEscape = rtn;
+        allEscape = rtn;
+        statementCount = 1;
     }
 
-    protected abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
-    protected abstract void write(final GeneratorAdapter adapter);
+    @Override
+    protected void write(final GeneratorAdapter adapter) {
+
+    }
 }

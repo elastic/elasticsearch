@@ -24,17 +24,28 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.utility.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public abstract class Node {
-    public final String location;
-
-    public Node(final String location) {
-        this.location = location;
+public class Continue extends Statement {
+    public Continue(final String location) {
+        super(location);
     }
 
-    public String error(final String message) {
-        return "Error " + location  + ": " + message;
+    @Override
+    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        if (!inLoop) {
+            throw new IllegalArgumentException(error("Continue statement outside of a loop."));
+        }
+
+        if (lastLoop) {
+            throw new IllegalArgumentException(error("Extraneous continue statement."));
+        }
+
+        allEscape = true;
+        anyContinue = true;
+        statementCount = 1;
     }
 
-    protected abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
-    protected abstract void write(final GeneratorAdapter adapter);
+    @Override
+    protected void write(final GeneratorAdapter adapter) {
+
+    }
 }

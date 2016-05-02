@@ -24,17 +24,29 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.utility.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public abstract class Node {
-    public final String location;
+public class Throw extends Statement {
+    protected Expression expression;
 
-    public Node(final String location) {
-        this.location = location;
+    public Throw(final String location, final Expression expression) {
+        super(location);
+
+        this.expression = expression;
     }
 
-    public String error(final String message) {
-        return "Error " + location  + ": " + message;
+    @Override
+    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        expression.expected = definition.exceptionType;
+        expression.analyze(settings, definition, variables);
+        expression = expression.cast(definition);
+
+        methodEscape = true;
+        loopEscape = true;
+        allEscape = true;
+        statementCount = 1;
     }
 
-    protected abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
-    protected abstract void write(final GeneratorAdapter adapter);
+    @Override
+    protected void write(final GeneratorAdapter adapter) {
+
+    }
 }

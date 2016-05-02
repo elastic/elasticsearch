@@ -22,6 +22,7 @@ package org.elasticsearch.painless.input.antlr;
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.elasticsearch.painless.tree.utility.Special;
 import org.elasticsearch.painless.input.antlr.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.input.antlr.PainlessParser.ArgumentsContext;
 import org.elasticsearch.painless.input.antlr.PainlessParser.AssignmentContext;
@@ -75,29 +76,29 @@ import org.elasticsearch.painless.input.antlr.PainlessParser.UnaryContext;
 import org.elasticsearch.painless.input.antlr.PainlessParser.WhileContext;
 import org.elasticsearch.painless.tree.node.Node;
 
-import static org.elasticsearch.painless.tree.node.Operation.ADD;
-import static org.elasticsearch.painless.tree.node.Operation.AND;
-import static org.elasticsearch.painless.tree.node.Operation.BWAND;
-import static org.elasticsearch.painless.tree.node.Operation.BWNOT;
-import static org.elasticsearch.painless.tree.node.Operation.BWOR;
-import static org.elasticsearch.painless.tree.node.Operation.DIV;
-import static org.elasticsearch.painless.tree.node.Operation.EQ;
-import static org.elasticsearch.painless.tree.node.Operation.EQR;
-import static org.elasticsearch.painless.tree.node.Operation.GT;
-import static org.elasticsearch.painless.tree.node.Operation.GTE;
-import static org.elasticsearch.painless.tree.node.Operation.LSH;
-import static org.elasticsearch.painless.tree.node.Operation.LT;
-import static org.elasticsearch.painless.tree.node.Operation.LTE;
-import static org.elasticsearch.painless.tree.node.Operation.MUL;
-import static org.elasticsearch.painless.tree.node.Operation.NE;
-import static org.elasticsearch.painless.tree.node.Operation.NER;
-import static org.elasticsearch.painless.tree.node.Operation.NOT;
-import static org.elasticsearch.painless.tree.node.Operation.OR;
-import static org.elasticsearch.painless.tree.node.Operation.REM;
-import static org.elasticsearch.painless.tree.node.Operation.RSH;
-import static org.elasticsearch.painless.tree.node.Operation.SUB;
-import static org.elasticsearch.painless.tree.node.Operation.USH;
-import static org.elasticsearch.painless.tree.node.Operation.XOR;
+import static org.elasticsearch.painless.tree.utility.Operation.ADD;
+import static org.elasticsearch.painless.tree.utility.Operation.AND;
+import static org.elasticsearch.painless.tree.utility.Operation.BWAND;
+import static org.elasticsearch.painless.tree.utility.Operation.BWNOT;
+import static org.elasticsearch.painless.tree.utility.Operation.BWOR;
+import static org.elasticsearch.painless.tree.utility.Operation.DIV;
+import static org.elasticsearch.painless.tree.utility.Operation.EQ;
+import static org.elasticsearch.painless.tree.utility.Operation.EQR;
+import static org.elasticsearch.painless.tree.utility.Operation.GT;
+import static org.elasticsearch.painless.tree.utility.Operation.GTE;
+import static org.elasticsearch.painless.tree.utility.Operation.LSH;
+import static org.elasticsearch.painless.tree.utility.Operation.LT;
+import static org.elasticsearch.painless.tree.utility.Operation.LTE;
+import static org.elasticsearch.painless.tree.utility.Operation.MUL;
+import static org.elasticsearch.painless.tree.utility.Operation.NE;
+import static org.elasticsearch.painless.tree.utility.Operation.NER;
+import static org.elasticsearch.painless.tree.utility.Operation.NOT;
+import static org.elasticsearch.painless.tree.utility.Operation.OR;
+import static org.elasticsearch.painless.tree.utility.Operation.REM;
+import static org.elasticsearch.painless.tree.utility.Operation.RSH;
+import static org.elasticsearch.painless.tree.utility.Operation.SUB;
+import static org.elasticsearch.painless.tree.utility.Operation.USH;
+import static org.elasticsearch.painless.tree.utility.Operation.XOR;
 import static org.elasticsearch.painless.tree.node.Type.ASSIGNMENT;
 import static org.elasticsearch.painless.tree.node.Type.BINARY;
 import static org.elasticsearch.painless.tree.node.Type.BLOCK;
@@ -136,13 +137,15 @@ import static org.elasticsearch.painless.tree.node.Type.VAR;
 import static org.elasticsearch.painless.tree.node.Type.WHILE;
 
 public class Walker extends PainlessParserBaseVisitor<Node> {
-    public static Node buildPainlessTree(final String source) {
-        return new Walker(source).source;
+    public static Node buildPainlessTree(final String source, final Special special) {
+        return new Walker(source, special).source;
     }
 
+    private Special special;
     private Node source;
 
-    private Walker(final String source) {
+    private Walker(final String source, final Special special) {
+        this.special = special;
         this.source = visit(buildAntlrTree(source));
     }
 

@@ -339,7 +339,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
         if (context.externalValueSet()) {
             addressAsObject = context.externalValue();
         } else {
-            addressAsObject = context.parser().text();
+            addressAsObject = context.parser().textOrNull();
         }
 
         if (addressAsObject == null) {
@@ -394,6 +394,10 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
+
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", InetAddresses.toAddrString((InetAddress) fieldType().nullValue()));
+        }
 
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field("ignore_malformed", ignoreMalformed.value());

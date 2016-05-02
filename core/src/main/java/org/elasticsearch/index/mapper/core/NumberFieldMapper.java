@@ -366,8 +366,15 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         BYTE("byte", NumericType.BYTE) {
             @Override
             Byte parse(Object value) {
-                if (value instanceof Byte) {
-                    return (Byte) value;
+                if (value instanceof Number) {
+                    double doubleValue = ((Number) value).doubleValue();
+                    if (doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE) {
+                        throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
+                    }
+                    if (doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                    }
+                    return ((Number) value).byteValue();
                 }
                 if (value instanceof BytesRef) {
                     value = ((BytesRef) value).utf8ToString();
@@ -426,6 +433,13 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             @Override
             Short parse(Object value) {
                 if (value instanceof Number) {
+                    double doubleValue = ((Number) value).doubleValue();
+                    if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
+                        throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
+                    }
+                    if (doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                    }
                     return ((Number) value).shortValue();
                 }
                 if (value instanceof BytesRef) {
@@ -485,6 +499,13 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             @Override
             Integer parse(Object value) {
                 if (value instanceof Number) {
+                    double doubleValue = ((Number) value).doubleValue();
+                    if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
+                        throw new IllegalArgumentException("Value [" + value + "] is out of range for an integer");
+                    }
+                    if (doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                    }
                     return ((Number) value).intValue();
                 }
                 if (value instanceof BytesRef) {
@@ -581,6 +602,13 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             @Override
             Long parse(Object value) {
                 if (value instanceof Number) {
+                    double doubleValue = ((Number) value).doubleValue();
+                    if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
+                        throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
+                    }
+                    if (doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                    }
                     return ((Number) value).longValue();
                 }
                 if (value instanceof BytesRef) {
@@ -944,6 +972,11 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         if (includeDefaults || coerce.explicit()) {
             builder.field("coerce", coerce.value());
         }
+
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", fieldType().nullValue());
+        }
+
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
         } else if (includeDefaults) {

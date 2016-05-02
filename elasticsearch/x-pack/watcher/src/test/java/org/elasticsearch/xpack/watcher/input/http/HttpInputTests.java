@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
@@ -48,6 +47,9 @@ import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -55,6 +57,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.joda.time.DateTimeZone.UTC;
@@ -121,27 +124,13 @@ public class HttpInputTests extends ESTestCase {
         }
 
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
-
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
-
         when(templateEngine.render(eq(TextTemplate.inline("_body").build()), any(Map.class))).thenReturn("_body");
 
-        Watch watch = new Watch("test-watch",
-                new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
-                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
-                new ExecutableAlwaysCondition(logger),
-                null,
-                null,
-                new ExecutableActions(new ArrayList<ActionWrapper>()),
-                null,
-                new WatchStatus(new DateTime(0, UTC), emptyMap()));
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch,
-                new DateTime(0, UTC),
-                new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
-                TimeValue.timeValueSeconds(5));
+        WatchExecutionContext ctx = createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
         assertThat(result.type(), equalTo(HttpInput.TYPE));
-        assertThat(result.payload().data(), equalTo(MapBuilder.<String, Object>newMapBuilder().put("key", "value").map()));
+        assertThat(result.payload().data(), hasEntry("key", "value"));
     }
 
     public void testExecuteNonJson() throws Exception {
@@ -156,19 +145,8 @@ public class HttpInputTests extends ESTestCase {
         HttpResponse response = new HttpResponse(123, notJson.getBytes(StandardCharsets.UTF_8));
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
         when(templateEngine.render(eq(TextTemplate.inline("_body").build()), any(Map.class))).thenReturn("_body");
-        Watch watch = new Watch("test-watch",
-                new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
-                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
-                new ExecutableAlwaysCondition(logger),
-                null,
-                null,
-                new ExecutableActions(new ArrayList<ActionWrapper>()),
-                null,
-                new WatchStatus(new DateTime(0, UTC), emptyMap()));
-        WatchExecutionContext ctx = new TriggeredExecutionContext(watch,
-                new DateTime(0, UTC),
-                new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
-                TimeValue.timeValueSeconds(5));
+
+        WatchExecutionContext ctx = createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.payload().data().get("_value").toString(), equalTo(notJson));
@@ -242,7 +220,7 @@ public class HttpInputTests extends ESTestCase {
         }
     }
 
-    public void testParser_invalidHttpMethod() throws Exception {
+    public void testParserInvalidHttpMethod() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                 .startObject("request")
                     .field("method", "_method")
@@ -257,5 +235,57 @@ public class HttpInputTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("unsupported http method [_METHOD]"));
         }
+    }
+
+    public void testThatHeadersAreIncludedInPayload() throws Exception {
+        String headerName = randomAsciiOfLength(10);
+        String headerValue = randomAsciiOfLength(10);
+        boolean responseHasContent = randomBoolean();
+
+        HttpRequestTemplate.Builder request = HttpRequestTemplate.builder("localhost", 8080);
+        HttpInput httpInput = InputBuilders.httpInput(request.build()).build();
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
+
+        Map<String, String[]> responseHeaders = new HashMap<>();
+        responseHeaders.put(headerName, new String[] { headerValue });
+        HttpResponse response;
+        if (responseHasContent) {
+            response = new HttpResponse(200, "body".getBytes(StandardCharsets.UTF_8), responseHeaders);
+        } else {
+            BytesReference bytesReference = null;
+            response = new HttpResponse(200, bytesReference, responseHeaders);
+        }
+
+        when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
+
+        when(templateEngine.render(eq(TextTemplate.inline("_body").build()), any(Map.class))).thenReturn("_body");
+
+        WatchExecutionContext ctx = createWatchExecutionContext();
+        HttpInput.Result result = input.execute(ctx, new Payload.Simple());
+
+        assertThat(result.type(), equalTo(HttpInput.TYPE));
+        List<String> expectedHeaderValues = new ArrayList<>();
+        expectedHeaderValues.add(headerValue);
+        Map<String, Object> expectedHeaderMap = MapBuilder.<String, Object>newMapBuilder()
+                .put(headerName.toLowerCase(Locale.ROOT), expectedHeaderValues)
+                .map();
+        assertThat(result.payload().data(), hasKey("_headers"));
+        assertThat(result.payload().data().get("_headers"), equalTo(expectedHeaderMap));
+    }
+
+    private WatchExecutionContext createWatchExecutionContext() {
+        Watch watch = new Watch("test-watch",
+                new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
+                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
+                new ExecutableAlwaysCondition(logger),
+                null,
+                null,
+                new ExecutableActions(new ArrayList<>()),
+                null,
+                new WatchStatus(new DateTime(0, UTC), emptyMap()));
+        return new TriggeredExecutionContext(watch,
+                new DateTime(0, UTC),
+                new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
+                TimeValue.timeValueSeconds(5));
     }
 }

@@ -161,10 +161,6 @@ public class HttpInput implements Input {
             return request;
         }
 
-        public int statusCode() {
-            return statusCode;
-        }
-
         @Override
         protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
             if (request == null) {

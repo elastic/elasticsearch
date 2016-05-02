@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.watcher.support.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.support.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -50,9 +52,11 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
 
     HttpInput.Result doExecute(WatchExecutionContext ctx, HttpRequest request) throws Exception {
         HttpResponse response = client.execute(request);
+        Map<String, List<String>> headers = response.headers();
 
         if (!response.hasContent()) {
-            return new HttpInput.Result(request, response.status(), Payload.EMPTY);
+            Payload payload = headers.size() > 0 ? new Payload.Simple("_headers", headers) : Payload.EMPTY;
+            return new HttpInput.Result(request, -1, payload);
         }
 
         XContentType contentType = response.xContentType();
@@ -81,18 +85,19 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
             }
         }
 
-        final Payload payload;
+        final Map<String, Object> payloadMap = new HashMap<>();
         if (input.getExtractKeys() != null) {
-            Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
-            payload = new Payload.Simple(filteredKeys);
+            payloadMap.putAll(XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser));
         } else {
             if (parser != null) {
-                Map<String, Object> map = parser.mapOrdered();
-                payload = new Payload.Simple(map);
+                payloadMap.putAll(parser.mapOrdered());
             } else {
-                payload = new Payload.Simple("_value", response.body().toUtf8());
+                payloadMap.put("_value", response.body().toUtf8());
             }
         }
-        return new HttpInput.Result(request, response.status(), payload);
+        if (headers.size() > 0) {
+            payloadMap.put("_headers", headers);
+        }
+        return new HttpInput.Result(request, response.status(), new Payload.Simple(payloadMap));
     }
 }

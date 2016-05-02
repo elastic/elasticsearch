@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.support.http;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -79,6 +80,18 @@ public class HttpResponse implements ToXContent {
 
     public BytesReference body() {
         return body;
+    }
+
+    /**
+     * Returns all the headers, with keys being lowercased, so they are always consistent
+     * in the payload
+     */
+    public Map<String, List<String>> headers() {
+        ImmutableMap.Builder<String, List<String>> builder = ImmutableMap.builder();
+        for (Map.Entry<String, String[]> entry : headers.entrySet()) {
+            builder.put(entry.getKey().toLowerCase(Locale.ROOT), Arrays.asList(entry.getValue()));
+        }
+        return builder.build();
     }
 
     public String[] header(String header) {

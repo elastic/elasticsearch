@@ -37,20 +37,19 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LegacyDateFieldMapper;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.text.ParseException;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -64,26 +63,6 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     public static final String NAME = "expression";
 
     public static final List<String> TYPES = Collections.singletonList(NAME);
-
-    // these methods only work on dates, e.g. doc['datefield'].getYear()
-    protected static final String GET_YEAR_METHOD         = "getYear";
-    protected static final String GET_MONTH_METHOD        = "getMonth";
-    protected static final String GET_DAY_OF_MONTH_METHOD = "getDayOfMonth";
-    protected static final String GET_HOUR_OF_DAY_METHOD  = "getHourOfDay";
-    protected static final String GET_MINUTES_METHOD      = "getMinutes";
-    protected static final String GET_SECONDS_METHOD      = "getSeconds";
-
-    // these methods work on any field, e.g. doc['field'].sum()
-    protected static final String MINIMUM_METHOD          = "min";
-    protected static final String MAXIMUM_METHOD          = "max";
-    protected static final String AVERAGE_METHOD          = "avg";
-    protected static final String MEDIAN_METHOD           = "median";
-    protected static final String SUM_METHOD              = "sum";
-    protected static final String COUNT_METHOD            = "count";
-
-    // these variables work on any field, e.g. doc['field'].value
-    protected static final String VALUE_VARIABLE          = "value";
-    protected static final String EMPTY_VARIABLE          = "empty";
 
     @Inject
     public ExpressionScriptEngineService(Settings settings) {
@@ -175,7 +154,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                 } else {
                     String fieldname = null;
                     String methodname = null;
-                    String variablename = VALUE_VARIABLE; // .value is the default for doc['field'], its optional.
+                    String variablename = "value"; // .value is the default for doc['field'], its optional.
                     VariableContext[] parts = VariableContext.parse(variable);
                     if (parts[0].text.equals("doc") == false) {
                         throw new ScriptException("Unknown variable [" + parts[0].text + "] in expression");
@@ -205,15 +184,38 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                     }
 
                     IndexFieldData<?> fieldData = lookup.doc().fieldDataService().getForField(fieldType);
-                    if (fieldData instanceof IndexNumericFieldData == false) {
-                        // TODO: more context (which expression?)
-                        throw new ScriptException("Field [" + fieldname + "] used in expression must be numeric");
-                    }
-                    if (methodname == null) {
-                        bindings.add(variable, getVariableValueSource(fieldType, fieldData, fieldname, variablename));
+                    
+                    // delegate valuesource creation based on field's type
+                    // there are three types of "fields" to expressions, and each one has a different "api" of variables and methods.
+                    
+                    final ValueSource valueSource;
+                    if (fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType) {
+                        // geo
+                        if (methodname == null) {
+                            valueSource = GeoField.getVariable(fieldData, fieldname, variablename);
+                        } else {
+                            valueSource = GeoField.getMethod(fieldData, fieldname, methodname);
+                        }
+                    } else if (fieldType instanceof LegacyDateFieldMapper.DateFieldType || 
+                            fieldType instanceof DateFieldMapper.DateFieldType) {
+                        // date
+                        if (methodname == null) {
+                            valueSource = DateField.getVariable(fieldData, fieldname, variablename);
+                        } else {
+                            valueSource = DateField.getMethod(fieldData, fieldname, methodname);
+                        }
+                    } else if (fieldData instanceof IndexNumericFieldData) {
+                        // number
+                        if (methodname == null) {
+                            valueSource = NumericField.getVariable(fieldData, fieldname, variablename);
+                        } else {
+                            valueSource = NumericField.getMethod(fieldData, fieldname, methodname);
+                        }
                     } else {
-                        bindings.add(variable, getMethodValueSource(fieldType, fieldData, fieldname, methodname));
+                        throw new ScriptException("Field [" + fieldname + "] used in expression must be numeric, date, or geopoint");
                     }
+                    
+                    bindings.add(variable, valueSource);
                 }
             }
 
@@ -222,57 +224,6 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
         } catch (Exception exception) {
             throw new ScriptException("Error during search with " + compiledScript, exception);
         }
-    }
-
-    protected ValueSource getMethodValueSource(MappedFieldType fieldType, IndexFieldData<?> fieldData, String fieldName, String methodName) {
-        switch (methodName) {
-            case GET_YEAR_METHOD:
-                return getDateMethodValueSource(fieldType, fieldData, fieldName, methodName, Calendar.YEAR);
-            case GET_MONTH_METHOD:
-                return getDateMethodValueSource(fieldType, fieldData, fieldName, methodName, Calendar.MONTH);
-            case GET_DAY_OF_MONTH_METHOD:
-                return getDateMethodValueSource(fieldType, fieldData, fieldName, methodName, Calendar.DAY_OF_MONTH);
-            case GET_HOUR_OF_DAY_METHOD:
-                return getDateMethodValueSource(fieldType, fieldData, fieldName, methodName, Calendar.HOUR_OF_DAY);
-            case GET_MINUTES_METHOD:
-                return getDateMethodValueSource(fieldType, fieldData, fieldName, methodName, Calendar.MINUTE);
-            case GET_SECONDS_METHOD:
-                return getDateMethodValueSource(fieldType, fieldData, fieldName, methodName, Calendar.SECOND);
-            case MINIMUM_METHOD:
-                return new FieldDataValueSource(fieldData, MultiValueMode.MIN);
-            case MAXIMUM_METHOD:
-                return new FieldDataValueSource(fieldData, MultiValueMode.MAX);
-            case AVERAGE_METHOD:
-                return new FieldDataValueSource(fieldData, MultiValueMode.AVG);
-            case MEDIAN_METHOD:
-                return new FieldDataValueSource(fieldData, MultiValueMode.MEDIAN);
-            case SUM_METHOD:
-                return new FieldDataValueSource(fieldData, MultiValueMode.SUM);
-            case COUNT_METHOD:
-                return new CountMethodValueSource(fieldData);
-            default:
-                throw new IllegalArgumentException("Member method [" + methodName + "] does not exist.");
-        }
-    }
-    
-    protected ValueSource getVariableValueSource(MappedFieldType fieldType, IndexFieldData<?> fieldData, String fieldName, String memberName) {
-        switch (memberName) {
-            case VALUE_VARIABLE:
-                return new FieldDataValueSource(fieldData, MultiValueMode.MIN);
-            case EMPTY_VARIABLE:
-                return new EmptyMemberValueSource(fieldData);
-            default:
-                throw new IllegalArgumentException("Member variable [" + memberName + "] does not exist.");
-        }
-    }
-
-    protected ValueSource getDateMethodValueSource(MappedFieldType fieldType, IndexFieldData<?> fieldData, String fieldName, String methodName, int calendarType) {
-        if (fieldType instanceof LegacyDateFieldMapper.DateFieldType == false
-                && fieldType instanceof DateFieldMapper.DateFieldType == false) {
-            throw new IllegalArgumentException("Member method [" + methodName + "] can only be used with a date field type, not the field [" + fieldName + "].");
-        }
-
-        return new DateMethodValueSource(fieldData, MultiValueMode.MIN, methodName, calendarType);
     }
 
     @Override

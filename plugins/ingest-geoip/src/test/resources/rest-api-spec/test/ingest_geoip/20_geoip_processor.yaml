@@ -54,7 +54,7 @@
               {
                 "geoip" : {
                   "field" : "field1",
-                  "properties" : ["city_name", "country_iso_code", "ip", "latitude", "longitude", "location", "timezone", "country_name", "region_name", "continent_name"]
+                  "properties" : ["city_name", "country_iso_code", "ip", "location", "timezone", "country_name", "region_name", "continent_name"]
                 }
               }
             ]

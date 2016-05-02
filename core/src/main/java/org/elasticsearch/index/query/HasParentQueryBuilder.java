@@ -33,10 +33,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.query.support.InnerHitBuilder;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -127,9 +127,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     }
 
     public HasParentQueryBuilder innerHit(InnerHitBuilder innerHit) {
-        innerHit.setParentChildType(type);
-        innerHit.setQuery(query);
-        this.innerHit = innerHit;
+        this.innerHit = new InnerHitBuilder(innerHit, query, type);
         return this;
     }
 
@@ -173,10 +171,6 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             } else {
                 throw new QueryShardException(context, "[" + NAME + "] query configured 'parent_type' [" + type + "] is not a valid type");
             }
-        }
-
-        if (innerHit != null) {
-            context.addInnerHit(innerHit);
         }
 
         Set<String> childTypes = new HashSet<>();
@@ -282,8 +276,14 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                 }
             }
         }
-        return new HasParentQueryBuilder(parentType, iqb, score, innerHits).ignoreUnmapped(ignoreUnmapped).queryName(queryName)
+        HasParentQueryBuilder queryBuilder =  new HasParentQueryBuilder(parentType, iqb, score)
+                .ignoreUnmapped(ignoreUnmapped)
+                .queryName(queryName)
                 .boost(boost);
+        if (innerHits != null) {
+            queryBuilder.innerHit(innerHits);
+        }
+        return queryBuilder;
     }
 
     @Override
@@ -312,5 +312,12 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             return new HasParentQueryBuilder(type, rewrite, score, innerHit);
         }
         return this;
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+        if (innerHit!= null) {
+            innerHit.inlineInnerHits(innerHits);
+        }
     }
 }

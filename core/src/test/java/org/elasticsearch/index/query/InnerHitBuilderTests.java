@@ -16,11 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.query.support;
+package org.elasticsearch.index.query;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.nullValue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -41,8 +44,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -87,7 +89,7 @@ public class InnerHitBuilderTests extends ESTestCase {
 
     public void testFromAndToXContent() throws Exception {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            InnerHitBuilder innerHit = randomInnerHits();
+            InnerHitBuilder innerHit = randomInnerHits(true, false);
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
                 builder.prettyPrint();
@@ -111,7 +113,7 @@ public class InnerHitBuilderTests extends ESTestCase {
             assertTrue("inner it is not equal to self", firstInnerHit.equals(firstInnerHit));
             assertThat("same inner hit's hashcode returns different values if called multiple times", firstInnerHit.hashCode(),
                     equalTo(firstInnerHit.hashCode()));
-            assertThat("different inner hits should not be equal", mutate(firstInnerHit), not(equalTo(firstInnerHit)));
+            assertThat("different inner hits should not be equal", mutate(serializedCopy(firstInnerHit)), not(equalTo(firstInnerHit)));
 
             InnerHitBuilder secondBuilder = serializedCopy(firstInnerHit);
             assertTrue("inner hit is not equal to self", secondBuilder.equals(secondBuilder));
@@ -133,18 +135,83 @@ public class InnerHitBuilderTests extends ESTestCase {
         }
     }
 
-    public static InnerHitBuilder randomInnerHits() {
-        return randomInnerHits(true);
+    public void testInlineLeafInnerHitsNestedQuery() throws Exception {
+        InnerHitBuilder leafInnerHits = randomInnerHits();
+        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);
+        nestedQueryBuilder.innerHit(leafInnerHits);
+        Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+        nestedQueryBuilder.extractInnerHitBuilders(innerHitBuilders);
+        assertThat(innerHitBuilders.get(leafInnerHits.getName()), notNullValue());
     }
 
-    public static InnerHitBuilder randomInnerHits(boolean recursive) {
-        InnerHitBuilder innerHits = new InnerHitBuilder();
-        if (randomBoolean()) {
-            innerHits.setNestedPath(randomAsciiOfLengthBetween(1, 16));
-        } else {
-            innerHits.setParentChildType(randomAsciiOfLengthBetween(1, 16));
-        }
+    public void testInlineLeafInnerHitsHasChildQuery() throws Exception {
+        InnerHitBuilder leafInnerHits = randomInnerHits();
+        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder("type", new MatchAllQueryBuilder(), ScoreMode.None)
+                .innerHit(leafInnerHits);
+        Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+        hasChildQueryBuilder.extractInnerHitBuilders(innerHitBuilders);
+        assertThat(innerHitBuilders.get(leafInnerHits.getName()), notNullValue());
+    }
 
+    public void testInlineLeafInnerHitsHasParentQuery() throws Exception {
+        InnerHitBuilder leafInnerHits = randomInnerHits();
+        HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder("type", new MatchAllQueryBuilder(), false)
+                .innerHit(leafInnerHits);
+        Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+        hasParentQueryBuilder.extractInnerHitBuilders(innerHitBuilders);
+        assertThat(innerHitBuilders.get(leafInnerHits.getName()), notNullValue());
+    }
+
+    public void testInlineLeafInnerHitsNestedQueryViaBoolQuery() {
+        InnerHitBuilder leafInnerHits = randomInnerHits();
+        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None)
+                .innerHit(leafInnerHits);
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder().should(nestedQueryBuilder);
+        Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+        boolQueryBuilder.extractInnerHitBuilders(innerHitBuilders);
+        assertThat(innerHitBuilders.get(leafInnerHits.getName()), notNullValue());
+    }
+
+    public void testInlineLeafInnerHitsNestedQueryViaConstantScoreQuery() {
+        InnerHitBuilder leafInnerHits = randomInnerHits();
+        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None)
+                .innerHit(leafInnerHits);
+        ConstantScoreQueryBuilder constantScoreQueryBuilder = new ConstantScoreQueryBuilder(nestedQueryBuilder);
+        Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+        constantScoreQueryBuilder.extractInnerHitBuilders(innerHitBuilders);
+        assertThat(innerHitBuilders.get(leafInnerHits.getName()), notNullValue());
+    }
+
+    public void testInlineLeafInnerHitsNestedQueryViaBoostingQuery() {
+        InnerHitBuilder leafInnerHits1 = randomInnerHits();
+        NestedQueryBuilder nestedQueryBuilder1 = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None)
+                .innerHit(leafInnerHits1);
+        InnerHitBuilder leafInnerHits2 = randomInnerHits();
+        NestedQueryBuilder nestedQueryBuilder2 = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None)
+                .innerHit(leafInnerHits2);
+        BoostingQueryBuilder constantScoreQueryBuilder = new BoostingQueryBuilder(nestedQueryBuilder1, nestedQueryBuilder2);
+        Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+        constantScoreQueryBuilder.extractInnerHitBuilders(innerHitBuilders);
+        assertThat(innerHitBuilders.get(leafInnerHits1.getName()), notNullValue());
+        assertThat(innerHitBuilders.get(leafInnerHits2.getName()), notNullValue());
+    }
+
+    public void testInlineLeafInnerHitsNestedQueryViaFunctionScoreQuery() {
+        InnerHitBuilder leafInnerHits = randomInnerHits();
+        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None)
+                .innerHit(leafInnerHits);
+        FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(nestedQueryBuilder);
+        Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+        ((AbstractQueryBuilder) functionScoreQueryBuilder).extractInnerHitBuilders(innerHitBuilders);
+        assertThat(innerHitBuilders.get(leafInnerHits.getName()), notNullValue());
+    }
+
+    public static InnerHitBuilder randomInnerHits() {
+        return randomInnerHits(true, true);
+    }
+
+    public static InnerHitBuilder randomInnerHits(boolean recursive, boolean includeQueryTypeOrPath) {
+        InnerHitBuilder innerHits = new InnerHitBuilder();
         innerHits.setName(randomAsciiOfLengthBetween(1, 16));
         innerHits.setFrom(randomIntBetween(0, 128));
         innerHits.setSize(randomIntBetween(0, 128));
@@ -170,54 +237,76 @@ public class InnerHitBuilderTests extends ESTestCase {
             );
         }
         innerHits.setHighlightBuilder(HighlightBuilderTests.randomHighlighterBuilder());
-        if (randomBoolean()) {
-            innerHits.setQuery(new MatchQueryBuilder(randomAsciiOfLengthBetween(1, 16), randomAsciiOfLengthBetween(1, 16)));
-        }
         if (recursive && randomBoolean()) {
-            InnerHitsBuilder innerHitsBuilder = new InnerHitsBuilder();
             int size = randomIntBetween(1, 16);
             for (int i = 0; i < size; i++) {
-                innerHitsBuilder.addInnerHit(randomAsciiOfLengthBetween(1, 16), randomInnerHits(false));
+                innerHits.addChildInnerHit(randomInnerHits(false, includeQueryTypeOrPath));
             }
-            innerHits.setInnerHitsBuilder(innerHitsBuilder);
         }
 
-        return innerHits;
+        if (includeQueryTypeOrPath) {
+            QueryBuilder query = new MatchQueryBuilder(randomAsciiOfLengthBetween(1, 16), randomAsciiOfLengthBetween(1, 16));
+            if (randomBoolean()) {
+                return new InnerHitBuilder(innerHits, randomAsciiOfLength(8), query);
+            } else {
+                return new InnerHitBuilder(innerHits, query, randomAsciiOfLength(8));
+            }
+        } else {
+            return innerHits;
+        }
     }
 
-    static InnerHitBuilder mutate(InnerHitBuilder innerHits) throws IOException {
-        InnerHitBuilder copy = serializedCopy(innerHits);
-        int surprise = randomIntBetween(0, 10);
+    public void testCopyConstructor() throws Exception {
+        InnerHitBuilder original = randomInnerHits();
+        InnerHitBuilder copy = original.getNestedPath() != null ?
+                new InnerHitBuilder(original, original.getNestedPath(), original.getQuery()) :
+                new InnerHitBuilder(original, original.getQuery(), original.getParentChildType());
+        assertThat(copy, equalTo(original));
+        copy = mutate(copy);
+        assertThat(copy, not(equalTo(original)));
+    }
+
+    static InnerHitBuilder mutate(InnerHitBuilder instance) throws IOException {
+        int surprise = randomIntBetween(0, 11);
         switch (surprise) {
             case 0:
-                copy.setFrom(randomValueOtherThan(innerHits.getFrom(), () -> randomIntBetween(0, 128)));
+                instance.setFrom(randomValueOtherThan(instance.getFrom(), () -> randomIntBetween(0, 128)));
                 break;
             case 1:
-                copy.setSize(randomValueOtherThan(innerHits.getSize(), () -> randomIntBetween(0, 128)));
+                instance.setSize(randomValueOtherThan(instance.getSize(), () -> randomIntBetween(0, 128)));
                 break;
             case 2:
-                copy.setExplain(!copy.isExplain());
+                instance.setExplain(!instance.isExplain());
                 break;
             case 3:
-                copy.setVersion(!copy.isVersion());
+                instance.setVersion(!instance.isVersion());
                 break;
             case 4:
-                copy.setTrackScores(!copy.isTrackScores());
+                instance.setTrackScores(!instance.isTrackScores());
                 break;
             case 5:
-                copy.setName(randomValueOtherThan(innerHits.getName(), () -> randomAsciiOfLengthBetween(1, 16)));
+                instance.setName(randomValueOtherThan(instance.getName(), () -> randomAsciiOfLengthBetween(1, 16)));
                 break;
             case 6:
-                copy.setFieldDataFields(randomValueOtherThan(copy.getFieldDataFields(), () -> {
-                    return randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16));
-                }));
+                if (randomBoolean()) {
+                    instance.setFieldDataFields(randomValueOtherThan(instance.getFieldDataFields(), () -> {
+                        return randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16));
+                    }));
+                } else {
+                    instance.addFieldDataField(randomAsciiOfLengthBetween(1, 16));
+                }
                 break;
             case 7:
-                copy.setScriptFields(randomValueOtherThan(copy.getScriptFields(), () -> {
-                    return randomListStuff(16, InnerHitBuilderTests::randomScript);}));
+                if (randomBoolean()) {
+                    instance.setScriptFields(randomValueOtherThan(instance.getScriptFields(), () -> {
+                        return randomListStuff(16, InnerHitBuilderTests::randomScript);}));
+                } else {
+                    SearchSourceBuilder.ScriptField script = randomScript();
+                    instance.addScriptField(script.fieldName(), script.script());
+                }
                 break;
             case 8:
-                copy.setFetchSourceContext(randomValueOtherThan(copy.getFetchSourceContext(), () -> {
+                instance.setFetchSourceContext(randomValueOtherThan(instance.getFetchSourceContext(), () -> {
                     FetchSourceContext randomFetchSourceContext;
                     if (randomBoolean()) {
                         randomFetchSourceContext = new FetchSourceContext(randomBoolean());
@@ -231,21 +320,34 @@ public class InnerHitBuilderTests extends ESTestCase {
                 }));
                 break;
             case 9:
-                final List<SortBuilder<?>> sortBuilders = randomValueOtherThan(copy.getSorts(), () -> {
-                    List<SortBuilder<?>> builders = randomListStuff(16,
-                        () -> SortBuilders.fieldSort(randomAsciiOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
-                    return builders;
-                });
-                copy.setSorts(sortBuilders);
+                if (randomBoolean()) {
+                    final List<SortBuilder<?>> sortBuilders = randomValueOtherThan(instance.getSorts(), () -> {
+                        List<SortBuilder<?>> builders = randomListStuff(16,
+                                () -> SortBuilders.fieldSort(randomAsciiOfLengthBetween(5, 20)).order(randomFrom(SortOrder.values())));
+                        return builders;
+                    });
+                    instance.setSorts(sortBuilders);
+                } else {
+                    instance.addSort(SortBuilders.fieldSort(randomAsciiOfLengthBetween(5, 20)));
+                }
                 break;
             case 10:
-                copy.setHighlightBuilder(randomValueOtherThan(copy.getHighlightBuilder(),
+                instance.setHighlightBuilder(randomValueOtherThan(instance.getHighlightBuilder(),
                         HighlightBuilderTests::randomHighlighterBuilder));
+                break;
+            case 11:
+                if (instance.getFieldNames() == null || randomBoolean()) {
+                    instance.setFieldNames(randomValueOtherThan(instance.getFieldNames(), () -> {
+                        return randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16));
+                    }));
+                } else {
+                    instance.getFieldNames().add(randomAsciiOfLengthBetween(1, 16));
+                }
                 break;
             default:
                 throw new IllegalStateException("unexpected surprise [" + surprise + "]");
         }
-        return copy;
+        return instance;
     }
 
     static SearchSourceBuilder.ScriptField randomScript() {

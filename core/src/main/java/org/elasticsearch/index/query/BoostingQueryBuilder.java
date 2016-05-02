@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -234,5 +235,11 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
             return newQueryBuilder;
         }
         return this;
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+        InnerHitBuilder.extractInnerHits(positiveQuery, innerHits);
+        InnerHitBuilder.extractInnerHits(negativeQuery, innerHits);
     }
 }

@@ -739,6 +739,67 @@ Here is an example that adds the parsed date to the `timestamp` field based on t
 }
 --------------------------------------------------
 
+[[date-index-name-processor]]
+=== Date Index Name Processor
+
+The purpose of this processor is to point documents to the right time based index based
+on a date or timestamp field in a document by using the <<date-math-index-names, date math index name support>>.
+
+The processor sets the `_index` meta field with a date math index name expression based on the provided index name
+prefix, a date or timestamp field in the documents being processed and the provided date rounding.
+
+First this processor fetches the date or timestamp from a field in the document being processed. Optionally
+date formatting can be configured on how the field's value should be parsed into a date. Then this date,
+the provided index name prefix and the provided date rounding get formatted into a date math index name expression.
+Also here optionally date formatting can be specified on how the date should be formatted into a date math index name
+expression.
+
+An example pipeline that points documents to a monthly index that starts with a `myindex-` prefix based on a
+date in the `date1` field:
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/1
+{
+  "processors" : [
+    {
+      "date_index_name" : {
+        "field" : "date1",
+        "index_name_prefix" : "myindex-",
+        "date_rounding" : "m"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+Using that pipeline for an index request:
+
+[source,js]
+--------------------------------------------------
+PUT /myindex/type/1?pipeline=1
+{
+  "date1" : "2016-04-25T12:02:01.789Z"
+}
+--------------------------------------------------
+
+The above request will not index this document into the `myindex` index, but into the `myindex-2016-04-01` index.
+This is because the date is being rounded by month.
+
+[[date-index-name-options]]
+.Date index name options
+[options="header"]
+|======
+| Name                   | Required  | Default                      | Description
+| `field`                | yes       | -                            | The field to get the date or timestamp from.
+| `index_name_prefix`    | no        | -                            | A prefix of the index name to be prepended before the printed date.
+| `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `m` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second).
+| `date_formats `        | no        | yyyy-MM-dd'T'HH:mm:ss.SSSZ   | An array of the expected date formats for parsing dates / timestamps in the document being preprocessed. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
+| `timezone`             | no        | UTC                          | The timezone to use when parsing the date and when date math index supports resolves expressions into concrete index names.
+| `locale`               | no        | ENGLISH                      | The locale to use when parsing the date from the document being preprocessed, relevant when parsing month names or week days.
+| `index_name_format`    | no        | yyyy-MM-dd                   | The format to be used when printing the parsed date into the index name. An valid Joda pattern is expected here.
+|======
+
 [[fail-processor]]
 === Fail Processor
 Raises an exception. This is useful for when

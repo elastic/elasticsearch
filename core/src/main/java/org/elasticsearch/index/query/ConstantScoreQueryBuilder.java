@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -168,5 +169,10 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
             return new ConstantScoreQueryBuilder(rewrite);
         }
         return this;
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+        InnerHitBuilder.extractInnerHits(filterBuilder, innerHits);
     }
 }

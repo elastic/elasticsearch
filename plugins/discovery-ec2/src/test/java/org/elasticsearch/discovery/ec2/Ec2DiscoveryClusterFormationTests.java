@@ -248,7 +248,7 @@ public class Ec2DiscoveryClusterFormationTests extends ESIntegTestCase {
         logDir = null;
     }
 
-    public void testJoin() throws ExecutionException, InterruptedException, XMLStreamException {
+    public void testJoin() throws ExecutionException, InterruptedException {
         // only wait for the cluster to form
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(2)).get());
         // add one more node and wait for it to join

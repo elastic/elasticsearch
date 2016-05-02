@@ -303,15 +303,15 @@ public class RestTable {
             String resolution = request.param("bytes");
             if ("b".equals(resolution)) {
                 return Long.toString(v.bytes());
-            } else if ("k".equals(resolution)) {
+            } else if ("k".equals(resolution) || "kb".equals(resolution)) {
                 return Long.toString(v.kb());
-            } else if ("m".equals(resolution)) {
+            } else if ("m".equals(resolution) || "mb".equals(resolution)) {
                 return Long.toString(v.mb());
-            } else if ("g".equals(resolution)) {
+            } else if ("g".equals(resolution) || "gb".equals(resolution)) {
                 return Long.toString(v.gb());
-            } else if ("t".equals(resolution)) {
+            } else if ("t".equals(resolution) || "tb".equals(resolution)) {
                 return Long.toString(v.tb());
-            } else if ("p".equals(resolution)) {
+            } else if ("p".equals(resolution) || "pb".equals(resolution)) {
                 return Long.toString(v.pb());
             } else {
                 return v.toString();
@@ -320,7 +320,7 @@ public class RestTable {
         if (value instanceof SizeValue) {
             SizeValue v = (SizeValue) value;
             String resolution = request.param("size");
-            if ("b".equals(resolution)) {
+            if ("".equals(resolution)) {
                 return Long.toString(v.singles());
             } else if ("k".equals(resolution)) {
                 return Long.toString(v.kilo());
@@ -339,7 +339,11 @@ public class RestTable {
         if (value instanceof TimeValue) {
             TimeValue v = (TimeValue) value;
             String resolution = request.param("time");
-            if ("ms".equals(resolution)) {
+            if ("nanos".equals(resolution)) {
+                return Long.toString(v.nanos());
+            } else if ("micros".equals(resolution)) {
+                return Long.toString(v.micros());
+            } else if ("ms".equals(resolution)) {
                 return Long.toString(v.millis());
             } else if ("s".equals(resolution)) {
                 return Long.toString(v.seconds());
@@ -347,6 +351,8 @@ public class RestTable {
                 return Long.toString(v.minutes());
             } else if ("h".equals(resolution)) {
                 return Long.toString(v.hours());
+            } else if ("d".equals(resolution)) {
+                return Long.toString(v.days());
             } else {
                 return v.toString();
             }

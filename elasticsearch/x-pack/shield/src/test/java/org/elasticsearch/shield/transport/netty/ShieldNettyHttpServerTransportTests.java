@@ -9,6 +9,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.netty.NettyHttpMockUtil;
 import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
 import org.elasticsearch.shield.ssl.ServerSSLService;
@@ -114,5 +115,33 @@ public class ShieldNettyHttpServerTransportTests extends ESTestCase {
         SSLEngine customEngine = factory.getPipeline().get(SslHandler.class).getEngine();
         assertThat(customEngine.getEnabledProtocols(), arrayContaining("TLSv1.2"));
         assertThat(customEngine.getEnabledProtocols(), not(equalTo(defaultEngine.getEnabledProtocols())));
+    }
+
+    public void testDisablesCompressionByDefaultForSsl() throws Exception {
+        Settings settings = Settings.builder()
+                .put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), true).build();
+
+        Settings.Builder pluginSettingsBuilder = Settings.builder();
+        ShieldNettyHttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
+        assertThat(HttpTransportSettings.SETTING_HTTP_COMPRESSION.get(pluginSettingsBuilder.build()), is(false));
+    }
+
+    public void testLeavesCompressionOnIfNotSsl() throws Exception {
+        Settings settings = Settings.builder()
+                .put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), false).build();
+        Settings.Builder pluginSettingsBuilder = Settings.builder();
+        ShieldNettyHttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
+        assertThat(pluginSettingsBuilder.build().isEmpty(), is(true));
+    }
+
+    public void testDoesNotChangeExplicitlySetCompression() throws Exception {
+        Settings settings = Settings.builder()
+                .put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(HttpTransportSettings.SETTING_HTTP_COMPRESSION.getKey(), true)
+                .build();
+
+        Settings.Builder pluginSettingsBuilder = Settings.builder();
+        ShieldNettyHttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
+        assertThat(pluginSettingsBuilder.build().isEmpty(), is(true));
     }
 }

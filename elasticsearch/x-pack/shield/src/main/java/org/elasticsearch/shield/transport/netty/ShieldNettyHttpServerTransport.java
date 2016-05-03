@@ -28,6 +28,7 @@ import javax.net.ssl.SSLEngine;
 
 import java.util.Collections;
 
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
 import static org.elasticsearch.shield.Security.setting;
 import static org.elasticsearch.shield.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
 import static org.elasticsearch.shield.transport.SSLExceptionHelper.isNotSslRecordException;
@@ -137,5 +138,11 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
         settingsModule.registerSetting(SSL_SETTING);
         settingsModule.registerSetting(CLIENT_AUTH_SETTING);
         settingsModule.registerSetting(DEPRECATED_SSL_SETTING);
+    }
+
+    public static void overrideSettings(Settings.Builder settingsBuilder, Settings settings) {
+        if (SSL_SETTING.get(settings) && SETTING_HTTP_COMPRESSION.exists(settings) == false) {
+            settingsBuilder.put(SETTING_HTTP_COMPRESSION.getKey(), false);
+        }
     }
 }

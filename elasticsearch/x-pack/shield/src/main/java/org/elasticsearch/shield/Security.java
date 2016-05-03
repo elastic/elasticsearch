@@ -181,6 +181,7 @@ public class Security {
         settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME);
         settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, Security.NAME);
         settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), Security.NAME);
+        ShieldNettyHttpServerTransport.overrideSettings(settingsBuilder, settings);
         addUserSettings(settingsBuilder);
         addTribeSettings(settingsBuilder);
         return settingsBuilder.build();

@@ -20,7 +20,10 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -51,6 +54,9 @@ public class LongTermsAggregator extends TermsAggregator {
     private boolean showTermDocCountError;
     private LongFilter longFilter;
 
+    protected BigArrays bigArrays;
+    protected FloatArray maxScores;
+
     public LongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
             Terms.Order order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent,
             SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter,
@@ -60,6 +66,10 @@ public class LongTermsAggregator extends TermsAggregator {
         this.showTermDocCountError = showTermDocCountError;
         this.longFilter = longFilter;
         bucketOrds = new LongHash(1, aggregationContext.bigArrays());
+        this.bigArrays = context.bigArrays();
+        if (InternalOrder.isScoreDesc(order)) {
+            this.maxScores = bigArrays.newFloatArray(1, true);
+        }
     }
 
     @Override
@@ -76,6 +86,14 @@ public class LongTermsAggregator extends TermsAggregator {
             final LeafBucketCollector sub) throws IOException {
         final SortedNumericDocValues values = getValues(valuesSource, ctx);
         return new LeafBucketCollectorBase(sub, values) {
+            Scorer scorer;
+
+            @Override
+            public void setScorer(Scorer s) throws IOException {
+                super.setScorer(s);
+                this.scorer = s;
+            }
+
             @Override
             public void collect(int doc, long owningBucketOrdinal) throws IOException {
                 assert owningBucketOrdinal == 0;
@@ -91,8 +109,15 @@ public class LongTermsAggregator extends TermsAggregator {
                             if (bucketOrdinal < 0) { // already seen
                                 bucketOrdinal = - 1 - bucketOrdinal;
                                 collectExistingBucket(sub, doc, bucketOrdinal);
+                                if (InternalOrder.isScoreDesc(order)) {
+                                    maxScores.set(bucketOrdinal, Math.max(maxScores.get(bucketOrdinal), scorer.score()));
+                                }
                             } else {
                                 collectBucket(sub, doc, bucketOrdinal);
+                                if (InternalOrder.isScoreDesc(order)) {
+                                    maxScores = bigArrays.grow(maxScores, bucketOrdinal+1);
+                                    maxScores.set(bucketOrdinal, scorer.score());
+                                }
                             }
                         }
 
@@ -128,10 +153,15 @@ public class LongTermsAggregator extends TermsAggregator {
         LongTerms.Bucket spare = null;
         for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
-                spare = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format);
+                spare = new LongTerms.Bucket(0, 0, Float.NaN, null, showTermDocCountError, 0, format);
             }
             spare.term = bucketOrds.get(i);
             spare.docCount = bucketDocCount(i);
+            if (InternalOrder.isScoreDesc(order)) {
+                spare.maxScore = maxScores.get(i);
+            } else {
+                spare.maxScore = Float.NaN;
+            }
             otherDocCount += spare.docCount;
             spare.bucketOrd = i;
             if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
@@ -171,7 +201,7 @@ public class LongTermsAggregator extends TermsAggregator {
 
     @Override
     public void doClose() {
-        Releasables.close(bucketOrds);
+        Releasables.close(bucketOrds, maxScores);
     }
 
 }

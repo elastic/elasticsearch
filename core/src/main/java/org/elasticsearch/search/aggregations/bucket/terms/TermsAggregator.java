@@ -203,4 +203,12 @@ public abstract class TermsAggregator extends BucketsAggregator {
                 && !aggsUsedForSorting.contains(aggregator);
     }
 
+
+    @Override
+    public boolean needsScores() {
+        if (InternalOrder.isScoreDesc(order)) {
+            return true;
+        }
+        return super.needsScores();
+    }
 }

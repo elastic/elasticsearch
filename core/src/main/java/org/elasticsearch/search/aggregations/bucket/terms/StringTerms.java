@@ -85,9 +85,9 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
             super(format, showDocCountError);
         }
 
-        public Bucket(BytesRef term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
+        public Bucket(BytesRef term, long docCount, float maxScore, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
                 DocValueFormat format) {
-            super(docCount, aggregations, showDocCountError, docCountError, format);
+            super(docCount, maxScore, aggregations, showDocCountError, docCountError, format);
             this.termBytes = term;
         }
 
@@ -113,8 +113,8 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
         }
 
         @Override
-        Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
-            return new Bucket(termBytes, docCount, aggs, showDocCountError, docCountError, format);
+        Bucket newBucket(long docCount, float maxScore, InternalAggregations aggs, long docCountError) {
+            return new Bucket(termBytes, docCount, maxScore, aggs, showDocCountError, docCountError, format);
         }
 
         @Override
@@ -125,6 +125,7 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
             if (showDocCountError) {
                 docCountError = in.readLong();
             }
+            maxScore = in.readFloat();
             aggregations = InternalAggregations.readAggregations(in);
         }
 
@@ -135,6 +136,7 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
             if (showDocCountError) {
                 out.writeLong(docCountError);
             }
+            out.writeFloat(maxScore);
             aggregations.writeTo(out);
         }
 
@@ -145,6 +147,9 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
             builder.field(CommonFields.DOC_COUNT, getDocCount());
             if (showDocCountError) {
                 builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, getDocCountError());
+            }
+            if (Float.isNaN(maxScore) == false) {
+                builder.field(InternalTerms.MAX_SCORE, maxScore);
             }
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
@@ -175,7 +180,7 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-        return new Bucket(prototype.termBytes, prototype.docCount, aggregations, prototype.showDocCountError, prototype.docCountError, prototype.format);
+        return new Bucket(prototype.termBytes, prototype.docCount, prototype.maxScore, aggregations, prototype.showDocCountError, prototype.docCountError, prototype.format);
     }
 
     @Override

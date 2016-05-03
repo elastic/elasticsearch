@@ -275,6 +275,50 @@ Ordering the buckets alphabetically by their terms in an ascending manner:
 }
 --------------------------------------------------
 
+Ordering the buckets by their best score:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "genders" : {
+            "terms" : {
+                "field" : "gender",
+                "order" : { "_score": "asc" }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+WARNING: Sorting by descending score is not allowed.
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+
+    "aggregations" : {
+        "genders" : {
+            "doc_count_error_upper_bound": 0, <1>
+            "sum_other_doc_count": 0, <2>
+            "buckets" : [ <3>
+                {
+                    "key" : "male",
+                    "doc_count" : 10,
+                    "max_score": 1.0,
+                },
+                {
+                    "key" : "female",
+                    "doc_count" : 10,
+                    "max_score": 0.75
+                }
+            ]
+        }
+    }
+}
 
 Ordering the buckets by single value metrics sub-aggregation (identified by the aggregation name):
 

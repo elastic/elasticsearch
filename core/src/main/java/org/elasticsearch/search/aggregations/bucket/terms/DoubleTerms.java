@@ -82,9 +82,9 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
             super(format, showDocCountError);
         }
 
-        public Bucket(double term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
+        public Bucket(double term, long docCount, float maxScore, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
                 DocValueFormat format) {
-            super(docCount, aggregations, showDocCountError, docCountError, format);
+            super(docCount, maxScore, aggregations, showDocCountError, docCountError, format);
             this.term = term;
         }
 
@@ -109,8 +109,8 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
         }
 
         @Override
-        Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
-            return new Bucket(term, docCount, aggs, showDocCountError, docCountError, format);
+        Bucket newBucket(long docCount, float maxScore, InternalAggregations aggs, long docCountError) {
+            return new Bucket(term, docCount, maxScore, aggs, showDocCountError, docCountError, format);
         }
 
         @Override
@@ -121,6 +121,7 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
             if (showDocCountError) {
                 docCountError = in.readLong();
             }
+            maxScore = in.readFloat();
             aggregations = InternalAggregations.readAggregations(in);
         }
 
@@ -131,6 +132,7 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
             if (showDocCountError) {
                 out.writeLong(docCountError);
             }
+            out.writeFloat(maxScore);
             aggregations.writeTo(out);
         }
 
@@ -144,6 +146,9 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
             builder.field(CommonFields.DOC_COUNT, getDocCount());
             if (showDocCountError) {
                 builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, getDocCountError());
+            }
+            if (Float.isNaN(maxScore) == false) {
+                builder.field(InternalTerms.MAX_SCORE, maxScore);
             }
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
@@ -174,7 +179,7 @@ public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> 
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-        return new Bucket(prototype.term, prototype.docCount, aggregations, prototype.showDocCountError, prototype.docCountError,
+        return new Bucket(prototype.term, prototype.docCount, prototype.maxScore, aggregations, prototype.showDocCountError, prototype.docCountError,
                 prototype.format);
     }
 

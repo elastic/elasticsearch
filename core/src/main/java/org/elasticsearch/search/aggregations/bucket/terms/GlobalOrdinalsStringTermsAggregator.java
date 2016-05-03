@@ -23,12 +23,15 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -71,6 +74,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     protected RandomAccessOrds globalOrds;
 
+    protected final BigArrays bigArrays;
+    protected FloatArray maxScores;
+
     public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
            Terms.Order order, DocValueFormat format, BucketCountThresholds bucketCountThresholds,
            IncludeExclude.OrdinalsFilter includeExclude, AggregationContext aggregationContext, Aggregator parent,
@@ -80,6 +86,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
+        this.bigArrays = context.bigArrays();
+        if (InternalOrder.isScoreDesc(order)) {
+            this.maxScores = bigArrays.newFloatArray(1, true);
+        }
     }
 
     protected long getBucketOrd(long termOrd) {
@@ -105,20 +115,42 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     protected LeafBucketCollector newCollector(final RandomAccessOrds ords, final LeafBucketCollector sub) {
         grow(ords.getValueCount());
+        if (InternalOrder.isScoreDesc(order)) {
+            maxScores = bigArrays.grow(maxScores, ords.getValueCount()+1);
+        }
         final SortedDocValues singleValues = DocValues.unwrapSingleton(ords);
         if (singleValues != null) {
             return new LeafBucketCollectorBase(sub, ords) {
+                Scorer scorer;
+
+                @Override
+                public void setScorer(Scorer scorer) throws IOException {
+                    super.setScorer(scorer);
+                    this.scorer = scorer;
+                }
+
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
                     assert bucket == 0;
                     final int ord = singleValues.getOrd(doc);
                     if (ord >= 0) {
                         collectExistingBucket(sub, doc, ord);
+                        if (InternalOrder.isScoreDesc(order)) {
+                            maxScores.set(ord, Math.max(maxScores.get(ord), scorer.score()));
+                        }
                     }
                 }
             };
         } else {
             return new LeafBucketCollectorBase(sub, ords) {
+                Scorer scorer;
+
+                @Override
+                public void setScorer(Scorer scorer) throws IOException {
+                    super.setScorer(scorer);
+                    this.scorer = scorer;
+                }
+
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
                     assert bucket == 0;
@@ -127,6 +159,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     for (int i = 0; i < numOrds; i++) {
                         final long globalOrd = ords.ordAt(i);
                         collectExistingBucket(sub, doc, globalOrd);
+                        if (InternalOrder.isScoreDesc(order)) {
+                            maxScores.set(globalOrd, Math.max(maxScores.get(globalOrd), scorer.score()));
+                        }
                     }
                 }
             };
@@ -157,7 +192,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
         long otherDocCount = 0;
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
-        OrdBucket spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
+        OrdBucket spare = new OrdBucket(-1, 0, Float.NaN, null, showTermDocCountError, 0);
         for (long globalTermOrd = 0; globalTermOrd < globalOrds.getValueCount(); ++globalTermOrd) {
             if (includeExclude != null && !acceptedGlobalOrdinals.get(globalTermOrd)) {
                 continue;
@@ -171,10 +206,15 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             spare.globalOrd = globalTermOrd;
             spare.bucketOrd = bucketOrd;
             spare.docCount = bucketDocCount;
+            if (InternalOrder.isScoreDesc(order)) {
+                spare.maxScore = maxScores.get(bucketOrd);
+            } else {
+                spare.maxScore = Float.NaN;
+            }
             if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
                 spare = (OrdBucket) ordered.insertWithOverflow(spare);
                 if (spare == null) {
-                    spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
+                    spare = new OrdBucket(-1, 0, Float.NaN, null, showTermDocCountError, 0);
                 }
             }
         }
@@ -187,7 +227,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             survivingBucketOrds[i] = bucket.bucketOrd;
             BytesRef scratch = new BytesRef();
             copy(globalOrds.lookupOrd(bucket.globalOrd), scratch);
-            list[i] = new StringTerms.Bucket(scratch, bucket.docCount, null, showTermDocCountError, 0, format);
+            list[i] = new StringTerms.Bucket(scratch, bucket.docCount, bucket.maxScore, null, showTermDocCountError, 0, format);
             list[i].bucketOrd = bucket.bucketOrd;
             otherDocCount -= list[i].docCount;
         }
@@ -206,14 +246,19 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 metaData());
     }
 
+    @Override
+    protected void doClose() {
+        Releasables.close(maxScores);
+    }
+
     /**
      * This is used internally only, just for compare using global ordinal instead of term bytes in the PQ
      */
     static class OrdBucket extends InternalTerms.Bucket {
         long globalOrd;
 
-        OrdBucket(long globalOrd, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError) {
-            super(docCount, aggregations, showDocCountError, docCountError, null);
+        OrdBucket(long globalOrd, long docCount, float maxScore, InternalAggregations aggregations, boolean showDocCountError, long docCountError) {
+            super(docCount, maxScore, aggregations, showDocCountError, docCountError, null);
             this.globalOrd = globalOrd;
         }
 
@@ -233,7 +278,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
+        Bucket newBucket(long docCount, float maxScore, InternalAggregations aggs, long docCountError) {
             throw new UnsupportedOperationException();
         }
 
@@ -281,6 +326,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             final SortedDocValues singleValues = DocValues.unwrapSingleton(ords);
             if (singleValues != null) {
                 return new LeafBucketCollectorBase(sub, ords) {
+                    Scorer scorer;
+
+                    @Override
+                    public void setScorer(Scorer scorer) throws IOException {
+                        super.setScorer(scorer);
+                        this.scorer = scorer;
+                    }
+
                     @Override
                     public void collect(int doc, long bucket) throws IOException {
                         final int globalOrd = singleValues.getOrd(doc);
@@ -289,14 +342,29 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                             if (bucketOrd < 0) {
                                 bucketOrd = -1 - bucketOrd;
                                 collectExistingBucket(sub, doc, bucketOrd);
+                                if (InternalOrder.isScoreDesc(order)) {
+                                    maxScores.set(bucketOrd, Math.max(maxScores.get(bucketOrd), scorer.score()));
+                                }
                             } else {
                                 collectBucket(sub, doc, bucketOrd);
+                                if (InternalOrder.isScoreDesc(order)) {
+                                    maxScores = bigArrays.grow(maxScores, bucketOrd + 1);
+                                    maxScores.set(bucketOrd, scorer.score());
+                                }
                             }
                         }
                     }
                 };
             } else {
                 return new LeafBucketCollectorBase(sub, ords) {
+                    Scorer scorer;
+
+                    @Override
+                    public void setScorer(Scorer scorer) throws IOException {
+                        super.setScorer(scorer);
+                        this.scorer = scorer;
+                    }
+
                     @Override
                     public void collect(int doc, long bucket) throws IOException {
                         ords.setDocument(doc);
@@ -307,8 +375,15 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                             if (bucketOrd < 0) {
                                 bucketOrd = -1 - bucketOrd;
                                 collectExistingBucket(sub, doc, bucketOrd);
+                                if (InternalOrder.isScoreDesc(order)) {
+                                    maxScores.set(bucketOrd, Math.max(maxScores.get(bucketOrd), scorer.score()));
+                                }
                             } else {
                                 collectBucket(sub, doc, bucketOrd);
+                                if (InternalOrder.isScoreDesc(order)) {
+                                    maxScores = bigArrays.grow(maxScores, bucketOrd+1);
+                                    maxScores.set(bucketOrd, scorer.score());
+                                }
                             }
                         }
                     }
@@ -323,9 +398,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         protected void doClose() {
-            Releasables.close(bucketOrds);
+            Releasables.close(bucketOrds, maxScores);
         }
-
     }
 
     /**
@@ -354,19 +428,41 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         @Override
         protected LeafBucketCollector newCollector(final RandomAccessOrds ords, LeafBucketCollector sub) {
             segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + ords.getValueCount());
+            if (InternalOrder.isScoreDesc(order)) {
+                maxScores = bigArrays.grow(maxScores, 1 + ords.getValueCount());
+            }
             assert sub == LeafBucketCollector.NO_OP_COLLECTOR;
             final SortedDocValues singleValues = DocValues.unwrapSingleton(ords);
             if (singleValues != null) {
                 return new LeafBucketCollectorBase(sub, ords) {
+                    private Scorer scorer;
+
+                    @Override
+                    public void setScorer(Scorer s) throws IOException {
+                        super.setScorer(s);
+                        this.scorer = s;
+                    }
+
                     @Override
                     public void collect(int doc, long bucket) throws IOException {
                         assert bucket == 0;
                         final int ord = singleValues.getOrd(doc);
                         segmentDocCounts.increment(ord + 1, 1);
+                        if (InternalOrder.isScoreDesc(order)) {
+                            maxScores.set(ord + 1, scorer.score());
+                        }
                     }
                 };
             } else {
                 return new LeafBucketCollectorBase(sub, ords) {
+                    private Scorer scorer;
+
+                    @Override
+                    public void setScorer(Scorer s) throws IOException {
+                        super.setScorer(s);
+                        this.scorer = s;
+                    }
+
                     @Override
                     public void collect(int doc, long bucket) throws IOException {
                         assert bucket == 0;
@@ -375,6 +471,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         for (int i = 0; i < numOrds; i++) {
                             final long segmentOrd = ords.ordAt(i);
                             segmentDocCounts.increment(segmentOrd + 1, 1);
+                            if (InternalOrder.isScoreDesc(order)) {
+                                maxScores.set(segmentOrd + 1, scorer.score());
+                            }
                         }
                     }
                 };
@@ -402,7 +501,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         protected void doClose() {
-            Releasables.close(segmentDocCounts);
+            Releasables.close(segmentDocCounts, maxScores);
         }
 
         private void mapSegmentCountsToGlobalCounts() {

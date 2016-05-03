@@ -272,6 +272,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + (double)i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -298,6 +299,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -327,6 +329,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("" + expecteds[i]);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -352,6 +355,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + (double)i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             i++;
         }
     }
@@ -378,6 +382,35 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
+            i--;
+        }
+    }
+
+    public void testSingleValueFieldOrderedByScore() throws Exception {
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+            .setQuery(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.fieldValueFactorFunction(SINGLE_VALUED_FIELD_NAME)))
+            .addAggregation(terms("terms")
+                .field(SINGLE_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .order(Terms.Order.score()))
+            .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+
+        int i = 4;
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("" + (double) i));
+            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
+            assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo((float) i));
             i--;
         }
     }
@@ -407,6 +440,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             Sum sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
             assertThat((long) sum.getValue(), equalTo(i+i+1L));
@@ -438,6 +472,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + (i+1d)));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i + 1));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -461,6 +496,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             if (i == 0 || i == 5) {
                 assertThat(bucket.getDocCount(), equalTo(1L));
             } else {
@@ -490,6 +526,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + (i+1d)));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i + 1));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             if (i == 0 || i == 5) {
                 assertThat(bucket.getDocCount(), equalTo(1L));
             } else {
@@ -519,6 +556,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
         assertThat(key(bucket), equalTo("1.0"));
         assertThat(bucket.getKeyAsNumber().intValue(), equalTo(1));
         assertThat(bucket.getDocCount(), equalTo(5L));
+        assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
     }
 
     /*
@@ -587,6 +625,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             } else {
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -628,6 +667,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + (double) i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -676,6 +716,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             Avg avg = bucket.getAggregations().get("avg_i");
             assertThat(avg, notNullValue());
             assertThat(avg.getValue(), equalTo((double) i));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -719,6 +760,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
                 assertThat(subBucket, notNullValue());
                 assertThat(key(subBucket), equalTo(String.valueOf(j)));
                 assertThat(subBucket.getDocCount(), equalTo(1L));
+                assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
                 j++;
             }
         }
@@ -952,6 +994,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             Stats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
             assertThat(stats.getMax(), equalTo((double) i));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -981,6 +1024,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             Stats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
             assertThat(stats.getMax(), equalTo((double) i));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -1010,6 +1054,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             ExtendedStats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
             assertThat(stats.getMax(), equalTo((double) i));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
 
     }
@@ -1037,6 +1082,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + (double)i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(i == 1 ? 3L : 1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -1094,6 +1140,7 @@ public class DoubleTermsTests extends AbstractTermsTestCase {
         int i = 0;
         for (Terms.Bucket bucket : terms.getBuckets()) {
             assertThat(bucket, notNullValue());
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             assertThat(key(bucket), equalTo(String.valueOf(expectedKeys[i])));
             assertThat(bucket.getDocCount(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("_count")));
             Avg avg = bucket.getAggregations().get("avg_l");

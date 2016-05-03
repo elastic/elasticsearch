@@ -43,6 +43,7 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
 
     protected static final String DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = "doc_count_error_upper_bound";
     protected static final String SUM_OF_OTHER_DOC_COUNTS = "sum_other_doc_count";
+    protected static final String MAX_SCORE = "max_score";
 
     public static abstract class Bucket extends Terms.Bucket {
 
@@ -50,6 +51,7 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
 
         protected long docCount;
         protected long docCountError;
+
         protected InternalAggregations aggregations;
         protected boolean showDocCountError;
         transient final DocValueFormat format;
@@ -60,10 +62,11 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
             this.format = formatter;
         }
 
-        protected Bucket(long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
+        protected Bucket(long docCount, float maxScore, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
                 DocValueFormat formatter) {
             this(formatter, showDocCountError);
             this.docCount = docCount;
+            this.maxScore = maxScore;
             this.aggregations = aggregations;
             this.docCountError = docCountError;
         }
@@ -86,13 +89,15 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
             return aggregations;
         }
 
-        abstract Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError);
+        abstract Bucket newBucket(long docCount, float maxScore, InternalAggregations aggs, long docCountError);
 
         public Bucket reduce(List<? extends Bucket> buckets, ReduceContext context) {
             long docCount = 0;
             long docCountError = 0;
             List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
+            float maxScore = Float.NEGATIVE_INFINITY;
             for (Bucket bucket : buckets) {
+                maxScore = Math.max(bucket.maxScore, maxScore);
                 docCount += bucket.docCount;
                 if (docCountError != -1) {
                     if (bucket.docCountError == -1) {
@@ -104,7 +109,7 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
                 aggregationsList.add(bucket.aggregations);
             }
             InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-            return newBucket(docCount, aggs, docCountError);
+            return newBucket(docCount, maxScore, aggs, docCountError);
         }
     }
 

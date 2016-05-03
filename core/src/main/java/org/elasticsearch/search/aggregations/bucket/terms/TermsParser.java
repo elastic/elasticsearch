@@ -118,6 +118,10 @@ public class TermsParser extends AbstractTermsParser {
                 if ("asc".equalsIgnoreCase(dir)) {
                     orderAsc = true;
                 } else if ("desc".equalsIgnoreCase(dir)) {
+                    if (orderKey.equals("_score")) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "Invalid terms order direction [" + dir + "] in terms aggregation [" + aggregationName + "]");
+                    }
                     orderAsc = false;
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -167,6 +171,9 @@ public class TermsParser extends AbstractTermsParser {
         }
         if ("_count".equals(key)) {
             return Order.count(asc);
+        }
+        if ("_score".equals(key)) {
+            return Order.score();
         }
         return Order.aggregation(key, asc);
     }

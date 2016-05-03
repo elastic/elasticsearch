@@ -25,7 +25,9 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
@@ -240,6 +242,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             assertThat((String) propertiesKeys[i], equalTo("val" + i));
             assertThat((long) propertiesDocCounts[i], equalTo(1L));
         }
@@ -268,6 +271,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
                 assertThat(bucket, notNullValue());
                 assertThat(key(bucket), equalTo("val" + i));
                 assertThat(bucket.getDocCount(), equalTo(1L));
+                assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             }
         }
     }
@@ -296,6 +300,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val00" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
 
         // include and exclude
@@ -322,6 +327,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val00" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
 
         // exclude without include
@@ -348,6 +354,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val00" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -374,6 +381,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo(incVal));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
 
         // include and exclude
@@ -403,6 +411,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val00" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
 
         // Check case with only exact term exclude clauses
@@ -456,6 +465,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + Strings.padStart(i + "", 3, '0')));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -480,6 +490,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             i++;
         }
     }
@@ -505,7 +516,69 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             i--;
+        }
+    }
+
+    public void testSingleValueFieldOrderedByScore() throws Exception {
+        SearchResponse response = client()
+            .prepareSearch("idx")
+            .setTypes("type")
+            .setQuery(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.fieldValueFactorFunction("i")))
+            .addAggregation(
+                terms("terms").executionHint(randomExecutionHint()).field(SINGLE_VALUED_FIELD_NAME)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .order(Terms.Order.score()))
+            .execute()
+            .actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+
+        int i = 4;
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo((float) i));
+            i--;
+        }
+    }
+
+    public void testSingleValueFieldWithGlobalOrdinalsOrderedByScore() throws Exception {
+        ExecutionMode[] executionModes = new ExecutionMode[] { null, ExecutionMode.GLOBAL_ORDINALS, ExecutionMode.GLOBAL_ORDINALS_HASH,
+            ExecutionMode.GLOBAL_ORDINALS_LOW_CARDINALITY };
+        for (ExecutionMode executionMode : executionModes) {
+            logger.info("Execution mode: {}", executionMode);
+            SearchResponse response = client()
+                .prepareSearch("idx")
+                .setTypes("type")
+                .setQuery(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.fieldValueFactorFunction("i")))
+                .addAggregation(
+                    terms("terms").executionHint(executionMode == null ? null : executionMode.toString())
+                        .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .order(Terms.Order.score()))
+                .execute()
+                .actionGet();
+            assertSearchResponse(response);
+
+            Terms terms = response.getAggregations().get("terms");
+            assertThat(terms, notNullValue());
+            assertThat(terms.getName(), equalTo("terms"));
+            assertThat(terms.getBuckets().size(), equalTo(5));
+            for (int i = 0; i < 5; i++) {
+                Terms.Bucket bucket = terms.getBucketByKey("val" + i);
+                assertThat(bucket, notNullValue());
+                assertThat(key(bucket), equalTo("val" + i));
+                assertThat(bucket.getDocCount(), equalTo(1L));
+                assertThat(bucket.getMaxScore(), equalTo((float) i));
+            }
         }
     }
 
@@ -533,6 +606,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             ValueCount valueCount = bucket.getAggregations().get("count");
             assertThat(valueCount, notNullValue());
             assertThat(valueCount.getValue(), equalTo(2L));
@@ -563,6 +637,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("foo_val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -586,6 +661,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         assertThat(bucket, notNullValue());
         assertThat(key(bucket), equalTo("val"));
         assertThat(bucket.getDocCount(), equalTo(5L));
+        assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
     }
 
     public void testMultiValuedField() throws Exception {
@@ -612,6 +688,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             } else {
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -639,6 +716,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             } else {
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -667,6 +745,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             } else {
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -702,6 +781,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -725,6 +805,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -752,6 +833,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             } else {
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -791,6 +873,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -818,6 +901,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(i == 3 ? 2L : 1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -863,6 +947,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             Avg avg = bucket.getAggregations().get("avg_i");
             assertThat(avg, notNullValue());
             assertThat(avg.getValue(), equalTo((double) i));
@@ -1218,6 +1303,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
 
             Avg avg = bucket.getAggregations().get("avg_i");
             assertThat(avg, notNullValue());
@@ -1249,6 +1335,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
 
             Stats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
@@ -1279,6 +1366,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
 
             Stats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
@@ -1311,6 +1399,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
 
             ExtendedStats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
@@ -1345,6 +1434,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
 
             ExtendedStats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
@@ -1422,6 +1512,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo(expectedKeys[i]));
             assertThat(bucket.getDocCount(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("_count")));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             Avg avg = bucket.getAggregations().get("avg_l");
             assertThat(avg, notNullValue());
             assertThat(avg.getValue(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("avg_l")));
@@ -1451,6 +1542,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo(i == 0 ? "idx" : "empty_bucket_idx"));
             assertThat(bucket.getDocCount(), equalTo(i == 0 ? 5L : 2L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             i++;
         }
     }

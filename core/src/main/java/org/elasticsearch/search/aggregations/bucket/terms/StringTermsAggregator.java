@@ -19,10 +19,14 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArray;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -49,6 +53,8 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     private final ValuesSource valuesSource;
     protected final BytesRefHash bucketOrds;
     private final IncludeExclude.StringFilter includeExclude;
+    private final BigArrays bigArrays;
+    private FloatArray maxScores;
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
             Terms.Order order, DocValueFormat format, BucketCountThresholds bucketCountThresholds,
@@ -61,6 +67,10 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
         bucketOrds = new BytesRefHash(1, aggregationContext.bigArrays());
+        bigArrays = aggregationContext.bigArrays();
+        if (InternalOrder.isScoreDesc(order)) {
+            maxScores = aggregationContext.bigArrays().newFloatArray(1, true);
+        }
     }
 
     @Override
@@ -74,6 +84,13 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             final BytesRefBuilder previous = new BytesRefBuilder();
+            Scorer scorer;
+
+            @Override
+            public void setScorer(Scorer s) throws IOException {
+                super.setScorer(s);
+                this.scorer = s;
+            }
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -95,8 +112,15 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
                     if (bucketOrdinal < 0) { // already seen
                         bucketOrdinal = - 1 - bucketOrdinal;
                         collectExistingBucket(sub, doc, bucketOrdinal);
+                        if (InternalOrder.isScoreDesc(order)) {
+                            maxScores.set(bucketOrdinal, Math.max(scorer.score(), maxScores.get(bucketOrdinal)));
+                        }
                     } else {
                         collectBucket(sub, doc, bucketOrdinal);
+                        if (InternalOrder.isScoreDesc(order)) {
+                            maxScores = bigArrays.grow(maxScores, bucketOrdinal + 1);
+                            maxScores.set(bucketOrdinal, scorer.score());
+                        }
                     }
                     previous.copyBytes(bytes);
                 }
@@ -133,10 +157,15 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         StringTerms.Bucket spare = null;
         for (int i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
-                spare = new StringTerms.Bucket(new BytesRef(), 0, null, showTermDocCountError, 0, format);
+                spare = new StringTerms.Bucket(new BytesRef(), 0, Float.NaN, null, showTermDocCountError, 0, format);
             }
             bucketOrds.get(i, spare.termBytes);
             spare.docCount = bucketDocCount(i);
+            if (InternalOrder.isScoreDesc(order)) {
+                spare.maxScore = maxScores.get(i);
+            } else {
+                spare.maxScore = Float.NaN;
+            }
             otherDocCount += spare.docCount;
             spare.bucketOrd = i;
             if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
@@ -158,10 +187,10 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
         // Now build the aggs
         for (int i = 0; i < list.length; i++) {
-          final StringTerms.Bucket bucket = (StringTerms.Bucket)list[i];
-          bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
-          bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-          bucket.docCountError = 0;
+            final StringTerms.Bucket bucket = (StringTerms.Bucket)list[i];
+            bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
+            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+            bucket.docCountError = 0;
         }
 
         return new StringTerms(name, order, format, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(),
@@ -171,7 +200,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
     @Override
     public void doClose() {
-        Releasables.close(bucketOrds);
+        Releasables.close(bucketOrds, maxScores);
     }
 
 }

@@ -62,14 +62,25 @@ public interface Terms extends MultiBucketsAggregation {
     /**
      * A bucket that is associated with a single term
      */
-    static abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
+    abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
+        float maxScore;
+
+        public Bucket() {
+        }
 
         public abstract Number getKeyAsNumber();
 
         abstract int compareTerm(Terms.Bucket other);
 
-        public abstract long getDocCountError();
+        int compareScore(Terms.Bucket other) {
+            return Float.compare(maxScore, other.maxScore);
+        }
 
+        public float getMaxScore() {
+            return maxScore;
+        }
+
+        public abstract long getDocCountError();
     }
 
     /**
@@ -111,6 +122,10 @@ public interface Terms extends MultiBucketsAggregation {
          */
         public static Order term(boolean asc) {
             return asc ? InternalOrder.TERM_ASC : InternalOrder.TERM_DESC;
+        }
+
+        public static Order score() {
+            return InternalOrder.SCORE_DESC;
         }
 
         /**

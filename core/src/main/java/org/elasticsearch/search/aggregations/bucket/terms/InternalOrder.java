@@ -49,6 +49,7 @@ class InternalOrder extends Terms.Order {
     private static final byte COUNT_ASC_ID = 2;
     private static final byte TERM_DESC_ID = 3;
     private static final byte TERM_ASC_ID = 4;
+    private static final byte SCORE_DESC_ID = 5;
 
     /**
      * Order by the (higher) count of each term.
@@ -92,6 +93,27 @@ class InternalOrder extends Terms.Order {
             return o1.compareTerm(o2);
         }
     });
+
+    public static final InternalOrder SCORE_DESC = new InternalOrder(SCORE_DESC_ID, "_score", false, new Comparator<Terms.Bucket> () {
+        @Override
+        public int compare(Terms.Bucket o1, Terms.Bucket o2) {
+            return o2.compareScore(o1);
+        }
+    });
+
+    public static boolean isScoreDesc(Terms.Order order) {
+        if (order == SCORE_DESC) {
+            return true;
+        } else if (order instanceof CompoundOrder) {
+            CompoundOrder compoundOrder = (CompoundOrder) order;
+            for (Order inner : compoundOrder.orderElements()) {
+                if (inner == SCORE_DESC) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
     public static boolean isCountDesc(Terms.Order order) {
         if (order == COUNT_DESC) {
@@ -351,6 +373,7 @@ class InternalOrder extends Terms.Order {
                 case COUNT_ASC_ID: return absoluteOrder ? new CompoundOrder(Collections.singletonList((Terms.Order) InternalOrder.COUNT_ASC)) : InternalOrder.COUNT_ASC;
                 case TERM_DESC_ID: return InternalOrder.TERM_DESC;
                 case TERM_ASC_ID: return InternalOrder.TERM_ASC;
+                case SCORE_DESC_ID: return InternalOrder.SCORE_DESC;
                 case Aggregation.ID:
                     boolean asc = in.readBoolean();
                     String key = in.readString();

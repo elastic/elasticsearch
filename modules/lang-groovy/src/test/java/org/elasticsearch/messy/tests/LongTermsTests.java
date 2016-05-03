@@ -21,7 +21,10 @@ package org.elasticsearch.messy.tests;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
@@ -274,6 +277,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -303,6 +307,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             Terms.Bucket bucket = terms.getBucketByKey("" + expecteds[i]);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -329,6 +334,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -352,6 +358,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             i++;
         }
     }
@@ -378,6 +385,34 @@ public class LongTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
+            i--;
+        }
+    }
+
+    public void testSingleValueFieldOrderedByScore() throws Exception {
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+            .setQuery(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.fieldValueFactorFunction(SINGLE_VALUED_FIELD_NAME)))
+            .addAggregation(terms("terms")
+                .field(SINGLE_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .order(Terms.Order.score()))
+            .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+        int i = 4;
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("" + i));
+            assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
+            assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo((float) i));
             i--;
         }
     }
@@ -407,6 +442,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             Sum sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
             assertThat((long) sum.getValue(), equalTo(i+i+1L));
@@ -438,6 +474,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + (i+1d)));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i+1));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -466,6 +503,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             } else {
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -495,6 +533,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             } else {
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -519,6 +558,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
         assertThat(key(bucket), equalTo("1.0"));
         assertThat(bucket.getKeyAsNumber().intValue(), equalTo(1));
         assertThat(bucket.getDocCount(), equalTo(5L));
+        assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
     }
 
     /*
@@ -560,6 +600,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -589,6 +630,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             } else {
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -630,6 +672,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
         }
     }
 
@@ -675,6 +718,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
             Avg avg = bucket.getAggregations().get("avg_i");
             assertThat(avg, notNullValue());
             assertThat(avg.getValue(), equalTo((double) i));
@@ -705,6 +749,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
 
             Avg avg = bucket.getAggregations().get("avg_i");
             assertThat(avg, notNullValue());
@@ -916,6 +961,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
 
             Avg avg = bucket.getAggregations().get("avg_i");
             assertThat(avg, notNullValue());
@@ -946,6 +992,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
 
             Stats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
@@ -976,6 +1023,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
 
             Stats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());
@@ -1006,6 +1054,7 @@ public class LongTermsTests extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getDocCount(), equalTo(1L));
+            assertThat(bucket.getMaxScore(), equalTo(Float.NaN));
 
             ExtendedStats stats = bucket.getAggregations().get("stats");
             assertThat(stats, notNullValue());

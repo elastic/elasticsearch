@@ -22,32 +22,30 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.utility.Variables;
-import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public abstract class Statement extends Node {
-    protected boolean lastSource = false;
-
-    protected boolean beginLoop = false;
-    protected boolean inLoop = false;
-    protected boolean lastLoop = false;
-
-    protected boolean methodEscape = false;
-    protected boolean loopEscape = false;
-    protected boolean allEscape = false;
-
-    protected boolean anyContinue = false;
-    protected boolean anyBreak = false;
-
-    protected int statementCount = 0;
-
-    protected Label continu = null;
-    protected Label brake = null;
-
-    public Statement(final String location) {
+public class SContinue extends Statement {
+    public SContinue(final String location) {
         super(location);
     }
 
-    protected abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
-    protected abstract void write(final GeneratorAdapter adapter);
+    @Override
+    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        if (!inLoop) {
+            throw new IllegalArgumentException(error("Continue statement outside of a loop."));
+        }
+
+        if (lastLoop) {
+            throw new IllegalArgumentException(error("Extraneous continue statement."));
+        }
+
+        allEscape = true;
+        anyContinue = true;
+        statementCount = 1;
+    }
+
+    @Override
+    protected void write(final GeneratorAdapter adapter) {
+
+    }
 }

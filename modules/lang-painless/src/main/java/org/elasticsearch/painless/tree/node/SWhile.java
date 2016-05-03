@@ -24,59 +24,65 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.utility.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class IfElse extends Statement {
+public class SWhile extends Statement {
     protected Expression condition;
-    protected final Statement ifblock;
-    protected final Statement elseblock;
+    protected final Statement block;
 
-    public IfElse(final String location, final Expression condition, final Statement ifblock, final Statement elseblock) {
+    public SWhile(final String location, final Expression condition, final Statement block) {
         super(location);
 
         this.condition = condition;
-        this.ifblock = ifblock;
-        this.elseblock = elseblock;
+        this.block = block;
     }
 
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        variables.incrementScope();
+
         condition.expected = definition.booleanType;
         condition.analyze(settings, definition, variables);
         condition = condition.cast(definition);
 
+        boolean continuous = false;
+
         if (condition.constant != null) {
-            throw new IllegalArgumentException(error("Extraneous if statement."));
+            continuous = (boolean)condition.constant;
+
+            if (!continuous) {
+                throw new IllegalArgumentException(error("Extraneous while loop."));
+            }
+
+            if (block == null) {
+                throw new IllegalArgumentException(error("While loop has no escape."));
+            }
         }
 
-        ifblock.lastSource = lastSource;
-        ifblock.inLoop = inLoop;
-        ifblock.lastLoop = lastLoop;
+        int count = 1;
 
-        variables.incrementScope();
-        ifblock.analyze(settings, definition, variables);
+        if (block != null) {
+            block.beginLoop = true;
+            block.inLoop = true;
+
+            block.analyze(settings, definition, variables);
+
+            if (block.loopEscape && !block.anyContinue) {
+                throw new IllegalArgumentException(error("Extranous while loop."));
+            }
+
+            if (continuous && !block.anyBreak) {
+                methodEscape = true;
+                allEscape = true;
+            }
+
+            block.statementCount = Math.max(count, block.statementCount);
+        }
+
+        statementCount = 1;
+
         variables.decrementScope();
-
-        anyContinue = ifblock.anyContinue;
-        anyBreak = ifblock.anyBreak;
-        statementCount = ifblock.statementCount;
-
-        if (elseblock != null) {
-            elseblock.lastSource = lastSource;
-            elseblock.inLoop = inLoop;
-            elseblock.lastLoop = lastLoop;
-
-            variables.incrementScope();
-            elseblock.analyze(settings, definition, variables);
-            variables.decrementScope();
-
-            methodEscape = ifblock.methodEscape && elseblock.methodEscape;
-            loopEscape = ifblock.loopEscape && elseblock.loopEscape;
-            allEscape = ifblock.allEscape && elseblock.allEscape;
-            anyContinue |= elseblock.anyContinue;
-            anyBreak |= elseblock.anyBreak;
-            statementCount = Math.max(ifblock.statementCount, elseblock.statementCount);
-        }
     }
 
+    @Override
     protected void write(final GeneratorAdapter adapter) {
 
     }

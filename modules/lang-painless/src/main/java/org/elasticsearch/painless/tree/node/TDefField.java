@@ -19,30 +19,40 @@
 
 package org.elasticsearch.painless.tree.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.tree.utility.Operation;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class Break extends Statement {
-    public Break(final String location) {
+public class TDefField extends Target {
+    protected final String value;
+
+    public TDefField(final String location, final String value) {
         super(location);
+
+        this.value = value;
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        if (!inLoop) {
-            throw new IllegalArgumentException(error("Break statement outside of a loop."));
-        }
+    protected void load(final GeneratorAdapter adapter) {
 
-        loopEscape = true;
-        allEscape = true;
-        anyBreak = true;
-        statementCount = 1;
     }
 
     @Override
-    protected void write(final GeneratorAdapter adapter) {
+    protected void store(final GeneratorAdapter adapter, final Expression expression) {
+
+    }
+
+    @Override
+    protected void pre(final GeneratorAdapter adapter, final Expression expression, final Operation operation) {
+
+    }
+
+    @Override
+    protected void post(final GeneratorAdapter adapter, final Expression expression, final Operation operation) {
+
+    }
+
+    @Override
+    protected void compound(final GeneratorAdapter adapter, final Expression expression) {
 
     }
 }

@@ -22,32 +22,25 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.utility.Variables;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
 
-public abstract class Statement extends Node {
-    protected boolean lastSource = false;
-
-    protected boolean beginLoop = false;
-    protected boolean inLoop = false;
-    protected boolean lastLoop = false;
-
-    protected boolean methodEscape = false;
-    protected boolean loopEscape = false;
-    protected boolean allEscape = false;
-
-    protected boolean anyContinue = false;
-    protected boolean anyBreak = false;
-
-    protected int statementCount = 0;
-
-    protected Label continu = null;
-    protected Label brake = null;
-
-    public Statement(final String location) {
+public class LString extends Link {
+    public LString(final String location, final String string) {
         super(location);
+
+        this.constant = string;
     }
 
-    protected abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
-    protected abstract void write(final GeneratorAdapter adapter);
+    @Override
+    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        if (before != null) {
+            throw new IllegalStateException("Illegal tree structure.");
+        } else if (store) {
+            throw new IllegalArgumentException(error("Cannot write to read-only String constant [" + constant + "]."));
+        } else if (!load) {
+            throw new IllegalArgumentException(error("Must read String constant [" + constant + "]."));
+        }
+
+        after = definition.stringType;
+        target = new TString(location, (String)constant);
+    }
 }

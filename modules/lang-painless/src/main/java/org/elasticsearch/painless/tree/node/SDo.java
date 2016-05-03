@@ -24,57 +24,50 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.utility.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-import java.util.Collections;
-import java.util.List;
-
-public class Try extends Statement {
+public class SDo extends Statement {
     protected final Statement block;
-    protected final List<Trap> traps;
+    protected Expression condition;
 
-    public Try(final String location, final Statement block, final List<Trap> traps) {
+    public SDo(final String location, final Statement block, final Expression condition) {
         super(location);
 
+        this.condition = condition;
         this.block = block;
-        this.traps = Collections.unmodifiableList(traps);
     }
 
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        block.lastSource = lastSource;
-        block.inLoop = inLoop;
-        block.lastLoop = lastLoop;
-
         variables.incrementScope();
+
+        block.beginLoop = true;
+        block.inLoop = true;
+
         block.analyze(settings, definition, variables);
-        variables.decrementScope();
 
-        methodEscape = block.methodEscape;
-        loopEscape = block.loopEscape;
-        allEscape = block.allEscape;
-        anyContinue = block.anyContinue;
-        anyBreak = block.anyBreak;
-
-        int statementCount = 0;
-
-        for (final Trap trap : traps) {
-            trap.lastSource = lastSource;
-            trap.inLoop = inLoop;
-            trap.lastLoop = lastLoop;
-
-            variables.incrementScope();
-            trap.analyze(settings, definition, variables);
-            variables.decrementScope();
-
-            methodEscape &= trap.methodEscape;
-            loopEscape &= trap.loopEscape;
-            allEscape &= trap.allEscape;
-            anyContinue |= trap.anyContinue;
-            anyBreak |= trap.anyBreak;
-
-            statementCount = Math.max(statementCount, trap.statementCount);
+        if (block.loopEscape && !block.anyContinue) {
+            throw new IllegalArgumentException(error("Extraneous do while loop."));
         }
 
-        this.statementCount = block.statementCount + statementCount;
+        condition.expected = definition.booleanType;
+        condition.analyze(settings, definition, variables);
+        condition = condition.cast(definition);
+
+        if (condition.constant != null) {
+            final boolean continuous = (boolean)condition.constant;
+
+            if (!continuous) {
+                throw new IllegalArgumentException(error("Extraneous do while loop."));
+            }
+
+            if (!block.anyBreak) {
+                methodEscape = true;
+                allEscape = true;
+            }
+        }
+
+        statementCount = 1;
+
+        variables.decrementScope();
     }
 
     @Override

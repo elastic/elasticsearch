@@ -26,8 +26,6 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Utility;
 import org.elasticsearch.painless.tree.node.Node;
 
-import static org.elasticsearch.painless.tree.node.Type.ACONSTANT;
-
 class AnalyzerExpression {
     private final Definition definition;
     private final CompilerSettings settings;

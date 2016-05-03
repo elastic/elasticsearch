@@ -25,9 +25,9 @@ import org.elasticsearch.painless.tree.node.Node;
 import org.elasticsearch.painless.tree.utility.Variables;
 import org.elasticsearch.painless.tree.utility.Variables.Variable;
 
-import static org.elasticsearch.painless.tree.node.Type.ACONSTANT;
-import static org.elasticsearch.painless.tree.node.Type.DECLARATION;
-import static org.elasticsearch.painless.tree.node.Type.EXPRESSION;
+import static org.elasticsearch.painless.tree.utility.Type.ACONSTANT;
+import static org.elasticsearch.painless.tree.utility.Type.DECLARATION;
+import static org.elasticsearch.painless.tree.utility.Type.EXPRESSION;
 
 class AnalyzerStatement {
     private final Definition definition;

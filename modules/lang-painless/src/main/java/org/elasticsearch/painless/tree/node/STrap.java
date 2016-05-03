@@ -22,41 +22,47 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.tree.utility.Variables.Variable;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-import java.util.Collections;
-import java.util.List;
+public class STrap extends Statement {
+    protected final String type;
+    protected final String name;
+    protected final Statement block;
 
-public class Block extends Statement {
-    protected final List<Statement> statements;
+    protected Variable variable;
 
-    public Block(final String location, final List<Statement> statements) {
+    public STrap(final String location, final String type, final String name, final Statement block) {
         super(location);
 
-        this.statements = Collections.unmodifiableList(statements);
+        this.type = type;
+        this.name = name;
+        this.block = block;
     }
 
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        final Statement last = statements.get(statements.size() - 1);
+        variable = variables.addVariable(location, type, name);
 
-        for (final Statement statement : statements) {
-            if (allEscape) {
-                throw new IllegalArgumentException(error("Unreachable statement."));
-            }
+        try {
+            variable.type.clazz.asSubclass(Exception.class);
+        } catch (final ClassCastException cce) {
+            throw new IllegalArgumentException(error("Not an exception type [" + variable.type.name + "]."));
+        }
 
-            statement.inLoop = inLoop;
-            statement.lastSource = statement == last;
-            statement.lastLoop = (statement.beginLoop || statement.lastLoop) && statement == last;
+        if (block != null) {
+            block.lastSource = lastSource;
+            block.inLoop = inLoop;
+            block.lastLoop = lastLoop;
 
-            statement.analyze(settings, definition, variables);
+            block.analyze(settings, definition, variables);
 
-            methodEscape = statement.methodEscape;
-            loopEscape = statement.loopEscape;
-            allEscape = statement.allEscape;
-            anyContinue |= statement.anyContinue;
-            anyBreak |= statement.anyBreak;
-            statementCount += statement.statementCount;
+            methodEscape = block.methodEscape;
+            loopEscape = block.loopEscape;
+            allEscape = block.allEscape;
+            anyContinue = block.anyContinue;
+            anyBreak = block.anyBreak;
+            statementCount = block.statementCount;
         }
     }
 

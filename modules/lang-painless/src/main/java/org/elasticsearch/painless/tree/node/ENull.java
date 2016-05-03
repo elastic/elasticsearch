@@ -22,32 +22,30 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.utility.Variables;
-import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public abstract class Statement extends Node {
-    protected boolean lastSource = false;
-
-    protected boolean beginLoop = false;
-    protected boolean inLoop = false;
-    protected boolean lastLoop = false;
-
-    protected boolean methodEscape = false;
-    protected boolean loopEscape = false;
-    protected boolean allEscape = false;
-
-    protected boolean anyContinue = false;
-    protected boolean anyBreak = false;
-
-    protected int statementCount = 0;
-
-    protected Label continu = null;
-    protected Label brake = null;
-
-    public Statement(final String location) {
+public class ENull extends Expression {
+    public ENull(final String location) {
         super(location);
     }
 
-    protected abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
-    protected abstract void write(final GeneratorAdapter adapter);
+    @Override
+    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        isNull = true;
+
+        if (expected != null) {
+            if (expected.sort.primitive) {
+                throw new IllegalArgumentException(error("Cannot cast null to a primitive type [" + expected.name + "]."));
+            }
+
+            actual = expected;
+        } else {
+            actual = definition.objectType;
+        }
+    }
+
+    @Override
+    protected void write(final GeneratorAdapter adapter) {
+
+    }
 }

@@ -45,14 +45,14 @@ import static org.elasticsearch.painless.tree.utility.Operation.RSH;
 import static org.elasticsearch.painless.tree.utility.Operation.SUB;
 import static org.elasticsearch.painless.tree.utility.Operation.USH;
 import static org.elasticsearch.painless.tree.utility.Operation.XOR;
-import static org.elasticsearch.painless.tree.node.Type.AALENGTH;
-import static org.elasticsearch.painless.tree.node.Type.ACONSTANT;
-import static org.elasticsearch.painless.tree.node.Type.ADEFBRACE;
-import static org.elasticsearch.painless.tree.node.Type.ADEFCALL;
-import static org.elasticsearch.painless.tree.node.Type.ADEFFIELD;
-import static org.elasticsearch.painless.tree.node.Type.ALISTSHORTCUT;
-import static org.elasticsearch.painless.tree.node.Type.AMAPSHORTCUT;
-import static org.elasticsearch.painless.tree.node.Type.ASHORTCUT;
+import static org.elasticsearch.painless.tree.utility.Type.AALENGTH;
+import static org.elasticsearch.painless.tree.utility.Type.ACONSTANT;
+import static org.elasticsearch.painless.tree.utility.Type.ADEFBRACE;
+import static org.elasticsearch.painless.tree.utility.Type.ADEFCALL;
+import static org.elasticsearch.painless.tree.utility.Type.ADEFFIELD;
+import static org.elasticsearch.painless.tree.utility.Type.ALISTSHORTCUT;
+import static org.elasticsearch.painless.tree.utility.Type.AMAPSHORTCUT;
+import static org.elasticsearch.painless.tree.utility.Type.ASHORTCUT;
 
 class AnalyzerExternal {
     private final Definition definition;

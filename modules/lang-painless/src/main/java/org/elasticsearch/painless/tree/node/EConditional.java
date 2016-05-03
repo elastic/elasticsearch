@@ -21,53 +21,47 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.tree.utility.Caster;
 import org.elasticsearch.painless.tree.utility.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class Do extends Statement {
-    protected final Statement block;
+public class EConditional extends Expression {
     protected Expression condition;
+    protected Expression left;
+    protected Expression right;
 
-    public Do(final String location, final Statement block, final Expression condition) {
+    public EConditional(final String location, final Expression condition, final Expression left, final Expression right) {
         super(location);
 
         this.condition = condition;
-        this.block = block;
+        this.left = left;
+        this.right = right;
     }
 
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        variables.incrementScope();
-
-        block.beginLoop = true;
-        block.inLoop = true;
-
-        block.analyze(settings, definition, variables);
-
-        if (block.loopEscape && !block.anyContinue) {
-            throw new IllegalArgumentException(error("Extraneous do while loop."));
-        }
-
         condition.expected = definition.booleanType;
         condition.analyze(settings, definition, variables);
         condition = condition.cast(definition);
 
         if (condition.constant != null) {
-            final boolean continuous = (boolean)condition.constant;
-
-            if (!continuous) {
-                throw new IllegalArgumentException(error("Extraneous do while loop."));
-            }
-
-            if (!block.anyBreak) {
-                methodEscape = true;
-                allEscape = true;
-            }
+            throw new IllegalArgumentException(error("Extraneous conditional statement."));
         }
 
-        statementCount = 1;
+        left.analyze(settings, definition, variables);
+        right.analyze(settings, definition, variables);
 
-        variables.decrementScope();
+        final Type promote = Caster.promoteConditional(definition, left.actual, right.actual, left.constant, right.constant);
+
+        left.expected = promote;
+        right.expected = promote;
+
+        left = left.cast(definition);
+        right = right.cast(definition);
+
+        condition.actual = promote;
+        condition.typesafe = left.typesafe && right.typesafe;
     }
 
     @Override

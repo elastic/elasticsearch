@@ -19,34 +19,46 @@
 
 package org.elasticsearch.painless.tree.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.tree.utility.Operation;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.Collections;
 import java.util.List;
 
-public class DeclBlock extends Statement {
-    final List<Declaration> declarations;
+public class TNewArray extends Target {
+    protected final Type type;
+    protected final List<Expression> arguments;
 
-    public DeclBlock(final String location, final List<Declaration> declarations) {
+    public TNewArray(final String location, final Type type, final List<Expression> arguments) {
         super(location);
 
-        this.declarations = Collections.unmodifiableList(declarations);
+        this.type = type;
+        this.arguments = Collections.unmodifiableList(arguments);
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        for (final Declaration declaration : declarations) {
-            declaration.analyze(settings, definition, variables);
-        }
+    protected void load(final GeneratorAdapter adapter) {
 
-        statementCount = declarations.size();
     }
 
     @Override
-    protected void write(final GeneratorAdapter adapter) {
+    protected void store(final GeneratorAdapter adapter, final Expression expression) {
+
+    }
+
+    @Override
+    protected void pre(final GeneratorAdapter adapter, final Expression expression, final Operation operation) {
+
+    }
+
+    @Override
+    protected void post(final GeneratorAdapter adapter, final Expression expression, final Operation operation) {
+
+    }
+
+    @Override
+    protected void compound(final GeneratorAdapter adapter, final Expression expression) {
 
     }
 }

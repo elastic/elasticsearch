@@ -19,20 +19,19 @@
 
 package org.elasticsearch.painless.tree.node;
 
-import com.sun.javafx.css.Declaration;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.utility.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class For extends Statement {
+public class SFor extends Statement {
     protected Node initializer;
     protected Expression condition;
     protected Expression afterthought;
     protected final Statement block;
 
-    public For(final String location,
-               final Node initializer, final Expression condition, final Expression afterthought, final Statement block) {
+    public SFor(final String location,
+                final Node initializer, final Expression condition, final Expression afterthought, final Statement block) {
         super(location);
 
         this.initializer = initializer;
@@ -48,8 +47,8 @@ public class For extends Statement {
         boolean continuous = false;
 
         if (initializer != null) {
-            if (initializer instanceof Declaration) {
-
+            if (initializer instanceof SDeclBlock) {
+                initializer.analyze(settings, definition, variables);
             } else if (initializer instanceof Expression) {
                 final Expression initializer = (Expression)this.initializer;
 

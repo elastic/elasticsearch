@@ -19,11 +19,14 @@
 
 package org.elasticsearch.painless.tree.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.utility.Caster;
+import org.elasticsearch.painless.tree.utility.Variables;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.commons.GeneratorAdapter;
 
 public abstract class Expression extends Node {
     protected boolean read = true;
@@ -65,4 +68,7 @@ public abstract class Expression extends Node {
 
         return ecast;
     }
+
+    protected abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
+    protected abstract void write(final GeneratorAdapter adapter);
 }

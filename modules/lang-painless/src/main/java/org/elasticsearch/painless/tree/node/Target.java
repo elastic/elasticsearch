@@ -19,14 +19,19 @@
 
 package org.elasticsearch.painless.tree.node;
 
-public abstract class Node {
-    public final String location;
+import org.elasticsearch.painless.tree.utility.Operation;
+import org.objectweb.asm.commons.GeneratorAdapter;
 
-    public Node(final String location) {
+public abstract class Target {
+    protected final String location;
+
+    public Target(final String location) {
         this.location = location;
     }
 
-    public String error(final String message) {
-        return "Error " + location  + ": " + message;
-    }
+    protected abstract void load(final GeneratorAdapter adapter);
+    protected abstract void store(final GeneratorAdapter adapter, final Expression expression);
+    protected abstract void pre(final GeneratorAdapter adapter, final Expression expression, final Operation operation);
+    protected abstract void post(final GeneratorAdapter adapter, final Expression expression, final Operation operation);
+    protected abstract void compound(final GeneratorAdapter adapter, final Expression expression);
 }

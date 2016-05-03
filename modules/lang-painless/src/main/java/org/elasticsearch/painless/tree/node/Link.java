@@ -19,9 +19,13 @@
 
 package org.elasticsearch.painless.tree.node;
 
+import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.tree.utility.Variables;
+import org.objectweb.asm.commons.GeneratorAdapter;
 
-public abstract class Chain extends Node {
+public abstract class Link extends Node {
     protected boolean load = true;
     protected boolean store = false;
 
@@ -32,7 +36,14 @@ public abstract class Chain extends Node {
     protected boolean statement = false;
     protected Object constant = null;
 
-    public Chain(final String location) {
+    protected Target target = null;
+
+    public Link(final String location) {
         super(location);
     }
+
+    protected abstract Link analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
+
+    protected abstract void load(final GeneratorAdapter adapter);
+    protected abstract void store(final GeneratorAdapter adapter);
 }

@@ -22,33 +22,18 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.utility.Variables;
-import org.elasticsearch.painless.tree.utility.Variables.Variable;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class Declaration extends Node {
-    protected final String type;
-    protected final String name;
-    protected Expression expression;
-
-    protected Variable variable;
-
-    public Declaration(final String location, final String type, final String name, final Expression expression) {
+public class EBoolean extends Expression {
+    public EBoolean(final String location, final boolean constant) {
         super(location);
 
-        this.type = type;
-        this.name = name;
-        this.expression = expression;
+        this.constant = constant;
     }
 
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        variable = variables.addVariable(location, type, name);
-
-        if (expression != null) {
-            expression.expected = variable.type;
-            expression.analyze(settings, definition, variables);
-            expression = expression.cast(definition);
-        }
+        actual = definition.booleanType;
     }
 
     @Override

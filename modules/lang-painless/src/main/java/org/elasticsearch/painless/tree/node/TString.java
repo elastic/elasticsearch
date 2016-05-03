@@ -19,12 +19,40 @@
 
 package org.elasticsearch.painless.tree.node;
 
-public class Decimal extends Expression {
-    final String value;
+import org.elasticsearch.painless.tree.utility.Operation;
+import org.objectweb.asm.commons.GeneratorAdapter;
 
-    public Decimal(final String location, final String value) {
+public class TString extends Target {
+    final String string;
+
+    public TString(final String location, final String string) {
         super(location);
 
-        this.value = value;
+        this.string = string;
+    }
+
+    @Override
+    protected void load(final GeneratorAdapter adapter) {
+
+    }
+
+    @Override
+    protected void store(final GeneratorAdapter adapter, final Expression expression) {
+
+    }
+
+    @Override
+    protected void pre(final GeneratorAdapter adapter, final Expression expression, final Operation operation) {
+
+    }
+
+    @Override
+    protected void post(final GeneratorAdapter adapter, final Expression expression, final Operation operation) {
+
+    }
+
+    @Override
+    protected void compound(final GeneratorAdapter adapter, final Expression expression) {
+
     }
 }

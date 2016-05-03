@@ -17,38 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.tree.utility;
+package org.elasticsearch.painless.tree.node;
 
-public enum Operation {
-    MUL     ( "+"   ),
-    DIV     ( "/"   ),
-    REM     ( "%"   ),
-    ADD     ( "+"   ),
-    SUB     ( "-"   ),
-    LSH     ( "<<"  ),
-    RSH     ( ">>"  ),
-    USH     ( ">>>" ),
-    BWNOT   ( "~"   ),
-    BWAND   ( "&"   ),
-    XOR     ( "^"   ),
-    BWOR    ( "|"   ),
-    NOT     ( "!"   ),
-    AND     ( "&&"  ),
-    OR      ( "||"  ),
-    LT      ( "<"   ),
-    LTE     ( "<="  ),
-    GT      ( ">"   ),
-    GTE     ( ">="  ),
-    EQ      ( "=="  ),
-    EQR     ( "===" ),
-    NE      ( "!="  ),
-    NER     ( "!==" ),
-    INCR    ( "++"  ),
-    DECR    ( "--"  );
+import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.tree.utility.Variables;
+import org.objectweb.asm.commons.GeneratorAdapter;
 
-    public final String symbol;
+public class EChar extends Expression {
+    public EChar(final String location, final char constant) {
+        super(location);
 
-    Operation(final String symbol) {
-        this.symbol = symbol;
+        this.constant = constant;
+    }
+
+    @Override
+    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        actual = definition.charType;
+    }
+
+    @Override
+    protected void write(GeneratorAdapter adapter) {
+
     }
 }

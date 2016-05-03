@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.tree.walker.analyzer;
 
-import org.antlr.v4.runtime.ParserRuleContext;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Method;
@@ -27,9 +26,9 @@ import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Transform;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.node.Node;
-import static org.elasticsearch.painless.tree.node.Type.ACONSTANT;
-import static org.elasticsearch.painless.tree.node.Type.ACAST;
-import static org.elasticsearch.painless.tree.node.Type.ATRANSFORM;
+import static org.elasticsearch.painless.tree.utility.Type.ACONSTANT;
+import static org.elasticsearch.painless.tree.utility.Type.ACAST;
+import static org.elasticsearch.painless.tree.utility.Type.ATRANSFORM;
 
 import java.lang.reflect.InvocationTargetException;
 

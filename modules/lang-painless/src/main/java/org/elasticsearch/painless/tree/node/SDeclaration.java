@@ -25,44 +25,29 @@ import org.elasticsearch.painless.tree.utility.Variables;
 import org.elasticsearch.painless.tree.utility.Variables.Variable;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class Trap extends Statement {
+public class SDeclaration extends Statement {
     protected final String type;
     protected final String name;
-    protected final Statement block;
+    protected Expression expression;
 
     protected Variable variable;
 
-    public Trap(final String location, final String type, final String name, final Statement block) {
+    public SDeclaration(final String location, final String type, final String name, final Expression expression) {
         super(location);
 
         this.type = type;
         this.name = name;
-        this.block = block;
+        this.expression = expression;
     }
 
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         variable = variables.addVariable(location, type, name);
 
-        try {
-            variable.type.clazz.asSubclass(Exception.class);
-        } catch (final ClassCastException cce) {
-            throw new IllegalArgumentException(error("Not an exception type [" + variable.type.name + "]."));
-        }
-
-        if (block != null) {
-            block.lastSource = lastSource;
-            block.inLoop = inLoop;
-            block.lastLoop = lastLoop;
-
-            block.analyze(settings, definition, variables);
-
-            methodEscape = block.methodEscape;
-            loopEscape = block.loopEscape;
-            allEscape = block.allEscape;
-            anyContinue = block.anyContinue;
-            anyBreak = block.anyBreak;
-            statementCount = block.statementCount;
+        if (expression != null) {
+            expression.expected = variable.type;
+            expression.analyze(settings, definition, variables);
+            expression = expression.cast(definition);
         }
     }
 

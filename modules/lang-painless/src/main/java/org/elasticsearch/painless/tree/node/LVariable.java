@@ -21,33 +21,41 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.utility.Variables;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.tree.utility.Variables.Variable;
 
-public abstract class Statement extends Node {
-    protected boolean lastSource = false;
+public class LVariable extends Link {
+    protected final String name;
 
-    protected boolean beginLoop = false;
-    protected boolean inLoop = false;
-    protected boolean lastLoop = false;
-
-    protected boolean methodEscape = false;
-    protected boolean loopEscape = false;
-    protected boolean allEscape = false;
-
-    protected boolean anyContinue = false;
-    protected boolean anyBreak = false;
-
-    protected int statementCount = 0;
-
-    protected Label continu = null;
-    protected Label brake = null;
-
-    public Statement(final String location) {
+    public LVariable(final String location, final String name) {
         super(location);
+
+        this.name = name;
     }
 
-    protected abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
-    protected abstract void write(final GeneratorAdapter adapter);
+    @Override
+    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        if (before != null) {
+            throw new IllegalStateException(error("Illegal tree structure."));
+        }
+
+        Type type = null;
+
+        try {
+            type = definition.getType(name);
+        } catch (final IllegalArgumentException exception) {
+            // Do nothing.
+        }
+
+        if (type != null) {
+            statik = true;
+            after = type;
+        } else {
+            final Variable variable = variables.getVariable(location, name);
+
+            after = variable.type;
+            target = new TVariable(location, variable);
+        }
+    }
 }

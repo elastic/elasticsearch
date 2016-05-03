@@ -24,23 +24,20 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.utility.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class Continue extends Statement {
-    public Continue(final String location) {
+public class SBreak extends Statement {
+    public SBreak(final String location) {
         super(location);
     }
 
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (!inLoop) {
-            throw new IllegalArgumentException(error("Continue statement outside of a loop."));
+            throw new IllegalArgumentException(error("Break statement outside of a loop."));
         }
 
-        if (lastLoop) {
-            throw new IllegalArgumentException(error("Extraneous continue statement."));
-        }
-
+        loopEscape = true;
         allEscape = true;
-        anyContinue = true;
+        anyBreak = true;
         statementCount = 1;
     }
 

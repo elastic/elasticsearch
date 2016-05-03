@@ -28,6 +28,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineException;
@@ -35,6 +37,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -118,8 +121,11 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
                 BooleanQuery.Builder filter = new BooleanQuery.Builder();
                 for (BytesReference bytesReference : permissions.getQueries()) {
                     QueryShardContext queryShardContext = copyQueryShardContext(this.queryShardContext);
-                    ParsedQuery parsedQuery = queryShardContext.parse(bytesReference);
-                    filter.add(parsedQuery.query(), SHOULD);
+                    try (XContentParser parser = XContentFactory.xContent(bytesReference).createParser(bytesReference)) {
+                        QueryBuilder queryBuilder = queryShardContext.newParseContext(parser).parseInnerQueryBuilder();
+                        ParsedQuery parsedQuery = queryShardContext.toQuery(queryBuilder);
+                        filter.add(parsedQuery.query(), SHOULD);
+                    }
                 }
                 // at least one of the queries should match
                 filter.setMinimumNumberShouldMatch(1);

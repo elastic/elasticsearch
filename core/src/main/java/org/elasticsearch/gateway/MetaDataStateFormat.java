@@ -64,8 +64,9 @@ public abstract class MetaDataStateFormat<T> {
     public static final String STATE_DIR_NAME = "_state";
     public static final String STATE_FILE_EXTENSION = ".st";
     private static final String STATE_FILE_CODEC = "state";
-    private static final int MIN_COMPATIBLE_STATE_FILE_VERSION = 0;
+    private static final int STATE_FILE_VERSION_ES_2X_AND_BELOW = 0;
     private static final int STATE_FILE_VERSION = 1;
+    private static final int MIN_COMPATIBLE_STATE_FILE_VERSION = STATE_FILE_VERSION_ES_2X_AND_BELOW;
     private static final int BUFFER_SIZE = 4096;
     private final XContentType format;
     private final String prefix;
@@ -184,9 +185,9 @@ public abstract class MetaDataStateFormat<T> {
                 final int fileVersion = CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION,
                     STATE_FILE_VERSION);
                 final XContentType xContentType = XContentType.values()[indexInput.readInt()];
-                if (fileVersion == 0) {
-                    // format version 0, write a version that always came from the content state file
-                    // and was never used.
+                if (fileVersion == STATE_FILE_VERSION_ES_2X_AND_BELOW) {
+                    // ES 1.x/2.x wrote a version that always came from the content state file
+                    // remove this once we stop supporting reading 2.x files
                     indexInput.readLong();
                 }
                 long filePointer = indexInput.getFilePointer();

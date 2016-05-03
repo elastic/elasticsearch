@@ -33,6 +33,8 @@ import java.io.OutputStream;
 import java.util.Objects;
 
 /**
+ * Metadata associated with this node. Currently only contains the unique uuid describing this node.
+ * The metadata is persisted in the data folder of this node and is reused across restarts.
  */
 public final class NodeMetaData {
 
@@ -40,7 +42,7 @@ public final class NodeMetaData {
 
     private final String nodeId;
 
-    public NodeMetaData(final String nodeId) {
+    NodeMetaData(final String nodeId) {
         this.nodeId = Objects.requireNonNull(nodeId);
     }
 
@@ -75,7 +77,7 @@ public final class NodeMetaData {
         PARSER.declareString(Builder::setNodeId, new ParseField(NODE_ID_KEY));
     }
 
-    public String nodeId() {
+    public String getNodeId() {
         return nodeId;
     }
 

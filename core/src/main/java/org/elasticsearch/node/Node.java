@@ -332,7 +332,7 @@ public class Node implements Closeable {
 
         validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress());
 
-        String nodeId = injector.getInstance(NodeEnvironment.class).nodeId();
+        String nodeId = injector.getInstance(NodeEnvironment.class).getNodeId();
         DiscoveryNode localNode = injector.getInstance(DiscoveryNodeService.class).buildLocalNode(
             transportService.boundAddress().publishAddress(), nodeId);
 

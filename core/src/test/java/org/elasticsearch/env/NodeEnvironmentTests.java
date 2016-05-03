@@ -412,17 +412,17 @@ public class NodeEnvironmentTests extends ESTestCase {
             .put("node.master", false)
             .put("node.data", false)
             .build());
-        String nodeID = env.nodeId();
+        String nodeID = env.getNodeId();
         env.close();
         env = newNodeEnvironment(paths, Settings.EMPTY);
-        assertThat("previous node didn't have local storage enabled, id should change", env.nodeId(), not(equalTo(nodeID)));
-        nodeID = env.nodeId();
+        assertThat("previous node didn't have local storage enabled, id should change", env.getNodeId(), not(equalTo(nodeID)));
+        nodeID = env.getNodeId();
         env.close();
         env = newNodeEnvironment(paths, Settings.EMPTY);
-        assertThat(env.nodeId(), equalTo(nodeID));
+        assertThat(env.getNodeId(), equalTo(nodeID));
         env.close();
         env = newNodeEnvironment(Settings.EMPTY);
-        assertThat(env.nodeId(), not(equalTo(nodeID)));
+        assertThat(env.getNodeId(), not(equalTo(nodeID)));
         env.close();
     }
 

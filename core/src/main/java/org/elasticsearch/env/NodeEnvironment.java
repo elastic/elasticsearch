@@ -154,6 +154,10 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
         Setting.boolSetting("node.add_lock_id_to_custom_path", true, Property.NodeScope);
 
 
+    /**
+     * Seed for determining the unique uuid of this node. If the node has already a persisted uuid on disk,
+     * this seed will be ignored and the uuid from disk will be reused.
+     */
     public static final Setting<Long> NODE_ID_SEED_SETTING =
         Setting.longSetting("node.id.seed", 0L, Long.MIN_VALUE, Property.NodeScope);
 
@@ -677,11 +681,11 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
      * returns the unique uuid describing this node. The uuid is persisted in the data folder of this node
      * and is reused across restarts.
      **/
-    public String nodeId() {
+    public String getNodeId() {
         // we currently only return the ID and hide the underlying nodeMetaData implementation in order to avoid
         // confusion with other "metadata" like node settings found in elasticsearch.yml. In the future
         // we can encapsulate both (and more) in one NodeMetaData (or NodeSettings) object ala IndexSettings
-        return nodeMetaData.nodeId();
+        return nodeMetaData.getNodeId();
     }
 
     /**

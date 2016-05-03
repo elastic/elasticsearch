@@ -188,7 +188,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         nodesSettings.remove("blocks"); // remove prefix settings that don't indicate a client
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
-            Settings clientSettings = buildClientSettings(entry.getKey(), nodeEnvironment.nodeId(), settings, entry.getValue());
+            Settings clientSettings = buildClientSettings(entry.getKey(), nodeEnvironment.getNodeId(), settings, entry.getValue());
             nodes.add(new TribeClientNode(clientSettings));
         }
 

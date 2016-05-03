@@ -148,7 +148,7 @@ you wish to inhibit this, set `"boost_mode": "replace"`
 The `weight` score allows you to multiply the score by the provided
 `weight`. This can sometimes be desired since boost value set on
 specific queries gets normalized, while for this score function it does
-not.
+not. The number value is of type float. 
 
 [source,js]
 --------------------------------------------------

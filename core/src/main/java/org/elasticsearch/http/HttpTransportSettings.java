@@ -51,6 +51,8 @@ public final class HttpTransportSettings {
         Setting.intSetting("http.pipelining.max_events", 10000, Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_COMPRESSION =
         Setting.boolSetting("http.compression", true, Property.NodeScope);
+    // we intentionally use a different compression level as Netty here as our benchmarks have shown that a compression level of 3 is the
+    // best compromise between reduction in network traffic and added latency. For more details please check #7309.
     public static final Setting<Integer> SETTING_HTTP_COMPRESSION_LEVEL =
         Setting.intSetting("http.compression_level", 3, Property.NodeScope);
     public static final Setting<List<String>> SETTING_HTTP_HOST =

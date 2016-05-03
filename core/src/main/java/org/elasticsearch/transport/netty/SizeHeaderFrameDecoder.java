@@ -58,7 +58,7 @@ public class SizeHeaderFrameDecoder extends FrameDecoder {
                 bufferStartsWith(buffer, readerIndex, "PATCH ") ||
                 bufferStartsWith(buffer, readerIndex, "TRACE ")) {
 
-                throw new HttpOnTransportException("This is not a HTTP port");
+                throw new HttpOnTransportException("This is not an HTTP port");
             }
 
             // we have 6 readable bytes, show 4 (should be enough)

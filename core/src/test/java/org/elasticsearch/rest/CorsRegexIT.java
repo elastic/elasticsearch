@@ -30,6 +30,7 @@ import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS
 import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_CREDENTIALS;
 import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ALLOW_METHODS;
 import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.netty.NettyHttpServerTransport.SETTING_HTTP_COMPRESSION;
 import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.*;
@@ -52,6 +53,7 @@ public class CorsRegexIT extends ESIntegTestCase {
                 .put(SETTING_CORS_ALLOW_METHODS, "get, options, post")
                 .put(SETTING_CORS_ENABLED, true)
                 .put(Node.HTTP_ENABLED, true)
+                .put(SETTING_HTTP_COMPRESSION, randomBoolean())
                 .build();
     }
 

@@ -510,12 +510,12 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                 httpChunkAggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }
             pipeline.addLast("aggregator", httpChunkAggregator);
-            if (transport.settings().getAsBoolean(SETTING_CORS_ENABLED, false)) {
-                pipeline.addLast("cors", new CorsHandler(transport.getCorsConfig()));
-            }
             pipeline.addLast("encoder", new ESHttpResponseEncoder());
             if (transport.compression) {
                 pipeline.addLast("encoder_compress", new HttpContentCompressor(transport.compressionLevel));
+            }
+            if (transport.settings().getAsBoolean(SETTING_CORS_ENABLED, false)) {
+                pipeline.addLast("cors", new CorsHandler(transport.getCorsConfig()));
             }
             if (transport.pipelining) {
                 pipeline.addLast("pipelining", new HttpPipeliningHandler(transport.pipeliningMaxEvents));

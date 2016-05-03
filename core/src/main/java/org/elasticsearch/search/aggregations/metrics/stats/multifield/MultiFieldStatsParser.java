@@ -21,8 +21,7 @@ package org.elasticsearch.search.aggregations.metrics.stats.multifield;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.support.AbstractMultiValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.AbstractMultiValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -31,15 +30,10 @@ import java.util.Map;
 
 /**
  */
-public class MultiFieldStatsParser extends AbstractMultiValuesSourceParser.NumericValuesSourceParser {
+public class MultiFieldStatsParser extends NumericValuesSourceParser {
 
     public MultiFieldStatsParser() {
         super(true, true, false);
-    }
-
-    @Override
-    public String type() {
-        return InternalMultiFieldStats.TYPE.name();
     }
 
     @Override
@@ -52,10 +46,5 @@ public class MultiFieldStatsParser extends AbstractMultiValuesSourceParser.Numer
     protected MultiFieldStatsAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
                                                              ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         return new MultiFieldStatsAggregatorBuilder(aggregationName);
-    }
-
-    @Override
-    public AggregatorBuilder<?> getFactoryPrototypes() {
-        return MultiFieldStatsAggregatorBuilder.PROTOTYPE;
     }
 }

@@ -60,6 +60,21 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
             super(name, type, valuesSourceType, targetValueType);
         }
 
+        /**
+         * Read from a stream that does not serialize its targetValueType. This should be used by most subclasses.
+         */
+        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
+            super(in, type, valuesSourceType, targetValueType);
+        }
+
+        /**
+         * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
+         * {@link #serializeTargetValueType()} to return true.
+         */
+        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType) throws IOException {
+            super(in, type, valuesSourceType);
+        }
+
         @Override
         public AB subAggregations(Builder subFactories) {
             throw new AggregationInitializationException("Aggregator [" + name + "] of type [" +
@@ -84,6 +99,93 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
     }
+
+    protected MultiValuesSourceAggregatorBuilder(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType)
+        throws IOException {
+        super(in, type);
+        assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
+        this.valuesSourceType = valuesSourceType;
+        this.targetValueType = targetValueType;
+        read(in);
+    }
+
+    protected MultiValuesSourceAggregatorBuilder(StreamInput in, Type type, ValuesSourceType valuesSourceType) throws IOException {
+        super(in, type);
+        assert serializeTargetValueType() : "Wrong read constructor called for subclass that serializes its targetValueType";
+        this.valuesSourceType = valuesSourceType;
+        this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
+        read(in);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    private void read(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            fields = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                fields.add(in.readString());
+            }
+        }
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            scripts = new HashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                scripts.put(in.readString(), new Script(in));
+            }
+        }
+        if (in.readBoolean()) {
+            valueType = ValueType.STRING.readFromStream(in);
+        }
+        format = in.readOptionalString();
+        missing = in.readGenericValue();
+        if (in.readBoolean()) {
+            timeZone = DateTimeZone.forID(in.readString());
+        }
+    }
+
+    @Override
+    protected final void doWriteTo(StreamOutput out) throws IOException {
+        if (serializeTargetValueType()) {
+            out.writeOptionalWriteable(targetValueType);
+        }
+        boolean hasFields = fields != null;
+        out.writeBoolean(hasFields);
+        if (hasFields) {
+            out.writeVInt(fields.size());
+            for (String field : fields) {
+                out.writeString(field);
+            }
+        }
+        boolean hasScripts = scripts != null;
+        out.writeBoolean(hasScripts);
+        if (hasScripts) {
+            out.writeVInt(scripts.size());
+            for (Map.Entry<String, Script> script : scripts.entrySet()) {
+                out.writeString(script.getKey());
+                script.getValue().writeTo(out);
+            }
+        }
+        boolean hasValueType = valueType != null;
+        out.writeBoolean(hasValueType);
+        if (hasValueType) {
+            valueType.writeTo(out);
+        }
+        out.writeOptionalString(format);
+        out.writeGenericValue(missing);
+        boolean hasTimeZone = timeZone != null;
+        out.writeBoolean(hasTimeZone);
+        if (hasTimeZone) {
+            out.writeString(timeZone.getID());
+        }
+        innerWriteTo(out);
+    }
+
+    /**
+     * Write subclass' state to the stream
+     */
+    protected abstract void innerWriteTo(StreamOutput out) throws IOException;
 
     /**
      * Sets the field to use for this aggregation.
@@ -294,7 +396,8 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
 
     private SearchScript createScript(Script script, SearchContext context) {
         return script == null ? null
-                : context.scriptService().search(context.lookup(), script, ScriptContext.Standard.AGGS, Collections.emptyMap());
+                : context.scriptService().search(context.lookup(), script, ScriptContext.Standard.AGGS, Collections.emptyMap(),
+                context.getQueryShardContext().getClusterState());
     }
 
     private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
@@ -308,86 +411,13 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
         return valueFormat;
     }
 
-    @Override
-    protected final void doWriteTo(StreamOutput out) throws IOException {
-        valuesSourceType.writeTo(out);
-        boolean hasTargetValueType = targetValueType != null;
-        out.writeBoolean(hasTargetValueType);
-        if (hasTargetValueType) {
-            targetValueType.writeTo(out);
-        }
-        innerWriteTo(out);
-        boolean hasFields = fields != null;
-        out.writeBoolean(hasFields);
-        if (hasFields) {
-            out.writeVInt(fields.size());
-            for (String field : fields) {
-                out.writeString(field);
-            }
-        }
-        boolean hasScripts = scripts != null;
-        out.writeBoolean(hasScripts);
-        if (hasScripts) {
-            out.writeVInt(scripts.size());
-            for (Map.Entry<String, Script> script : scripts.entrySet()) {
-                out.writeString(script.getKey());
-                script.getValue().writeTo(out);
-            }
-        }
-        boolean hasValueType = valueType != null;
-        out.writeBoolean(hasValueType);
-        if (hasValueType) {
-            valueType.writeTo(out);
-        }
-        out.writeOptionalString(format);
-        out.writeGenericValue(missing);
-        boolean hasTimeZone = timeZone != null;
-        out.writeBoolean(hasTimeZone);
-        if (hasTimeZone) {
-            out.writeString(timeZone.getID());
-        }
+    /**
+     * Should this builder serialize its targetValueType? Defaults to false. All subclasses that override this to true should use the three
+     * argument read constructor rather than the four argument version.
+     */
+    protected boolean serializeTargetValueType() {
+        return false;
     }
-
-    protected abstract void innerWriteTo(StreamOutput out) throws IOException;
-
-    @SuppressWarnings("unchecked")
-    @Override
-    protected final AB doReadFrom(String name, StreamInput in) throws IOException {
-        ValuesSourceType valuesSourceType = ValuesSourceType.ANY.readFrom(in);
-        ValueType targetValueType = null;
-        if (in.readBoolean()) {
-            targetValueType = ValueType.STRING.readFrom(in);
-        }
-        MultiValuesSourceAggregatorBuilder<VS, AB> factory = innerReadFrom(name, valuesSourceType, targetValueType, in);
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            List<String> fields = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                fields.add(in.readString());
-            }
-            factory.fields = fields;
-        }
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            Map<String, Script> scripts = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                scripts.put(in.readString(), Script.readScript(in));
-            }
-            factory.scripts = scripts;
-        }
-        if (in.readBoolean()) {
-            factory.valueType = ValueType.STRING.readFrom(in);
-        }
-        factory.format = in.readOptionalString();
-        factory.missing = in.readGenericValue();
-        if (in.readBoolean()) {
-            factory.timeZone = DateTimeZone.forID(in.readString());
-        }
-        return (AB) factory;
-    }
-
-    protected abstract MultiValuesSourceAggregatorBuilder<VS, AB> innerReadFrom(String name, ValuesSourceType valuesSourceType,
-        ValueType targetValueType, StreamInput in) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

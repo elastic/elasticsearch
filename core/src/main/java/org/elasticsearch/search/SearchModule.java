@@ -497,7 +497,7 @@ public class SearchModule extends AbstractModule {
                 PercentileRanksAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(CardinalityAggregatorBuilder::new, new CardinalityParser(),
                 CardinalityAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(MultiFieldStatsAggregatorBuilder::new, new MultiFieldStatsParser(), MultiFieldStatsAggregatorBuilder.AGGREGATION_NAME_FIELD),
+        registerAggregation(MultiFieldStatsAggregatorBuilder::new, new MultiFieldStatsParser(), MultiFieldStatsAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(GlobalAggregatorBuilder::new, GlobalAggregatorBuilder::parse, GlobalAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(MissingAggregatorBuilder::new, new MissingParser(), MissingAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(FilterAggregatorBuilder::new, FilterAggregatorBuilder::parse, FilterAggregatorBuilder.AGGREGATION_NAME_FIELD);

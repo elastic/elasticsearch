@@ -21,14 +21,12 @@ package org.elasticsearch.search.aggregations.metrics.stats.multifield;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -146,13 +144,13 @@ public class InternalMultiFieldStats extends InternalMetricsAggregation implemen
     }
 
     static class Fields {
-        public static final XContentBuilderString COUNT = new XContentBuilderString("count");
-        public static final XContentBuilderString MEAN = new XContentBuilderString("mean");
-        public static final XContentBuilderString VARIANCE = new XContentBuilderString("variance");
-        public static final XContentBuilderString SKEWNESS = new XContentBuilderString("skewness");
-        public static final XContentBuilderString KURTOSIS = new XContentBuilderString("kurtosis");
-        public static final XContentBuilderString COVARIANCE = new XContentBuilderString("covariance");
-        public static final XContentBuilderString CORRELATION = new XContentBuilderString("correlation");
+        public static final String COUNT = "count";
+        public static final String MEAN = "mean";
+        public static final String VARIANCE = "variance";
+        public static final String SKEWNESS = "skewness";
+        public static final String KURTOSIS = "kurtosis";
+        public static final String COVARIANCE = "covariance";
+        public static final String CORRELATION = "correlation";
     }
 
     @Override
@@ -183,20 +181,11 @@ public class InternalMultiFieldStats extends InternalMetricsAggregation implemen
                 builder.endObject();
                 builder.endObject();
             }
-
-
-
-//            builder = doXContentBody(builder, Fields.MEANS, results.getMeans());
-//            builder = doXContentBody(builder, Fields.VARIANCES, results.getVariances());
-//            builder = doXContentBody(builder, Fields.SKEWNESS, results.getSkewness());
-//            builder = doXContentBody(builder, Fields.KURTOSIS, results.getKurtosis());
-//            builder = doXContentBody(builder, Fields.COVARIANCE, results.getCovariances());
-//            builder = doXContentBody(builder, Fields.CORRELATION, results.getCorrelations());
         }
         return builder;
     }
 
-    private XContentBuilder doXContentBody(XContentBuilder builder, XContentBuilderString field, Map fieldVals) throws IOException {
+    private XContentBuilder doXContentBody(XContentBuilder builder, String field, Map fieldVals) throws IOException {
         builder.startObject(field);
         for (Map.Entry<String, Object> vals : ((HashMap<String, Object>)fieldVals).entrySet()) {
             if (vals.getValue() instanceof HashMap) {

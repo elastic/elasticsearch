@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.stats.multifield;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -39,28 +40,29 @@ import java.util.Map;
  */
 public class MultiFieldStatsAggregatorBuilder
     extends MultiValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, MultiFieldStatsAggregatorBuilder> {
-
-    static final MultiFieldStatsAggregatorBuilder PROTOTYPE = new MultiFieldStatsAggregatorBuilder("");
+    public static final String NAME = InternalMultiFieldStats.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public MultiFieldStatsAggregatorBuilder(String name) {
         super(name, InternalMultiFieldStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MultiFieldStatsAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalMultiFieldStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) {
+        // Do nothing, no extra state to write to stream
     }
 
     @Override
     protected MultiFieldStatsAggregatorFactory innerBuild(AggregationContext context, Map<String, ValuesSourceConfig<Numeric>> configs,
          AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new MultiFieldStatsAggregatorFactory(name, type, configs, context, parent, subFactoriesBuilder, metaData);
-    }
-
-    @Override
-    protected MultiValuesSourceAggregatorBuilder<Numeric, MultiFieldStatsAggregatorBuilder> innerReadFrom(String name,
-         ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in) {
-        return new MultiFieldStatsAggregatorBuilder(name);
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) {
-        // Do nothing, no extra state to write to stream
     }
 
     @Override
@@ -76,5 +78,10 @@ public class MultiFieldStatsAggregatorBuilder
     @Override
     protected boolean innerEquals(Object obj) {
         return true;
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

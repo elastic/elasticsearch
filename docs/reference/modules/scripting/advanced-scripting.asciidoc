@@ -1,5 +1,5 @@
 [[modules-advanced-scripting]]
-=== Text scoring in scripts
+== Text scoring in scripts
 
 
 Text features, such as term or document frequency for a specific term can be accessed in scripts (see <<modules-scripting, scripting documentation>> ) with the `_index` variable. This can be useful if, for example, you want to implement your own scoring model using for example a script inside a <<query-dsl-function-score-query,function score query>>.

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.path;
 
-import org.elasticsearch.common.Strings;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,7 +36,7 @@ public class PathTrie<T> {
 
     private final Decoder decoder;
     private final TrieNode root;
-    private final char separator;
+    private final String separator;
     private T rootValue;
 
     public PathTrie(Decoder decoder) {
@@ -47,8 +45,9 @@ public class PathTrie<T> {
 
     public PathTrie(char separator, String wildcard, Decoder decoder) {
         this.decoder = decoder;
-        this.separator = separator;
-        root = new TrieNode(new String(new char[]{separator}), null, wildcard);
+        final String separatorAsString = new String(new char[]{separator});
+        this.separator = separatorAsString;
+        root = new TrieNode(separatorAsString, null, wildcard);
     }
 
     public class TrieNode {
@@ -196,7 +195,7 @@ public class PathTrie<T> {
     }
 
     public void insert(String path, T value) {
-        String[] strings = Strings.splitStringToArray(path, separator);
+        String[] strings = path.split(separator);
         if (strings.length == 0) {
             rootValue = value;
             return;
@@ -217,7 +216,7 @@ public class PathTrie<T> {
         if (path.length() == 0) {
             return rootValue;
         }
-        String[] strings = Strings.splitStringToArray(path, separator);
+        String[] strings = path.split(separator);
         if (strings.length == 0) {
             return rootValue;
         }

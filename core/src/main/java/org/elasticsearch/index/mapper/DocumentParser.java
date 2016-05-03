@@ -19,13 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
@@ -50,6 +43,13 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
@@ -829,8 +829,7 @@ final class DocumentParser {
             // The path of the dest field might be completely different from the current one so we need to reset it
             context = context.overridePath(new ContentPath(0));
 
-            // TODO: why Strings.splitStringToArray instead of String.split?
-            final String[] paths = Strings.splitStringToArray(field, '.');
+            final String[] paths = field.split("\\.");
             final String fieldName = paths[paths.length-1];
             ObjectMapper mapper = context.root();
             ObjectMapper[] mappers = new ObjectMapper[paths.length-1];

@@ -23,11 +23,13 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.env.NodeEnvironment;
 
 import java.io.IOException;
+import java.nio.file.Path;
 
 /**
  */
@@ -51,6 +53,10 @@ public class FsService extends AbstractComponent {
 
     public FsInfo stats() {
         return fsStatsCache.getOrRefresh();
+    }
+
+    public void setQuota(Path path, ByteSizeValue limit) {
+        probe.setQuota(path, limit);
     }
 
     private class FsInfoCache extends SingleObjectCache<FsInfo> {

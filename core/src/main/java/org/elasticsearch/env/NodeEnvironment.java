@@ -263,7 +263,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
                     spinsDesc = "no";
                 }
 
-                FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);
+                FsInfo.Path fsPath = FsProbe.getFSInfoIgnoringQuota(nodePath);
                 sb.append(", free_space [")
                     .append(fsPath.getFree())
                     .append("], usable_space [")
@@ -285,7 +285,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
             Set<String> allSpins = new HashSet<>();
             Set<String> allMounts = new HashSet<>();
             for (NodePath nodePath : nodePaths) {
-                FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);
+                FsInfo.Path fsPath = FsProbe.getFSInfoIgnoringQuota(nodePath);
                 String mount = fsPath.getMount();
                 if (allMounts.contains(mount) == false) {
                     allMounts.add(mount);

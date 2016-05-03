@@ -224,7 +224,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         return queryBuilder.toQuery(context);
     }
 
-    static QueryBuilder<?> parseQueryBuilder(QueryParseContext context, XContentLocation location) {
+    private static QueryBuilder parseQueryBuilder(QueryParseContext context, XContentLocation location) {
         try {
             return context.parseInnerQueryBuilder();
         } catch (IOException e) {

@@ -120,20 +120,6 @@ public final class QueryRescorer implements Rescorer {
         }
     }
 
-    private static final ObjectParser<QueryRescoreContext, QueryShardContext> RESCORE_PARSER = new ObjectParser<>("query", null);
-
-    static {
-        RESCORE_PARSER.declareObject(QueryRescoreContext::setQuery, (p, c) -> c.parse(p).query(), new ParseField("rescore_query"));
-        RESCORE_PARSER.declareFloat(QueryRescoreContext::setQueryWeight, new ParseField("query_weight"));
-        RESCORE_PARSER.declareFloat(QueryRescoreContext::setRescoreQueryWeight, new ParseField("rescore_query_weight"));
-        RESCORE_PARSER.declareString(QueryRescoreContext::setScoreMode, new ParseField("score_mode"));
-    }
-
-    @Override
-    public RescoreSearchContext parse(XContentParser parser, QueryShardContext context) throws IOException {
-        return RESCORE_PARSER.parse(parser, new QueryRescoreContext(this), context);
-    }
-
     private final static Comparator<ScoreDoc> SCORE_DOC_COMPARATOR = new Comparator<ScoreDoc>() {
         @Override
         public int compare(ScoreDoc o1, ScoreDoc o2) {

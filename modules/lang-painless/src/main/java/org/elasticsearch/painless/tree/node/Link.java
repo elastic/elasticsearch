@@ -46,4 +46,5 @@ public abstract class Link extends Node {
 
     protected abstract void load(final GeneratorAdapter adapter);
     protected abstract void store(final GeneratorAdapter adapter);
+    protected abstract void dup(final GeneratorAdapter adapter, final boolean cat, final boolean read);
 }

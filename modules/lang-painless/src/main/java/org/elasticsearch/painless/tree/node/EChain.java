@@ -188,6 +188,10 @@ public class EChain extends Expression {
 
     @Override
     protected void write(final GeneratorAdapter adapter) {
+        if (cat) {
+
+        }
+
         final Link last = links.get(links.size() - 1);
 
         for (final Link link : links) {

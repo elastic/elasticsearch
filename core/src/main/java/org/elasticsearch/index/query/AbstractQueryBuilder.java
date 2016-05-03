@@ -109,12 +109,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     @Override
     public final Query toFilter(QueryShardContext context) throws IOException {
         Query result = null;
-            final boolean originalIsFilter = context.isFilter;
+            final boolean originalIsFilter = context.isFilter();
             try {
-                context.isFilter = true;
+                context.setIsFilter(true);
                 result = toQuery(context);
             } finally {
-                context.isFilter = originalIsFilter;
+                context.setIsFilter(originalIsFilter);
             }
         return result;
     }

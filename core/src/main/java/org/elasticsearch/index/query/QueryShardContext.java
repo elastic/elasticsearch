@@ -91,7 +91,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
-    boolean isFilter; // pkg private for testing
+    private boolean isFilter;
 
     public QueryShardContext(IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache, IndexFieldDataService indexFieldDataService,
                              MapperService mapperService, SimilarityService similarityService, ScriptService scriptService,
@@ -116,7 +116,7 @@ public class QueryShardContext extends QueryRewriteContext {
         this.types = source.getTypes();
     }
 
-    public void reset() {
+    private void reset() {
         allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.lookup = null;
         this.namedQueries.clear();
@@ -181,6 +181,10 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public boolean isFilter() {
         return isFilter;
+    }
+
+    void setIsFilter(boolean isFilter) {
+        this.isFilter = isFilter;
     }
 
     public Collection<String> simpleMatchToIndexNames(String pattern) {
@@ -369,5 +373,4 @@ public class QueryShardContext extends QueryRewriteContext {
     public final Index index() {
         return indexSettings.getIndex();
     }
-
 }

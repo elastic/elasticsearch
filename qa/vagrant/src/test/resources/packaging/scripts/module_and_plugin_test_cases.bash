@@ -103,7 +103,7 @@ fi
         echo "CONF_FILE=$CONF_FILE" >> /etc/sysconfig/elasticsearch;
     fi
 
-    run_elasticsearch_service 1 -Ees.default.config="$CONF_FILE"
+    run_elasticsearch_service 1 -Edefault.config="$CONF_FILE"
 
     # remove settings again otherwise cleaning up before next testrun will fail
     if is_dpkg ; then

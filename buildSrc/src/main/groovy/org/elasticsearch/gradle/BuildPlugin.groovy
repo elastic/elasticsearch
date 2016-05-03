@@ -456,7 +456,7 @@ class BuildPlugin implements Plugin<Project> {
             // default test sysprop values
             systemProperty 'tests.ifNoTests', 'fail'
             // TODO: remove setting logging level via system property
-            systemProperty 'es.logger.level', 'WARN'
+            systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
                 if (property.getKey().startsWith('tests.') ||
                     property.getKey().startsWith('es.')) {

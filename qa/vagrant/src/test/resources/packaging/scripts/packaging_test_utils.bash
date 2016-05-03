@@ -340,7 +340,7 @@ run_elasticsearch_service() {
             local CONF_DIR=""
             local ES_PATH_CONF=""
         else
-            local ES_PATH_CONF="-Ees.path.conf=$CONF_DIR"
+            local ES_PATH_CONF="-Epath.conf=$CONF_DIR"
         fi
         # we must capture the exit code to compare so we don't want to start as background process in case we expect something other than 0
         local background=""

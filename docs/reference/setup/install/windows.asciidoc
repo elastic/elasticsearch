@@ -45,15 +45,14 @@ file by default.  The format of this config file is explained in
 <<settings>>.
 
 Any settings that can be specified in the config file can also be specified on
-the command line, using the `-E` syntax, and prepending `es.` to the setting
-name, as follows:
+the command line, using the `-E` syntax as follows:
 
 [source,sh]
 --------------------------------------------
-./bin/elasticsearch -E es.cluster.name=my_cluster -E es.node.name=node_1
+./bin/elasticsearch -Ecluster.name=my_cluster -Enode.name=node_1
 --------------------------------------------
 
-NOTE: Values that contain spaces must be surrounded with quotes.  For instance `-E es.path.logs="C:\My Logs\logs"`.
+NOTE: Values that contain spaces must be surrounded with quotes.  For instance `-Epath.logs="C:\My Logs\logs"`.
 
 TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
 added to the `elasticsearch.yml` config file, while any node-specific settings

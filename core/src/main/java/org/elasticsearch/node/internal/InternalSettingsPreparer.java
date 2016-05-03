@@ -19,14 +19,11 @@
 
 package org.elasticsearch.node.internal;
 
-import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
@@ -39,10 +36,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.Strings.cleanPath;
 
@@ -52,20 +52,18 @@ import static org.elasticsearch.common.Strings.cleanPath;
 public class InternalSettingsPreparer {
 
     private static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json", ".properties"};
-    static final String PROPERTY_PREFIX = "es.";
-    static final String PROPERTY_DEFAULTS_PREFIX = "es.default.";
+    static final String PROPERTY_DEFAULTS_PREFIX = "default.";
+    static final Predicate<String> PROPERTY_DEFAULTS_PREDICATE = key -> key.startsWith(PROPERTY_DEFAULTS_PREFIX);
 
     public static final String SECRET_PROMPT_VALUE = "${prompt.secret}";
     public static final String TEXT_PROMPT_VALUE = "${prompt.text}";
-    public static final Setting<Boolean> IGNORE_SYSTEM_PROPERTIES_SETTING =
-        Setting.boolSetting("config.ignore_system_properties", false, Property.NodeScope);
 
     /**
      * Prepares the settings by gathering all elasticsearch system properties and setting defaults.
      */
     public static Settings prepareSettings(Settings input) {
         Settings.Builder output = Settings.builder();
-        initializeSettings(output, input, true);
+        initializeSettings(output, input, true, Collections.emptyMap());
         finalizeSettings(output, null, null);
         return output.build();
     }
@@ -80,9 +78,23 @@ public class InternalSettingsPreparer {
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */
     public static Environment prepareEnvironment(Settings input, Terminal terminal) {
+        return prepareEnvironment(input, terminal, Collections.emptyMap());
+    }
+
+    /**
+     * Prepares the settings by gathering all elasticsearch system properties, optionally loading the configuration settings,
+     * and then replacing all property placeholders. If a {@link Terminal} is provided and configuration settings are loaded,
+     * settings with a value of <code>${prompt.text}</code> or <code>${prompt.secret}</code> will result in a prompt for
+     * the setting to the user.
+     * @param input The custom settings to use. These are not overwritten by settings in the configuration file.
+     * @param terminal the Terminal to use for input/output
+     * @param properties Map of properties key/value pairs (usually from the command-line)
+     * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
+     */
+    public static Environment prepareEnvironment(Settings input, Terminal terminal, Map<String, String> properties) {
         // just create enough settings to build the environment, to get the config dir
         Settings.Builder output = Settings.builder();
-        initializeSettings(output, input, true);
+        initializeSettings(output, input, true, properties);
         Environment environment = new Environment(output.build());
 
         boolean settingsFileFound = false;
@@ -103,7 +115,7 @@ public class InternalSettingsPreparer {
 
         // re-initialize settings now that the config file has been loaded
         // TODO: only re-initialize if a config file was actually loaded
-        initializeSettings(output, input, false);
+        initializeSettings(output, input, false, properties);
         finalizeSettings(output, terminal, environment.configFile());
 
         environment = new Environment(output.build());
@@ -113,22 +125,16 @@ public class InternalSettingsPreparer {
         return new Environment(output.build());
     }
 
-    private static boolean useSystemProperties(Settings input) {
-        return !IGNORE_SYSTEM_PROPERTIES_SETTING.get(input);
-    }
-
     /**
      * Initializes the builder with the given input settings, and loads system properties settings if allowed.
      * If loadDefaults is true, system property default settings are loaded.
      */
-    private static void initializeSettings(Settings.Builder output, Settings input, boolean loadDefaults) {
+    private static void initializeSettings(Settings.Builder output, Settings input, boolean loadDefaults, Map<String, String> esSettings) {
         output.put(input);
-        if (useSystemProperties(input)) {
-            if (loadDefaults) {
-                output.putProperties(PROPERTY_DEFAULTS_PREFIX, BootstrapInfo.getSystemProperties());
-            }
-            output.putProperties(PROPERTY_PREFIX, BootstrapInfo.getSystemProperties(), PROPERTY_DEFAULTS_PREFIX);
+        if (loadDefaults) {
+            output.putProperties(esSettings, PROPERTY_DEFAULTS_PREDICATE, key -> key.substring(PROPERTY_DEFAULTS_PREFIX.length()));
         }
+        output.putProperties(esSettings, PROPERTY_DEFAULTS_PREDICATE.negate(), Function.identity());
         output.replacePropertyPlaceholders();
     }
 

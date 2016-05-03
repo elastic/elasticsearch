@@ -137,10 +137,10 @@ public class ReproduceInfoPrinter extends RunListener {
         }
 
         public ReproduceErrorMessageBuilder appendESProperties() {
-            appendProperties("es.logger.level");
+            appendProperties("tests.logger.level");
             if (inVerifyPhase()) {
                 // these properties only make sense for integration tests
-                appendProperties("es.node.mode", "es.node.local", TESTS_CLUSTER,
+                appendProperties("node.mode", "node.local", TESTS_CLUSTER,
                     ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
             }
             appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",

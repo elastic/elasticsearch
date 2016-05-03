@@ -374,7 +374,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
                     ClusterName.CLUSTER_NAME_SETTING,
                     Client.CLIENT_TYPE_SETTING_S,
-                    InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING,
                     ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
                     EsExecutors.PROCESSORS_SETTING,
                     ThreadContext.DEFAULT_HEADERS_SETTING,

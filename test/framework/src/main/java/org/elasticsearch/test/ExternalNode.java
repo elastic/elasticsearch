@@ -51,7 +51,6 @@ import java.util.concurrent.TimeUnit;
 final class ExternalNode implements Closeable {
 
     public static final Settings REQUIRED_SETTINGS = Settings.builder()
-            .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen")
             .put(Node.NODE_MODE_SETTING.getKey(), "network").build(); // we need network mode for this
 

@@ -22,25 +22,15 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
-import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 
-public class ElasticsearchCliTests extends ESTestCase {
+public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
 
     public void testVersion() throws Exception {
         runTestThatVersionIsMutuallyExclusiveToOtherOptions("-V", "-d");
@@ -96,7 +86,7 @@ public class ElasticsearchCliTests extends ESTestCase {
             false,
             output -> assertThat(output, containsString("Positional arguments not allowed, found [foo]")),
             (foreground, pidFile, esSettings) -> {},
-            "-E", "something", "foo", "-E", "somethingelse"
+            "-E", "foo=bar", "foo", "-E", "baz=qux"
         );
     }
 
@@ -138,26 +128,10 @@ public class ElasticsearchCliTests extends ESTestCase {
                 output -> {},
                 (foreground, pidFile, esSettings) -> {
                     assertThat(esSettings.size(), equalTo(2));
-                    assertThat(esSettings, hasEntry("es.foo", "bar"));
-                    assertThat(esSettings, hasEntry("es.baz", "qux"));
+                    assertThat(esSettings, hasEntry("foo", "bar"));
+                    assertThat(esSettings, hasEntry("baz", "qux"));
                 },
-                "-Ees.foo=bar", "-E", "es.baz=qux"
-        );
-    }
-
-    public void testElasticsearchSettingPrefix() throws Exception {
-        runElasticsearchSettingPrefixTest("-E", "foo");
-        runElasticsearchSettingPrefixTest("-E", "foo=bar");
-        runElasticsearchSettingPrefixTest("-E", "=bar");
-    }
-
-    private void runElasticsearchSettingPrefixTest(String... args) throws Exception {
-        runTest(
-                ExitCodes.USAGE,
-                false,
-                output -> assertThat(output, containsString("Elasticsearch settings must be prefixed with [es.] but was [")),
-                (foreground, pidFile, esSettings) -> {},
-                args
+                "-Efoo=bar", "-E", "baz=qux"
         );
     }
 
@@ -165,9 +139,9 @@ public class ElasticsearchCliTests extends ESTestCase {
         runTest(
                 ExitCodes.USAGE,
                 false,
-                output -> assertThat(output, containsString("Elasticsearch setting [es.foo] must not be empty")),
+                output -> assertThat(output, containsString("Setting [foo] must not be empty")),
                 (foreground, pidFile, esSettings) -> {},
-                "-E", "es.foo="
+                "-E", "foo="
         );
     }
 
@@ -178,38 +152,6 @@ public class ElasticsearchCliTests extends ESTestCase {
                 output -> assertThat(output, containsString("network.host is not a recognized option")),
                 (foreground, pidFile, esSettings) -> {},
                 "--network.host");
-    }
-
-    private interface InitConsumer {
-        void accept(final boolean foreground, final String pidFile, final Map<String, String> esSettings);
-    }
-
-    private void runTest(
-            final int expectedStatus,
-            final boolean expectedInit,
-            final Consumer<String> outputConsumer,
-            final InitConsumer initConsumer,
-            String... args) throws Exception {
-        final MockTerminal terminal = new MockTerminal();
-        try {
-            final AtomicBoolean init = new AtomicBoolean();
-            final int status = Elasticsearch.main(args, new Elasticsearch() {
-                @Override
-                void init(final boolean daemonize, final String pidFile, final Map<String, String> esSettings) {
-                    init.set(true);
-                    initConsumer.accept(!daemonize, pidFile, esSettings);
-                }
-            }, terminal);
-            assertThat(status, equalTo(expectedStatus));
-            assertThat(init.get(), equalTo(expectedInit));
-            outputConsumer.accept(terminal.getOutput());
-        } catch (Throwable t) {
-            // if an unexpected exception is thrown, we log
-            // terminal output to aid debugging
-            logger.info(terminal.getOutput());
-            // rethrow so the test fails
-            throw t;
-        }
     }
 
 }

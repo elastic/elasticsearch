@@ -36,6 +36,7 @@ way to do this is to upgrade to Elasticsearch 2.3 or later and to use the
 * <<breaking_50_index_apis>>
 * <<breaking_50_settings_changes>>
 * <<breaking_50_allocation>>
+* <<breaking_50_http_changes>>
 * <<breaking_50_rest_api_changes>>
 * <<breaking_50_cat_api>>
 * <<breaking_50_java_api_changes>>
@@ -59,6 +60,8 @@ include::migrate_5_0/index-apis.asciidoc[]
 include::migrate_5_0/settings.asciidoc[]
 
 include::migrate_5_0/allocation.asciidoc[]
+
+include::migrate_5_0/http.asciidoc[]
 
 include::migrate_5_0/rest.asciidoc[]
 

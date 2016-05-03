@@ -20,11 +20,25 @@ import static org.elasticsearch.license.plugin.TestUtils.generateSignedLicense;
 public class LicenseTribeTests extends TribeTransportTestCase {
 
     @Override
+    protected void verifyActionOnClientNode(Client client) throws Exception {
+        assertLicenseTransportActionsWorks(client);
+    }
+
+    @Override
+    protected void verifyActionOnMasterNode(Client masterClient) throws Exception {
+        assertLicenseTransportActionsWorks(masterClient);
+    }
+
+    @Override
     protected void verifyActionOnDataNode(Client dataNodeClient) throws Exception {
-        dataNodeClient.execute(GetLicenseAction.INSTANCE, new GetLicenseRequest()).get();
-        dataNodeClient.execute(PutLicenseAction.INSTANCE, new PutLicenseRequest()
+        assertLicenseTransportActionsWorks(dataNodeClient);
+    }
+
+    private static void assertLicenseTransportActionsWorks(Client client) throws Exception {
+        client.execute(GetLicenseAction.INSTANCE, new GetLicenseRequest()).get();
+        client.execute(PutLicenseAction.INSTANCE, new PutLicenseRequest()
                 .license(generateSignedLicense(TimeValue.timeValueHours(1))));
-        dataNodeClient.execute(DeleteLicenseAction.INSTANCE, new DeleteLicenseRequest());
+        client.execute(DeleteLicenseAction.INSTANCE, new DeleteLicenseRequest());
     }
 
     @Override

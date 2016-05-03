@@ -23,11 +23,25 @@ public class MonitoringTribeTests extends TribeTransportTestCase {
     }
 
     @Override
+    protected void verifyActionOnClientNode(Client client) throws Exception {
+        assertMonitoringTransportActionsWorks(client);
+    }
+
+    @Override
+    protected void verifyActionOnMasterNode(Client masterClient) throws Exception {
+        assertMonitoringTransportActionsWorks(masterClient);
+    }
+
+    @Override
     protected void verifyActionOnDataNode(Client dataNodeClient) throws Exception {
+        assertMonitoringTransportActionsWorks(dataNodeClient);
+    }
+
+    private static void assertMonitoringTransportActionsWorks(Client client) throws Exception {
         MonitoringBulkDoc doc = new MonitoringBulkDoc(randomAsciiOfLength(2), randomAsciiOfLength(2));
         doc.setType(randomAsciiOfLength(5));
         doc.setSource(new BytesArray("{\"key\" : \"value\"}"));
-        dataNodeClient.execute(MonitoringBulkAction.INSTANCE, new MonitoringBulkRequest());
+        client.execute(MonitoringBulkAction.INSTANCE, new MonitoringBulkRequest());
     }
 
     @Override

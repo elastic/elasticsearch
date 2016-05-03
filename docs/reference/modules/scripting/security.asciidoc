@@ -1,5 +1,121 @@
 [[modules-scripting-security]]
-=== Scripting and the Java Security Manager
+== Scripting and security
+
+We recommend running Elasticsearch behind an application or proxy, which
+protects Elasticsearch from the outside world. If users are allowed to run
+inline scripts (even in a search request) or indexed scripts, then they have
+the same access to your box as the user that Elasticsearch is running as. For
+this reason dynamic scripting is allowed only for sandboxed languages by default.
+
+[[enable-dynamic-scripting]]
+=== Enabling dynamic scripting
+
+First, you should not run Elasticsearch as the `root` user, as this would allow
+a script to access or do *anything* on your server, without limitations. Second,
+you should not expose Elasticsearch directly to users, but instead have a proxy
+application inbetween. If you *do* intend to expose Elasticsearch directly to
+your users, then you have to decide whether you trust them enough to run scripts
+on your box or not.
+
+It is possible to enable scripts based on their source, for
+every script engine, through the following settings that need to be added to the
+`config/elasticsearch.yml` file on every node.
+
+[source,yaml]
+-----------------------------------
+script.inline: true
+script.stored: true
+
+-----------------------------------
+
+While this still allows execution of named scripts provided in the config, or
+_native_ Java scripts registered through plugins, it also allows users to run
+arbitrary scripts via the API. Instead of sending the name of the file as the
+script, the body of the script can be sent instead or retrieved from the
+cluster state if previously stored.
+
+There are three possible configuration values for any of the fine-grained
+script settings:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Value |Description
+| `false` |scripting is turned off completely, in the context of the setting being set.
+| `true`  |scripting is turned on, in the context of the setting being set.
+| `sandbox` |scripts may be executed only for languages that are sandboxed
+|=======================================================================
+
+The default values are the following:
+
+[source,yaml]
+-----------------------------------
+script.inline: sandbox
+script.stored: sandbox
+script.file: true
+
+-----------------------------------
+
+NOTE: Global scripting settings affect the `mustache` scripting language.
+<<search-template,Search templates>> internally use the `mustache` language,
+and will still be enabled by default as the `mustache` engine is sandboxed,
+but they will be enabled/disabled according to fine-grained settings
+specified in `elasticsearch.yml`.
+
+It is also possible to control which operations can execute scripts. The
+supported operations are:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Value |Description
+| `aggs`    |Aggregations (wherever they may be used)
+| `search`  |Search api, Percolator api and Suggester api (e.g filters, script_fields)
+| `update`  |Update api
+| `plugin`  |Any plugin that makes use of scripts under the generic `plugin` category
+|=======================================================================
+
+Plugins can also define custom operations that they use scripts for instead
+of using the generic `plugin` category. Those operations can be referred to
+in the following form: `${pluginName}_${operation}`.
+
+The following example disables scripting for `update` and `mapping` operations,
+regardless of the script source, for any engine. Scripts can still be
+executed from sandboxed languages as part of `aggregations`, `search`
+and plugins execution though, as the above defaults still get applied.
+
+[source,yaml]
+-----------------------------------
+script.update: false
+script.mapping: false
+
+-----------------------------------
+
+Generic settings get applied in order, operation based ones have precedence
+over source based ones. Language specific settings are supported too. They
+need to be prefixed with the `script.engine.<engine>` prefix and have
+precedence over any other generic settings.
+
+[source,yaml]
+-----------------------------------
+script.engine.groovy.file.aggs: true
+script.engine.groovy.file.mapping: true
+script.engine.groovy.file.search: true
+script.engine.groovy.file.update: true
+script.engine.groovy.file.plugin: true
+script.engine.groovy.stored.aggs: true
+script.engine.groovy.stored.mapping: false
+script.engine.groovy.stored.search: true
+script.engine.groovy.stored.update: false
+script.engine.groovy.stored.plugin: false
+script.engine.groovy.inline.aggs: true
+script.engine.groovy.inline.mapping: false
+script.engine.groovy.inline.search: false
+script.engine.groovy.inline.update: false
+script.engine.groovy.inline.plugin: false
+
+-----------------------------------
+
+[float]
+=== Java Security Manager
 
 Elasticsearch runs with the https://docs.oracle.com/javase/tutorial/essential/environment/security.html[Java Security Manager]
 enabled by default.  The security policy in Elasticsearch locks down the

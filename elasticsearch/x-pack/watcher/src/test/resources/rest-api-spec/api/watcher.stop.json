@@ -1,5 +1,5 @@
 {
-  "watcher.stop": {
+  "xpack.watcher.stop": {
     "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-service.html",
     "methods": [ "PUT" ],
     "url": {

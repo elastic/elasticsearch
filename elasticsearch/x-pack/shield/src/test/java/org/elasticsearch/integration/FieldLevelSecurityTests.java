@@ -483,6 +483,8 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         assertThat(response.getResponses()[0].getResponse().getSource().get("field2").toString(), equalTo("value2"));
     }
 
+    // norelease - we need to fix the issue so that only fields a user can see are returned
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2120")
     public void testFieldStatsApi() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                         .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text")

@@ -10,7 +10,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.watcher.support.http.HttpClient;
+import org.elasticsearch.xpack.watcher.support.http.HttpClient;
 
 /**
  *
@@ -19,7 +19,7 @@ public class InternalSlackService extends AbstractLifecycleComponent<SlackServic
 
     private final HttpClient httpClient;
     public static final Setting<Settings> SLACK_ACCOUNT_SETTING =
-            Setting.groupSetting("xpack.notification.slack.service.", Setting.Property.Dynamic, Setting.Property.NodeScope);
+            Setting.groupSetting("xpack.notification.slack.", Setting.Property.Dynamic, Setting.Property.NodeScope);
     private volatile SlackAccounts accounts;
 
     @Inject

@@ -291,6 +291,16 @@ public class LoggingAuditTrail extends AbstractLifecycleComponent<LoggingAuditTr
     }
 
     @Override
+    public void tamperedRequest(RestRequest request) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("{}[rest] [tampered_request]\t{}, uri=[{}], request_body=[{}]", prefix, hostAttributes(request), request.uri(),
+                    restRequestContent(request));
+        } else {
+            logger.error("{}[rest] [tampered_request]\t{}, uri=[{}]", prefix, hostAttributes(request), request.uri());
+        }
+    }
+
+    @Override
     public void tamperedRequest(String action, TransportMessage message) {
         String indices = indicesString(message);
         if (indices != null) {

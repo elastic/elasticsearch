@@ -17,6 +17,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.ssl.ClientSSLService;
+import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -53,6 +54,11 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
         return true;
     }
 
+    @Override
+    protected boolean autoSSLEnabled() {
+        return false;
+    }
+
     public void testThatHttpFailsWithoutSslClientAuth() throws IOException {
         SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(
                 SSLContexts.createDefault(),
@@ -76,7 +82,7 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
         Settings settings = Settings.builder()
                 .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient"))
                 .build();
-        ClientSSLService sslService = new ClientSSLService(settings);
+        ClientSSLService sslService = new ClientSSLService(settings, new Global(settings));
 
         SSLConnectionSocketFactory socketFactory = new SSLConnectionSocketFactory(
                 sslService.sslContext(),

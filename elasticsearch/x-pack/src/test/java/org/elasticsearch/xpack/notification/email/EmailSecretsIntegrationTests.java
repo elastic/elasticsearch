@@ -8,16 +8,16 @@ package org.elasticsearch.xpack.notification.email;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.watcher.client.WatcherClient;
-import org.elasticsearch.watcher.execution.ActionExecutionMode;
-import org.elasticsearch.watcher.support.secret.SecretService;
-import org.elasticsearch.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
-import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
-import org.elasticsearch.watcher.trigger.TriggerEvent;
-import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.elasticsearch.watcher.watch.WatchStore;
+import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
+import org.elasticsearch.xpack.watcher.support.secret.SecretService;
+import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
+import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.elasticsearch.xpack.notification.email.support.EmailServer;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -28,12 +28,12 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.watcher.actions.ActionBuilders.emailAction;
-import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
-import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
-import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
+import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.emailAction;
+import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
+import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
+import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
+import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -66,9 +66,9 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         }
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("xpack.notification.email.service.account.test.smtp.auth", true)
-                .put("xpack.notification.email.service.account.test.smtp.port", server.port())
-                .put("xpack.notification.email.service.account.test.smtp.host", "localhost")
+                .put("xpack.notification.email.account.test.smtp.auth", true)
+                .put("xpack.notification.email.account.test.smtp.port", server.port())
+                .put("xpack.notification.email.account.test.smtp.host", "localhost")
                 .put("xpack.watcher.shield.encrypt_sensitive_data", encryptSensitiveData)
                 .build();
     }

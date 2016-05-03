@@ -9,12 +9,13 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.graph.Graph;
+import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.junit.BeforeClass;
 
 import java.io.IOException;

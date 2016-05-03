@@ -69,7 +69,7 @@ public class IPFilterNettyUpstreamHandlerTests extends ESTestCase {
                 IPFilter.TRANSPORT_FILTER_DENY_SETTING,
                 TransportSettings.TRANSPORT_PROFILES_SETTING)));
         SecurityLicenseState licenseState = mock(SecurityLicenseState.class);
-        when(licenseState.securityEnabled()).thenReturn(true);
+        when(licenseState.ipFilteringEnabled()).thenReturn(true);
         IPFilter ipFilter = new IPFilter(settings, AuditTrail.NOOP, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
         if (isHttpEnabled) {

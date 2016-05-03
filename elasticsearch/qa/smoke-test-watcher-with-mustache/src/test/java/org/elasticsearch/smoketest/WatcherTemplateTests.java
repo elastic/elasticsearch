@@ -21,10 +21,10 @@ import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.watcher.support.ScriptServiceProxy;
-import org.elasticsearch.watcher.support.text.DefaultTextTemplateEngine;
-import org.elasticsearch.watcher.support.text.TextTemplate;
-import org.elasticsearch.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.support.ScriptServiceProxy;
+import org.elasticsearch.xpack.watcher.support.text.DefaultTextTemplateEngine;
+import org.elasticsearch.xpack.watcher.support.text.TextTemplate;
+import org.elasticsearch.xpack.watcher.support.text.TextTemplateEngine;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -34,9 +34,9 @@ import java.io.Writer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;

@@ -10,7 +10,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.watcher.support.http.HttpClient;
+import org.elasticsearch.xpack.watcher.support.http.HttpClient;
 
 /**
  *
@@ -20,7 +20,7 @@ public class InternalHipChatService extends AbstractLifecycleComponent<HipChatSe
     private final HttpClient httpClient;
     private volatile HipChatAccounts accounts;
     public static final Setting<Settings> HIPCHAT_ACCOUNT_SETTING =
-            Setting.groupSetting("xpack.notification.hipchat.service.", Setting.Property.Dynamic, Setting.Property.NodeScope);
+            Setting.groupSetting("xpack.notification.hipchat.", Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     @Inject
     public InternalHipChatService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {

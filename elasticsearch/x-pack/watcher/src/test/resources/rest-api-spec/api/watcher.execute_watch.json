@@ -1,5 +1,5 @@
 {
-  "watcher.execute_watch": {
+  "xpack.watcher.execute_watch": {
     "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-execute-watch.html",
     "methods": [ "PUT", "POST" ],
     "url": {

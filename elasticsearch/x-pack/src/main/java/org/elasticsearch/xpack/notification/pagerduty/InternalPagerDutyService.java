@@ -10,7 +10,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.watcher.support.http.HttpClient;
+import org.elasticsearch.xpack.watcher.support.http.HttpClient;
 
 /**
  *
@@ -18,7 +18,7 @@ import org.elasticsearch.watcher.support.http.HttpClient;
 public class InternalPagerDutyService extends AbstractLifecycleComponent<PagerDutyService> implements PagerDutyService {
 
     public static final Setting<Settings> PAGERDUTY_ACCOUNT_SETTING =
-            Setting.groupSetting("xpack.notification.pagerduty.service.", Setting.Property.Dynamic, Setting.Property.NodeScope);
+            Setting.groupSetting("xpack.notification.pagerduty.", Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private final HttpClient httpClient;
     private volatile PagerDutyAccounts accounts;

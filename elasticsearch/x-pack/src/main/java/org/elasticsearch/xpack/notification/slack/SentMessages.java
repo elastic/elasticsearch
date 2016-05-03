@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.notification.slack;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.watcher.support.http.HttpRequest;
-import org.elasticsearch.watcher.support.http.HttpResponse;
+import org.elasticsearch.xpack.watcher.support.http.HttpRequest;
+import org.elasticsearch.xpack.watcher.support.http.HttpResponse;
 import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
 
 import java.io.IOException;

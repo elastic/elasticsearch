@@ -94,7 +94,7 @@ public class ShieldActionFilter extends AbstractComponent implements ActionFilte
         final boolean restoreOriginalContext = threadContext.getHeader(InternalAuthenticationService.USER_KEY) != null ||
                 threadContext.getTransient(InternalAuthenticationService.USER_KEY) != null;
         try {
-            if (licenseState.securityEnabled()) {
+            if (licenseState.authenticationAndAuthorizationEnabled()) {
                 if (AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action)) {
                     try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
                         applyInternal(task, action, request, new SigningListener(this, listener, original), chain);

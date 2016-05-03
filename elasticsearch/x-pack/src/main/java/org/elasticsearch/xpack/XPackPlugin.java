@@ -26,7 +26,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.AuthenticationModule;
-import org.elasticsearch.watcher.Watcher;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.action.XPackInfoAction;
 import org.elasticsearch.xpack.common.init.LazyInitializationModule;

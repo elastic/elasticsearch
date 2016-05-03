@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.audit;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -38,13 +39,22 @@ public class IndexAuditIT extends ESIntegTestCase {
         assertThat(response.getStatusCode(), is(200));
 
         boolean found = awaitBusy(() -> {
-            if (client().admin().cluster().prepareState().get().getState().getMetaData().getIndices().size() < 1) {
+            boolean exists = false;
+            for (ObjectCursor<String> cursor :
+                    client().admin().cluster().prepareState().get().getState().getMetaData().getIndices().keys()) {
+                if (cursor.value.startsWith(".shield_audit_log")) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (exists == false) {
                 return false;
             }
+
             client().admin().indices().prepareRefresh().get();
             return client().prepareSearch(".shield_audit_log*").setQuery(QueryBuilders.matchQuery("principal", USER))
                     .get().getHits().totalHits() > 0;
-        }, 5L, TimeUnit.SECONDS);
+        }, 10L, TimeUnit.SECONDS);
 
         assertThat(found, is(true));
 

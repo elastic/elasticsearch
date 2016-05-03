@@ -92,8 +92,8 @@ public class SleepScriptEngine implements ScriptEngineService {
     public void close() throws IOException {
     }
 
-    public static org.elasticsearch.watcher.support.Script sleepScript(long millis) {
-        return new org.elasticsearch.watcher.support.Script.Builder.Inline("")
+    public static org.elasticsearch.xpack.watcher.support.Script sleepScript(long millis) {
+        return new org.elasticsearch.xpack.watcher.support.Script.Builder.Inline("")
                 .lang("sleep")
                 .params(Collections.singletonMap("millis", millis)).build();
     }

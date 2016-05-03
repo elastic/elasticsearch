@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.integration.ldap;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -22,7 +21,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 
@@ -58,10 +56,14 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
                     "Philanthropists: [ \"cn=Philanthropists,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\" ] \n";
 
     static protected RealmConfig realmConfig;
+    static protected boolean useGlobalSSL;
+    static protected boolean sslEnabled;
 
     @BeforeClass
     public static void setupRealm() {
         realmConfig = randomFrom(RealmConfig.values());
+        useGlobalSSL = randomBoolean();
+        sslEnabled = randomBoolean();
         ESLoggerFactory.getLogger("test").info("running test with realm configuration [{}], with direct group to role mapping [{}]",
                 realmConfig, realmConfig.mapGroupsAsRoles);
     }
@@ -74,13 +76,25 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Path nodeFiles = createTempDir();
-        return Settings.builder()
+        Path store = getDataPath("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks");
+        Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(realmConfig.buildSettings())
-                //we need ssl to the LDAP server
-                .put(sslSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode"))
-                .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".files.role_mapping", writeFile(nodeFiles, "role_mapping.yml", configRoleMappings()))
-                .build();
+                .put(realmConfig.buildSettings(store, "testnode"))
+                .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".files.role_mapping", writeFile(nodeFiles, "role_mapping.yml", configRoleMappings()));
+        if (sslEnabled == false && useGlobalSSL) {
+            builder.put(sslSettingsForStore(store, "testnode"));
+        }
+        return builder.build();
+    }
+
+    @Override
+    protected boolean sslTransportEnabled() {
+        return sslEnabled;
+    }
+
+    @Override
+    protected boolean autoSSLEnabled() {
+        return sslEnabled && (useGlobalSSL == false);
     }
 
     protected String configRoleMappings() {
@@ -152,13 +166,7 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
         return UsernamePasswordToken.basicAuthHeaderValue(username, new SecuredString(password.toCharArray()));
     }
 
-    private Settings sslSettingsForStore(String resourcePathToStore, String password) {
-        Path store = getDataPath(resourcePathToStore);
-
-        if (Files.notExists(store)) {
-            throw new ElasticsearchException("store path [" + store + "] doesn't exist");
-        }
-
+    private Settings sslSettingsForStore(Path store, String password) {
         return Settings.builder()
                 .put("xpack.security.ssl.keystore.path", store)
                 .put("xpack.security.ssl.keystore.password", password)
@@ -230,13 +238,18 @@ abstract public class AbstractAdLdapRealmTestCase extends ShieldIntegTestCase {
             this.mapGroupsAsRoles = randomBoolean();
         }
 
-        public Settings buildSettings() {
-            return Settings.builder()
+        public Settings buildSettings(Path store, String password) {
+            Settings.Builder builder = Settings.builder()
                     .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".order", 1)
                     .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".hostname_verification", false)
                     .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".unmapped_groups_as_roles", mapGroupsAsRoles)
-                    .put(this.settings)
-                    .build();
+                    .put(this.settings);
+            if (useGlobalSSL == false) {
+                builder.put(SHIELD_AUTHC_REALMS_EXTERNAL + ".ssl.truststore.path", store)
+                        .put(SHIELD_AUTHC_REALMS_EXTERNAL + ".ssl.truststore.password", password);
+            }
+
+            return builder.build();
         }
 
         //if mapGroupsAsRoles is turned on we don't write anything to the rolemapping file

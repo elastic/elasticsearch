@@ -10,8 +10,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.support.text.TextTemplateEngine;
-import org.elasticsearch.watcher.support.xcontent.ObjectPath;
+import org.elasticsearch.xpack.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 
 import java.io.IOException;
 import java.util.ArrayList;

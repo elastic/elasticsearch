@@ -147,7 +147,7 @@ public abstract class SessionFactory {
     protected ServerSet serverSet(Settings settings, ClientSSLService clientSSLService, LDAPServers ldapServers) {
         SocketFactory socketFactory = null;
         if (ldapServers.ssl()) {
-            socketFactory = clientSSLService.sslSocketFactory();
+            socketFactory = clientSSLService.sslSocketFactory(settings.getByPrefix("ssl."));
             if (settings.getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
                 logger.debug("using encryption for LDAP connections with hostname verification");
             } else {

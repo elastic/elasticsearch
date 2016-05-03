@@ -100,7 +100,8 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
     @BeforeClass
     public static void initDefaultSettings() {
         if (SHIELD_DEFAULT_SETTINGS == null) {
-            SHIELD_DEFAULT_SETTINGS = new ShieldSettingsSource(maxNumberOfNodes(), randomBoolean(), createTempDir(), Scope.SUITE);
+            SHIELD_DEFAULT_SETTINGS = new ShieldSettingsSource(maxNumberOfNodes(), randomBoolean(), randomBoolean(), createTempDir(),
+                    Scope.SUITE);
         }
     }
 
@@ -123,12 +124,12 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
             switch (currentClusterScope) {
                 case SUITE:
                     if (customShieldSettingsSource == null) {
-                        customShieldSettingsSource = new CustomShieldSettingsSource(sslTransportEnabled(), createTempDir(),
-                                currentClusterScope);
+                        customShieldSettingsSource = new CustomShieldSettingsSource(sslTransportEnabled(), autoSSLEnabled(),
+                                createTempDir(), currentClusterScope);
                     }
                     break;
                 case TEST:
-                    customShieldSettingsSource = new CustomShieldSettingsSource(sslTransportEnabled(), createTempDir(),
+                    customShieldSettingsSource = new CustomShieldSettingsSource(sslTransportEnabled(), autoSSLEnabled(), createTempDir(),
                             currentClusterScope);
                     break;
             }
@@ -265,14 +266,18 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
         return randomBoolean();
     }
 
+    protected boolean autoSSLEnabled() {
+        return randomBoolean();
+    }
+
     protected Class<? extends XPackPlugin> xpackPluginClass() {
         return SHIELD_DEFAULT_SETTINGS.xpackPluginClass();
     }
 
     private class CustomShieldSettingsSource extends ShieldSettingsSource {
 
-        private CustomShieldSettingsSource(boolean sslTransportEnabled, Path configDir, Scope scope) {
-            super(maxNumberOfNodes(), sslTransportEnabled, configDir, scope);
+        private CustomShieldSettingsSource(boolean sslTransportEnabled, boolean autoSSLEnabled, Path configDir, Scope scope) {
+            super(maxNumberOfNodes(), sslTransportEnabled, autoSSLEnabled, configDir, scope);
         }
 
         @Override

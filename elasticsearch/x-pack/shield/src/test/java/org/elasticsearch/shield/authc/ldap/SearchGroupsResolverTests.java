@@ -5,23 +5,13 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
-import com.unboundid.ldap.sdk.LDAPConnection;
-import com.unboundid.ldap.sdk.LDAPConnectionOptions;
-import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
-import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
-import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.support.NoOpLogger;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.junit.After;
-import org.junit.Before;
 
-import java.nio.file.Path;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -31,40 +21,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 @Network
-public class SearchGroupsResolverTests extends ESTestCase {
+public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     public static final String BRUCE_BANNER_DN = "uid=hulk,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-
-    private LDAPConnection ldapConnection;
-
-    @Before
-    public void setup() throws Exception {
-        super.setUp();
-        Path keystore = getDataPath("../ldap/support/ldaptrust.jks");
-        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
-        ClientSSLService clientSSLService = new ClientSSLService(Settings.builder()
-                .put("xpack.security.ssl.keystore.path", keystore)
-                .put("xpack.security.ssl.keystore.password", "changeit")
-                .build());
-        clientSSLService.setEnvironment(env);
-
-        LDAPURL ldapurl = new LDAPURL(OpenLdapTests.OPEN_LDAP_URL);
-        LDAPConnectionOptions options = new LDAPConnectionOptions();
-        options.setFollowReferrals(true);
-        options.setAutoReconnect(true);
-        options.setAllowConcurrentSocketFactoryUse(true);
-        options.setConnectTimeoutMillis(Math.toIntExact(SessionFactory.TIMEOUT_DEFAULT.millis()));
-        options.setResponseTimeoutMillis(SessionFactory.TIMEOUT_DEFAULT.millis());
-        ldapConnection = new LDAPConnection(clientSSLService.sslSocketFactory(), options, ldapurl.getHost(), ldapurl.getPort(),
-                BRUCE_BANNER_DN, OpenLdapTests.PASSWORD);
-    }
-
-    @Override
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
-        ldapConnection.close();
-    }
 
     public void testResolveSubTree() throws Exception {
         Settings settings = Settings.builder()
@@ -173,5 +132,20 @@ public class SearchGroupsResolverTests extends ESTestCase {
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
         String attribute = resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
         assertThat(attribute, is(notNullValue()));
+    }
+
+    @Override
+    protected String ldapUrl() {
+        return OpenLdapTests.OPEN_LDAP_URL;
+    }
+
+    @Override
+    protected String bindDN() {
+        return BRUCE_BANNER_DN;
+    }
+
+    @Override
+    protected String bindPassword() {
+        return OpenLdapTests.PASSWORD;
     }
 }

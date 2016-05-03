@@ -25,24 +25,24 @@ import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.watcher.actions.ActionWrapper;
-import org.elasticsearch.watcher.actions.ExecutableActions;
-import org.elasticsearch.watcher.condition.always.ExecutableAlwaysCondition;
-import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
-import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.input.search.ExecutableSearchInput;
-import org.elasticsearch.watcher.input.search.SearchInput;
-import org.elasticsearch.watcher.input.search.SearchInputFactory;
-import org.elasticsearch.watcher.input.simple.ExecutableSimpleInput;
-import org.elasticsearch.watcher.input.simple.SimpleInput;
-import org.elasticsearch.watcher.support.init.proxy.WatcherClientProxy;
-import org.elasticsearch.watcher.support.text.TextTemplate;
-import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
-import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
-import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchStatus;
+import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
+import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
+import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
+import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.input.search.ExecutableSearchInput;
+import org.elasticsearch.xpack.watcher.input.search.SearchInput;
+import org.elasticsearch.xpack.watcher.input.search.SearchInputFactory;
+import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
+import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
+import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.watcher.support.text.TextTemplate;
+import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.watch.Payload;
+import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
 
@@ -64,7 +64,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -99,8 +99,8 @@ public class SearchInputIT extends ESIntegTestCase {
             throw new RuntimeException("failed to create config dir");
 
         }
-        String path = "/org/elasticsearch/watcher/input/search/config/scripts/test_disk_template.mustache";
-        try (InputStream stream  = SearchInputIT.class.getResourceAsStream("/org/elasticsearch/watcher/input/search/config/scripts" +
+        String path = "/org/elasticsearch/xpack/watcher/input/search/config/scripts/test_disk_template.mustache";
+        try (InputStream stream  = SearchInputIT.class.getResourceAsStream("/org/elasticsearch/xpack/watcher/input/search/config/scripts" +
                 "/test_disk_template.mustache");
              OutputStream out = Files.newOutputStream(scriptPath.resolve("test_disk_template.mustache"))) {
             Streams.copy(stream, out);

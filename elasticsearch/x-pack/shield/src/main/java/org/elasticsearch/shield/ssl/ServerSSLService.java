@@ -8,30 +8,23 @@ package org.elasticsearch.shield.ssl;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 public class ServerSSLService extends AbstractSSLService {
 
     @Inject
-    public ServerSSLService(Settings settings, Environment environment) {
-        super(settings, environment);
+    public ServerSSLService(Settings settings, Environment environment, Global globalSSLConfiguration,
+                            ResourceWatcherService resourceWatcherService) {
+        super(settings, environment, globalSSLConfiguration, resourceWatcherService);
     }
 
     @Override
-    protected SSLSettings sslSettings(Settings customSettings) {
-        SSLSettings sslSettings = new SSLSettings(customSettings, settings);
-
-        if (sslSettings.keyStorePath == null) {
-            throw new IllegalArgumentException("no keystore configured");
+    protected void validateSSLConfiguration(SSLConfiguration sslConfiguration) {
+        if (sslConfiguration.keyConfig() == KeyConfig.NONE) {
+            throw new IllegalArgumentException("a key must be configured to act as a server");
         }
-        if (sslSettings.keyStorePassword == null) {
-            throw new IllegalArgumentException("no keystore password configured");
-        }
-        assert sslSettings.keyPassword != null;
-
-        assert sslSettings.trustStorePath != null;
-        if (sslSettings.trustStorePassword == null) {
-            throw new IllegalArgumentException("no truststore password configured");
-        }
-        return sslSettings;
+        sslConfiguration.keyConfig().validate();
+        sslConfiguration.trustConfig().validate();
     }
 }

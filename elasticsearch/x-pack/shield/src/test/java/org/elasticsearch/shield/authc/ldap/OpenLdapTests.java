@@ -15,6 +15,7 @@ import org.elasticsearch.shield.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.ssl.ClientSSLService;
+import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
@@ -31,32 +32,37 @@ public class OpenLdapTests extends ESTestCase {
     public static final String OPEN_LDAP_URL = "ldaps://54.200.235.244:636";
     public static final String PASSWORD = "NickFuryHeartsES";
 
+    private boolean useGlobalSSL;
     private ClientSSLService clientSSLService;
     private Settings globalSettings;
 
     @Before
     public void initializeSslSocketFactory() throws Exception {
+        useGlobalSSL = randomBoolean();
         Path keystore = getDataPath("../ldap/support/ldaptrust.jks");
-        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
-
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        clientSSLService = new ClientSSLService(Settings.builder()
-                .put("xpack.security.ssl.keystore.path", keystore)
-                .put("xpack.security.ssl.keystore.password", "changeit")
-                .build());
-        clientSSLService.setEnvironment(env);
-        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
+        Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
+        if (useGlobalSSL) {
+            builder.put("xpack.security.ssl.keystore.path", keystore)
+                    .put("xpack.security.ssl.keystore.password", "changeit");
+        } else {
+            builder.put(Global.AUTO_GENERATE_SSL_SETTING.getKey(), false);
+        }
+        globalSettings = builder.build();
+        Environment environment = new Environment(globalSettings);
+        clientSSLService = new ClientSSLService(globalSettings, new Global(globalSettings));
+        clientSSLService.setEnvironment(environment);
     }
 
     public void testConnect() throws Exception {
         //openldap does not use cn as naming attributes by default
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        RealmConfig config = new RealmConfig("oldap-test", LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
+        RealmConfig config = new RealmConfig("oldap-test", buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
                 LdapSearchScope.ONE_LEVEL), globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
 
@@ -73,7 +79,7 @@ public class OpenLdapTests extends ESTestCase {
 
         String groupSearchBase = "cn=Avengers,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        RealmConfig config = new RealmConfig("oldap-test", LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
+        RealmConfig config = new RealmConfig("oldap-test", buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase,
                 LdapSearchScope.BASE), globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
 
@@ -89,7 +95,7 @@ public class OpenLdapTests extends ESTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+                .put(buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
                 .put("group_search.filter", "(&(objectclass=posixGroup)(memberUID={0}))")
                 .put("group_search.user_attribute", "uid")
                 .build();
@@ -106,7 +112,7 @@ public class OpenLdapTests extends ESTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+                .put(buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
                 .put(SessionFactory.HOSTNAME_VERIFICATION_SETTING, false)
                 .put(SessionFactory.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
                 .build();
@@ -127,7 +133,7 @@ public class OpenLdapTests extends ESTestCase {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+                .put(buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
                 .put(LdapSessionFactory.HOSTNAME_VERIFICATION_SETTING, true)
                 .build();
 
@@ -140,5 +146,17 @@ public class OpenLdapTests extends ESTestCase {
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("failed to connect to any LDAP servers"));
         }
+    }
+
+    Settings buildLdapSettings(String ldapUrl, String userTemplate, String groupSearchBase, LdapSearchScope scope) {
+        Settings baseSettings = LdapTestCase.buildLdapSettings(ldapUrl, userTemplate, groupSearchBase, scope);
+        if (useGlobalSSL) {
+            return baseSettings;
+        }
+        return Settings.builder()
+                .put(baseSettings)
+                .put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
+                .put("ssl.truststore.password", "changeit")
+                .build();
     }
 }

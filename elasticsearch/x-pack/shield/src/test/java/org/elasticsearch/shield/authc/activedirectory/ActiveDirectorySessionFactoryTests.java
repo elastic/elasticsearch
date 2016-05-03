@@ -16,6 +16,7 @@ import org.elasticsearch.shield.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.ssl.ClientSSLService;
+import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
@@ -38,23 +39,28 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
 
     private ClientSSLService clientSSLService;
     private Settings globalSettings;
+    private boolean useGlobalSSL;
 
     @Before
     public void initializeSslSocketFactory() throws Exception {
+        useGlobalSSL = randomBoolean();
         Path keystore = getDataPath("../ldap/support/ldaptrust.jks");
-        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
-
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        clientSSLService = new ClientSSLService(Settings.builder()
-                .put("xpack.security.ssl.keystore.path", keystore)
-                .put("xpack.security.ssl.keystore.password", "changeit")
-                .build());
-        clientSSLService.setEnvironment(env);
-        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
+        Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
+        if (useGlobalSSL) {
+            builder.put("xpack.security.ssl.keystore.path", keystore)
+                    .put("xpack.security.ssl.keystore.password", "changeit");
+        } else {
+            builder.put(Global.AUTO_GENERATE_SSL_SETTING.getKey(), false);
+        }
+        globalSettings = builder.build();
+        Environment environment = new Environment(globalSettings);
+        clientSSLService = new ClientSSLService(globalSettings, new Global(globalSettings));
+        clientSSLService.setEnvironment(environment);
     }
 
     @SuppressWarnings("unchecked")
@@ -238,6 +244,13 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = LdapTestCase.buildLdapSettings(AD_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE);
+        if (useGlobalSSL == false) {
+            settings = Settings.builder()
+                    .put(settings)
+                    .put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
+                    .put("ssl.truststore.password", "changeit")
+                    .build();
+        }
         RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
 
@@ -257,6 +270,13 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
     public void testStandardLdapWithAttributeGroups() throws Exception {
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = LdapTestCase.buildLdapSettings(new String[] { AD_LDAP_URL }, userTemplate, false);
+        if (useGlobalSSL == false) {
+            settings = Settings.builder()
+                    .put(settings)
+                    .put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
+                    .put("ssl.truststore.password", "changeit")
+                    .build();
+        }
         RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
 
@@ -302,26 +322,30 @@ public class ActiveDirectorySessionFactoryTests extends ESTestCase {
         }
     }
 
-    public static Settings buildAdSettings(String ldapUrl, String adDomainName, boolean hostnameVerification) {
-        return Settings.builder()
+    Settings buildAdSettings(String ldapUrl, String adDomainName, boolean hostnameVerification) {
+        Settings.Builder builder = Settings.builder()
                 .put(ActiveDirectorySessionFactory.URLS_SETTING, ldapUrl)
                 .put(ActiveDirectorySessionFactory.AD_DOMAIN_NAME_SETTING, adDomainName)
-                .put(ActiveDirectorySessionFactory.HOSTNAME_VERIFICATION_SETTING, hostnameVerification)
-                .build();
+                .put(ActiveDirectorySessionFactory.HOSTNAME_VERIFICATION_SETTING, hostnameVerification);
+        if (useGlobalSSL == false) {
+            builder.put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
+                    .put("ssl.truststore.password", "changeit");
+        }
+        return builder.build();
     }
 
-    public static Settings buildAdSettings(String ldapUrl, String adDomainName, LdapSearchScope scope, String userSearchDN) {
-        return buildAdSettings(ldapUrl, adDomainName, userSearchDN, scope, true);
-    }
-
-    public static Settings buildAdSettings(String ldapUrl, String adDomainName, String userSearchDN, LdapSearchScope scope,
+    Settings buildAdSettings(String ldapUrl, String adDomainName, String userSearchDN, LdapSearchScope scope,
                                            boolean hostnameVerification) {
-        return Settings.builder()
+        Settings.Builder builder = Settings.builder()
                 .putArray(ActiveDirectorySessionFactory.URLS_SETTING, ldapUrl)
                 .put(ActiveDirectorySessionFactory.AD_DOMAIN_NAME_SETTING, adDomainName)
                 .put(ActiveDirectorySessionFactory.AD_USER_SEARCH_BASEDN_SETTING, userSearchDN)
                 .put(ActiveDirectorySessionFactory.AD_USER_SEARCH_SCOPE_SETTING, scope)
-                .put(ActiveDirectorySessionFactory.HOSTNAME_VERIFICATION_SETTING, hostnameVerification)
-                .build();
+                .put(ActiveDirectorySessionFactory.HOSTNAME_VERIFICATION_SETTING, hostnameVerification);
+        if (useGlobalSSL == false) {
+            builder.put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
+                    .put("ssl.truststore.password", "changeit");
+        }
+        return builder.build();
     }
 }

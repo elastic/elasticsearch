@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.notification.email.attachment;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.notification.email.Attachment;
 
 import java.io.IOException;

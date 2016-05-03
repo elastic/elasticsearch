@@ -13,8 +13,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.watcher.support.text.TextTemplate;
-import org.elasticsearch.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.support.text.TextTemplate;
+import org.elasticsearch.xpack.watcher.support.text.TextTemplateEngine;
 
 import java.io.IOException;
 import java.util.Locale;

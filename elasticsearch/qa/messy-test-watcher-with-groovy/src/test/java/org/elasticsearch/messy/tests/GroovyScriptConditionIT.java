@@ -12,13 +12,13 @@ import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
-import org.elasticsearch.watcher.condition.script.ScriptCondition;
-import org.elasticsearch.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.support.ScriptServiceProxy;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.xpack.watcher.condition.script.ExecutableScriptCondition;
+import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.support.Script;
+import org.elasticsearch.xpack.watcher.support.ScriptServiceProxy;
+import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -28,7 +28,7 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.messy.tests.MessyTestUtils.getScriptServiceProxy;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 
 public class GroovyScriptConditionIT extends AbstractWatcherIntegrationTestCase {
 

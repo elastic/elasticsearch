@@ -36,6 +36,7 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Locale;
+import java.util.Map.Entry;
 
 import static org.elasticsearch.test.ShieldSettingsSource.getSSLSettingsForStore;
 import static org.hamcrest.Matchers.containsString;
@@ -71,6 +72,11 @@ public class PkiAuthenticationTests extends ShieldIntegTestCase {
     @Override
     protected boolean sslTransportEnabled() {
         return true;
+    }
+
+    @Override
+    protected boolean autoSSLEnabled() {
+        return false;
     }
 
     public void testTransportClientCanAuthenticateViaPki() {
@@ -138,8 +144,18 @@ public class PkiAuthenticationTests extends ShieldIntegTestCase {
     }
 
     private TransportClient createTransportClient(Settings additionalSettings) {
-        Settings.Builder builder = Settings.builder()
-                .put(transportClientSettings())
+        Settings clientSettings = transportClientSettings();
+        if (additionalSettings.getByPrefix("xpack.security.ssl.").isEmpty() == false) {
+            Settings.Builder builder = Settings.builder();
+            for (Entry<String, String> entry : clientSettings.getAsMap().entrySet()) {
+                if (entry.getKey().startsWith("xpack.security.ssl.") == false) {
+                    builder.put(entry.getKey(), entry.getValue());
+                }
+            }
+            clientSettings = builder.build();
+        }
+
+        Settings.Builder builder = Settings.builder().put(clientSettings)
                 .put(additionalSettings)
                 .put("cluster.name", internalCluster().getClusterName());
         builder.remove(Security.USER_SETTING.getKey());

@@ -142,7 +142,7 @@ public class XPackInfoResponse extends ActionResponse {
         private final String timestamp;
 
         public BuildInfo(XPackBuild build) {
-            this(build.hash(), build.timestamp());
+            this(build.shortHash(), build.date());
         }
 
         public BuildInfo(StreamInput input) throws IOException {
@@ -166,7 +166,7 @@ public class XPackInfoResponse extends ActionResponse {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
                     .field("hash", hash)
-                    .field("timestamp", timestamp)
+                    .field("date", timestamp)
                     .endObject();
         }
 

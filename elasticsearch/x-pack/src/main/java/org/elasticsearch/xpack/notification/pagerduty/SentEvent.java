@@ -13,9 +13,9 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.watcher.actions.pagerduty.PagerDutyAction;
-import org.elasticsearch.watcher.support.http.HttpRequest;
-import org.elasticsearch.watcher.support.http.HttpResponse;
+import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
+import org.elasticsearch.xpack.watcher.support.http.HttpRequest;
+import org.elasticsearch.xpack.watcher.support.http.HttpResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;

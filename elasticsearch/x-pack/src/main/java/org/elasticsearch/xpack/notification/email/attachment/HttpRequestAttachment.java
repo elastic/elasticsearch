@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.notification.email.attachment;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.watcher.support.http.HttpRequestTemplate;
 
 import java.io.IOException;
 import java.util.Objects;

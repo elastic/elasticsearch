@@ -167,7 +167,7 @@ public class IPFilter {
     }
 
     public boolean accept(String profile, InetAddress peerAddress) {
-        if (licenseState.securityEnabled() == false) {
+        if (licenseState.ipFilteringEnabled() == false) {
             return true;
         }
 

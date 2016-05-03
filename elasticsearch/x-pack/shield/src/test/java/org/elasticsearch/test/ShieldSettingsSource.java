@@ -6,6 +6,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -24,15 +25,17 @@ import org.elasticsearch.shield.test.ShieldTestUtils;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
-import org.elasticsearch.watcher.Watcher;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
@@ -81,6 +84,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     private final String subfolderPrefix;
     private final byte[] systemKey;
     private final boolean sslTransportEnabled;
+    private final boolean autoSSLEnabled;
     private final boolean hostnameVerificationEnabled;
     private final boolean hostnameVerificationResolveNameEnabled;
 
@@ -92,8 +96,9 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of ShieldSettingsSource
      */
-    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, Path parentFolder, ESIntegTestCase.Scope scope) {
-        this(numOfNodes, sslTransportEnabled, generateKey(), parentFolder, scope);
+    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, boolean autoSSLEnabled, Path parentFolder,
+                                ESIntegTestCase.Scope scope) {
+        this(numOfNodes, sslTransportEnabled, autoSSLEnabled, generateKey(), parentFolder, scope);
     }
 
     /**
@@ -105,13 +110,14 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of ShieldSettingsSource
      */
-    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, byte[] systemKey, Path parentFolder,
+    public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, boolean autoSSLEnabled, byte[] systemKey, Path parentFolder,
                                 ESIntegTestCase.Scope scope) {
         super(numOfNodes, DEFAULT_SETTINGS);
         this.systemKey = systemKey;
         this.parentFolder = parentFolder;
         this.subfolderPrefix = scope.name();
         this.sslTransportEnabled = sslTransportEnabled;
+        this.autoSSLEnabled = autoSSLEnabled;
         this.hostnameVerificationEnabled = randomBoolean();
         this.hostnameVerificationResolveNameEnabled = randomBoolean();
     }
@@ -210,11 +216,37 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     }
 
     public Settings getNodeSSLSettings() {
+        if (sslTransportEnabled && autoSSLEnabled) {
+            return Settings.EMPTY;
+        }
+
+        if (randomBoolean()) {
+            return getSSLSettingsForPEMFiles("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.pem", "testnode",
+                    Collections.singletonList("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.crt"),
+                    Arrays.asList("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode-client-profile.crt",
+                            "/org/elasticsearch/shield/transport/ssl/certs/simple/activedir.crt",
+                            "/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.crt",
+                            "/org/elasticsearch/shield/transport/ssl/certs/simple/openldap.crt",
+                            "/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.crt"),
+                    sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled, false);
+        }
         return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks", "testnode",
                 sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled, false);
     }
 
     public Settings getClientSSLSettings() {
+        if (sslTransportEnabled && autoSSLEnabled) {
+            return Settings.EMPTY;
+        }
+
+        if (randomBoolean()) {
+            return getSSLSettingsForPEMFiles("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.pem", "testclient",
+                    Collections.singletonList("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.crt"),
+                    Arrays.asList("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.crt",
+                            "/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.crt"),
+                    sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled, true);
+        }
+
         return getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient",
                 sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled, true);
     }
@@ -233,16 +265,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     private static Settings getSSLSettingsForStore(String resourcePathToStore, String password, boolean sslTransportEnabled,
                                                    boolean hostnameVerificationEnabled, boolean hostnameVerificationResolveNameEnabled,
                                                    boolean transportClient) {
-        Path store;
-        try {
-            store = PathUtils.get(ShieldSettingsSource.class.getResource(resourcePathToStore).toURI());
-        } catch (URISyntaxException e) {
-            throw new ElasticsearchException("exception while reading the store", e);
-        }
-
-        if (Files.notExists(store)) {
-            throw new ElasticsearchException("store path doesn't exist");
-        }
+        Path store = resolveResourcePath(resourcePathToStore);
 
         final String sslEnabledSetting =
                 randomFrom(ShieldNettyTransport.SSL_SETTING.getKey(), ShieldNettyTransport.DEPRECATED_SSL_SETTING.getKey());
@@ -264,5 +287,53 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
                     .put("xpack.security.ssl.truststore.password", password);
         }
         return builder.build();
+    }
+
+    private static Settings getSSLSettingsForPEMFiles(String keyPath, String password, List<String> certificateFiles,
+                                            List<String> trustedCertificates, boolean sslTransportEnabled,
+                                            boolean hostnameVerificationEnabled, boolean hostnameVerificationResolveNameEnabled,
+                                            boolean transportClient) {
+        Settings.Builder builder = Settings.builder();
+        final String sslEnabledSetting =
+                randomFrom(ShieldNettyTransport.SSL_SETTING.getKey(), ShieldNettyTransport.DEPRECATED_SSL_SETTING.getKey());
+        builder.put(sslEnabledSetting, sslTransportEnabled);
+
+        if (transportClient == false) {
+            builder.put(ShieldNettyHttpServerTransport.SSL_SETTING.getKey(), false);
+        }
+
+        if (sslTransportEnabled) {
+            builder.put("xpack.security.ssl.key.path", resolveResourcePath(keyPath))
+                    .put("xpack.security.ssl.key.password", password)
+                    .put("xpack.security.ssl.cert", Strings.arrayToCommaDelimitedString(resolvePathsToString(certificateFiles)))
+                    .put(randomFrom(ShieldNettyTransport.HOSTNAME_VERIFICATION_SETTING.getKey(),
+                            ShieldNettyTransport.DEPRECATED_HOSTNAME_VERIFICATION_SETTING.getKey()), hostnameVerificationEnabled)
+                    .put(ShieldNettyTransport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(), hostnameVerificationResolveNameEnabled);
+
+            if (trustedCertificates.isEmpty() == false) {
+                builder.put("xpack.security.ssl.ca", Strings.arrayToCommaDelimitedString(resolvePathsToString(trustedCertificates)));
+            }
+        }
+        return builder.build();
+    }
+
+    static String[] resolvePathsToString(List<String> resourcePaths) {
+        List<String> resolvedPaths = new ArrayList<>(resourcePaths.size());
+        for (String resource : resourcePaths) {
+            resolvedPaths.add(resolveResourcePath(resource).toString());
+        }
+        return resolvedPaths.toArray(new String[resolvedPaths.size()]);
+    }
+
+    static Path resolveResourcePath(String resourcePathToStore) {
+        try {
+            Path path = PathUtils.get(ShieldSettingsSource.class.getResource(resourcePathToStore).toURI());
+            if (Files.notExists(path)) {
+                throw new ElasticsearchException("path does not exist: " + path);
+            }
+            return path;
+        } catch (URISyntaxException e) {
+            throw new ElasticsearchException("exception while reading the store", e);
+        }
     }
 }

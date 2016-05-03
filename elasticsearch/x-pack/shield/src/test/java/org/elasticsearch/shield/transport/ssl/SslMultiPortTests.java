@@ -20,6 +20,7 @@ import org.junit.BeforeClass;
 import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map.Entry;
 
 import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_PASSWORD;
 import static org.elasticsearch.test.ShieldSettingsSource.DEFAULT_USER_NAME;
@@ -86,8 +87,24 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
         return true;
     }
 
+    @Override
+    protected boolean autoSSLEnabled() {
+        return false;
+    }
+
     private TransportClient createTransportClient(Settings additionalSettings) {
-        Settings settings = Settings.builder().put(transportClientSettings())
+        Settings clientSettings = transportClientSettings();
+        if (additionalSettings.getByPrefix("xpack.security.ssl.").isEmpty() == false) {
+            Settings.Builder builder = Settings.builder();
+            for (Entry<String, String> entry : clientSettings.getAsMap().entrySet()) {
+                if (entry.getKey().startsWith("xpack.security.ssl.") == false) {
+                    builder.put(entry.getKey(), entry.getValue());
+                }
+            }
+            clientSettings = builder.build();
+        }
+
+        Settings settings = Settings.builder().put(clientSettings)
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put(additionalSettings)
@@ -224,6 +241,7 @@ public class SslMultiPortTests extends ShieldIntegTestCase {
     public void testThatTransportClientCanConnectToNoSslProfile() throws Exception {
         Settings settings = Settings.builder()
                 .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put(ShieldNettyTransport.SSL_SETTING.getKey(), false)
                 .put("cluster.name", internalCluster().getClusterName())
                 .build();
         try (TransportClient transportClient = TransportClient.builder().settings(settings).addPlugin(XPackPlugin.class).build()) {

@@ -11,15 +11,15 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.watcher.actions.pagerduty.PagerDutyAction;
+import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
 import org.elasticsearch.xpack.notification.pagerduty.IncidentEvent;
 import org.elasticsearch.xpack.notification.pagerduty.IncidentEventContext;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.notification.pagerduty.SentEvent;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
-import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
+import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.Collection;
 import java.util.List;
@@ -28,12 +28,12 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.watcher.actions.ActionBuilders.pagerDutyAction;
-import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
-import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
-import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.pagerDutyAction;
+import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
+import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
+import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
+import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -72,7 +72,7 @@ public class PagerDutyServiceIT extends AbstractWatcherIntegrationTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("xpack.notification.pagerduty.service.account.test_account.service_api_key", "fc082467005d4072a914e0bb041882d0")
+                .put("xpack.notification.pagerduty.account.test_account.service_api_key", "fc082467005d4072a914e0bb041882d0")
                 .build();
     }
 

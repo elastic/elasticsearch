@@ -27,6 +27,8 @@ dependencies {
   // shield deps
   compile 'dk.brics.automaton:automaton:1.11-8'
   compile 'com.unboundid:unboundid-ldapsdk:2.3.8'
+  compile 'org.bouncycastle:bcprov-jdk15on:1.54'
+  compile 'org.bouncycastle:bcpkix-jdk15on:1.54'
   testCompile 'com.google.jimfs:jimfs:1.0'
 
   // watcher deps
@@ -47,7 +49,6 @@ dependencies {
   testCompile "com.squareup.okhttp:okhttp:${versions.okhttp}"
   testCompile "com.squareup.okhttp:okhttp-ws:${versions.okhttp}"
   testCompile 'com.squareup.okio:okio:1.6.0'
-  testCompile 'org.bouncycastle:bcprov-jdk15on:1.50'
 }
 
 // we keep the source directories in the original structure of split plugins,
@@ -70,8 +71,6 @@ compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-
 
 ext.expansions = [
   'project.version': version,
-  // Used in watcher index templates
-  'xpack.watcher.template.version': '1',
 ]
 
 processResources {
@@ -101,6 +100,7 @@ processTestResources {
 forbiddenPatterns {
   exclude '**/*.key'
   exclude '**/*.p12'
+  exclude '**/*.der'
 }
 
 // TODO: standardize packaging config for plugins

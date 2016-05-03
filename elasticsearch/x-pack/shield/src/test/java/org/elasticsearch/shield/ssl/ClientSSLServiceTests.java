@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ClientSSLServiceTests extends ESTestCase {
+
     Environment env;
     Path testclientStore;
 
@@ -50,13 +52,15 @@ public class ClientSSLServiceTests extends ESTestCase {
 
     public void testThatInvalidProtocolThrowsException() throws Exception {
         try {
-            new ClientSSLService(Settings.builder()
+            Settings settings = Settings.builder()
                     .put("xpack.security.ssl.protocol", "non-existing")
                     .put("xpack.security.ssl.keystore.path", testclientStore)
                     .put("xpack.security.ssl.keystore.password", "testclient")
                     .put("xpack.security.ssl.truststore.path", testclientStore)
                     .put("xpack.security.ssl.truststore.password", "testclient")
-                    .build()).createSSLEngine();
+                    .build();
+            ClientSSLService clientSSLService = new ClientSSLService(settings, new Global(settings));
+            clientSSLService.createSSLEngine();
             fail("expected an exception");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("failed to initialize the SSLContext"));
@@ -148,7 +152,9 @@ public class ClientSSLServiceTests extends ESTestCase {
     }
 
     public void testThatCreateClientSSLEngineWithoutAnySettingsWorks() throws Exception {
-        ClientSSLService sslService = createClientSSLService(Settings.EMPTY);
+        ClientSSLService sslService = createClientSSLService(Settings.builder()
+                .put(Global.AUTO_GENERATE_SSL_SETTING.getKey(), false)
+                .build());
         SSLEngine sslEngine = sslService.createSSLEngine();
         assertThat(sslEngine, notNullValue());
     }
@@ -173,7 +179,8 @@ public class ClientSSLServiceTests extends ESTestCase {
 
     @Network
     public void testThatSSLContextWithoutSettingsWorks() throws Exception {
-        ClientSSLService sslService = createClientSSLService(Settings.EMPTY);
+        ClientSSLService sslService = createClientSSLService(Settings.builder()
+                .put(Global.AUTO_GENERATE_SSL_SETTING.getKey(), false).build());
         SSLContext sslContext = sslService.sslContext();
         try (CloseableHttpClient client = HttpClients.custom().setSslcontext(sslContext).build()) {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
@@ -184,12 +191,24 @@ public class ClientSSLServiceTests extends ESTestCase {
     }
 
     @Network
-    public void testThatSSLContextWithKeystoreDoesNotTrustAllPublicCAs() throws Exception {
+    public void testThatSSLContextTrustsJDKTrustedCAs() throws Exception {
         ClientSSLService sslService = createClientSSLService(Settings.builder()
                 .put("xpack.security.ssl.keystore.path", testclientStore)
                 .put("xpack.security.ssl.keystore.password", "testclient")
                 .build());
         SSLContext sslContext = sslService.sslContext();
+        try (CloseableHttpClient client = HttpClients.custom().setSslcontext(sslContext).build()) {
+            // Execute a GET on a site known to have a valid certificate signed by a trusted public CA which will succeed because the JDK
+            // certs are trusted by default
+            client.execute(new HttpGet("https://www.elastic.co/")).close();
+        }
+
+        sslService = createClientSSLService(Settings.builder()
+                .put("xpack.security.ssl.keystore.path", testclientStore)
+                .put("xpack.security.ssl.keystore.password", "testclient")
+                .put(Global.INCLUDE_JDK_CERTS_SETTING.getKey(), "false")
+                .build());
+        sslContext = sslService.sslContext();
         try (CloseableHttpClient client = HttpClients.custom().setSslcontext(sslContext).build()) {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
             // This will result in a SSLHandshakeException because the truststore is the testnodestore, which doesn't
@@ -226,7 +245,7 @@ public class ClientSSLServiceTests extends ESTestCase {
     }
 
     public void testValidCiphersAndInvalidCiphersWork() throws Exception {
-        List<String> ciphers = new ArrayList<>(SSLSettings.Globals.DEFAULT_CIPHERS);
+        List<String> ciphers = new ArrayList<>(Global.DEFAULT_CIPHERS);
         ciphers.add("foo");
         ciphers.add("bar");
         ClientSSLService sslService = createClientSSLService(Settings.builder()
@@ -246,7 +265,7 @@ public class ClientSSLServiceTests extends ESTestCase {
             sslService.createSSLEngine();
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("failed loading cipher suites [[foo, bar]]"));
+            assertThat(e.getMessage(), is("none of the ciphers [foo, bar] are supported by this JVM"));
         }
     }
 
@@ -255,8 +274,8 @@ public class ClientSSLServiceTests extends ESTestCase {
                 .put("xpack.security.ssl.keystore.path", testclientStore)
                 .put("xpack.security.ssl.keystore.password", "testclient")
                 .build());
-        SSLSocketFactory factory = sslService.sslSocketFactory();
-        final String[] ciphers = sslService.supportedCiphers(factory.getSupportedCipherSuites(), sslService.ciphers());
+        SSLSocketFactory factory = sslService.sslSocketFactory(Settings.EMPTY);
+        final String[] ciphers = sslService.supportedCiphers(factory.getSupportedCipherSuites(), sslService.ciphers(), false);
         assertThat(factory.getDefaultCipherSuites(), is(ciphers));
 
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
@@ -266,7 +285,7 @@ public class ClientSSLServiceTests extends ESTestCase {
     }
 
     ClientSSLService createClientSSLService(Settings settings) {
-        ClientSSLService clientSSLService = new ClientSSLService(settings);
+        ClientSSLService clientSSLService = new ClientSSLService(settings, new Global(settings));
         clientSSLService.setEnvironment(env);
         return clientSSLService;
     }

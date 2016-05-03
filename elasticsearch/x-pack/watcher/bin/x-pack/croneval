@@ -113,7 +113,7 @@ if [ ! -z "$CONF_FILE" ]; then
 fi
 
 cd "$ES_HOME" > /dev/null
-"$JAVA" $ES_JAVA_OPTS -cp "$ES_CLASSPATH" -Des.path.home="$ES_HOME" org.elasticsearch.watcher.trigger.schedule.tool.CronEvalTool "$@" $properties
+"$JAVA" $ES_JAVA_OPTS -cp "$ES_CLASSPATH" -Des.path.home="$ES_HOME" org.elasticsearch.xpack.watcher.trigger.schedule.tool.CronEvalTool "$@" $properties
 status=$?
 cd - > /dev/null
 exit $status

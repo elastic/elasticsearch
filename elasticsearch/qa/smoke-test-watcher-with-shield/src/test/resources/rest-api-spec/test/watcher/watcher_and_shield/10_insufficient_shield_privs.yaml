@@ -3,10 +3,10 @@
   - do:
     headers: { es-shield-runas-user: powerless_user }
     catch: forbidden
-    watcher.stats: {}
+    xpack.watcher.stats: {}
   # there seems to be a bug in the yaml parser we use, where a single element list
   # has the END_LIST token skipped...so here we just rerun the same request without
   # the impersonation to show it works
   - do:
-    watcher.stats: {}
+    xpack.watcher.stats: {}
   - match: { watcher_state: started }

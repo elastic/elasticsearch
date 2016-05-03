@@ -77,6 +77,11 @@ public class PkiOptionalClientAuthTests extends ShieldIntegTestCase {
         return true;
     }
 
+    @Override
+    protected boolean autoSSLEnabled() {
+        return false;
+    }
+
     public void testRestClientWithoutClientCertificate() throws Exception {
         HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
 

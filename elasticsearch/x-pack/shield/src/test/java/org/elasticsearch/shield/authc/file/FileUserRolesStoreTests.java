@@ -17,8 +17,8 @@ import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.watcher.Watcher;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.junit.After;
 import org.junit.Before;
 

@@ -12,13 +12,13 @@ import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.watcher.actions.hipchat.HipChatAction;
+import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.xpack.notification.hipchat.HipChatAccount;
 import org.elasticsearch.xpack.notification.hipchat.HipChatMessage;
 import org.elasticsearch.xpack.notification.hipchat.HipChatService;
 import org.elasticsearch.xpack.notification.hipchat.SentMessages;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
+import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
 import java.util.Collection;
 import java.util.List;
@@ -26,12 +26,12 @@ import java.util.List;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.watcher.actions.ActionBuilders.hipchatAction;
-import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
-import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
-import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.hipchatAction;
+import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
+import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
+import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
+import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -72,18 +72,18 @@ public class HipChatServiceIT extends AbstractWatcherIntegrationTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
 
                 // this is for the `test-watcher-integration` group level integration in HipChat
-                .put("xpack.notification.hipchat.service.account.integration_account.profile", "integration")
-                .put("xpack.notification.hipchat.service.account.integration_account.auth_token",
+                .put("xpack.notification.hipchat.account.integration_account.profile", "integration")
+                .put("xpack.notification.hipchat.account.integration_account.auth_token",
                         "huuS9v7ccuOy3ZBWWWr1vt8Lqu3sQnLUE81nrLZU")
-                .put("xpack.notification.hipchat.service.account.integration_account.room", "test-watcher")
+                .put("xpack.notification.hipchat.account.integration_account.room", "test-watcher")
 
                 // this is for the Watcher Test account in HipChat
-                .put("xpack.notification.hipchat.service.account.user_account.profile", "user")
-                .put("xpack.notification.hipchat.service.account.user_account.auth_token", "FYVx16oDH78ZW9r13wtXbcszyoyA7oX5tiMWg9X0")
+                .put("xpack.notification.hipchat.account.user_account.profile", "user")
+                .put("xpack.notification.hipchat.account.user_account.auth_token", "FYVx16oDH78ZW9r13wtXbcszyoyA7oX5tiMWg9X0")
 
                 // this is for the `test-watcher-v1` notification token
-                .put("xpack.notification.hipchat.service.account.v1_account.profile", "v1")
-                .put("xpack.notification.hipchat.service.account.v1_account.auth_token", "a734baf62df618b96dda55b323fc30")
+                .put("xpack.notification.hipchat.account.v1_account.profile", "v1")
+                .put("xpack.notification.hipchat.account.v1_account.auth_token", "a734baf62df618b96dda55b323fc30")
                 .build();
     }
 

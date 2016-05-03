@@ -11,14 +11,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.watcher.actions.slack.SlackAction;
+import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
 import org.elasticsearch.xpack.notification.slack.SentMessages;
 import org.elasticsearch.xpack.notification.slack.SlackAccount;
 import org.elasticsearch.xpack.notification.slack.SlackService;
 import org.elasticsearch.xpack.notification.slack.message.Attachment;
 import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
-import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
+import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
 import java.util.Collection;
 import java.util.List;
@@ -26,12 +26,12 @@ import java.util.List;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.watcher.actions.ActionBuilders.slackAction;
-import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
-import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
-import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
+import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.slackAction;
+import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
+import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
+import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
+import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -71,7 +71,7 @@ public class SlackServiceIT extends AbstractWatcherIntegrationTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
 
                 // this is for the `test-watcher-integration` group level integration in HipChat
-                .put("xpack.notification.slack.service.account.test_account.url",
+                .put("xpack.notification.slack.account.test_account.url",
                         "https://hooks.slack.com/services/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")
                 .build();
     }

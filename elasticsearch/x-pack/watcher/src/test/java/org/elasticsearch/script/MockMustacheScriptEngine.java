@@ -11,7 +11,7 @@ import java.util.Map;
 
 /**
  * A mock script engine that registers itself under the 'mustache' name so that
- * {@link org.elasticsearch.watcher.support.text.DefaultTextTemplateEngine}
+ * {@link org.elasticsearch.xpack.watcher.support.text.DefaultTextTemplateEngine}
  * uses it and adds validation that watcher tests don't rely on mustache templating/
  */
 public class MockMustacheScriptEngine extends MockScriptEngine {

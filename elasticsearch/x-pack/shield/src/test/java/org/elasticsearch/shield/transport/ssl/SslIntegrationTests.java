@@ -23,6 +23,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.shield.ssl.ClientSSLService;
+import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.transport.Transport;
@@ -53,6 +54,11 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
     @Override
     protected boolean sslTransportEnabled() {
         return true;
+    }
+
+    @Override
+    protected boolean autoSSLEnabled() {
+        return false;
     }
 
     // no SSL exception as this is the exception is returned when connecting
@@ -94,8 +100,10 @@ public class SslIntegrationTests extends ShieldIntegTestCase {
     }
 
     public void testThatConnectionToHTTPWorks() throws Exception {
-        Settings settings = getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient");
-        ClientSSLService service = new ClientSSLService(settings);
+        Settings settings = Settings.builder()
+                .put(getSSLSettingsForStore("/org/elasticsearch/shield/transport/ssl/certs/simple/testclient.jks", "testclient"))
+                .build();
+        ClientSSLService service = new ClientSSLService(settings, new Global(settings));
 
         CredentialsProvider provider = new BasicCredentialsProvider();
         provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(nodeClientUsername(),

@@ -42,12 +42,18 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
     private InternalTestCluster remoteCluster;
 
     private final boolean useSSL = randomBoolean();
+    private final boolean autoSSL = randomBoolean();
     private final boolean localAudit = randomBoolean();
     private final String outputs = randomFrom("index", "logfile", "index,logfile");
 
     @Override
     public boolean sslTransportEnabled() {
         return useSSL;
+    }
+
+    @Override
+    public boolean autoSSLEnabled() {
+        return autoSSL;
     }
 
     @Override
@@ -87,7 +93,8 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
 
         // Setup a second test cluster with randomization for number of nodes, shield enabled, and SSL
         final int numNodes = randomIntBetween(2, 3);
-        ShieldSettingsSource cluster2SettingsSource = new ShieldSettingsSource(numNodes, useSSL, systemKey(), createTempDir(), Scope.TEST) {
+        ShieldSettingsSource cluster2SettingsSource = new ShieldSettingsSource(numNodes, useSSL, autoSSL, systemKey(), createTempDir(),
+                Scope.TEST) {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
@@ -98,10 +105,8 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
                         .put("xpack.security.audit.index.client.cluster.name", clusterName)
                         .put("xpack.security.audit.index.client.xpack.security.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD);
 
-                if (useSSL) {
-                    for (Map.Entry<String, String> entry : getClientSSLSettings().getAsMap().entrySet()) {
-                        builder.put("xpack.security.audit.index.client." + entry.getKey(), entry.getValue());
-                    }
+                for (Map.Entry<String, String> entry : getClientSSLSettings().getAsMap().entrySet()) {
+                    builder.put("xpack.security.audit.index.client." + entry.getKey(), entry.getValue());
                 }
                 return builder.build();
             }

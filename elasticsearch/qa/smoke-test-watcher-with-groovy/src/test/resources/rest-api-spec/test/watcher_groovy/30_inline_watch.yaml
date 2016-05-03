@@ -5,7 +5,7 @@
           wait_for_status: green
 
   - do:
-      watcher.execute_watch:
+      xpack.watcher.execute_watch:
         body: >
           {
             "trigger_data" : {

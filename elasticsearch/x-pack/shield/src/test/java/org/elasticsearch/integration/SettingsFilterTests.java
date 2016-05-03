@@ -19,8 +19,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.shield.ssl.AbstractSSLService;
-import org.elasticsearch.shield.ssl.SSLSettings;
+import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
@@ -112,7 +111,7 @@ public class SettingsFilterTests extends ShieldIntegTestCase {
 
                 .put("xpack.security.ssl.keystore.path", "/path/to/keystore")
                 .put("xpack.security.ssl.ciphers", "_ciphers")
-                .put("xpack.security.ssl.supported_protocols", randomFrom(SSLSettings.Globals.DEFAULT_SUPPORTED_PROTOCOLS))
+                .put("xpack.security.ssl.supported_protocols", randomFrom(Global.DEFAULT_SUPPORTED_PROTOCOLS))
                 .put("xpack.security.ssl.keystore.password", randomAsciiOfLength(5))
                 .put("xpack.security.ssl.keystore.algorithm", "_algorithm")
                 .put("xpack.security.ssl.keystore.key_password", randomAsciiOfLength(5))
@@ -124,7 +123,7 @@ public class SettingsFilterTests extends ShieldIntegTestCase {
                 .put("transport.profiles.client.xpack.security.keystore.path", "/path/to/keystore")
                 .put("transport.profiles.client.xpack.security.ciphers", "_ciphers")
                 .put("transport.profiles.client.xpack.security.supported_protocols",
-                        randomFrom(SSLSettings.Globals.DEFAULT_SUPPORTED_PROTOCOLS))
+                        randomFrom(Global.DEFAULT_SUPPORTED_PROTOCOLS))
                 .put("transport.profiles.client.xpack.security.keystore.password", randomAsciiOfLength(5))
                 .put("transport.profiles.client.xpack.security.keystore.algorithm", "_algorithm")
                 .put("transport.profiles.client.xpack.security.keystore.key_password", randomAsciiOfLength(5))

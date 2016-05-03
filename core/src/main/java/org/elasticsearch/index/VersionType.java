@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  *
  */
-public enum VersionType implements Writeable<VersionType> {
+public enum VersionType implements Writeable {
     INTERNAL((byte) 0) {
         @Override
         public boolean isVersionConflictForWrites(long currentVersion, long expectedVersion, boolean deleted) {

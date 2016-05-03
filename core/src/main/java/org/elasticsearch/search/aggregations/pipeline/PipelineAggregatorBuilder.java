@@ -37,7 +37,7 @@ import java.util.Objects;
  * specific type.
  */
 public abstract class PipelineAggregatorBuilder<PAB extends PipelineAggregatorBuilder<PAB>> extends ToXContentToBytes
-        implements NamedWriteable<PipelineAggregatorBuilder<PAB>> {
+        implements NamedWriteable {
 
     /**
      * Field shared by many parsers.

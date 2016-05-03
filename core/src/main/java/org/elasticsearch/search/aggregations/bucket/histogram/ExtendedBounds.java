@@ -36,7 +36,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ExtendedBounds implements ToXContent, Writeable<ExtendedBounds> {
+public class ExtendedBounds implements ToXContent, Writeable {
 
     static final ParseField EXTENDED_BOUNDS_FIELD = new ParseField("extended_bounds");
     static final ParseField MIN_FIELD = new ParseField("min");

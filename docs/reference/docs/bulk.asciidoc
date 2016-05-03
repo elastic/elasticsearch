@@ -161,7 +161,7 @@ For example, in a N shards with 2 replicas index, there will have to be
 at least 2 active shards within the relevant partition (`quorum`) for
 the operation to succeed. In a N shards with 1 replica scenario, there
 will need to be a single shard active (in this case, `one` and `quorum`
-is the same).
+are the same).
 
 [float]
 [[bulk-refresh]]

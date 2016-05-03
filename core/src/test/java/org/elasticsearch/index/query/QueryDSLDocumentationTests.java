@@ -363,7 +363,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
     public void testTemplate() {
         templateQuery(
                 "gender_template",
-                ScriptType.INDEXED,
+                ScriptType.STORED,
                 new HashMap<>());
     }
 

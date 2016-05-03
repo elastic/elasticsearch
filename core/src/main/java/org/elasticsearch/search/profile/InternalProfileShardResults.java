@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
  * A container class to hold all the profile results across all shards.  Internally
  * holds a map of shard ID -&gt; Profiled results
  */
-public final class InternalProfileShardResults implements Writeable<InternalProfileShardResults>, ToXContent{
+public final class InternalProfileShardResults implements Writeable, ToXContent{
 
     private Map<String, List<ProfileShardResult>> shardResults;
 
@@ -73,11 +73,6 @@ public final class InternalProfileShardResults implements Writeable<InternalProf
 
     public Map<String, List<ProfileShardResult>> getShardResults() {
         return this.shardResults;
-    }
-
-    @Override
-    public InternalProfileShardResults readFrom(StreamInput in) throws IOException {
-        return new InternalProfileShardResults(in);
     }
 
     @Override

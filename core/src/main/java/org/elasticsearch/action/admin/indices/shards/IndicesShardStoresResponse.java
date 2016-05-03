@@ -164,7 +164,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             return allocationStatus;
         }
 
-        static StoreStatus readStoreStatus(StreamInput in) throws IOException {
+        public static StoreStatus readStoreStatus(StreamInput in) throws IOException {
             StoreStatus storeStatus = new StoreStatus();
             storeStatus.readFrom(in);
             return storeStatus;

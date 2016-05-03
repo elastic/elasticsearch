@@ -83,6 +83,28 @@ public final class ConfigurationUtils {
             value.getClass().getName() + "]");
     }
 
+    public static Boolean readBooleanProperty(String processorType, String processorTag, Map<String, Object> configuration,
+                                             String propertyName, boolean defaultValue) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            return defaultValue;
+        } else {
+            return readBoolean(processorType, processorTag, propertyName, value).booleanValue();
+        }
+    }
+
+    private static Boolean readBoolean(String processorType, String processorTag, String propertyName, Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Boolean) {
+            return (Boolean) value;
+        }
+        throw newConfigurationException(processorType, processorTag, propertyName, "property isn't a boolean, but of type [" +
+            value.getClass().getName() + "]");
+    }
+
+
     /**
      * Returns and removes the specified property from the specified configuration map.
      *

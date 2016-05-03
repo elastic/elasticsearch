@@ -40,7 +40,6 @@ import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.node.NodeModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.Collection;
 import java.util.Collections;

@@ -158,11 +158,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext searchType(SearchType searchType) {
-        return null;
-    }
-
-    @Override
     public SearchShardTarget shardTarget() {
         return null;
     }

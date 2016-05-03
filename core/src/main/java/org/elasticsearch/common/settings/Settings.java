@@ -62,9 +62,6 @@ import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.Strings.toCamelCase;
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
@@ -77,23 +74,11 @@ public final class Settings implements ToXContent {
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
 
-    private final Map<String, String> forcedUnderscoreSettings;
     private SortedMap<String, String> settings;
 
     Settings(Map<String, String> settings) {
         // we use a sorted map for consistent serialization when using getAsMap()
         this.settings = Collections.unmodifiableSortedMap(new TreeMap<>(settings));
-        Map<String, String> forcedUnderscoreSettings = null;
-        for (Map.Entry<String, String> entry : settings.entrySet()) {
-            String toUnderscoreCase = Strings.toUnderscoreCase(entry.getKey());
-            if (!toUnderscoreCase.equals(entry.getKey())) {
-                if (forcedUnderscoreSettings == null) {
-                    forcedUnderscoreSettings = new HashMap<>();
-                }
-                forcedUnderscoreSettings.put(toUnderscoreCase, entry.getValue());
-            }
-        }
-        this.forcedUnderscoreSettings = forcedUnderscoreSettings == null ? emptyMap() : unmodifiableMap(forcedUnderscoreSettings);
     }
 
     /**
@@ -240,11 +225,7 @@ public final class Settings implements ToXContent {
      * @return The setting value, <tt>null</tt> if it does not exists.
      */
     public String get(String setting) {
-        String retVal = settings.get(setting);
-        if (retVal != null) {
-            return retVal;
-        }
-        return forcedUnderscoreSettings.get(setting);
+        return settings.get(setting);
     }
 
     /**
@@ -473,7 +454,8 @@ public final class Settings implements ToXContent {
                     if (ignoreNonGrouped) {
                         continue;
                     }
-                    throw new SettingsException("Failed to get setting group for [" + settingPrefix + "] setting prefix and setting [" + setting + "] because of a missing '.'");
+                    throw new SettingsException("Failed to get setting group for [" + settingPrefix + "] setting prefix and setting ["
+                            + setting + "] because of a missing '.'");
                 }
                 String name = nameValue.substring(0, dotIndex);
                 String value = nameValue.substring(dotIndex + 1);
@@ -637,12 +619,7 @@ public final class Settings implements ToXContent {
          * Returns a setting value based on the setting key.
          */
         public String get(String key) {
-            String retVal = map.get(key);
-            if (retVal != null) {
-                return retVal;
-            }
-            // try camel case version
-            return map.get(toCamelCase(key));
+            return map.get(key);
         }
 
         /**
@@ -660,7 +637,8 @@ public final class Settings implements ToXContent {
                 }
             }
             if ((settings.length % 2) != 0) {
-                throw new IllegalArgumentException("array settings of key + value order doesn't hold correct number of arguments (" + settings.length + ")");
+                throw new IllegalArgumentException(
+                        "array settings of key + value order doesn't hold correct number of arguments (" + settings.length + ")");
             }
             for (int i = 0; i < settings.length; i++) {
                 put(settings[i++].toString(), settings[i].toString());
@@ -926,7 +904,8 @@ public final class Settings implements ToXContent {
             for (String s : values) {
                 int index = s.indexOf('=');
                 if (index == -1) {
-                    throw new IllegalArgumentException("value [" + s + "] for settings loaded with delimiter [" + delimiter + "] is malformed, missing =");
+                    throw new IllegalArgumentException(
+                            "value [" + s + "] for settings loaded with delimiter [" + delimiter + "] is malformed, missing =");
                 }
                 map.put(s.substring(0, index), s.substring(index + 1));
             }
@@ -967,7 +946,8 @@ public final class Settings implements ToXContent {
         public Builder loadFromStream(String resourceName, InputStream is) throws SettingsException {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromResource(resourceName);
             try {
-                Map<String, String> loadedSettings = settingsLoader.load(Streams.copyToString(new InputStreamReader(is, StandardCharsets.UTF_8)));
+                Map<String, String> loadedSettings = settingsLoader
+                        .load(Streams.copyToString(new InputStreamReader(is, StandardCharsets.UTF_8)));
                 put(loadedSettings);
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + resourceName + "]", e);

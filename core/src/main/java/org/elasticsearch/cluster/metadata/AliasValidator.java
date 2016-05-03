@@ -139,15 +139,9 @@ public class AliasValidator extends AbstractComponent {
         }
     }
 
-    private void validateAliasFilter(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
-        try {
-            queryShardContext.reset();
-            QueryParseContext queryParseContext = queryShardContext.newParseContext(parser);
-            QueryBuilder<?> queryBuilder = QueryBuilder.rewriteQuery(queryParseContext.parseInnerQueryBuilder(), queryShardContext);
-            queryBuilder.toFilter(queryShardContext);
-        } finally {
-            queryShardContext.reset();
-            parser.close();
-        }
+    private static void validateAliasFilter(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
+        QueryParseContext queryParseContext = queryShardContext.newParseContext(parser);
+        QueryBuilder<?> queryBuilder = QueryBuilder.rewriteQuery(queryParseContext.parseInnerQueryBuilder(), queryShardContext);
+        queryBuilder.toFilter(queryShardContext);
     }
 }

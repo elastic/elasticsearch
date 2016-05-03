@@ -396,7 +396,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testToQueryNumericRangeQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = queryStringQuery("12~0.2").defaultField(INT_FIELD_NAME).toQuery(createShardContext());
-        if (getIndexVersionCreated().onOrAfter(Version.V_5_0_0)) {
+        if (getIndexVersionCreated().onOrAfter(Version.V_5_0_0_alpha2)) {
             assertEquals(IntPoint.newExactQuery(INT_FIELD_NAME, 12), query);
         } else {
             LegacyNumericRangeQuery fuzzyQuery = (LegacyNumericRangeQuery) query;

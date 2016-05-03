@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.fasterxml.jackson.core.JsonParseException;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.support.InnerHitBuilder;
 import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -43,7 +41,8 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -108,18 +107,24 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
             assertEquals(queryBuilder.score() ? ScoreMode.Max : ScoreMode.None, lpq.getScoreMode());
         }
         if (queryBuilder.innerHit() != null) {
-            assertNotNull(SearchContext.current());
+            SearchContext searchContext = SearchContext.current();
+            assertNotNull(searchContext);
             if (query != null) {
-                assertNotNull(SearchContext.current().innerHits());
-                assertEquals(1, SearchContext.current().innerHits().getInnerHits().size());
-                assertTrue(SearchContext.current().innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
-                InnerHitsContext.BaseInnerHits innerHits = SearchContext.current().innerHits()
+                Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+                InnerHitBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
+                for (InnerHitBuilder builder : innerHitBuilders.values()) {
+                    builder.build(searchContext, searchContext.innerHits());
+                }
+                assertNotNull(searchContext.innerHits());
+                assertEquals(1, searchContext.innerHits().getInnerHits().size());
+                assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
+                InnerHitsContext.BaseInnerHits innerHits = searchContext.innerHits()
                         .getInnerHits().get(queryBuilder.innerHit().getName());
                 assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
                 assertEquals(innerHits.sort().getSort().length, 1);
                 assertEquals(innerHits.sort().getSort()[0].getField(), STRING_FIELD_NAME_2);
             } else {
-                assertThat(SearchContext.current().innerHits().getInnerHits().size(), equalTo(0));
+                assertThat(searchContext.innerHits().getInnerHits().size(), equalTo(0));
             }
         }
     }
@@ -158,27 +163,6 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
         HasParentQueryBuilder queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string(), ParseFieldMatcher.EMPTY);
         assertEquals("foo", queryBuilder.type());
-
-        boolean score = randomBoolean();
-        String key = RandomPicks.randomFrom(random(), Arrays.asList("score_mode", "scoreMode"));
-        builder = XContentFactory.jsonBuilder().prettyPrint();
-        builder.startObject();
-        builder.startObject("has_parent");
-        builder.field("query");
-        new TermQueryBuilder("a", "a").toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.field(key, score ? "score": "none");
-        builder.field("parent_type", "foo");
-        builder.endObject();
-        builder.endObject();
-        try {
-            parseQuery(builder.string());
-            fail(key + " is deprecated");
-        } catch (IllegalArgumentException ex) {
-            assertEquals("Deprecated field [" + key + "] used, replaced by [score]", ex.getMessage());
-        }
-
-        queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string(), ParseFieldMatcher.EMPTY);
-        assertEquals(score, queryBuilder.score());
     }
 
     public void testToQueryInnerQueryType() throws IOException {

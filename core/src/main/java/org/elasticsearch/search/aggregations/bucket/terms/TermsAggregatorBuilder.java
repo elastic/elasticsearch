@@ -71,7 +71,7 @@ public class TermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Values
     public TermsAggregatorBuilder(StreamInput in) throws IOException {
         super(in, StringTerms.TYPE, ValuesSourceType.ANY);
         bucketCountThresholds = new BucketCountThresholds(in);
-        collectMode = SubAggCollectionMode.BREADTH_FIRST.readFrom(in);
+        collectMode = SubAggCollectionMode.readFromStream(in);
         executionHint = in.readOptionalString();
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);

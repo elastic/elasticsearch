@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -93,11 +95,13 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     public static class ReduceContext {
 
         private final BigArrays bigArrays;
-        private ScriptService scriptService;
+        private final ScriptService scriptService;
+        private final ClusterState clusterState;
 
-        public ReduceContext(BigArrays bigArrays, ScriptService scriptService) {
+        public ReduceContext(BigArrays bigArrays, ScriptService scriptService, ClusterState clusterState) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
+            this.clusterState = clusterState;
         }
 
         public BigArrays bigArrays() {
@@ -106,6 +110,10 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
         public ScriptService scriptService() {
             return scriptService;
+        }
+
+        public ClusterState clusterState() {
+            return clusterState;
         }
     }
 

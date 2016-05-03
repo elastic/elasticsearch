@@ -20,25 +20,40 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
- *
+ * A value class representing the basic required properties of an Elasticsearch index.
  */
-public class Index implements Writeable<Index> {
+public class Index implements Writeable, ToXContent {
 
     public static final Index[] EMPTY_ARRAY = new Index[0];
+    private static final String INDEX_UUID_KEY = "index_uuid";
+    private static final String INDEX_NAME_KEY = "index_name";
+    private static final ObjectParser<Builder, ParseFieldMatcherSupplier> INDEX_PARSER = new ObjectParser<>("index", Builder::new);
+    static {
+        INDEX_PARSER.declareString(Builder::name, new ParseField(INDEX_NAME_KEY));
+        INDEX_PARSER.declareString(Builder::uuid, new ParseField(INDEX_UUID_KEY));
+    }
 
     private final String name;
     private final String uuid;
 
     public Index(String name, String uuid) {
-        this.name = name.intern();
-        this.uuid = uuid.intern();
+        this.name = Objects.requireNonNull(name).intern();
+        this.uuid = Objects.requireNonNull(uuid).intern();
     }
 
     /**
@@ -47,12 +62,6 @@ public class Index implements Writeable<Index> {
     public Index(StreamInput in) throws IOException {
         this.name = in.readString();
         this.uuid = in.readString();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeString(uuid);
     }
 
     public String getName() {
@@ -92,5 +101,47 @@ public class Index implements Writeable<Index> {
         int result = name.hashCode();
         result = 31 * result + uuid.hashCode();
         return result;
+    }
+
+    @Override
+    public void writeTo(final StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeString(uuid);
+    }
+
+    @Override
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        builder.startObject();
+        builder.field(INDEX_NAME_KEY, name);
+        builder.field(INDEX_UUID_KEY, uuid);
+        return builder.endObject();
+    }
+
+    public static Index fromXContent(final XContentParser parser) throws IOException {
+        return INDEX_PARSER.parse(parser, () -> ParseFieldMatcher.STRICT).build();
+    }
+
+    public static final Index parseIndex(final XContentParser parser, final ParseFieldMatcherSupplier supplier) {
+        return INDEX_PARSER.apply(parser, supplier).build();
+    }
+
+    /**
+     * Builder for Index objects.  Used by ObjectParser instances only.
+     */
+    final private static class Builder {
+        private String name;
+        private String uuid;
+
+        public void name(final String name) {
+            this.name = name;
+        }
+
+        public void uuid(final String uuid) {
+            this.uuid = uuid;
+        }
+
+        public Index build() {
+            return new Index(name, uuid);
+        }
     }
 }

@@ -20,8 +20,8 @@
 package org.elasticsearch.messy.tests;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
@@ -51,6 +51,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.scriptedMetric;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -101,20 +102,25 @@ public class ScriptedMetricTests extends ESIntegTestCase {
                     jsonBuilder().startObject().field("value", i * 2).endObject()));
         }
 
-        PutIndexedScriptResponse indexScriptResponse = client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "initScript_indexed", "{\"script\":\"vars.multiplier = 3\"}").get();
-        assertThat(indexScriptResponse.isCreated(), equalTo(true));
-        indexScriptResponse = client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "mapScript_indexed", "{\"script\":\"_agg.add(vars.multiplier)\"}").get();
-        assertThat(indexScriptResponse.isCreated(), equalTo(true));
-        indexScriptResponse = client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "combineScript_indexed",
-                "{\"script\":\"newaggregation = []; sum = 0;for (a in _agg) { sum += a}; newaggregation.add(sum); return newaggregation\"}")
-                .get();
-        assertThat(indexScriptResponse.isCreated(), equalTo(true));
-        indexScriptResponse = client().preparePutIndexedScript(
-                "groovy",
-                "reduceScript_indexed",
-                "{\"script\":\"newaggregation = []; sum = 0;for (agg in _aggs) { for (a in agg) { sum += a} }; newaggregation.add(sum); return newaggregation\"}")
-                .get();
-        assertThat(indexScriptResponse.isCreated(), equalTo(true));
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(GroovyScriptEngineService.NAME)
+                .setId("initScript_indexed")
+                .setSource(new BytesArray("{\"script\":\"vars.multiplier = 3\"}")));
+
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(GroovyScriptEngineService.NAME)
+                .setId("mapScript_indexed")
+                .setSource(new BytesArray("{\"script\":\"_agg.add(vars.multiplier)\"}")));
+
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(GroovyScriptEngineService.NAME)
+                .setId("combineScript_indexed")
+                .setSource(new BytesArray("{\"script\":\"newaggregation = []; sum = 0;for (a in _agg) { sum += a}; newaggregation.add(sum); return newaggregation\"}")));
+
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(GroovyScriptEngineService.NAME)
+                .setId("reduceScript_indexed")
+                .setSource(new BytesArray("{\"script\":\"newaggregation = []; sum = 0;for (agg in _aggs) { for (a in agg) { sum += a} }; newaggregation.add(sum); return newaggregation\"}")));
 
         indexRandom(true, builders);
         ensureSearchable();
@@ -595,10 +601,10 @@ public class ScriptedMetricTests extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         scriptedMetric("scripted").params(params)
-                                .initScript(new Script("initScript_indexed", ScriptType.INDEXED, null, null))
-                                .mapScript(new Script("mapScript_indexed", ScriptType.INDEXED, null, null))
-                                .combineScript(new Script("combineScript_indexed", ScriptType.INDEXED, null, null))
-                                .reduceScript(new Script("reduceScript_indexed", ScriptType.INDEXED, null, null))).execute().actionGet();
+                                .initScript(new Script("initScript_indexed", ScriptType.STORED, null, null))
+                                .mapScript(new Script("mapScript_indexed", ScriptType.STORED, null, null))
+                                .combineScript(new Script("combineScript_indexed", ScriptType.STORED, null, null))
+                                .reduceScript(new Script("reduceScript_indexed", ScriptType.STORED, null, null))).execute().actionGet();
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits(), equalTo(numDocs));
 

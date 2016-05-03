@@ -29,7 +29,7 @@ import java.io.IOException;
 /**
  * Holds the end result of what a pipeline did to sample document provided via the simulate api.
  */
-public final class SimulateDocumentBaseResult implements SimulateDocumentResult<SimulateDocumentBaseResult> {
+public final class SimulateDocumentBaseResult implements SimulateDocumentResult {
     private final WriteableIngestDocument ingestDocument;
     private final Exception failure;
 

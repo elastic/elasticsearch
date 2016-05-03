@@ -93,6 +93,8 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                 MetaData.Builder metaDataBuilder = MetaData.builder(meta);
                 ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
 
+                final IndexGraveyard.Builder graveyardBuilder = IndexGraveyard.builder(metaDataBuilder.indexGraveyard());
+                final int previousGraveyardSize = graveyardBuilder.tombstones().size();
                 for (final Index index : indices) {
                     String indexName = index.getName();
                     logger.debug("[{}] deleting index", index);
@@ -100,6 +102,12 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                     clusterBlocksBuilder.removeIndexBlocks(indexName);
                     metaDataBuilder.remove(indexName);
                 }
+                // add tombstones to the cluster state for each deleted index
+                final IndexGraveyard currentGraveyard = graveyardBuilder.addTombstones(indices).build(settings);
+                metaDataBuilder.indexGraveyard(currentGraveyard); // the new graveyard set on the metadata
+                logger.trace("{} tombstones purged from the cluster state. Previous tombstone size: {}. Current tombstone size: {}.",
+                    graveyardBuilder.getNumPurged(), previousGraveyardSize, currentGraveyard.getTombstones().size());
+
                 // wait for events from all nodes that it has been removed from their respective metadata...
                 int count = currentState.nodes().getSize();
                 // add the notifications that the store was deleted from *data* nodes

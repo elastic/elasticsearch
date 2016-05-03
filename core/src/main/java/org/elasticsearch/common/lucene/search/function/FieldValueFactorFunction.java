@@ -125,7 +125,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
      * The Type class encapsulates the modification types that can be applied
      * to the score/value product.
      */
-    public enum Modifier implements Writeable<Modifier> {
+    public enum Modifier implements Writeable {
         NONE {
             @Override
             public double apply(double n) {

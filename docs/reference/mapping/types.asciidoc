@@ -29,7 +29,7 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 [float]
 === Specialised datatypes
 
-<<ip>>::            `ip` for IPv4 addresses
+<<ip>>::            `ip` for IPv4 and IPv6 addresses
 <<search-suggesters-completion,Completion datatype>>::
                     `completion` to provide auto-complete suggestions
 <<token-count>>::   `token_count` to count the number of tokens in a string

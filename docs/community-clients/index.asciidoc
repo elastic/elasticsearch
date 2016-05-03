@@ -13,6 +13,7 @@ a number of clients that have been contributed by the community for various lang
 * <<haskell>>
 * <<java>>
 * <<javascript>>
+* <<kotlin>>
 * <<dotnet>>
 * <<ocaml>>
 * <<perl>>
@@ -104,6 +105,11 @@ The following project appears to be abandoned:
 * https://github.com/ramv/node-elastical[node-elastical]:
   Node.js client for the Elasticsearch REST API
 
+[[kotlin]]
+== kotlin
+
+* https://github.com/mbuhot/eskotlin[ES Kotlin]:
+  Elasticsearch Query DSL for kotlin based on the {client}/java-api/current/index.html[official Elasticsearch Java client].
 
 [[dotnet]]
 == .NET

@@ -40,8 +40,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
-public final class DirectCandidateGeneratorBuilder
-        implements CandidateGenerator {
+public final class DirectCandidateGeneratorBuilder implements CandidateGenerator {
 
     private static final String TYPE = "direct_generator";
 

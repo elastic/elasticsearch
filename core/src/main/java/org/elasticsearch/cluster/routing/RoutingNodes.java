@@ -397,7 +397,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         for (ShardRoutingState s : state) {
             if (s == ShardRoutingState.UNASSIGNED) {
                 for (ShardRouting unassignedShard : unassignedShards) {
-                    if (unassignedShard.index().equals(index)) {
+                    if (unassignedShard.index().getName().equals(index)) {
                         shards.add(unassignedShard);
                     }
                 }

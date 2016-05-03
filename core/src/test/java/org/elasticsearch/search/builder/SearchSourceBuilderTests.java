@@ -52,8 +52,6 @@ import org.elasticsearch.index.query.AbstractQueryTestCase;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.support.InnerHitBuilderTests;
-import org.elasticsearch.index.query.support.InnerHitsBuilder;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -409,14 +407,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
         }
         if (randomBoolean()) {
             builder.suggest(SuggestBuilderTests.randomSuggestBuilder());
-        }
-        if (randomBoolean()) {
-            InnerHitsBuilder innerHitsBuilder = new InnerHitsBuilder();
-            int num = randomIntBetween(0, 3);
-            for (int i = 0; i < num; i++) {
-                innerHitsBuilder.addInnerHit(randomAsciiOfLengthBetween(5, 20), InnerHitBuilderTests.randomInnerHits());
-            }
-            builder.innerHits(innerHitsBuilder);
         }
         if (randomBoolean()) {
             int numRescores = randomIntBetween(1, 5);

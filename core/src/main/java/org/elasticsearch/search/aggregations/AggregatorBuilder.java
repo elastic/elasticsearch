@@ -36,8 +36,7 @@ import java.util.Objects;
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
-public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extends ToXContentToBytes
-        implements NamedWriteable<AB>, ToXContent {
+public abstract class AggregatorBuilder<AB extends AggregatorBuilder<AB>> extends ToXContentToBytes implements NamedWriteable, ToXContent {
 
     protected String name;
     protected Type type;

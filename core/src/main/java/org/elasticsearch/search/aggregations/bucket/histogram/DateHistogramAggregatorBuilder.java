@@ -49,19 +49,13 @@ public class DateHistogramAggregatorBuilder extends AbstractHistogramBuilder<Dat
      */
     public DateHistogramAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalDateHistogram.HISTOGRAM_FACTORY);
-        if (in.readBoolean()) {
-            dateHistogramInterval = DateHistogramInterval.readFromStream(in);
-        }
+        dateHistogramInterval = in.readOptionalWriteable(DateHistogramInterval::new);
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         super.innerWriteTo(out);
-        boolean hasDateInterval = dateHistogramInterval != null;
-        out.writeBoolean(hasDateInterval);
-        if (hasDateInterval) {
-            dateHistogramInterval.writeTo(out);
-        }
+        out.writeOptionalWriteable(dateHistogramInterval);
     }
 
     /**

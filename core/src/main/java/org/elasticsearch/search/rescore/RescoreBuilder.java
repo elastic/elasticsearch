@@ -38,7 +38,7 @@ import java.util.Objects;
 /**
  * The abstract base builder for instances of {@link RescoreBuilder}.
  */
-public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> extends ToXContentToBytes implements NamedWriteable<RB> {
+public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> extends ToXContentToBytes implements NamedWriteable {
 
     protected Integer windowSize;
 

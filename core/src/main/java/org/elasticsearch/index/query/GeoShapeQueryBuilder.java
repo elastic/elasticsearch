@@ -154,8 +154,8 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             indexedShapeIndex = in.readOptionalString();
             indexedShapePath = in.readOptionalString();
         }
-        relation = ShapeRelation.DISJOINT.readFrom(in);
-        strategy = in.readOptionalWriteable(SpatialStrategy.RECURSIVE::readFrom);
+        relation = ShapeRelation.readFromStream(in);
+        strategy = in.readOptionalWriteable(SpatialStrategy::readFromStream);
         ignoreUnmapped = in.readBoolean();
     }
 

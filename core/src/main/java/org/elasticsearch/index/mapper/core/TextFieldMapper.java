@@ -146,7 +146,7 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
             parseTextField(builder, fieldName, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String propName = Strings.toUnderscoreCase(entry.getKey());
+                String propName = entry.getKey();
                 Object propNode = entry.getValue();
                 if (propName.equals("position_increment_gap")) {
                     int newPositionIncrementGap = XContentMapValues.nodeIntegerValue(propNode, -1);
@@ -294,7 +294,7 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             if (fielddata == false) {
-                throw new IllegalStateException("Fielddata is disabled on text fields by default. Set fielddata=true on [" + name()
+                throw new IllegalArgumentException("Fielddata is disabled on text fields by default. Set fielddata=true on [" + name()
                         + "] in order to load fielddata in memory by uninverting the inverted index. Note that this can however "
                         + "use significant memory.");
             }
@@ -304,6 +304,7 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         @Override
         public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
                 @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
+            failIfNotIndexed();
             RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), flags, maxDeterminizedStates);
             if (method != null) {
                 query.setRewriteMethod(method);

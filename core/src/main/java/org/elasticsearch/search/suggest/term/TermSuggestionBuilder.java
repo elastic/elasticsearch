@@ -491,7 +491,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     }
 
     /** An enum representing the valid suggest modes. */
-    public enum SuggestMode implements Writeable<SuggestMode> {
+    public enum SuggestMode implements Writeable {
         /** Only suggest terms in the suggest text that aren't in the index. This is the default. */
         MISSING {
             @Override
@@ -536,7 +536,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     }
 
     /** An enum representing the valid string edit distance algorithms for determining suggestions. */
-    public enum StringDistanceImpl implements Writeable<StringDistanceImpl> {
+    public enum StringDistanceImpl implements Writeable {
         /** This is the default and is based on <code>damerau_levenshtein</code>, but highly optimized
          * for comparing string distance for terms inside the index. */
         INTERNAL {

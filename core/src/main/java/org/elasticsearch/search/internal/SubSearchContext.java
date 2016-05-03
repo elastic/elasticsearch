@@ -88,11 +88,6 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public SearchContext searchType(SearchType searchType) {
-        throw new UnsupportedOperationException("this context should be read only");
-    }
-
-    @Override
     public SearchContext queryBoost(float queryBoost) {
         throw new UnsupportedOperationException("Not supported");
     }

@@ -494,7 +494,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         }
     }
 
-    public enum Order implements Writeable<Order> {
+    public enum Order implements Writeable {
         NONE, SCORE;
 
         public static Order readFromStream(StreamInput in) throws IOException {

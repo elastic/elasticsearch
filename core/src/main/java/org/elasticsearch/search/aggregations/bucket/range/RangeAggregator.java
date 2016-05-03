@@ -57,7 +57,7 @@ public class RangeAggregator extends BucketsAggregator {
     public static final ParseField RANGES_FIELD = new ParseField("ranges");
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
 
-    public static class Range implements Writeable<Range>, ToXContent {
+    public static class Range implements Writeable, ToXContent {
         public static final ParseField KEY_FIELD = new ParseField("key");
         public static final ParseField FROM_FIELD = new ParseField("from");
         public static final ParseField TO_FIELD = new ParseField("to");

@@ -188,7 +188,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             try {
                 ifds.getForField(ft);
                 fail();
-            } catch (IllegalStateException e) {
+            } catch (IllegalArgumentException e) {
                 assertThat(e.getMessage(), containsString("doc values"));
             }
         } finally {

@@ -85,7 +85,7 @@ public class DynamicTemplate implements ToXContent {
         String matchPattern = MatchType.SIMPLE.toString();
 
         for (Map.Entry<String, Object> entry : conf.entrySet()) {
-            String propName = Strings.toUnderscoreCase(entry.getKey());
+            String propName = entry.getKey();
             if ("match".equals(propName)) {
                 match = entry.getValue().toString();
             } else if ("path_match".equals(propName)) {

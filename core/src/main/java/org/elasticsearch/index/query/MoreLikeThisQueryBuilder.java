@@ -147,7 +147,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     /**
      * A single item to be used for a {@link MoreLikeThisQueryBuilder}.
      */
-    public static final class Item implements ToXContent, Writeable<Item> {
+    public static final class Item implements ToXContent, Writeable {
         public static final Item[] EMPTY_ARRAY = new Item[0];
 
         public interface Field {

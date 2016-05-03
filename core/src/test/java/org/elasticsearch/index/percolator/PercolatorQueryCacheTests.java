@@ -43,6 +43,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -120,8 +121,9 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         mapperService.merge("type", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("type", fields).string()),
                 MapperService.MergeReason.MAPPING_UPDATE, false);
         cache = new PercolatorQueryCache(idxSettings, () -> queryShardContext);
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
         queryShardContext = new QueryShardContext(idxSettings, null, null, mapperService, similarityService, null,
-                    indicesQueriesRegistry, cache, null);
+                    indicesQueriesRegistry, null, cache, null, state);
     }
 
     public void testLoadQueries() throws Exception {

@@ -144,7 +144,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 "}\n";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
         Query expected;
-        if (getIndexVersionCreated().onOrAfter(Version.V_5_0_0)) {
+        if (getIndexVersionCreated().onOrAfter(Version.V_5_0_0_alpha2)) {
             expected = IntPoint.newRangeQuery(INT_FIELD_NAME, 7, 17);
         } else {
             expected = LegacyNumericRangeQuery.newIntRange(INT_FIELD_NAME, 7, 17, true, true);

@@ -55,6 +55,14 @@ import java.util.Map;
 
 /**
  * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
+ *
+ * This class's methods are optimized so you can put the methods that read and write a class next to each other and you can scan them
+ * visually for differences. That means that most variables should be read and written in a single line so even large objects fit both
+ * reading and writing on the screen. It also means that the methods on this class are named very similarly to {@link StreamInput}. Finally
+ * it means that the "barrier to entry" for adding new methods to this class is relatively low even though it is a shared class with code
+ * everywhere. That being said, this class deals primarily with {@code List}s rather than Arrays. For the most part calls should adapt to
+ * lists, either by storing {@code List}s internally or just converting to and from a {@code List} when calling. This comment is repeated
+ * on {@link StreamInput}.
  */
 public abstract class StreamOutput extends OutputStream {
 
@@ -544,7 +552,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeOptionalWriteable(@Nullable Writeable<?> writeable) throws IOException {
+    public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
         if (writeable != null) {
             writeBoolean(true);
             writeable.writeTo(this);
@@ -675,7 +683,7 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a {@link NamedWriteable} to the current stream, by first writing its name and then the object itself
      */
-    public void writeNamedWriteable(NamedWriteable<?> namedWriteable) throws IOException {
+    public void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
         writeString(namedWriteable.getWriteableName());
         namedWriteable.writeTo(this);
     }
@@ -683,7 +691,7 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Write an optional {@link NamedWriteable} to the stream.
      */
-    public void writeOptionalNamedWriteable(@Nullable NamedWriteable<?> namedWriteable) throws IOException {
+    public void writeOptionalNamedWriteable(@Nullable NamedWriteable namedWriteable) throws IOException {
         if (namedWriteable == null) {
             writeBoolean(false);
         } else {
@@ -722,7 +730,7 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Writes a list of {@link Writeable} objects
      */
-    public <T extends Writeable<T>> void writeList(List<T> list) throws IOException {
+    public <T extends Writeable> void writeList(List<T> list) throws IOException {
         writeVInt(list.size());
         for (T obj: list) {
             obj.writeTo(this);

@@ -29,7 +29,6 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -204,6 +203,9 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha1)) {
                 final Object index = node.get("index");
+                if (Arrays.asList(null, "no", "not_analyzed", "analyzed").contains(index) == false) {
+                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [no], [not_analyzed] or [analyzed]");
+                }
                 final boolean keyword = index != null && "analyzed".equals(index) == false;
 
                 // Automatically upgrade simple mappings for ease of upgrade, otherwise fail
@@ -269,7 +271,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             // the index property and still accepts no/not_analyzed/analyzed
             final Object index = node.remove("index");
             if (index != null) {
-                final String normalizedIndex = Strings.toUnderscoreCase(index.toString());
+                final String normalizedIndex = index.toString();
                 switch (normalizedIndex) {
                 case "analyzed":
                     builder.tokenized(true);
@@ -283,7 +285,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                     node.put("index", false);
                     break;
                 default:
-                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
+                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [no], [not_analyzed] or [analyzed]");
                 }
             }
             final Object fielddataObject = node.get("fielddata");
@@ -304,7 +306,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             parseTextField(builder, fieldName, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String propName = Strings.toUnderscoreCase(entry.getKey());
+                String propName = entry.getKey();
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
                     if (propNode == null) {
@@ -478,7 +480,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             } else if (fielddata) {
                 return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
             } else {
-                throw new IllegalStateException("Fielddata is disabled on analyzed string fields by default. Set fielddata=true on ["
+                throw new IllegalArgumentException("Fielddata is disabled on analyzed string fields by default. Set fielddata=true on ["
                         + name() + "] in order to load fielddata in memory by uninverting the inverted index. Note that this can however "
                         + "use significant memory.");
             }

@@ -43,7 +43,7 @@ import java.util.Map;
  * Each InternalProfileResult has a List of InternalProfileResults, which will contain
  * "children" queries if applicable
  */
-final class ProfileResult implements Writeable<ProfileResult>, ToXContent {
+final class ProfileResult implements Writeable, ToXContent {
 
     private static final ParseField QUERY_TYPE = new ParseField("query_type");
     private static final ParseField LUCENE_DESCRIPTION = new ParseField("lucene");
@@ -57,7 +57,8 @@ final class ProfileResult implements Writeable<ProfileResult>, ToXContent {
     private final long nodeTime;
     private final List<ProfileResult> children;
 
-    public ProfileResult(String queryType, String luceneDescription, Map<String, Long> timings, List<ProfileResult> children, long nodeTime) {
+    public ProfileResult(String queryType, String luceneDescription, Map<String, Long> timings, List<ProfileResult> children,
+            long nodeTime) {
         this.queryType = queryType;
         this.luceneDescription = luceneDescription;
         this.timings = timings;
@@ -65,6 +66,9 @@ final class ProfileResult implements Writeable<ProfileResult>, ToXContent {
         this.nodeTime = nodeTime;
     }
 
+    /**
+     * Read from a stream.
+     */
     public ProfileResult(StreamInput in) throws IOException{
         this.queryType = in.readString();
         this.luceneDescription = in.readString();
@@ -81,6 +85,22 @@ final class ProfileResult implements Writeable<ProfileResult>, ToXContent {
 
         for (int i = 0; i < size; i++) {
             children.add(new ProfileResult(in));
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(queryType);
+        out.writeString(luceneDescription);
+        out.writeLong(nodeTime);            // not Vlong because can be negative
+        out.writeVInt(timings.size());
+        for (Map.Entry<String, Long> entry : timings.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeLong(entry.getValue());
+        }
+        out.writeVInt(children.size());
+        for (ProfileResult child : children) {
+            child.writeTo(out);
         }
     }
 
@@ -119,27 +139,6 @@ final class ProfileResult implements Writeable<ProfileResult>, ToXContent {
      */
     public List<ProfileResult> getProfiledChildren() {
         return Collections.unmodifiableList(children);
-    }
-
-    @Override
-    public ProfileResult readFrom(StreamInput in) throws IOException {
-        return new ProfileResult(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(queryType);
-        out.writeString(luceneDescription);
-        out.writeLong(nodeTime);            // not Vlong because can be negative
-        out.writeVInt(timings.size());
-        for (Map.Entry<String, Long> entry : timings.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeLong(entry.getValue());
-        }
-        out.writeVInt(children.size());
-        for (ProfileResult child : children) {
-            child.writeTo(out);
-        }
     }
 
     @Override

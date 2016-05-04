@@ -45,8 +45,12 @@ import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper.DoubleFieldType;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper.Nested;
+import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -250,6 +254,18 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         doubleFieldType.setName(name);
         doubleFieldType.setHasDocValues(true);
         return doubleFieldType;
+    }
+
+    protected static QueryBuilder<?> randomNestedFilter() {
+        int id = randomIntBetween(0, 2);
+        switch(id) {
+            case 0: return (new MatchAllQueryBuilder()).boost(randomFloat());
+            case 1: return (new IdsQueryBuilder()).boost(randomFloat());
+            case 2: return (new TermQueryBuilder(
+                    randomAsciiOfLengthBetween(1, 10),
+                    randomDouble()).boost(randomFloat()));
+            default: throw new IllegalStateException("Only three query builders supported for testing sort");
+        }
     }
 
     @SuppressWarnings("unchecked")

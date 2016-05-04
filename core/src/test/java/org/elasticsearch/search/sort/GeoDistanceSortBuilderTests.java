@@ -84,16 +84,19 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.unit(ESTestCase.randomValueOtherThan(result.unit(), () -> randomFrom(DistanceUnit.values())));
         }
         if (randomBoolean()) {
-            result.order(RandomSortDataGenerator.order(null));
+            result.order(randomFrom(SortOrder.values()));
         }
         if (randomBoolean()) {
             result.sortMode(ESTestCase.randomValueOtherThan(SortMode.SUM, () -> randomFrom(SortMode.values())));
         }
         if (randomBoolean()) {
-            result.setNestedFilter(RandomSortDataGenerator.nestedFilter(result.getNestedFilter()));
+            result.setNestedFilter(randomNestedFilter());
         }
         if (randomBoolean()) {
-            result.setNestedPath(RandomSortDataGenerator.randomAscii(result.getNestedPath()));
+            result.setNestedPath(
+                    randomValueOtherThan(
+                            result.getNestedPath(),
+                            () -> randomAsciiOfLengthBetween(1, 10)));
         }
         if (randomBoolean()) {
             result.validation(ESTestCase.randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
@@ -150,7 +153,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.unit(ESTestCase.randomValueOtherThan(result.unit(), () -> randomFrom(DistanceUnit.values())));
             break;
         case 4:
-            result.order(RandomSortDataGenerator.order(original.order()));
+            result.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
             break;
         case 5:
             result.sortMode(ESTestCase.randomValueOtherThanMany(
@@ -158,10 +161,14 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                     () -> randomFrom(SortMode.values())));
             break;
         case 6:
-            result.setNestedFilter(RandomSortDataGenerator.nestedFilter(original.getNestedFilter()));
+            result.setNestedFilter(randomValueOtherThan(
+                    original.getNestedFilter(),
+                    () -> randomNestedFilter()));
             break;
         case 7:
-            result.setNestedPath(RandomSortDataGenerator.randomAscii(original.getNestedPath()));
+            result.setNestedPath(randomValueOtherThan(
+                    result.getNestedPath(),
+                    () -> randomAsciiOfLengthBetween(1, 10)));
             break;
         case 8:
             result.validation(ESTestCase.randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));

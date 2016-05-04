@@ -36,7 +36,6 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
@@ -81,13 +80,13 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.geoDistance(geoDistance(result.geoDistance()));
         }
         if (randomBoolean()) {
-            result.unit(ESTestCase.randomValueOtherThan(result.unit(), () -> randomFrom(DistanceUnit.values())));
+            result.unit(randomValueOtherThan(result.unit(), () -> randomFrom(DistanceUnit.values())));
         }
         if (randomBoolean()) {
             result.order(randomFrom(SortOrder.values()));
         }
         if (randomBoolean()) {
-            result.sortMode(ESTestCase.randomValueOtherThan(SortMode.SUM, () -> randomFrom(SortMode.values())));
+            result.sortMode(randomValueOtherThan(SortMode.SUM, () -> randomFrom(SortMode.values())));
         }
         if (randomBoolean()) {
             result.setNestedFilter(randomNestedFilter());
@@ -99,7 +98,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                             () -> randomAsciiOfLengthBetween(1, 10)));
         }
         if (randomBoolean()) {
-            result.validation(ESTestCase.randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
+            result.validation(randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
         }
 
         return result;
@@ -150,14 +149,14 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.geoDistance(geoDistance(original.geoDistance()));
             break;
         case 3:
-            result.unit(ESTestCase.randomValueOtherThan(result.unit(), () -> randomFrom(DistanceUnit.values())));
+            result.unit(randomValueOtherThan(result.unit(), () -> randomFrom(DistanceUnit.values())));
             break;
         case 4:
             result.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
             break;
         case 5:
-            result.sortMode(ESTestCase.randomValueOtherThanMany(
-                    Arrays.asList(SortMode.SUM, result.sortMode()),
+            result.sortMode(randomValueOtherThanMany(
+                    Arrays.asList(SortMode.SUM, result.sortMode())::contains,
                     () -> randomFrom(SortMode.values())));
             break;
         case 6:
@@ -171,7 +170,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                     () -> randomAsciiOfLengthBetween(1, 10)));
             break;
         case 8:
-            result.validation(ESTestCase.randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
+            result.validation(randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
             break;
         }
         return result;

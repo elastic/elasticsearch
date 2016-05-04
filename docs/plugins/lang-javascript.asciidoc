@@ -48,7 +48,7 @@ Scripting is available in many APIs, but we will use an example with the
 WARNING: Enabling inline scripting on an unprotected Elasticsearch cluster is dangerous.
 See <<lang-javascript-file>> for a safer option.
 
-If you have enabled {ref}/modules-scripting.html#enable-dynamic-scripting[inline scripts],
+If you have enabled {ref}/modules-scripting-security.html#enable-dynamic-scripting[inline scripts],
 you can use JavaScript as follows:
 
 [source,json]
@@ -84,14 +84,14 @@ GET test/_search
 ----
 // AUTOSENSE
 
-[[lang-javascript-indexed]]
+[[lang-javascript-stored]]
 [float]
-=== Indexed scripts
+=== Stored scripts
 
-WARNING: Enabling indexed scripting on an unprotected Elasticsearch cluster is dangerous.
+WARNING: Enabling stored scripts on an unprotected Elasticsearch cluster is dangerous.
 See <<lang-javascript-file>> for a safer option.
 
-If you have enabled {ref}/modules-scripting.html#enable-dynamic-scripting[indexed scripts],
+If you have enabled {ref}/modules-scripting-security.html#enable-dynamic-scripting[stored scripts],
 you can use JavaScript as follows:
 
 [source,json]
@@ -133,7 +133,7 @@ GET test/_search
 ----
 // AUTOSENSE
 
-<1> We index the script under the id `my_script`.
+<1> We store the script under the id `my_script`.
 <2> The function score query retrieves the script with id `my_script`.
 
 

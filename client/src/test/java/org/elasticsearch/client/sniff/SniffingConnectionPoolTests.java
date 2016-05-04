@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.sniff;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;

@@ -17,13 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.sniff;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.elasticsearch.client.AbstractStaticConnectionPool;
+import org.elasticsearch.client.StatefulConnection;
 
 import java.io.IOException;
 import java.util.Iterator;

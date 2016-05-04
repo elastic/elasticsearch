@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client;
+package org.elasticsearch.client.sniff;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
@@ -33,6 +33,9 @@ import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.sniff.Sniffer;
+import org.elasticsearch.client.sniff.SniffingConnectionPool;
 import org.junit.After;
 import org.junit.Before;
 

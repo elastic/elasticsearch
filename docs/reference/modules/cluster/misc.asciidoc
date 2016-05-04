@@ -35,7 +35,7 @@ within the maximum allowed.  If your use case involves a large amount of regular
 deletions (on the order of hundreds per day) and you tend to have cluster instability 
 with nodes leaving and rejoining frequently, you may want to increase this setting to 
 something higher (even potentially much higher, depending on how many index deletions 
-you have).  Otherwise, you may see occasional deleted indices re-imported as dangling
+you have).  Otherwise, you may occasionally see deleted indices re-imported as dangling
 indices.
 
 

@@ -20,6 +20,9 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.common.lucene.Lucene;
@@ -30,6 +33,7 @@ import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,6 +60,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
 
     final List<Entry> entries = new ArrayList<>();
     BucketCollector collector;
+    final AggregationContext aggContext;
     LeafReaderContext context;
     PackedLongValues.Builder docDeltas;
     PackedLongValues.Builder buckets;
@@ -64,7 +69,8 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     LongHash selectedBuckets;
 
     /** Sole constructor. */
-    public BestBucketsDeferringCollector() {
+    public BestBucketsDeferringCollector(AggregationContext context) {
+        this.aggContext = context;
     }
 
     @Override
@@ -139,19 +145,34 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         this.selectedBuckets = hash;
 
         collector.preCollection();
-        if (collector.needsScores()) {
-            throw new IllegalStateException("Cannot defer if scores are needed");
+        boolean needsScores = collector.needsScores();
+        Weight weight = null;
+        if (needsScores) {
+            weight = aggContext.searchContext().searcher()
+                        .createNormalizedWeight(aggContext.searchContext().query(), true);
         }
-
         for (Entry entry : entries) {
             final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);
-            leafCollector.setScorer(Lucene.illegalScorer("A limitation of the " + SubAggCollectionMode.BREADTH_FIRST
-                    + " collection mode is that scores cannot be buffered along with document IDs"));
+            DocIdSetIterator docIt = null;
+            if (needsScores && entry.docDeltas.size() > 0) {
+                Scorer scorer = weight.scorer(entry.context);
+                // We don't need to check if the scorer is null
+                // since we are sure that there are documents to replay (entry.docDeltas it not empty).
+                docIt = scorer.iterator();
+                leafCollector.setScorer(scorer);
+            }
             final PackedLongValues.Iterator docDeltaIterator = entry.docDeltas.iterator();
             final PackedLongValues.Iterator buckets = entry.buckets.iterator();
             int doc = 0;
             for (long i = 0, end = entry.docDeltas.size(); i < end; ++i) {
                 doc += docDeltaIterator.next();
+                if (needsScores) {
+                    if (docIt.docID() < doc) {
+                        docIt.advance(doc);
+                    }
+                    // aggregations should only be replayed on matching documents
+                    assert docIt.docID() == doc;
+                }
                 final long bucket = buckets.next();
                 final long rebasedBucket = hash.find(bucket);
                 if (rebasedBucket != -1) {

@@ -23,7 +23,9 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.writer.Shared;
+import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.List;
 import java.util.Map;
@@ -38,7 +40,7 @@ public class LBrace extends Link {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    protected Link analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
@@ -50,8 +52,9 @@ public class LBrace extends Link {
             expression.analyze(settings, definition, variables);
             expression = expression.cast(definition);
 
-            after = definition.getType(before.struct, before.type.getDimensions() - 1);
-            target = new TArray(location, before, expression);
+            after = definition.getType(before.struct, before.dimensions - 1);
+
+            return this;
         } else if (sort == Sort.DEF) {
             expression.expected = definition.objectType;
             expression.analyze(settings, definition, variables);
@@ -76,6 +79,9 @@ public class LBrace extends Link {
             } catch (final ClassCastException exception) {
                 // Do nothing.
             }
+
+            final boolean load = !last || parent.read;
+            final boolean store = last && parent.expression != null;
 
             if (map) {
                 final Method getter = before.struct.methods.get("get");
@@ -135,6 +141,53 @@ public class LBrace extends Link {
             } else {
                 throw new IllegalArgumentException(error("Illegal array access on type [" + before.name + "]."));
             }
+        }
+    }
+
+    @Override
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        if (first && parent.cat) {
+            Shared.writeNewStrings(adapter);
+        }
+
+        expression.write(adapter);
+
+        if (last && parent.expression != null) {
+            if (parent.cat) {
+                adapter.dup2X1();
+                adapter.arrayLoad(before.type);
+                Shared.writeAppendStrings(adapter, after.sort);
+                parent.expression.write(adapter);
+                Shared.writeToStrings(adapter);
+                Shared.writeCast(adapter, parent.back);
+
+                if (parent.read) {
+                    Shared.writeDup(adapter, after.sort.size, false, true);
+                }
+
+                adapter.arrayStore(before.type);
+            } else if (parent.operation != null) {
+                adapter.dup2();
+                adapter.arrayLoad(before.type);
+
+                if (parent.read && parent.post) {
+                    Shared.writeDup(adapter, after.sort.size, false, true);
+                }
+
+                Shared.writeCast(adapter, parent.there);
+                parent.expression.write(adapter);
+
+                if (settings.getNumericOverflow() || !parent.expression.typesafe || !parent.operation.exact ||
+                    !Shared.writeExactInstruction(definition, adapter, parent.expression.actual.sort, after.sort)) {
+                    Shared.writeCast(adapter, parent.back);
+                }
+
+
+            } else {
+
+            }
+        } else {
+            adapter.arrayLoad(before.type);
         }
     }
 }

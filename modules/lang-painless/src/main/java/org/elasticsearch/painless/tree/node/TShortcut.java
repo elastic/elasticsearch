@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.tree.utility.Operation;
+import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class TShortcut extends Target {

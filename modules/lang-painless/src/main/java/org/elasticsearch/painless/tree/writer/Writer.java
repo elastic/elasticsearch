@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.tree.walker.writer;
+package org.elasticsearch.painless.tree.writer;
 
 public class Writer {
 }

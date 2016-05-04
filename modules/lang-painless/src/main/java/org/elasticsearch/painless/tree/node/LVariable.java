@@ -22,8 +22,8 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.tree.utility.Variables;
-import org.elasticsearch.painless.tree.utility.Variables.Variable;
+import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.analyzer.Variables.Variable;
 
 public class LVariable extends Link {
     protected final String name;

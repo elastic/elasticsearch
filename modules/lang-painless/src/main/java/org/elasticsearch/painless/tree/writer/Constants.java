@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.tree.walker.writer;
+package org.elasticsearch.painless.tree.writer;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Executable;
@@ -29,7 +29,7 @@ import org.objectweb.asm.commons.Method;
 import java.lang.invoke.MethodType;
 import java.util.Map;
 
-public class WriterConstants {
+public class Constants {
     public final static String BASE_CLASS_NAME = Executable.class.getName();
     public final static String CLASS_NAME      = BASE_CLASS_NAME + "$CompiledPainlessExecutable";
     public final static Type BASE_CLASS_TYPE   = Type.getType(Executable.class);
@@ -150,5 +150,5 @@ public class WriterConstants {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());
     }
 
-    private WriterConstants() {}
+    private Constants() {}
 }

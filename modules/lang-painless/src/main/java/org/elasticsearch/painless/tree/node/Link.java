@@ -22,12 +22,13 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public abstract class Link extends Node {
-    protected boolean load = true;
-    protected boolean store = false;
+    protected EChain parent = null;
+    protected boolean first = false;
+    protected boolean last = false;
 
     protected boolean statik = false;
     protected Type before = null;
@@ -36,15 +37,10 @@ public abstract class Link extends Node {
     protected boolean statement = false;
     protected Object constant = null;
 
-    protected Target target = null;
-
     public Link(final String location) {
         super(location);
     }
 
     protected abstract Link analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
-
-    protected abstract void load(final GeneratorAdapter adapter);
-    protected abstract void store(final GeneratorAdapter adapter);
-    protected abstract void dup(final GeneratorAdapter adapter, final boolean cat, final boolean read);
+    protected abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
 }

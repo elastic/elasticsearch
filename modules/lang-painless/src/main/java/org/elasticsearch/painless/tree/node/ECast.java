@@ -23,8 +23,8 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.tree.utility.Caster;
-import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.tree.analyzer.Caster;
+import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class ECast extends Expression {

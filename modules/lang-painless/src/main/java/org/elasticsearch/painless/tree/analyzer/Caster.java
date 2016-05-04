@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.tree.utility;
+package org.elasticsearch.painless.tree.analyzer;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;

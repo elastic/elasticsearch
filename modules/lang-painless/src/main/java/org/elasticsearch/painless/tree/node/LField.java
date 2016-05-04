@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.tree.analyzer.Variables;
 
 import java.util.List;
 import java.util.Map;

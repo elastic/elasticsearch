@@ -24,9 +24,9 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.tree.utility.Caster;
-import org.elasticsearch.painless.tree.utility.Operation;
-import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.tree.analyzer.Caster;
+import org.elasticsearch.painless.tree.analyzer.Operation;
+import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.Collections;
@@ -36,7 +36,7 @@ public class EChain extends Expression {
     protected final List<Link> links;
     protected final boolean pre;
     protected final boolean post;
-    protected final Operation store;
+    protected final Operation operation;
     protected Expression expression;
 
     protected boolean cat = false;
@@ -44,32 +44,27 @@ public class EChain extends Expression {
     protected Cast back = null;
 
     public EChain(final String location, final List<Link> links,
-                  final boolean pre, final boolean post, final Operation store, final Expression expression) {
+                  final boolean pre, final boolean post, final Operation operation, final Expression expression) {
         super(location);
 
         this.links = Collections.unmodifiableList(links);
         this.pre = pre;
         this.post = post;
-        this.store = store;
+        this.operation = operation;
         this.expression = expression;
     }
 
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        final Link last = links.get(links.size() - 1);
         Link previous = null;
 
         for (int index = 0; index < links.size(); ++index) {
-            Link current = links.get(index);
+            final Link current = links.get(index);
+            current.parent= this;
 
             if (previous != null) {
                 current.before = previous.after;
                 current.statik = previous.statik;
-            }
-
-            if (current == last) {
-                current.load = read;
-                current.store = expression != null;
             }
 
             previous = current.analyze(settings, definition, variables);
@@ -78,6 +73,12 @@ public class EChain extends Expression {
                 links.set(index, previous);
             }
         }
+
+        final Link first = links.get(0);
+        final Link last = links.get(links.size() - 1);
+
+        first.first = true;
+        last.last = true;
 
         if (pre && post) {
             throw new IllegalStateException(error("Illegal tree structure."));
@@ -88,7 +89,7 @@ public class EChain extends Expression {
 
             final Sort sort = last.after.sort;
 
-            if (store == Operation.INCR) {
+            if (operation == Operation.INCR) {
                 if (sort == Sort.DOUBLE) {
                     expression = new EConstant(location, 1D);
                 } else if (sort == Sort.FLOAT) {
@@ -98,7 +99,7 @@ public class EChain extends Expression {
                 } else {
                     expression = new EConstant(location, 1);
                 }
-            } else if (store == Operation.DECR) {
+            } else if (operation == Operation.DECR) {
                 if (sort == Sort.DOUBLE) {
                     expression = new EConstant(location, -1D);
                 } else if (sort == Sort.FLOAT) {
@@ -113,36 +114,36 @@ public class EChain extends Expression {
             }
         }
 
-        if (store != null) {
+        if (operation != null) {
             expression.analyze(settings, definition, variables);
 
             final Type promote;
 
-            if (store == Operation.MUL) {
+            if (operation == Operation.MUL) {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
-            } else if (store == Operation.DIV) {
+            } else if (operation == Operation.DIV) {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
-            } else if (store == Operation.REM) {
+            } else if (operation == Operation.REM) {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
-            } else if (store == Operation.ADD) {
+            } else if (operation == Operation.ADD) {
                 promote = Caster.promoteAdd(definition, last.after, expression.actual);
-            } else if (store == Operation.SUB) {
+            } else if (operation == Operation.SUB) {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
-            } else if (store == Operation.LSH) {
+            } else if (operation == Operation.LSH) {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, false, true);
-            } else if (store == Operation.RSH) {
+            } else if (operation == Operation.RSH) {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, false, true);
-            } else if (store == Operation.USH) {
+            } else if (operation == Operation.USH) {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, false, true);
-            } else if (store == Operation.AND) {
+            } else if (operation == Operation.AND) {
                 promote = Caster.promoteXor(definition, last.after, expression.actual);
-            } else if (store == Operation.XOR) {
+            } else if (operation == Operation.XOR) {
                 promote = Caster.promoteXor(definition, last.after, expression.actual);
-            } else if (store == Operation.OR) {
+            } else if (operation == Operation.OR) {
                 promote = Caster.promoteXor(definition, last.after, expression.actual);
-            } else if (store == Operation.INCR) {
+            } else if (operation == Operation.INCR) {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
-            } else if (store == Operation.DECR) {
+            } else if (operation == Operation.DECR) {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
@@ -153,7 +154,7 @@ public class EChain extends Expression {
                     "types [" + last.after + "] and [" + expression.actual + "].");
             }
 
-            cat = store == Operation.ADD && promote.sort == Sort.STRING;
+            cat = operation == Operation.ADD && promote.sort == Sort.STRING;
 
             if (cat) {
                 expression.expected = expression.actual;
@@ -187,21 +188,9 @@ public class EChain extends Expression {
     }
 
     @Override
-    protected void write(final GeneratorAdapter adapter) {
-        if (cat) {
-
-        }
-
-        final Link last = links.get(links.size() - 1);
-
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         for (final Link link : links) {
-            if (link == last && expression != null) {
-                if (cat) {
-
-                }
-            } else {
-                link.load(adapter);
-            }
+            link.write(settings, definition, adapter);
         }
     }
 }

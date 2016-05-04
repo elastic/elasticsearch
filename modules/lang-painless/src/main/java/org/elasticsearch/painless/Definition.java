@@ -82,14 +82,16 @@ public class Definition {
 
     public static final class Type {
         public final String name;
+        public final int dimensions;
         public final Struct struct;
         public final Class<?> clazz;
         public final org.objectweb.asm.Type type;
         public final Sort sort;
 
-        private Type(final String name, final Struct struct, final Class<?> clazz,
-                     final org.objectweb.asm.Type type, final Sort sort) {
+        private Type(final String name, final int dimensions, final Struct struct,
+                     final Class<?> clazz, final org.objectweb.asm.Type type, final Sort sort) {
             this.name = name;
+            this.dimensions = dimensions;
             this.struct = struct;
             this.clazz = clazz;
             this.type = type;
@@ -2114,7 +2116,7 @@ public class Definition {
             }
         }
 
-        return new Type(name, struct, clazz, type, sort);
+        return new Type(name, dimensions, struct, clazz, type, sort);
     }
 
     private int getDimensions(final String name) {

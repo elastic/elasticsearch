@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.tree.node;
 
-import org.elasticsearch.painless.tree.utility.Operation;
-import org.elasticsearch.painless.tree.utility.Variables.Variable;
+import org.elasticsearch.painless.tree.analyzer.Operation;
+import org.elasticsearch.painless.tree.analyzer.Variables.Variable;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class TVariable extends Target {

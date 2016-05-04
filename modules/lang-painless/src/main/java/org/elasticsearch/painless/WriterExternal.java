@@ -542,7 +542,7 @@ class WriterExternal {
 
     /**
      * Called for any compound assignment (including increment/decrement instructions).
-     * We have to be stricter than writeBinary, and do overflow checks against the original type's size
+     * We have to be stricter than writeBinary and do overflow checks against the original type's size
      * instead of the promoted type's size, since the result will be implicitly cast back.
      *
      * @return This will be true if an instruction is written, false otherwise.

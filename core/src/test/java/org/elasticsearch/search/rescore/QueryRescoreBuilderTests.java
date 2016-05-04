@@ -314,7 +314,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      * create random shape that is put under test
      */
     public static QueryRescorerBuilder randomRescoreBuilder() {
-        QueryBuilder<MatchAllQueryBuilder> queryBuilder = new MatchAllQueryBuilder().boost(randomFloat())
+        QueryBuilder queryBuilder = new MatchAllQueryBuilder().boost(randomFloat())
                 .queryName(randomAsciiOfLength(20));
         org.elasticsearch.search.rescore.QueryRescorerBuilder rescorer = new
                 org.elasticsearch.search.rescore.QueryRescorerBuilder(queryBuilder);

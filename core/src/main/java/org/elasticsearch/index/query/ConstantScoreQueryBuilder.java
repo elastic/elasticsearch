@@ -43,7 +43,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     private static final ParseField INNER_QUERY_FIELD = new ParseField("filter", "query");
 
-    private final QueryBuilder<?> filterBuilder;
+    private final QueryBuilder filterBuilder;
 
     /**
      * A query that wraps another query and simply returns a constant score equal to the
@@ -51,7 +51,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
      *
      * @param filterBuilder The query to wrap in a constant score query
      */
-    public ConstantScoreQueryBuilder(QueryBuilder<?> filterBuilder) {
+    public ConstantScoreQueryBuilder(QueryBuilder filterBuilder) {
         if (filterBuilder == null) {
             throw new IllegalArgumentException("inner clause [filter] cannot be null.");
         }
@@ -74,7 +74,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     /**
      * @return the query that was wrapped in this constant score query
      */
-    public QueryBuilder<?> innerQuery() {
+    public QueryBuilder innerQuery() {
         return this.filterBuilder;
     }
 
@@ -90,7 +90,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     public static ConstantScoreQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        QueryBuilder<?> query = null;
+        QueryBuilder query = null;
         boolean queryFound = false;
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -163,8 +163,8 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryBuilder<?> rewrite = filterBuilder.rewrite(queryRewriteContext);
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder rewrite = filterBuilder.rewrite(queryRewriteContext);
         if (rewrite != filterBuilder) {
             return new ConstantScoreQueryBuilder(rewrite);
         }

@@ -494,7 +494,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                         "    \"boost\" : 1.0\n" +
                         "  }\n" +
                         "}";
-        QueryBuilder<?> parsedGeoBboxShortcut = parseQuery(json, ParseFieldMatcher.EMPTY);
+        QueryBuilder parsedGeoBboxShortcut = parseQuery(json, ParseFieldMatcher.EMPTY);
         assertThat(parsedGeoBboxShortcut, equalTo(parsed));
 
         try {

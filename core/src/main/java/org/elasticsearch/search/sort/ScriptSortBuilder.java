@@ -80,7 +80,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     private SortMode sortMode;
 
-    private QueryBuilder<?> nestedFilter;
+    private QueryBuilder nestedFilter;
 
     private String nestedPath;
 
@@ -170,7 +170,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      * Sets the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
      */
-    public ScriptSortBuilder setNestedFilter(QueryBuilder<?> nestedFilter) {
+    public ScriptSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
     }
@@ -178,7 +178,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     /**
      * Gets the nested filter.
      */
-    public QueryBuilder<?> getNestedFilter() {
+    public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
 
@@ -236,7 +236,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         ScriptSortType type = null;
         SortMode sortMode = null;
         SortOrder order = null;
-        QueryBuilder<?> nestedFilter = null;
+        QueryBuilder nestedFilter = null;
         String nestedPath = null;
         Map<String, Object> params = new HashMap<>();
 

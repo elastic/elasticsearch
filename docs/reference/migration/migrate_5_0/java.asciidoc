@@ -279,20 +279,20 @@ requests can now be validated at call time which results in much clearer errors.
 ==== ValidateQueryRequest
 
 `source(QuerySourceBuilder)`, `source(Map)`, `source(XContentBuilder)`, `source(String)`, `source(byte[])`, `source(byte[], int, int)`,
-`source(BytesReference)` and `source()` have been removed in favor of using `query(QueryBuilder<?>)` and `query()`
+`source(BytesReference)` and `source()` have been removed in favor of using `query(QueryBuilder)` and `query()`
 
 ==== ValidateQueryRequestBuilder
 
-`setSource()` methods have been removed in favor of using `setQuery(QueryBuilder<?>)`
+`setSource()` methods have been removed in favor of using `setQuery(QueryBuilder)`
 
 ==== ExplainRequest
 
 `source(QuerySourceBuilder)`, `source(Map)`, `source(BytesReference)` and `source()` have been removed in favor of using
-`query(QueryBuilder<?>)` and `query()`
+`query(QueryBuilder)` and `query()`
 
 ==== ExplainRequestBuilder
 
-The `setQuery(BytesReference)` method have been removed in favor of using `setQuery(QueryBuilder<?>)`
+The `setQuery(BytesReference)` method have been removed in favor of using `setQuery(QueryBuilder)`
 
 === ClusterStatsResponse
 

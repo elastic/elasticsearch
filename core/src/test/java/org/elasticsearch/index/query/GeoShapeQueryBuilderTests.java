@@ -261,7 +261,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         } catch (UnsupportedOperationException e) {
             assertEquals("query must be rewritten first", e.getMessage());
         }
-        QueryBuilder<?> rewrite = sqb.rewrite(createShardContext());
+        QueryBuilder rewrite = sqb.rewrite(createShardContext());
         GeoShapeQueryBuilder geoShapeQueryBuilder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, indexedShapeToReturn);
         geoShapeQueryBuilder.strategy(sqb.strategy());
         geoShapeQueryBuilder.relation(sqb.relation());

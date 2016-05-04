@@ -66,7 +66,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     private SortMode sortMode;
 
-    private QueryBuilder<?> nestedFilter;
+    private QueryBuilder nestedFilter;
 
     private String nestedPath;
 
@@ -189,7 +189,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * TODO should the above getters and setters be deprecated/ changed in
      * favour of real getters and setters?
      */
-    public FieldSortBuilder setNestedFilter(QueryBuilder<?> nestedFilter) {
+    public FieldSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
     }
@@ -198,7 +198,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Returns the nested filter that the nested objects should match with in
      * order to be taken into account for sorting.
      */
-    public QueryBuilder<?> getNestedFilter() {
+    public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
 
@@ -324,7 +324,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     public static FieldSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
         XContentParser parser = context.parser();
 
-        QueryBuilder<?> nestedFilter = null;
+        QueryBuilder nestedFilter = null;
         String nestedPath = null;
         Object missing = null;
         SortOrder order = null;

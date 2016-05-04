@@ -169,7 +169,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentTo
         return Optional.empty();
     }
 
-    protected static Nested resolveNested(QueryShardContext context, String nestedPath, QueryBuilder<?> nestedFilter) throws IOException {
+    protected static Nested resolveNested(QueryShardContext context, String nestedPath, QueryBuilder nestedFilter) throws IOException {
         Nested nested = null;
         if (nestedPath != null) {
             BitSetProducer rootDocumentsFilter = context.bitsetFilter(Queries.newNonNestedFilter());

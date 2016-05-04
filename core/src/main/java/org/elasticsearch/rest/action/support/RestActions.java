@@ -93,7 +93,7 @@ public class RestActions {
         builder.endObject();
     }
 
-    public static QueryBuilder<?> urlParamsToQueryBuilder(RestRequest request) {
+    public static QueryBuilder urlParamsToQueryBuilder(RestRequest request) {
         String queryString = request.param("q");
         if (queryString == null) {
             return null;
@@ -130,7 +130,7 @@ public class RestActions {
         return content;
     }
 
-    public static QueryBuilder<?> getQueryContent(BytesReference source, IndicesQueriesRegistry indicesQueriesRegistry, ParseFieldMatcher parseFieldMatcher) {
+    public static QueryBuilder getQueryContent(BytesReference source, IndicesQueriesRegistry indicesQueriesRegistry, ParseFieldMatcher parseFieldMatcher) {
         try (XContentParser requestParser = XContentFactory.xContent(source).createParser(source)) {
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, requestParser, parseFieldMatcher);
             return context.parseTopLevelQueryBuilder();

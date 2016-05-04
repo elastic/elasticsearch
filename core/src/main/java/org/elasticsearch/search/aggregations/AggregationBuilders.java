@@ -142,7 +142,7 @@ public class AggregationBuilders {
     /**
      * Create a new {@link Filter} aggregation with the given name.
      */
-    public static FilterAggregatorBuilder filter(String name, QueryBuilder<?> filter) {
+    public static FilterAggregatorBuilder filter(String name, QueryBuilder filter) {
         return new FilterAggregatorBuilder(name, filter);
     }
 
@@ -156,7 +156,7 @@ public class AggregationBuilders {
     /**
      * Create a new {@link Filters} aggregation with the given name.
      */
-    public static FiltersAggregatorBuilder filters(String name, QueryBuilder<?>... filters) {
+    public static FiltersAggregatorBuilder filters(String name, QueryBuilder... filters) {
         return new FiltersAggregatorBuilder(name, filters);
     }
 

@@ -66,7 +66,7 @@ public class SignificantTermsParser extends AbstractTermsParser {
         if (incExc != null) {
             factory.includeExclude(incExc);
         }
-        QueryBuilder<?> backgroundFilter = (QueryBuilder<?>) otherOptions.get(SignificantTermsAggregatorBuilder.BACKGROUND_FILTER);
+        QueryBuilder backgroundFilter = (QueryBuilder) otherOptions.get(SignificantTermsAggregatorBuilder.BACKGROUND_FILTER);
         if (backgroundFilter != null) {
             factory.backgroundFilter(backgroundFilter);
         }
@@ -89,7 +89,7 @@ public class SignificantTermsParser extends AbstractTermsParser {
                 return true;
             } else if (parseFieldMatcher.match(currentFieldName, SignificantTermsAggregatorBuilder.BACKGROUND_FILTER)) {
                 QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
-                QueryBuilder<?> filter = queryParseContext.parseInnerQueryBuilder();
+                QueryBuilder filter = queryParseContext.parseInnerQueryBuilder();
                 otherOptions.put(SignificantTermsAggregatorBuilder.BACKGROUND_FILTER, filter);
                 return true;
             }

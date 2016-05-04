@@ -55,9 +55,9 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
     /**
      * Parses a top level query including the query element that wraps it
      */
-    public QueryBuilder<?> parseTopLevelQueryBuilder() {
+    public QueryBuilder parseTopLevelQueryBuilder() {
         try {
-            QueryBuilder<?> queryBuilder = null;
+            QueryBuilder queryBuilder = null;
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();
@@ -82,7 +82,7 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
     /**
      * Parses a query excluding the query element that wraps it
      */
-    public QueryBuilder<?> parseInnerQueryBuilder() throws IOException {
+    public QueryBuilder parseInnerQueryBuilder() throws IOException {
         // move to START object
         XContentParser.Token token;
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
@@ -105,7 +105,7 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
         if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
         }
-        QueryBuilder<?> result = indicesQueriesRegistry.lookup(queryName, parseFieldMatcher, parser.getTokenLocation()).fromXContent(this);
+        QueryBuilder result = indicesQueriesRegistry.lookup(queryName, parseFieldMatcher, parser.getTokenLocation()).fromXContent(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();

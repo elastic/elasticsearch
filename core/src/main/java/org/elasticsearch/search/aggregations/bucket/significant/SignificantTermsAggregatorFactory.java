@@ -65,12 +65,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private MappedFieldType fieldType;
     private FilterableTermsEnum termsEnum;
     private int numberOfAggregatorsCreated;
-    private final QueryBuilder<?> filterBuilder;
+    private final QueryBuilder filterBuilder;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final SignificanceHeuristic significanceHeuristic;
 
     public SignificantTermsAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource> config, IncludeExclude includeExclude,
-            String executionHint, QueryBuilder<?> filterBuilder, TermsAggregator.BucketCountThresholds bucketCountThresholds,
+            String executionHint, QueryBuilder filterBuilder, TermsAggregator.BucketCountThresholds bucketCountThresholds,
             SignificanceHeuristic significanceHeuristic, AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, type, config, context, parent, subFactoriesBuilder, metaData);

@@ -359,7 +359,7 @@ public class SearchModule extends AbstractModule {
      *        is the name by under which the reader is registered. So it is the name that the query should use as its
      *        {@link NamedWriteable#getWriteableName()} too.
      */
-    public <QB extends QueryBuilder<QB>> void registerQuery(Writeable.Reader<QB> reader, QueryParser<QB> queryParser,
+    public <QB extends QueryBuilder> void registerQuery(Writeable.Reader<QB> reader, QueryParser<QB> queryParser,
                                                                          ParseField queryName) {
         queryParserRegistry.register(queryParser, queryName);
         namedWriteableRegistry.register(QueryBuilder.class, queryName.getPreferredName(), reader);

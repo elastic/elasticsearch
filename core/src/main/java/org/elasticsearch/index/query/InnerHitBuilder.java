@@ -131,7 +131,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
     private boolean trackScores;
 
     private List<String> fieldNames;
-    private QueryBuilder<?> query = new MatchAllQueryBuilder();
+    private QueryBuilder query = new MatchAllQueryBuilder();
     private List<SortBuilder<?>> sorts;
     private List<String> fieldDataFields;
     private Set<ScriptField> scriptFields;
@@ -411,7 +411,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         return this;
     }
 
-    QueryBuilder<?> getQuery() {
+    QueryBuilder getQuery() {
         return query;
     }
 
@@ -632,7 +632,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         return PARSER.parse(context.parser(), new InnerHitBuilder(), context);
     }
 
-    public static void extractInnerHits(QueryBuilder<?> query, Map<String, InnerHitBuilder> innerHitBuilders) {
+    public static void extractInnerHits(QueryBuilder query, Map<String, InnerHitBuilder> innerHitBuilders) {
         if (query instanceof AbstractQueryBuilder) {
             ((AbstractQueryBuilder) query).extractInnerHitBuilders(innerHitBuilders);
         } else {

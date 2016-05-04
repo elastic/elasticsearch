@@ -59,9 +59,9 @@ public class FiltersAggregator extends BucketsAggregator {
 
     public static class KeyedFilter implements Writeable, ToXContent {
         private final String key;
-        private final QueryBuilder<?> filter;
+        private final QueryBuilder filter;
 
-        public KeyedFilter(String key, QueryBuilder<?> filter) {
+        public KeyedFilter(String key, QueryBuilder filter) {
             if (key == null) {
                 throw new IllegalArgumentException("[key] must not be null");
             }
@@ -94,7 +94,7 @@ public class FiltersAggregator extends BucketsAggregator {
             return key;
         }
 
-        public QueryBuilder<?> filter() {
+        public QueryBuilder filter() {
             return filter;
         }
 

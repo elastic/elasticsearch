@@ -115,7 +115,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
 
     @Override
     protected void doAssertLuceneQuery(HasChildQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        QueryBuilder<?> innerQueryBuilder = queryBuilder.query();
+        QueryBuilder innerQueryBuilder = queryBuilder.query();
         if (innerQueryBuilder instanceof EmptyQueryBuilder) {
             assertNull(query);
         } else {
@@ -149,7 +149,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     }
 
     public void testIllegalValues() {
-        QueryBuilder<?> query = RandomQueryBuilder.createQuery(random());
+        QueryBuilder query = RandomQueryBuilder.createQuery(random());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> QueryBuilders.hasChildQuery(null, query, ScoreMode.None));
         assertEquals("[has_child] requires 'type' field", e.getMessage());

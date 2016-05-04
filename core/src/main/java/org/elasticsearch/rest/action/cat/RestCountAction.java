@@ -68,7 +68,7 @@ public class RestCountAction extends AbstractCatAction {
         if (source != null) {
             searchSourceBuilder.query(RestActions.getQueryContent(new BytesArray(source), indicesQueriesRegistry, parseFieldMatcher));
         } else {
-            QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+            QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
             if (queryBuilder != null) {
                 searchSourceBuilder.query(queryBuilder);
             }

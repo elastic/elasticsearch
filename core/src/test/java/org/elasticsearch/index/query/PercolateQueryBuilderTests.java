@@ -142,7 +142,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         PercolateQueryBuilder pqb = doCreateTestQueryBuilder(true);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> pqb.toQuery(createShardContext()));
         assertThat(e.getMessage(), equalTo("query builder must be rewritten first"));
-        QueryBuilder<?> rewrite = pqb.rewrite(createShardContext());
+        QueryBuilder rewrite = pqb.rewrite(createShardContext());
         PercolateQueryBuilder geoShapeQueryBuilder = new PercolateQueryBuilder(pqb.getField(), pqb.getDocumentType(), documentSource);
         assertEquals(geoShapeQueryBuilder, rewrite);
     }

@@ -114,7 +114,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     public void testValidate() {
-        QueryBuilder<?> innerQuery = RandomQueryBuilder.createQuery(random());
+        QueryBuilder innerQuery = RandomQueryBuilder.createQuery(random());
         IllegalArgumentException e =
                 expectThrows(IllegalArgumentException.class, () -> QueryBuilders.nestedQuery(null, innerQuery, ScoreMode.Avg));
         assertThat(e.getMessage(), equalTo("[nested] requires 'path' field"));

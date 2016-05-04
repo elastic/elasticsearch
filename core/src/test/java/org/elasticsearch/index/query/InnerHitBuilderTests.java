@@ -247,7 +247,7 @@ public class InnerHitBuilderTests extends ESTestCase {
         }
 
         if (includeQueryTypeOrPath) {
-            QueryBuilder<?> query = new MatchQueryBuilder(randomAsciiOfLengthBetween(1, 16), randomAsciiOfLengthBetween(1, 16));
+            QueryBuilder query = new MatchQueryBuilder(randomAsciiOfLengthBetween(1, 16), randomAsciiOfLengthBetween(1, 16));
             if (randomBoolean()) {
                 return new InnerHitBuilder(innerHits, randomAsciiOfLength(8), query);
             } else {

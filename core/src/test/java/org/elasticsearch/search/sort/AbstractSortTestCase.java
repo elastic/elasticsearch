@@ -256,7 +256,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         return doubleFieldType;
     }
 
-    protected static QueryBuilder<?> randomNestedFilter() {
+    protected static QueryBuilder randomNestedFilter() {
         int id = randomIntBetween(0, 2);
         switch(id) {
             case 0: return (new MatchAllQueryBuilder()).boost(randomFloat());

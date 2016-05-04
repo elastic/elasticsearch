@@ -138,7 +138,7 @@ public class FiltersIT extends ESIntegTestCase {
     // See NullPointer issue when filters are empty:
     // https://github.com/elastic/elasticsearch/issues/8438
     public void testEmptyFilterDeclarations() throws Exception {
-        QueryBuilder<?> emptyFilter = new BoolQueryBuilder();
+        QueryBuilder emptyFilter = new BoolQueryBuilder();
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(filters("tags", randomOrder(new KeyedFilter("all", emptyFilter),
                         new KeyedFilter("tag1", termQuery("tag", "tag1")))))
@@ -207,7 +207,7 @@ public class FiltersIT extends ESIntegTestCase {
     }
 
     public void testEmptyFilter() throws Exception {
-        QueryBuilder<?> emptyFilter = new EmptyQueryBuilder();
+        QueryBuilder emptyFilter = new EmptyQueryBuilder();
         SearchResponse response = client().prepareSearch("idx").addAggregation(filters("tag1", emptyFilter)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -219,7 +219,7 @@ public class FiltersIT extends ESIntegTestCase {
     }
 
     public void testEmptyKeyedFilter() throws Exception {
-        QueryBuilder<?> emptyFilter = new EmptyQueryBuilder();
+        QueryBuilder emptyFilter = new EmptyQueryBuilder();
         SearchResponse response = client().prepareSearch("idx").addAggregation(filters("tag1", new KeyedFilter("foo", emptyFilter)))
                 .execute().actionGet();
 

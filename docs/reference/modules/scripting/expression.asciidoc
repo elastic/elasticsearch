@@ -99,9 +99,9 @@ The following example shows the difference in years between the `date` fields da
 |`doc['field_name'].empty` |A boolean indicating if the field has no
 values within the doc.
 
-|`doc['field_name'].lat` |The latitude of the geo point, or `null`.
+|`doc['field_name'].lat` |The latitude of the geo point.
 
-|`doc['field_name'].lon` |The longitude of the geo point, or `null`.
+|`doc['field_name'].lon` |The longitude of the geo point.
 |=======================================================================
 
 The following example computes distance in kilometers from Washington, DC:

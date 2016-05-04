@@ -188,7 +188,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,
-            HandshakeRequest::new,
+            () -> HandshakeRequest.INSTANCE,
             ThreadPool.Names.SAME,
             (request, channel) -> channel.sendResponse(
                     new HandshakeResponse(localNode, clusterName, localNode != null ? localNode.getVersion() : Version.CURRENT)));
@@ -327,7 +327,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             response = this.submitRequest(
                 node,
                 HANDSHAKE_ACTION_NAME,
-                new HandshakeRequest(),
+                HandshakeRequest.INSTANCE,
                 TransportRequestOptions.builder().withTimeout(handshakeTimeout).build(),
                 new FutureTransportResponseHandler<HandshakeResponse>() {
                     @Override
@@ -354,6 +354,12 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public static class HandshakeRequest extends TransportRequest {
+
+        public static final HandshakeRequest INSTANCE = new HandshakeRequest();
+
+        private HandshakeRequest() {
+        }
+
     }
 
     public static class HandshakeResponse extends TransportResponse {

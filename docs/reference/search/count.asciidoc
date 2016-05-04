@@ -12,7 +12,7 @@ body. Here is an example:
 --------------------------------------------------
 $ curl -XGET 'http://localhost:9200/twitter/tweet/_count?q=user:kimchy'
 
-$ curl -XGET 'http://localhost:9200/twitter/tweet/_count' -d '
+$ curl -XPOST 'http://localhost:9200/twitter/tweet/_count' -d '
 {
     "query" : {
         "term" : { "user" : "kimchy" }

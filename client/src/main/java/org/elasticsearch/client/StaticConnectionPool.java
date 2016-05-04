@@ -32,7 +32,6 @@ import org.apache.http.util.EntityUtils;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Predicate;
 
 public class StaticConnectionPool extends AbstractStaticConnectionPool {
 
@@ -43,9 +42,7 @@ public class StaticConnectionPool extends AbstractStaticConnectionPool {
     private final RequestConfig pingRequestConfig;
     private final List<StatefulConnection> connections;
 
-    public StaticConnectionPool(CloseableHttpClient client, boolean pingEnabled, RequestConfig pingRequestConfig,
-                                Predicate<Connection> connectionSelector, HttpHost... hosts) {
-        super(connectionSelector);
+    public StaticConnectionPool(CloseableHttpClient client, boolean pingEnabled, RequestConfig pingRequestConfig, HttpHost... hosts) {
         Objects.requireNonNull(client, "client cannot be null");
         Objects.requireNonNull(pingRequestConfig, "pingRequestConfig cannot be null");
         if (hosts == null || hosts.length == 0) {

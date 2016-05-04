@@ -43,45 +43,37 @@ public class StaticConnectionPoolTests extends LuceneTestCase {
         }
 
         try {
-            new StaticConnectionPool(null, random().nextBoolean(), RequestConfig.DEFAULT, connection -> random().nextBoolean(), hosts);
+            new StaticConnectionPool(null, random().nextBoolean(), RequestConfig.DEFAULT, hosts);
         } catch(NullPointerException e) {
             assertEquals(e.getMessage(), "client cannot be null");
         }
 
         try {
-            new StaticConnectionPool(httpClient, random().nextBoolean(), null, connection -> random().nextBoolean(), hosts);
+            new StaticConnectionPool(httpClient, random().nextBoolean(), null, hosts);
         } catch(NullPointerException e) {
             assertEquals(e.getMessage(), "pingRequestConfig cannot be null");
         }
 
         try {
-            new StaticConnectionPool(httpClient, random().nextBoolean(), RequestConfig.DEFAULT, null, hosts);
-        } catch(NullPointerException e) {
-            assertEquals(e.getMessage(), "connection selector predicate cannot be null");
-        }
-
-        try {
-            new StaticConnectionPool(httpClient, random().nextBoolean(), RequestConfig.DEFAULT,
-                    connection -> random().nextBoolean(), (HttpHost) null);
+            new StaticConnectionPool(httpClient, random().nextBoolean(), RequestConfig.DEFAULT, (HttpHost) null);
         } catch(NullPointerException e) {
             assertEquals(e.getMessage(), "host cannot be null");
         }
 
         try {
-            new StaticConnectionPool(httpClient, random().nextBoolean(), RequestConfig.DEFAULT,
-                    connection -> random().nextBoolean(), (HttpHost[])null);
+            new StaticConnectionPool(httpClient, random().nextBoolean(), RequestConfig.DEFAULT, (HttpHost[])null);
         } catch(IllegalArgumentException e) {
             assertEquals(e.getMessage(), "no hosts provided");
         }
 
         try {
-            new StaticConnectionPool(httpClient, random().nextBoolean(), RequestConfig.DEFAULT, connection -> random().nextBoolean());
+            new StaticConnectionPool(httpClient, random().nextBoolean(), RequestConfig.DEFAULT);
         } catch(IllegalArgumentException e) {
             assertEquals(e.getMessage(), "no hosts provided");
         }
 
         StaticConnectionPool staticConnectionPool = new StaticConnectionPool(httpClient, random().nextBoolean(), RequestConfig.DEFAULT,
-                connection -> random().nextBoolean(), hosts);
+                hosts);
         assertNotNull(staticConnectionPool);
     }
 }

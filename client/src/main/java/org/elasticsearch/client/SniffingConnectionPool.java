@@ -49,8 +49,7 @@ public class SniffingConnectionPool extends AbstractStaticConnectionPool {
 
     public SniffingConnectionPool(int sniffInterval, boolean sniffOnFailure, int sniffAfterFailureDelay,
                                   CloseableHttpClient client, RequestConfig sniffRequestConfig, int sniffRequestTimeout, Scheme scheme,
-                                  Predicate<Connection> connectionSelector, HttpHost... hosts) {
-        super(connectionSelector);
+                                  HttpHost... hosts) {
         if (sniffInterval <= 0) {
             throw new IllegalArgumentException("sniffInterval must be greater than 0");
         }
@@ -129,7 +128,7 @@ public class SniffingConnectionPool extends AbstractStaticConnectionPool {
         void sniff(Predicate<HttpHost> hostFilter) {
             if (running.compareAndSet(false, true)) {
                 try {
-                    Iterator<StatefulConnection> connectionIterator = nextUnfilteredConnection().iterator();
+                    Iterator<StatefulConnection> connectionIterator = nextConnection().iterator();
                     if (connectionIterator.hasNext()) {
                         sniff(connectionIterator, hostFilter);
                     } else {

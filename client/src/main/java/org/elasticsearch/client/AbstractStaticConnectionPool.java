@@ -47,23 +47,12 @@ public abstract class AbstractStaticConnectionPool implements ConnectionPool<Sta
 
     private static final Log logger = LogFactory.getLog(AbstractStaticConnectionPool.class);
 
-    private final Predicate<Connection> connectionSelector;
-
     private final AtomicInteger lastConnectionIndex = new AtomicInteger(0);
-
-    protected AbstractStaticConnectionPool(Predicate<Connection> connectionSelector) {
-        Objects.requireNonNull(connectionSelector, "connection selector predicate cannot be null");
-        this.connectionSelector = connectionSelector;
-    }
 
     protected abstract List<StatefulConnection> getConnections();
 
     @Override
     public final Stream<StatefulConnection> nextConnection() {
-        return nextUnfilteredConnection().filter(connectionSelector);
-    }
-
-    protected final Stream<StatefulConnection> nextUnfilteredConnection() {
         List<StatefulConnection> connections = getConnections();
         if (connections.isEmpty()) {
             throw new IllegalStateException("no connections available in the connection pool");

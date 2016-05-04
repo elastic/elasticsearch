@@ -51,6 +51,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public final class IngestDocument {
 
     public final static String INGEST_KEY = "_ingest";
+    private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
+    private static final String SOURCE_PREFIX = SourceFieldMapper.NAME + ".";
 
     static final String TIMESTAMP = "timestamp";
 
@@ -600,6 +602,7 @@ public final class IngestDocument {
     }
 
     private class FieldPath {
+
         private final String[] pathElements;
         private final Object initialContext;
 
@@ -608,13 +611,13 @@ public final class IngestDocument {
                 throw new IllegalArgumentException("path cannot be null nor empty");
             }
             String newPath;
-            if (path.startsWith(INGEST_KEY + ".")) {
+            if (path.startsWith(INGEST_KEY_PREFIX)) {
                 initialContext = ingestMetadata;
-                newPath = path.substring(8, path.length());
+                newPath = path.substring(INGEST_KEY_PREFIX.length(), path.length());
             } else {
                 initialContext = sourceAndMetadata;
-                if (path.startsWith(SourceFieldMapper.NAME + ".")) {
-                    newPath = path.substring(8, path.length());
+                if (path.startsWith(SOURCE_PREFIX)) {
+                    newPath = path.substring(SOURCE_PREFIX.length(), path.length());
                 } else {
                     newPath = path;
                 }
@@ -624,5 +627,6 @@ public final class IngestDocument {
                 throw new IllegalArgumentException("path [" + path + "] is not valid");
             }
         }
+
     }
 }

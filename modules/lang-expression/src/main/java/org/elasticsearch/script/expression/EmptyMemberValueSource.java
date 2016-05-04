@@ -32,15 +32,15 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 /**
- * A ValueSource to create FunctionValues to get the count of the number of values in a field for a document.
+ * ValueSource to return non-zero if a field is missing.
+ * <p>
+ * This is essentially sugar over !count()
  */
-final class CountMethodValueSource extends ValueSource {
-    IndexFieldData<?> fieldData;
+final class EmptyMemberValueSource extends ValueSource {
+    final IndexFieldData<?> fieldData;
 
-    CountMethodValueSource(IndexFieldData<?> fieldData) {
-        Objects.requireNonNull(fieldData);
-
-        this.fieldData = fieldData;
+    EmptyMemberValueSource(IndexFieldData<?> fieldData) {
+        this.fieldData = Objects.requireNonNull(fieldData);
     }
 
     @Override
@@ -48,24 +48,17 @@ final class CountMethodValueSource extends ValueSource {
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
         AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
         final SortedNumericDoubleValues values = leafData.getDoubleValues();
-
         return new DoubleDocValues(this) {
-          @Override
-          public double doubleVal(int doc) {
-            values.setDocument(doc);
-            return values.count();
-          }
+            @Override
+            public double doubleVal(int doc) {
+                values.setDocument(doc);
+                if (values.count() == 0) {
+                    return 1;
+                } else {
+                    return 0;
+                }
+            }
         };
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        FieldDataValueSource that = (FieldDataValueSource) o;
-
-        return fieldData.equals(that.fieldData);
     }
 
     @Override
@@ -74,7 +67,17 @@ final class CountMethodValueSource extends ValueSource {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null) return false;
+        if (getClass() != obj.getClass()) return false;
+        EmptyMemberValueSource other = (EmptyMemberValueSource) obj;
+        if (!fieldData.equals(other.fieldData)) return false;
+        return true;
+    }
+
+    @Override
     public String description() {
-        return "count: field(" + fieldData.getFieldName() + ")";
+        return "empty: field(" + fieldData.getFieldName() + ")";
     }
 }

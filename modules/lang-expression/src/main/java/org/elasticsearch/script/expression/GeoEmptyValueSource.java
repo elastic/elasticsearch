@@ -27,45 +27,36 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 
 /**
- * A ValueSource to create FunctionValues to get the count of the number of values in a field for a document.
+ * ValueSource to return non-zero if a field is missing.
  */
-final class CountMethodValueSource extends ValueSource {
+final class GeoEmptyValueSource extends ValueSource {
     IndexFieldData<?> fieldData;
 
-    CountMethodValueSource(IndexFieldData<?> fieldData) {
-        Objects.requireNonNull(fieldData);
-
-        this.fieldData = fieldData;
+    GeoEmptyValueSource(IndexFieldData<?> fieldData) {
+        this.fieldData = Objects.requireNonNull(fieldData);
     }
 
     @Override
     @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
-        final SortedNumericDoubleValues values = leafData.getDoubleValues();
-
+        AtomicGeoPointFieldData leafData = (AtomicGeoPointFieldData) fieldData.load(leaf);
+        final MultiGeoPointValues values = leafData.getGeoPointValues();
         return new DoubleDocValues(this) {
-          @Override
-          public double doubleVal(int doc) {
-            values.setDocument(doc);
-            return values.count();
-          }
+            @Override
+            public double doubleVal(int doc) {
+                values.setDocument(doc);
+                if (values.count() == 0) {
+                    return 1;
+                } else {
+                    return 0;
+                }
+            }
         };
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        FieldDataValueSource that = (FieldDataValueSource) o;
-
-        return fieldData.equals(that.fieldData);
     }
 
     @Override
@@ -74,7 +65,17 @@ final class CountMethodValueSource extends ValueSource {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null) return false;
+        if (getClass() != obj.getClass()) return false;
+        GeoEmptyValueSource other = (GeoEmptyValueSource) obj;
+        if (!fieldData.equals(other.fieldData)) return false;
+        return true;
+    }
+
+    @Override
     public String description() {
-        return "count: field(" + fieldData.getFieldName() + ")";
+        return "empty: field(" + fieldData.getFieldName() + ")";
     }
 }

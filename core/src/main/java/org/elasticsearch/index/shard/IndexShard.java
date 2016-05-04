@@ -680,6 +680,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         CompletionStats completionStats = new CompletionStats();
         try (final Engine.Searcher currentSearcher = acquireSearcher("completion_stats")) {
             completionStats.add(CompletionFieldStats.completionStats(currentSearcher.reader(), fields));
+            // Necessary for 2.x shards:
             Completion090PostingsFormat postingsFormat = ((Completion090PostingsFormat)
                 PostingsFormat.forName(Completion090PostingsFormat.CODEC_NAME));
             completionStats.add(postingsFormat.completionStats(currentSearcher.reader(), fields));

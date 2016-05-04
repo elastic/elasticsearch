@@ -23,7 +23,7 @@ to specify the language of the script. Plugins are available for following langu
 |groovy     |no        |built-in
 |expression |yes       |built-in
 |mustache   |yes       |built-in
-/painless   /yes       /built-in (module)
+|painless   |yes       |built-in (module)
 |javascript |no        |{plugins}/lang-javascript.html[elasticsearch-lang-javascript]
 |python     |no        |{plugins}/lang-python.html[elasticsearch-lang-python]
 |=======================================================================
@@ -455,29 +455,98 @@ for details on what operators and functions are available.
 
 Variables in `expression` scripts are available to access:
 
-* Single valued document fields, e.g. `doc['myfield'].value`
-* Single valued document fields can also be accessed without `.value` e.g. `doc['myfield']`
+* document fields, e.g. `doc['myfield'].value` 
+* variables and methods that the field supports, e.g. `doc['myfield'].empty`
 * Parameters passed into the script, e.g. `mymodifier`
 * The current document's score, `_score` (only available when used in a `script_score`)
 
-Variables in `expression` scripts that are of type `date` may use the following member methods:
+[float]
+=== Expressions API for numeric fields
+[cols="<,<",options="header",]
+|=======================================================================
+|Expression |Description
+|`doc['field_name'].value` |The native value of the field. For example,
+if its a short type, it will be short.
 
-* getYear()
-* getMonth()
-* getDayOfMonth()
-* getHourOfDay()
-* getMinutes()
-* getSeconds()
+|`doc['field_name'].empty` |A boolean indicating if the field has no
+values within the doc.
+
+|`doc['field_name'].min()` |The minimum value of the field in this document.
+
+|`doc['field_name'].max()` |The maximum value of the field in this document.
+
+|`doc['field_name'].median()` |The median value of the field in this document.
+
+|`doc['field_name'].avg()` |The average of the values in this document.
+
+|`doc['field_name'].sum()` |The sum of the values in this document.
+
+|`doc['field_name'].count()` |The number of values in this document.
+|=======================================================================
+
+When a document is missing the field completely, by default the value will be treated as `0`.
+You can treat it as another value instead, e.g. `doc['myfield'].empty ? 100 : doc['myfield'].value`
+
+When a document has multiple values for the field, by default the minimum value is returned.
+You can choose a different value instead, e.g. `doc['myfield'].sum()`.
+
+When a document is missing the field completely, by default the value will be treated as `0`.
+
+Boolean fields are exposed as numerics, with `true` mapped to `1` and `false` mapped to `0`. 
+For example: `doc['on_sale'] ? doc['price'] * 0.5 : doc['price']`
+
+[float]
+=== Additional methods for date fields
+Date fields are treated as the number of milliseconds since January 1, 1970 and 
+support the numeric API above, with these additional methods:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Expression |Description
+|`doc['field_name'].getYear()` |Year component, e.g. `1970`.
+
+|`doc['field_name'].getMonth()` |Month component (0-11), e.g. `0` for January.
+
+|`doc['field_name'].getDayOfMonth()` |Day component, e.g. `1` for the first of the month.
+
+|`doc['field_name'].getHourOfDay()` |Hour component (0-23)
+
+|`doc['field_name'].getMinutes()` |Minutes component (0-59)
+
+|`doc['field_name'].getSeconds()` |Seconds component (0-59)
+|=======================================================================
 
 The following example shows the difference in years between the `date` fields date0 and date1:
 
 `doc['date1'].getYear() - doc['date0'].getYear()`
 
+[float]
+=== Expressions API for `geo_point` fields
+[cols="<,<",options="header",]
+|=======================================================================
+|Expression |Description
+|`doc['field_name'].empty` |A boolean indicating if the field has no
+values within the doc.
+
+|`doc['field_name'].lat` |The latitude of the geo point.
+
+|`doc['field_name'].lon` |The longitude of the geo point.
+|=======================================================================
+
+The following example computes distance in kilometers from Washington, DC:
+
+`haversin(38.9072, 77.0369, doc['field_name'].lat, doc['field_name'].lon)`
+
+In this example the coordinates could have been passed as parameters to the script,
+e.g. based on geolocation of the user.
+
+[float]
+=== Expressions limitations
+
 There are a few limitations relative to other script languages:
 
-* Only numeric fields may be accessed
+* Only numeric, boolean, date, and geo_point fields may be accessed
 * Stored fields are not available
-* If a field is sparse (only some documents contain a value), documents missing the field will have a value of `0`
 
 [float]
 === Score

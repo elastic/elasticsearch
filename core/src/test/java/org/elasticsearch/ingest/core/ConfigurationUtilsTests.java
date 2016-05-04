@@ -34,7 +34,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 
 
@@ -45,6 +44,8 @@ public class ConfigurationUtilsTests extends ESTestCase {
     public void setConfig() {
         config = new HashMap<>();
         config.put("foo", "bar");
+        config.put("boolVal", true);
+        config.put("null", null);
         config.put("arr", Arrays.asList("1", "2", "3"));
         List<Integer> list = new ArrayList<>();
         list.add(2);
@@ -65,6 +66,24 @@ public class ConfigurationUtilsTests extends ESTestCase {
             ConfigurationUtils.readStringProperty(null, null, config, "arr");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[arr] property isn't a string, but of type [java.util.Arrays$ArrayList]"));
+        }
+    }
+
+    public void testReadBooleanProperty() {
+        Boolean val = ConfigurationUtils.readBooleanProperty(null, null, config, "boolVal", false);
+        assertThat(val, equalTo(true));
+    }
+
+    public void testReadNullBooleanProperty() {
+        Boolean val = ConfigurationUtils.readBooleanProperty(null, null, config, "null", false);
+        assertThat(val, equalTo(false));
+    }
+
+    public void testReadBooleanPropertyInvalidType() {
+        try {
+            ConfigurationUtils.readBooleanProperty(null, null, config, "arr", true);
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), equalTo("[arr] property isn't a boolean, but of type [java.util.Arrays$ArrayList]"));
         }
     }
 

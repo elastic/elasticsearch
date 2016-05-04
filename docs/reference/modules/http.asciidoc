@@ -48,10 +48,10 @@ to `4kb`
 
 
 |`http.compression` |Support for compression when possible (with
-Accept-Encoding). Defaults to `false`.
+Accept-Encoding). Defaults to `true`.
 
-|`http.compression_level` |Defines the compression level to use.
-Defaults to `6`.
+|`http.compression_level` |Defines the compression level to use for HTTP responses. Valid values are in the range of 1 (minimum compression)
+and 9 (maximum compression). Defaults to `3`.
 
 |`http.cors.enabled` |Enable or disable cross-origin resource sharing,
 i.e. whether a browser on another origin can do requests to

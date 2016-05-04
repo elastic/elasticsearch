@@ -16,6 +16,8 @@ to 5.x the `.scripts` index will remain to exist, so it can be used by a script 
 the stored scripts from the `.scripts` index into the cluster state. The format of the scripts
 hasn't changed.
 
+===== Python migration script
+
 The following Python script can be used to import your indexed scripts into the cluster state
 as stored scripts:
 
@@ -32,9 +34,37 @@ for doc in helpers.scan(es, index=".scripts", preserve_order=True):
 -----------------------------------
 
 This script makes use of the official Elasticsearch Python client and
-therefor you need to make sure that your have installed the client in your
-environment. For more information on this please visit the
-https://www.elastic.co/guide/en/elasticsearch/client/python-api/current/index.html[elasticsearch-py page].
+therefore you need to make sure that your have installed the client in your
+environment. For more information on this please see
+https://www.elastic.co/guide/en/elasticsearch/client/python-api/current/index.html[`elasticsearch-py`].
+
+===== Perl migration script
+
+The following Perl script can be used to import your indexed scripts into the cluster state
+as stored scripts:
+
+[source,perl]
+-----------------------------------
+use Search::Elasticsearch;
+
+my $es     = Search::Elasticsearch->new( nodes => 'localhost:9200');
+my $scroll = $es->scroll_helper( index => '.scripts', sort => '_doc');
+
+while (my $doc = $scroll->next) {
+  $e->put_script(
+    lang => $doc->{_type},
+    id   => $doc->{_id},
+    body => $doc->{_source}
+  );
+}
+-----------------------------------
+
+This script makes use of the official Elasticsearch Perl client and
+therefore you need to make sure that your have installed the client in your
+environment. For more information on this please see
+https://metacpan.org/pod/Search::Elasticsearch[`Search::Elasticsearch`].
+
+===== Verifying script migration
 
 After you have moved the scripts via the provided script or otherwise then you can verify with the following
 request if the migration has happened successfully:

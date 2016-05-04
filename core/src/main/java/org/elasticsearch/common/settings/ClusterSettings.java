@@ -408,6 +408,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     BootstrapSettings.MLOCKALL_SETTING,
                     BootstrapSettings.SECCOMP_SETTING,
                     BootstrapSettings.CTRLHANDLER_SETTING,
+                    BootstrapSettings.IGNORE_SYSTEM_BOOTSTRAP_CHECKS,
                     IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,

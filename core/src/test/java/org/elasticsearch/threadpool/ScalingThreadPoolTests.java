@@ -193,7 +193,6 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            assertThat(stats(threadPool, threadPoolName).getCompleted(), equalTo(128L));
         }));
     }
 

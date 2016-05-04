@@ -51,6 +51,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public final class IngestDocument {
 
     public final static String INGEST_KEY = "_ingest";
+    private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
+    private static final String SOURCE_PREFIX = SourceFieldMapper.NAME + ".";
 
     static final String TIMESTAMP = "timestamp";
 
@@ -117,6 +119,18 @@ public final class IngestDocument {
     }
 
     /**
+     * Returns the value contained in the document with the provided templated path
+     * @param pathTemplate The path within the document in dot-notation
+     * @param clazz The expected class fo the field value
+     * @return the value fro the provided path if existing, null otherwise
+     * @throws IllegalArgumentException if the pathTemplate is null, empty, invalid, if the field doesn't exist,
+     * or if the field that is found at the provided path is not of the expected type.
+     */
+    public <T> T getFieldValue(TemplateService.Template pathTemplate, Class<T> clazz) {
+        return getFieldValue(renderTemplate(pathTemplate), clazz);
+    }
+
+    /**
      * Returns the value contained in the document for the provided path as a byte array.
      * If the path value is a string, a base64 decode operation will happen.
      * If the path value is a byte array, it is just returned
@@ -139,6 +153,16 @@ public final class IngestDocument {
             throw new IllegalArgumentException("Content field [" + path + "] of unknown type [" + object.getClass().getName() +
                 "], must be string or byte array");
         }
+    }
+
+    /**
+     * Checks whether the document contains a value for the provided templated path
+     * @param fieldPathTemplate the template for the path within the document in dot-notation
+     * @return true if the document contains a value for the field, false otherwise
+     * @throws IllegalArgumentException if the path is null, empty or invalid
+     */
+    public boolean hasField(TemplateService.Template fieldPathTemplate) {
+        return hasField(renderTemplate(fieldPathTemplate));
     }
 
     /**
@@ -578,6 +602,7 @@ public final class IngestDocument {
     }
 
     private class FieldPath {
+
         private final String[] pathElements;
         private final Object initialContext;
 
@@ -586,13 +611,13 @@ public final class IngestDocument {
                 throw new IllegalArgumentException("path cannot be null nor empty");
             }
             String newPath;
-            if (path.startsWith(INGEST_KEY + ".")) {
+            if (path.startsWith(INGEST_KEY_PREFIX)) {
                 initialContext = ingestMetadata;
-                newPath = path.substring(8, path.length());
+                newPath = path.substring(INGEST_KEY_PREFIX.length(), path.length());
             } else {
                 initialContext = sourceAndMetadata;
-                if (path.startsWith(SourceFieldMapper.NAME + ".")) {
-                    newPath = path.substring(8, path.length());
+                if (path.startsWith(SOURCE_PREFIX)) {
+                    newPath = path.substring(SOURCE_PREFIX.length(), path.length());
                 } else {
                     newPath = path;
                 }
@@ -602,5 +627,6 @@ public final class IngestDocument {
                 throw new IllegalArgumentException("path [" + path + "] is not valid");
             }
         }
+
     }
 }

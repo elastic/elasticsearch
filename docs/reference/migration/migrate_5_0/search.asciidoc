@@ -159,5 +159,6 @@ The `coerce` and `ignore_malformed` parameters were deprecated in favour of `val
 
 ==== Inner hits
 
-* The format of top level inner hits has been changed to be more readable. All options are now set on the same level.
-  So the `path` and `type` options are specified on the same level where `query` and other options are specified.
+* Top level inner hits syntax has been removed. Inner hits can now only be specified as part of the `nested`,
+`has_child` and `has_parent` queries. Use cases previously only possible with top level inner hits can now be done
+with inner hits defined inside the query dsl.

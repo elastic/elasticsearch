@@ -90,24 +90,21 @@ public class SnifferTests extends LuceneTestCase {
         Sniffer sniffer = new Sniffer(client, RequestConfig.DEFAULT, sniffRequestTimeout, scheme.toString());
         HttpHost httpHost = new HttpHost(server.getHostName(), server.getPort());
         try {
-            List<Node> sniffedNodes = sniffer.sniffNodes(new Node(httpHost));
+            List<HttpHost> sniffedHosts = sniffer.sniffNodes(httpHost);
             if (sniffResponse.isFailure) {
                 fail("sniffNodes should have failed");
             }
-            assertThat(sniffedNodes.size(), equalTo(sniffResponse.nodes.size()));
-            Iterator<Node> responseNodesIterator = sniffResponse.nodes.iterator();
-            for (Node sniffedNode : sniffedNodes) {
-                Node responseNode = responseNodesIterator.next();
-                assertThat(sniffedNode.getHttpHost(), equalTo(responseNode.getHttpHost()));
-                assertThat(sniffedNode.getRoles(), equalTo(responseNode.getRoles()));
-                assertThat(sniffedNode.getAttributes(), equalTo(responseNode.getAttributes()));
+            assertThat(sniffedHosts.size(), equalTo(sniffResponse.hosts.size()));
+            Iterator<HttpHost> responseHostsIterator = sniffResponse.hosts.iterator();
+            for (HttpHost sniffedHost : sniffedHosts) {
+                assertEquals(sniffedHost, responseHostsIterator.next());
             }
         } catch(ElasticsearchResponseException e) {
             if (sniffResponse.isFailure) {
                 assertThat(e.getMessage(), containsString("GET http://localhost:" + server.getPort() +
                         "/_nodes/http?timeout=" + sniffRequestTimeout));
                 assertThat(e.getMessage(), containsString(Integer.toString(sniffResponse.nodesInfoResponseCode)));
-                assertThat(e.getNode().getHttpHost(), equalTo(httpHost));
+                assertThat(e.getHost(), equalTo(httpHost));
                 assertThat(e.getStatusLine().getStatusCode(), equalTo(sniffResponse.nodesInfoResponseCode));
                 assertThat(e.getRequestLine().toString(), equalTo("GET /_nodes/http?timeout=" + sniffRequestTimeout + "ms HTTP/1.1"));
             } else {
@@ -141,7 +138,7 @@ public class SnifferTests extends LuceneTestCase {
 
     private static SniffResponse buildSniffResponse(SniffingConnectionPool.Scheme scheme) throws IOException {
         int numNodes = RandomInts.randomIntBetween(random(), 1, 5);
-        List<Node> nodes = new ArrayList<>(numNodes);
+        List<HttpHost> hosts = new ArrayList<>(numNodes);
         JsonFactory jsonFactory = new JsonFactory();
         StringWriter writer = new StringWriter();
         JsonGenerator generator = jsonFactory.createGenerator(writer);
@@ -168,25 +165,11 @@ public class SnifferTests extends LuceneTestCase {
                 generator.writeEndArray();
             }
             boolean isHttpEnabled = rarely() == false;
-            int numRoles = RandomInts.randomIntBetween(random(), 0, 3);
-            Set<Node.Role> nodeRoles = new HashSet<>(numRoles);
-            for (int j = 0; j < numRoles; j++) {
-                Node.Role role;
-                do {
-                    role = RandomPicks.randomFrom(random(), Node.Role.values());
-                } while(nodeRoles.add(role) == false);
-            }
-
-            int numAttributes = RandomInts.randomIntBetween(random(), 0, 3);
-            Map<String, String> attributes = new HashMap<>(numAttributes);
-            for (int j = 0; j < numAttributes; j++) {
-                attributes.put("attr" + j, "value" + j);
-            }
             if (isHttpEnabled) {
                 String host = "host" + i;
                 int port = RandomInts.randomIntBetween(random(), 9200, 9299);
                 HttpHost httpHost = new HttpHost(host, port, scheme.toString());
-                nodes.add(new Node(httpHost, nodeRoles, attributes));
+                hosts.add(httpHost);
                 generator.writeObjectFieldStart("http");
                 if (random().nextBoolean()) {
                     generator.writeArrayFieldStart("bound_address");
@@ -205,11 +188,25 @@ public class SnifferTests extends LuceneTestCase {
                 }
                 generator.writeEndObject();
             }
+            String[] roles = {"master", "data", "ingest"};
+            int numRoles = RandomInts.randomIntBetween(random(), 0, 3);
+            Set<String> nodeRoles = new HashSet<>(numRoles);
+            for (int j = 0; j < numRoles; j++) {
+                String role;
+                do {
+                    role = RandomPicks.randomFrom(random(), roles);
+                } while(nodeRoles.add(role) == false);
+            }
             generator.writeArrayFieldStart("roles");
-            for (Node.Role nodeRole : nodeRoles) {
-                generator.writeString(nodeRole.toString());
+            for (String nodeRole : nodeRoles) {
+                generator.writeString(nodeRole);
             }
             generator.writeEndArray();
+            int numAttributes = RandomInts.randomIntBetween(random(), 0, 3);
+            Map<String, String> attributes = new HashMap<>(numAttributes);
+            for (int j = 0; j < numAttributes; j++) {
+                attributes.put("attr" + j, "value" + j);
+            }
             if (numAttributes > 0) {
                 generator.writeObjectFieldStart("attributes");
             }
@@ -224,18 +221,18 @@ public class SnifferTests extends LuceneTestCase {
         generator.writeEndObject();
         generator.writeEndObject();
         generator.close();
-        return SniffResponse.buildResponse(writer.toString(), nodes);
+        return SniffResponse.buildResponse(writer.toString(), hosts);
     }
 
     private static class SniffResponse {
         private final String nodesInfoBody;
         private final int nodesInfoResponseCode;
-        private final List<Node> nodes;
+        private final List<HttpHost> hosts;
         private final boolean isFailure;
 
-        SniffResponse(String nodesInfoBody, List<Node> nodes, boolean isFailure) {
+        SniffResponse(String nodesInfoBody, List<HttpHost> hosts, boolean isFailure) {
             this.nodesInfoBody = nodesInfoBody;
-            this.nodes = nodes;
+            this.hosts = hosts;
             this.isFailure = isFailure;
             if (isFailure) {
                 this.nodesInfoResponseCode = randomErrorResponseCode();
@@ -248,8 +245,8 @@ public class SnifferTests extends LuceneTestCase {
             return new SniffResponse("", Collections.emptyList(), true);
         }
 
-        static SniffResponse buildResponse(String nodesInfoBody, List<Node> nodes) {
-            return new SniffResponse(nodesInfoBody, nodes, false);
+        static SniffResponse buildResponse(String nodesInfoBody, List<HttpHost> hosts) {
+            return new SniffResponse(nodesInfoBody, hosts, false);
         }
     }
 

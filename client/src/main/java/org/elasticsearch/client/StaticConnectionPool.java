@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.HttpHost;
 import org.apache.http.StatusLine;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -43,17 +44,17 @@ public class StaticConnectionPool extends AbstractStaticConnectionPool {
     private final List<StatefulConnection> connections;
 
     public StaticConnectionPool(CloseableHttpClient client, boolean pingEnabled, RequestConfig pingRequestConfig,
-                                Predicate<Connection> connectionSelector, Node... nodes) {
+                                Predicate<Connection> connectionSelector, HttpHost... hosts) {
         super(connectionSelector);
         Objects.requireNonNull(client, "client cannot be null");
         Objects.requireNonNull(pingRequestConfig, "pingRequestConfig cannot be null");
-        if (nodes == null || nodes.length == 0) {
-            throw new IllegalArgumentException("no nodes provided");
+        if (hosts == null || hosts.length == 0) {
+            throw new IllegalArgumentException("no hosts provided");
         }
         this.client = client;
         this.pingEnabled = pingEnabled;
         this.pingRequestConfig = pingRequestConfig;
-        this.connections = createConnections(nodes);
+        this.connections = createConnections(hosts);
     }
 
     @Override
@@ -67,20 +68,20 @@ public class StaticConnectionPool extends AbstractStaticConnectionPool {
             HttpHead httpHead = new HttpHead("/");
             httpHead.setConfig(pingRequestConfig);
             StatusLine statusLine;
-            try(CloseableHttpResponse httpResponse = client.execute(connection.getNode().getHttpHost(), httpHead)) {
+            try(CloseableHttpResponse httpResponse = client.execute(connection.getHost(), httpHead)) {
                 statusLine = httpResponse.getStatusLine();
                 EntityUtils.consume(httpResponse.getEntity());
             } catch(IOException e) {
-                RequestLogger.log(logger, "ping failed", httpHead.getRequestLine(), connection.getNode(), e);
+                RequestLogger.log(logger, "ping failed", httpHead.getRequestLine(), connection.getHost(), e);
                 onFailure(connection);
                 throw e;
             }
             if (statusLine.getStatusCode() >= 300) {
-                RequestLogger.log(logger, "ping failed", httpHead.getRequestLine(), connection.getNode(), statusLine);
+                RequestLogger.log(logger, "ping failed", httpHead.getRequestLine(), connection.getHost(), statusLine);
                 onFailure(connection);
-                throw new ElasticsearchResponseException(httpHead.getRequestLine(), connection.getNode(), statusLine);
+                throw new ElasticsearchResponseException(httpHead.getRequestLine(), connection.getHost(), statusLine);
             } else {
-                RequestLogger.log(logger, "ping succeeded", httpHead.getRequestLine(), connection.getNode(), statusLine);
+                RequestLogger.log(logger, "ping succeeded", httpHead.getRequestLine(), connection.getHost(), statusLine);
                 onSuccess(connection);
             }
         }

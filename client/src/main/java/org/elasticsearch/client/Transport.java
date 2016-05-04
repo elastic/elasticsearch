@@ -69,7 +69,7 @@ final class Transport<C extends Connection> implements Closeable {
         Iterator<C> connectionIterator = connectionPool.nextConnection().iterator();
         if (connectionIterator.hasNext() == false) {
             C connection = connectionPool.lastResortConnection();
-            logger.info("no healthy nodes available, trying " + connection.getNode());
+            logger.info("no healthy nodes available, trying " + connection.getHost());
             return performRequest(request, Stream.of(connection).iterator());
         }
         return performRequest(request, connectionIterator);
@@ -127,9 +127,9 @@ final class Transport<C extends Connection> implements Closeable {
     private ElasticsearchResponse performRequest(HttpRequestBase request, C connection) throws IOException {
         CloseableHttpResponse response;
         try {
-            response = client.execute(connection.getNode().getHttpHost(), request);
+            response = client.execute(connection.getHost(), request);
         } catch(IOException e) {
-            RequestLogger.log(logger, "request failed", request.getRequestLine(), connection.getNode(), e);
+            RequestLogger.log(logger, "request failed", request.getRequestLine(), connection.getHost(), e);
             throw e;
         } finally {
             request.reset();
@@ -138,12 +138,12 @@ final class Transport<C extends Connection> implements Closeable {
         //TODO make ignore status code configurable. rest-spec and tests support that parameter.
         if (statusLine.getStatusCode() < 300 ||
                 request.getMethod().equals(HttpHead.METHOD_NAME) && statusLine.getStatusCode() == 404) {
-            RequestLogger.log(logger, "request succeeded", request.getRequestLine(), connection.getNode(), response.getStatusLine());
-            return new ElasticsearchResponse(request.getRequestLine(), connection.getNode(), response);
+            RequestLogger.log(logger, "request succeeded", request.getRequestLine(), connection.getHost(), response.getStatusLine());
+            return new ElasticsearchResponse(request.getRequestLine(), connection.getHost(), response);
         } else {
             EntityUtils.consume(response.getEntity());
-            RequestLogger.log(logger, "request failed", request.getRequestLine(), connection.getNode(), response.getStatusLine());
-            throw new ElasticsearchResponseException(request.getRequestLine(), connection.getNode(), statusLine);
+            RequestLogger.log(logger, "request failed", request.getRequestLine(), connection.getHost(), response.getStatusLine());
+            throw new ElasticsearchResponseException(request.getRequestLine(), connection.getHost(), statusLine);
         }
     }
 

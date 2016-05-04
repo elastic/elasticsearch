@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.HttpHost;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,11 +75,11 @@ public abstract class AbstractStaticConnectionPool implements ConnectionPool<Sta
         return sortedConnections.stream().filter(connection -> connection.isAlive() || connection.shouldBeRetried());
     }
 
-    protected List<StatefulConnection> createConnections(Node... nodes) {
+    protected List<StatefulConnection> createConnections(HttpHost... hosts) {
         List<StatefulConnection> connections = new ArrayList<>();
-        for (Node node : nodes) {
-            Objects.requireNonNull(node, "node cannot be null");
-            connections.add(new StatefulConnection(node));
+        for (HttpHost host : hosts) {
+            Objects.requireNonNull(host, "host cannot be null");
+            connections.add(new StatefulConnection(host));
         }
         return Collections.unmodifiableList(connections);
     }
@@ -94,12 +95,12 @@ public abstract class AbstractStaticConnectionPool implements ConnectionPool<Sta
     @Override
     public void onSuccess(StatefulConnection connection) {
         connection.markAlive();
-        logger.trace("marked connection alive for " + connection.getNode());
+        logger.trace("marked connection alive for " + connection.getHost());
     }
 
     @Override
     public void onFailure(StatefulConnection connection) throws IOException {
         connection.markDead();
-        logger.debug("marked connection dead for " + connection.getNode());
+        logger.debug("marked connection dead for " + connection.getHost());
     }
 }

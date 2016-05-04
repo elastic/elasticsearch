@@ -37,14 +37,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
+/**
+ * Calls nodes info api and returns a list of http hosts extracted from it
+ */
+//TODO this could potentially a call to _cat/nodes (although it doesn't support timeout param), but how would we handle bw comp with 2.x?
 final class Sniffer {
 
     private static final Log logger = LogFactory.getLog(Sniffer.class);
@@ -69,34 +68,34 @@ final class Sniffer {
         this.jsonFactory = new JsonFactory();
     }
 
-    List<Node> sniffNodes(Node node) throws IOException {
+    List<HttpHost> sniffNodes(HttpHost host) throws IOException {
         HttpGet httpGet = new HttpGet("/_nodes/http?timeout=" + sniffRequestTimeout + "ms");
         httpGet.setConfig(sniffRequestConfig);
 
-        try (CloseableHttpResponse response = client.execute(node.getHttpHost(), httpGet)) {
+        try (CloseableHttpResponse response = client.execute(host, httpGet)) {
             StatusLine statusLine = response.getStatusLine();
             if (statusLine.getStatusCode() >= 300) {
-                RequestLogger.log(logger, "sniff failed", httpGet.getRequestLine(), node, statusLine);
+                RequestLogger.log(logger, "sniff failed", httpGet.getRequestLine(), host, statusLine);
                 EntityUtils.consume(response.getEntity());
-                throw new ElasticsearchResponseException(httpGet.getRequestLine(), node, statusLine);
+                throw new ElasticsearchResponseException(httpGet.getRequestLine(), host, statusLine);
             } else {
-                List<Node> nodes = readNodes(response.getEntity());
-                RequestLogger.log(logger, "sniff succeeded", httpGet.getRequestLine(), node, statusLine);
+                List<HttpHost> nodes = readHosts(response.getEntity());
+                RequestLogger.log(logger, "sniff succeeded", httpGet.getRequestLine(), host, statusLine);
                 return nodes;
             }
         } catch(IOException e) {
-            RequestLogger.log(logger, "sniff failed", httpGet.getRequestLine(), node, e);
+            RequestLogger.log(logger, "sniff failed", httpGet.getRequestLine(), host, e);
             throw e;
         }
     }
 
-    private List<Node> readNodes(HttpEntity entity) throws IOException {
+    private List<HttpHost> readHosts(HttpEntity entity) throws IOException {
         try (InputStream inputStream = entity.getContent()) {
             JsonParser parser = jsonFactory.createParser(inputStream);
             if (parser.nextToken() != JsonToken.START_OBJECT) {
                 throw new IOException("expected data to start with an object");
             }
-            List<Node> nodes = new ArrayList<>();
+            List<HttpHost> hosts = new ArrayList<>();
             while (parser.nextToken() != JsonToken.END_OBJECT) {
                 if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
                     if ("nodes".equals(parser.getCurrentName())) {
@@ -104,10 +103,10 @@ final class Sniffer {
                             JsonToken token = parser.nextToken();
                             assert token == JsonToken.START_OBJECT;
                             String nodeId = parser.getCurrentName();
-                            Node sniffedNode = readNode(nodeId, parser, this.scheme);
-                            if (sniffedNode != null) {
+                            HttpHost sniffedHost = readNode(nodeId, parser, this.scheme);
+                            if (sniffedHost != null) {
                                 logger.trace("adding node [" + nodeId + "]");
-                                nodes.add(sniffedNode);
+                                hosts.add(sniffedHost);
                             }
                         }
                     } else {
@@ -115,31 +114,20 @@ final class Sniffer {
                     }
                 }
             }
-            return nodes;
+            return hosts;
         }
     }
 
-    private static Node readNode(String nodeId, JsonParser parser, String scheme) throws IOException {
+    private static HttpHost readNode(String nodeId, JsonParser parser, String scheme) throws IOException {
         HttpHost httpHost = null;
-        Set<Node.Role> roles = new HashSet<>();
-        Map<String, String> attributes = new HashMap<>();
         String fieldName = null;
         while (parser.nextToken() != JsonToken.END_OBJECT) {
             if (parser.getCurrentToken() == JsonToken.FIELD_NAME) {
                 fieldName = parser.getCurrentName();
-            } else if (parser.getCurrentToken() == JsonToken.START_ARRAY && "roles".equals(fieldName)) {
-                while (parser.nextToken() != JsonToken.END_ARRAY) {
-                    roles.add(Node.Role.valueOf(parser.getValueAsString().toUpperCase(Locale.ROOT)));
-                }
             } else if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
-                if ("attributes".equals(fieldName)) {
+                if ("http".equals(fieldName)) {
                     while (parser.nextToken() != JsonToken.END_OBJECT) {
-                        attributes.put(parser.getCurrentName(), parser.getValueAsString());
-                    }
-                } else if ("http".equals(fieldName)) {
-                    while (parser.nextToken() != JsonToken.END_OBJECT) {
-                        if (parser.getCurrentToken() == JsonToken.VALUE_STRING &&
-                                "publish_address".equals(parser.getCurrentName())) {
+                        if (parser.getCurrentToken() == JsonToken.VALUE_STRING && "publish_address".equals(parser.getCurrentName())) {
                             URI boundAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());
                             httpHost = new HttpHost(boundAddressAsURI.getHost(), boundAddressAsURI.getPort(),
                                     boundAddressAsURI.getScheme());
@@ -157,6 +145,6 @@ final class Sniffer {
             logger.debug("skipping node [" + nodeId + "] with http disabled");
             return null;
         }
-        return new Node(httpHost, roles, attributes);
+        return httpHost;
     }
 }

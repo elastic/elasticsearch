@@ -19,27 +19,29 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.HttpHost;
+
 /**
  * Simplest representation of a connection to an elasticsearch node.
- * It doesn't have any mutable state. It holds the node that the connection points to.
+ * It doesn't have any mutable state. It holds the host that the connection points to.
  * Allows the transport to deal with very simple connection objects that are immutable.
  * Any change to the state of connections should be made through the connection pool
  * which is aware of the connection object that it supports.
  */
 public class Connection {
-    private final Node node;
+    private final HttpHost host;
 
     /**
-     * Creates a new connection pointing to the provided {@link Node} argument
+     * Creates a new connection pointing to the provided {@link HttpHost} argument
      */
-    public Connection(Node node) {
-            this.node = node;
+    public Connection(HttpHost host) {
+            this.host = host;
         }
 
     /**
-     * Returns the {@link Node} that the connection points to
+     * Returns the {@link HttpHost} that the connection points to
      */
-    public Node getNode() {
-            return node;
+    public HttpHost getHost() {
+            return host;
         }
 }

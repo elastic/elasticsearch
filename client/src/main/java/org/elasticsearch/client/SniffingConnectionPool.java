@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 
@@ -48,7 +49,7 @@ public class SniffingConnectionPool extends AbstractStaticConnectionPool {
 
     public SniffingConnectionPool(int sniffInterval, boolean sniffOnFailure, int sniffAfterFailureDelay,
                                   CloseableHttpClient client, RequestConfig sniffRequestConfig, int sniffRequestTimeout, Scheme scheme,
-                                  Predicate<Connection> connectionSelector, Node... nodes) {
+                                  Predicate<Connection> connectionSelector, HttpHost... hosts) {
         super(connectionSelector);
         if (sniffInterval <= 0) {
             throw new IllegalArgumentException("sniffInterval must be greater than 0");
@@ -57,12 +58,12 @@ public class SniffingConnectionPool extends AbstractStaticConnectionPool {
             throw new IllegalArgumentException("sniffAfterFailureDelay must be greater than 0");
         }
         Objects.requireNonNull(scheme, "scheme cannot be null");
-        if (nodes == null || nodes.length == 0) {
-            throw new IllegalArgumentException("no nodes provided");
+        if (hosts == null || hosts.length == 0) {
+            throw new IllegalArgumentException("no hosts provided");
         }
         this.sniffOnFailure = sniffOnFailure;
         this.sniffer = new Sniffer(client, sniffRequestConfig, sniffRequestTimeout, scheme.toString());
-        this.connections = createConnections(nodes);
+        this.connections = createConnections(hosts);
         this.snifferTask = new SnifferTask(sniffInterval, sniffAfterFailureDelay);
     }
 
@@ -81,7 +82,7 @@ public class SniffingConnectionPool extends AbstractStaticConnectionPool {
         super.onFailure(connection);
         if (sniffOnFailure) {
             //re-sniff immediately but take out the node that failed
-            snifferTask.sniffOnFailure(connection.getNode());
+            snifferTask.sniffOnFailure(connection.getHost());
         }
     }
 
@@ -119,22 +120,22 @@ public class SniffingConnectionPool extends AbstractStaticConnectionPool {
             sniff(node -> true);
         }
 
-        void sniffOnFailure(Node failedNode) {
+        void sniffOnFailure(HttpHost failedHost) {
             //sync sniff straightaway on failure
             failure = true;
-            sniff(node -> node.getHttpHost().equals(failedNode.getHttpHost()) == false);
+            sniff(host -> host.equals(failedHost) == false);
         }
 
-        void sniff(Predicate<Node> nodeFilter) {
+        void sniff(Predicate<HttpHost> hostFilter) {
             if (running.compareAndSet(false, true)) {
                 try {
                     Iterator<StatefulConnection> connectionIterator = nextUnfilteredConnection().iterator();
                     if (connectionIterator.hasNext()) {
-                        sniff(connectionIterator, nodeFilter);
+                        sniff(connectionIterator, hostFilter);
                     } else {
                         StatefulConnection connection = lastResortConnection();
-                        logger.info("no healthy nodes available, trying " + connection.getNode());
-                        sniff(Stream.of(connection).iterator(), nodeFilter);
+                        logger.info("no healthy nodes available, trying " + connection.getHost());
+                        sniff(Stream.of(connection).iterator(), hostFilter);
                     }
                 } catch (Throwable t) {
                     logger.error("error while sniffing nodes", t);
@@ -158,13 +159,13 @@ public class SniffingConnectionPool extends AbstractStaticConnectionPool {
             }
         }
 
-        void sniff(Iterator<StatefulConnection> connectionIterator, Predicate<Node> nodeFilter) throws IOException {
+        void sniff(Iterator<StatefulConnection> connectionIterator, Predicate<HttpHost> hostFilter) throws IOException {
             IOException lastSeenException = null;
             while (connectionIterator.hasNext()) {
                 StatefulConnection connection = connectionIterator.next();
                 try {
-                    List<Node> sniffedNodes = sniffer.sniffNodes(connection.getNode());
-                    Node[] filteredNodes = sniffedNodes.stream().filter(nodeFilter).toArray(Node[]::new);
+                    List<HttpHost> sniffedNodes = sniffer.sniffNodes(connection.getHost());
+                    HttpHost[] filteredNodes = sniffedNodes.stream().filter(hostFilter).toArray(HttpHost[]::new);
                     logger.debug("adding " + filteredNodes.length + " nodes out of " + sniffedNodes.size() + " sniffed nodes");
                     connections = createConnections(filteredNodes);
                     onSuccess(connection);

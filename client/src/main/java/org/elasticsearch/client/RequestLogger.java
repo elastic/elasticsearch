@@ -20,13 +20,14 @@
 package org.elasticsearch.client;
 
 import org.apache.commons.logging.Log;
+import org.apache.http.HttpHost;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
 
 import java.io.IOException;
 
 /**
- * Helper class that exposes static method to unify the way requests are logged
+ * Helper class that exposes static methods to unify the way requests are logged
  */
 public final class RequestLogger {
 
@@ -36,16 +37,14 @@ public final class RequestLogger {
     /**
      * Logs a request that yielded a response
      */
-    public static void log(Log logger, String message, RequestLine requestLine, Node node, StatusLine statusLine) {
-        logger.debug(message + " [" + requestLine.getMethod() + " " + node.getHttpHost() +
-                requestLine.getUri() + "] [" + statusLine + "]");
+    public static void log(Log logger, String message, RequestLine requestLine, HttpHost host, StatusLine statusLine) {
+        logger.debug(message + " [" + requestLine.getMethod() + " " + host + requestLine.getUri() + "] [" + statusLine + "]");
     }
 
     /**
      * Logs a request that failed
      */
-    public static void log(Log logger, String message, RequestLine requestLine, Node node, IOException e) {
-        logger.debug(message + " [" + requestLine.getMethod() + " " + node.getHttpHost() +
-                requestLine.getUri() + "]", e);
+    public static void log(Log logger, String message, RequestLine requestLine, HttpHost host, IOException e) {
+        logger.debug(message + " [" + requestLine.getMethod() + " " + host + requestLine.getUri() + "]", e);
     }
 }

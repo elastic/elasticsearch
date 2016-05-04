@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -31,20 +32,20 @@ import java.util.Objects;
 
 /**
  * Holds an elasticsearch response. It wraps the {@link CloseableHttpResponse} response and associates it with
- * its corresponding {@link RequestLine} and {@link Node}
+ * its corresponding {@link RequestLine} and {@link HttpHost}
  */
 public class ElasticsearchResponse implements Closeable {
 
     private final RequestLine requestLine;
-    private final Node node;
+    private final HttpHost host;
     private final CloseableHttpResponse response;
 
-    ElasticsearchResponse(RequestLine requestLine, Node node, CloseableHttpResponse response) {
+    ElasticsearchResponse(RequestLine requestLine, HttpHost host, CloseableHttpResponse response) {
         Objects.requireNonNull(requestLine, "requestLine cannot be null");
-        Objects.requireNonNull(node, "node cannot be null");
+        Objects.requireNonNull(host, "node cannot be null");
         Objects.requireNonNull(response, "response cannot be null");
         this.requestLine = requestLine;
-        this.node = node;
+        this.host = host;
         this.response = response;
     }
 
@@ -58,8 +59,8 @@ public class ElasticsearchResponse implements Closeable {
     /**
      * Returns the node that returned this response
      */
-    public Node getNode() {
-        return node;
+    public HttpHost getHost() {
+        return host;
     }
 
     /**
@@ -77,7 +78,8 @@ public class ElasticsearchResponse implements Closeable {
     }
 
     /**
-     * Returns the response bodyi available, null otherwise
+     * Returns the response body available, null otherwise
+     * @see HttpEntity
      */
     public HttpEntity getEntity() {
         return response.getEntity();
@@ -87,7 +89,7 @@ public class ElasticsearchResponse implements Closeable {
     public String toString() {
         return "ElasticsearchResponse{" +
                 "requestLine=" + requestLine +
-                ", node=" + node +
+                ", host=" + host +
                 ", response=" + response.getStatusLine() +
                 '}';
     }

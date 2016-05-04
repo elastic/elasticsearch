@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.HttpHost;
+
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -43,10 +45,10 @@ public final class StatefulConnection extends Connection {
     private volatile long deadUntil = -1;
 
     /**
-     * Creates a new mutable connection pointing to the provided {@link Node} argument
+     * Creates a new mutable connection pointing to the provided {@link HttpHost} argument
      */
-    public StatefulConnection(Node node) {
-        super(node);
+    public StatefulConnection(HttpHost host) {
+        super(host);
     }
 
     /**

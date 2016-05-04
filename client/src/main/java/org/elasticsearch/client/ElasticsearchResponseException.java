@@ -19,41 +19,57 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.HttpHost;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown when an elasticsearch node responds to a request with a status code that indicates an error
+ */
 public class ElasticsearchResponseException extends IOException {
 
-    private final Node node;
+    private final HttpHost host;
     private final RequestLine requestLine;
     private final StatusLine statusLine;
 
-    ElasticsearchResponseException(RequestLine requestLine, Node node, StatusLine statusLine) {
-        super(buildMessage(requestLine, node, statusLine));
-        this.node = node;
+    ElasticsearchResponseException(RequestLine requestLine, HttpHost host, StatusLine statusLine) {
+        super(buildMessage(requestLine, host, statusLine));
+        this.host = host;
         this.requestLine = requestLine;
         this.statusLine = statusLine;
     }
 
-    private static String buildMessage(RequestLine requestLine, Node node, StatusLine statusLine) {
-        return requestLine.getMethod() + " " + node.getHttpHost() + requestLine.getUri() + ": " + statusLine.toString();
+    private static String buildMessage(RequestLine requestLine, HttpHost host, StatusLine statusLine) {
+        return requestLine.getMethod() + " " + host + requestLine.getUri() + ": " + statusLine.toString();
     }
 
+    /**
+     * Returns whether the error is recoverable or not, hence whether the same request should be retried on other nodes or not
+     */
     public boolean isRecoverable() {
         //clients don't retry on 500 because elasticsearch still misuses it instead of 400 in some places
         return statusLine.getStatusCode() >= 502 && statusLine.getStatusCode() <= 504;
     }
 
-    public Node getNode() {
-        return node;
+    /**
+     * Returns the {@link HttpHost} that returned the error
+     */
+    public HttpHost getHost() {
+        return host;
     }
 
+    /**
+     * Returns the {@link RequestLine} that triggered the error
+     */
     public RequestLine getRequestLine() {
         return requestLine;
     }
 
+    /**
+     * Returns the {@link StatusLine} that was returned by elasticsearch
+     */
     public StatusLine getStatusLine() {
         return statusLine;
     }

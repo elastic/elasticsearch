@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
-import org.elasticsearch.xpack.watcher.support.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.junit.After;

@@ -15,10 +15,10 @@ import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
-import org.elasticsearch.xpack.watcher.support.http.HttpClient;
-import org.elasticsearch.xpack.watcher.support.http.HttpRequest;
-import org.elasticsearch.xpack.watcher.support.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpRequest;
+import org.elasticsearch.xpack.common.http.HttpResponse;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.HashMap;

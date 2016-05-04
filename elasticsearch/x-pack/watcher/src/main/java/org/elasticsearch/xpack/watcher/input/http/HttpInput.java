@@ -12,9 +12,9 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.input.Input;
-import org.elasticsearch.xpack.watcher.support.http.HttpContentType;
-import org.elasticsearch.xpack.watcher.support.http.HttpRequest;
-import org.elasticsearch.xpack.watcher.support.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.common.http.HttpContentType;
+import org.elasticsearch.xpack.common.http.HttpRequest;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;

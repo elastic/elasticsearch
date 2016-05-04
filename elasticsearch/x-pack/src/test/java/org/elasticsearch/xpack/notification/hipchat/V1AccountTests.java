@@ -9,11 +9,11 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.support.http.HttpClient;
-import org.elasticsearch.xpack.watcher.support.http.HttpMethod;
-import org.elasticsearch.xpack.watcher.support.http.HttpRequest;
-import org.elasticsearch.xpack.watcher.support.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.support.http.Scheme;
+import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpMethod;
+import org.elasticsearch.xpack.common.http.HttpRequest;
+import org.elasticsearch.xpack.common.http.HttpResponse;
+import org.elasticsearch.xpack.common.http.Scheme;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayContaining;

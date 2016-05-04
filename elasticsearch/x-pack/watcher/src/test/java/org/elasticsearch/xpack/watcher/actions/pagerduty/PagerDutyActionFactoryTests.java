@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
-import org.elasticsearch.xpack.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.junit.Before;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;

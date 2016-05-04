@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.notification.slack.SlackService;
 import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
-import org.elasticsearch.xpack.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.Map;

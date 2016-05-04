@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.notification.slack;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.support.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.notification.slack.message.SlackMessageDefaultsTests;
 import org.junit.Before;
 

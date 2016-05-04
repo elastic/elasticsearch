@@ -17,8 +17,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.support.clock.SystemClock;
-import org.elasticsearch.xpack.watcher.support.secret.Secret;
-import org.elasticsearch.xpack.watcher.support.secret.SecretService;
+import org.elasticsearch.xpack.common.secret.Secret;
+import org.elasticsearch.xpack.common.secret.SecretService;
 
 /**
  * A xcontent parser that is used by watcher. This is a special parser that is

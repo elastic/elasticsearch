@@ -10,7 +10,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.actions.ActionFactory;
-import org.elasticsearch.xpack.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.notification.email.EmailService;
 import org.elasticsearch.xpack.notification.email.HtmlSanitizer;
 import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsParser;

@@ -12,7 +12,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.watcher.support.secret.SecretService;
+import org.elasticsearch.xpack.common.secret.SecretService;
 
 import javax.mail.MessagingException;
 

@@ -26,14 +26,18 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.authc.AuthenticationModule;
-import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.action.XPackInfoAction;
+import org.elasticsearch.xpack.common.http.HttpClientModule;
 import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 import org.elasticsearch.xpack.common.init.LazyInitializationService;
+import org.elasticsearch.xpack.common.secret.SecretModule;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
+import org.elasticsearch.xpack.notification.Notification;
 import org.elasticsearch.xpack.rest.action.RestXPackInfoAction;
+import org.elasticsearch.xpack.common.text.TextTemplateModule;
+import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -88,20 +92,21 @@ public class XPackPlugin extends Plugin {
     protected Monitoring monitoring;
     protected Watcher watcher;
     protected Graph graph;
+    protected Notification notification;
 
     public XPackPlugin(Settings settings) {
         this.settings = settings;
-        transportClientMode = transportClientMode(settings);
+        this.transportClientMode = transportClientMode(settings);
         this.licensing = new Licensing(settings);
         this.security = new Security(settings);
         this.monitoring = new Monitoring(settings);
         this.watcher = new Watcher(settings);
         this.graph = new Graph(settings);
+        this.notification = new Notification(settings);
         // Check if the node is a transport client.
-        if (transportClientMode(settings) == false) {
+        if (transportClientMode == false) {
             Environment env = new Environment(settings);
-            this.extensionsService =
-                    new XPackExtensionsService(settings, resolveXPackExtensionsFile(env), getExtensions());
+            this.extensionsService = new XPackExtensionsService(settings, resolveXPackExtensionsFile(env), getExtensions());
         } else {
             this.extensionsService = null;
         }
@@ -124,11 +129,18 @@ public class XPackPlugin extends Plugin {
     public Collection<Module> nodeModules() {
         ArrayList<Module> modules = new ArrayList<>();
         modules.add(new LazyInitializationModule());
+        modules.addAll(notification.nodeModules());
         modules.addAll(licensing.nodeModules());
         modules.addAll(security.nodeModules());
         modules.addAll(watcher.nodeModules());
         modules.addAll(monitoring.nodeModules());
         modules.addAll(graph.nodeModules());
+
+        if (transportClientMode == false) {
+            modules.add(new HttpClientModule());
+            modules.add(new SecretModule(settings));
+            modules.add(new TextTemplateModule());
+        }
         return modules;
     }
 
@@ -139,6 +151,7 @@ public class XPackPlugin extends Plugin {
         // as other services may depend on one of the initialized
         // constructs
         services.add(LazyInitializationService.class);
+        services.addAll(notification.nodeServices());
         services.addAll(licensing.nodeServices());
         services.addAll(security.nodeServices());
         services.addAll(watcher.nodeServices());
@@ -161,10 +174,16 @@ public class XPackPlugin extends Plugin {
     }
 
     public void onModule(SettingsModule module) {
-
         // we add the `xpack.version` setting to all internal indices
         module.registerSetting(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
 
+        // http settings
+        module.registerSetting(Setting.simpleString("xpack.http.default_read_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.simpleString("xpack.http.default_connection_timeout", Setting.Property.NodeScope));
+        module.registerSetting(Setting.groupSetting("xpack.http.ssl.", Setting.Property.NodeScope));
+        module.registerSetting(Setting.groupSetting("xpack.http.proxy.", Setting.Property.NodeScope));
+
+        notification.onModule(module);
         security.onModule(module);
         monitoring.onModule(module);
         watcher.onModule(module);

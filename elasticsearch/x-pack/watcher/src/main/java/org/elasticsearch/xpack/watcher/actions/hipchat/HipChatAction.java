@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.notification.hipchat.HipChatMessage;
 import org.elasticsearch.xpack.notification.hipchat.SentMessages;
-import org.elasticsearch.xpack.watcher.support.text.TextTemplate;
+import org.elasticsearch.xpack.common.text.TextTemplate;
 
 import java.io.IOException;
 

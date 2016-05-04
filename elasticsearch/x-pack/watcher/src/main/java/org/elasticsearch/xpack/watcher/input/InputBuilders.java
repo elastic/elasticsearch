@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.watcher.input.http.HttpInput;
 import org.elasticsearch.xpack.watcher.input.none.NoneInput;
 import org.elasticsearch.xpack.watcher.input.search.SearchInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
-import org.elasticsearch.xpack.watcher.support.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.HashMap;

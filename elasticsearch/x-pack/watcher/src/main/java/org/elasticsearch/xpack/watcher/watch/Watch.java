@@ -13,12 +13,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.common.secret.Secret;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.actions.ActionRegistry;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
@@ -32,7 +34,7 @@ import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.support.clock.HaltedClock;
-import org.elasticsearch.xpack.watcher.support.secret.SecretService;
+import org.elasticsearch.xpack.common.secret.SecretService;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
@@ -229,7 +231,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             this.triggerService = triggerService;
             this.actionRegistry = actionRegistry;
             this.inputRegistry = inputRegistry;
-            this.secretService = secretService;
+            this.secretService = Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.get(settings) ? secretService : SecretService.Insecure.INSTANCE;
             this.defaultInput = new ExecutableNoneInput(logger);
             this.defaultCondition = new ExecutableAlwaysCondition(logger);
             this.defaultActions = new ExecutableActions(Collections.emptyList());
@@ -245,15 +247,8 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         }
 
         /**
-         * @see #parseWithSecrets(String, boolean, BytesReference, DateTime)
-         */
-        public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source) throws IOException {
-            return parse(id, includeStatus, true, source, clock.nowUTC());
-        }
-
-        /**
          * Parses the watch represented by the given source. When parsing, any sensitive data that the
-         * source might contain (e.g. passwords) will be converted to {@link org.elasticsearch.xpack.watcher.support.secret.Secret secrets}
+         * source might contain (e.g. passwords) will be converted to {@link Secret secrets}
          * Such that the returned watch will potentially hide this sensitive data behind a "secret". A secret
          * is an abstraction around sensitive data (text). There can be different implementations of how the
          * secret holds the data, depending on the wired up {@link SecretService}. When shield is installed, a

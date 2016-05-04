@@ -10,9 +10,9 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
-import org.elasticsearch.xpack.watcher.support.http.HttpClient;
-import org.elasticsearch.xpack.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 
 import java.io.IOException;
 

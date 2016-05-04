@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.actions.hipchat.ExecutableHipChatAction;
 import org.elasticsearch.xpack.notification.slack.SlackAccount;
 import org.elasticsearch.xpack.notification.slack.SlackService;
-import org.elasticsearch.xpack.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 
 import java.io.IOException;
 

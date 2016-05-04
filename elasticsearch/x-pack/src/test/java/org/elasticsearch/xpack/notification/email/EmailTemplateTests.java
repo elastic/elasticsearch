@@ -11,8 +11,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.support.text.TextTemplate;
-import org.elasticsearch.xpack.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.xpack.common.text.TextTemplate;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 
 import java.util.ArrayList;
 import java.util.HashMap;

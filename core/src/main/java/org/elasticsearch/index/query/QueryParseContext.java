@@ -19,15 +19,15 @@
 
 package org.elasticsearch.index.query;
 
-import java.io.IOException;
-import java.util.Objects;
-
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+
+import java.io.IOException;
+import java.util.Objects;
 
 public class QueryParseContext implements ParseFieldMatcherSupplier {
 
@@ -105,7 +105,7 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
         if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
         }
-        QueryBuilder<?> result = indicesQueriesRegistry.lookup(queryName, parser, parseFieldMatcher).fromXContent(this);
+        QueryBuilder<?> result = indicesQueriesRegistry.lookup(queryName, parseFieldMatcher, parser.getTokenLocation()).fromXContent(this);
         if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
             // if we are at END_OBJECT, move to the next one...
             parser.nextToken();

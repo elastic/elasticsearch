@@ -76,7 +76,31 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-Make sure you have [Gradle](http://gradle.org) installed, as Elasticsearch uses it as its build system. Integration with IntelliJ and Eclipse should work out of the box. Eclipse users can automatically configure their IDE: `gradle eclipse` then `File: Import: Existing Projects into Workspace`. Select the option `Search for nested projects`. Additionally you will want to ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini` accordingly to avoid GC overhead errors.
+Make sure you have [Gradle](http://gradle.org) installed, as
+Elasticsearch uses it as its build system.
+
+Eclipse users can automatically configure their IDE: `gradle eclipse`
+then `File: Import: Existing Projects into Workspace`. Select the
+option `Search for nested projects`. Additionally you will want to
+ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini`
+accordingly to avoid GC overhead errors.
+
+IntelliJ users acn automatically configure their IDE: `gradle idea`
+then `File->New Project From Existing Sources`. Point to the root of
+the source directory, select
+`Import project from external model->Gradle`, enable
+`Use auto-import`.
+
+The Elasticsearch codebase makes heavy use of Java `assert`s and the
+test runner requires that assertions be enabled within the JVM. This
+can be accomplished by passing the flag `-ea` to the JVM on startup.
+
+For IntelliJ, go to
+`Run->Edit Configurations...->Defaults->JUnit->VM options` and input
+`-ea`.
+
+For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
+`VM Arguments`.
 
 Please follow these formatting guidelines:
 

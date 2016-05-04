@@ -94,6 +94,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.elasticsearch.tribe.TribeService;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -317,6 +318,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
                     ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
                     ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING,
+                    ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
                     IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
                     IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
                     IndicesRequestCache.INDICES_CACHE_QUERY_SIZE,
@@ -406,10 +408,15 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     BootstrapSettings.MLOCKALL_SETTING,
                     BootstrapSettings.SECCOMP_SETTING,
                     BootstrapSettings.CTRLHANDLER_SETTING,
+                    BootstrapSettings.IGNORE_SYSTEM_BOOTSTRAP_CHECKS,
                     IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,
                     IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING,
-                    IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING
+                    IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING,
+                    ResourceWatcherService.ENABLED,
+                    ResourceWatcherService.RELOAD_INTERVAL_HIGH,
+                    ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
+                    ResourceWatcherService.RELOAD_INTERVAL_LOW
             )));
 }

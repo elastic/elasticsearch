@@ -351,8 +351,7 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
 
-    public void testBreadthFirst() throws Exception {
-        // breadth_first will be ignored since we need scores
+    public void testBreadthFirstWithScoreNeeded() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
@@ -379,6 +378,38 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(hits.getHits().length, equalTo(3));
 
             assertThat(hits.getAt(0).sourceAsMap().size(), equalTo(4));
+        }
+    }
+
+    public void testBreadthFirstWithAggOrderAndScoreNeeded() throws Exception {
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                .field(TERMS_AGGS_FIELD)
+                .order(Terms.Order.aggregation("max", false))
+                .subAggregation(max("max").field(SORT_FIELD))
+                .subAggregation(topHits("hits").size(3))
+            ).get();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+        int id = 4;
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("val" + id));
+            assertThat(bucket.getDocCount(), equalTo(10L));
+            TopHits topHits = bucket.getAggregations().get("hits");
+            SearchHits hits = topHits.getHits();
+            assertThat(hits.totalHits(), equalTo(10L));
+            assertThat(hits.getHits().length, equalTo(3));
+
+            assertThat(hits.getAt(0).sourceAsMap().size(), equalTo(4));
+            id --;
         }
     }
 

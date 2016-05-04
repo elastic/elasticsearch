@@ -48,7 +48,7 @@ import static java.util.Collections.unmodifiableMap;
 /**
  *
  */
-public abstract class SortBuilder<T extends SortBuilder<?>> extends ToXContentToBytes implements NamedWriteable<T> {
+public abstract class SortBuilder<T extends SortBuilder<T>> extends ToXContentToBytes implements NamedWriteable {
 
     protected SortOrder order = SortOrder.ASC;
     public static final ParseField ORDER_FIELD = new ParseField("order");

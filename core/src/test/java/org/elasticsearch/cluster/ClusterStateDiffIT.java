@@ -24,6 +24,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
+import org.elasticsearch.cluster.metadata.IndexGraveyardTests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -602,12 +604,21 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
             @Override
             public MetaData.Builder remove(MetaData.Builder builder, String name) {
-                return builder.removeCustom(name);
+                if (IndexGraveyard.TYPE.equals(name)) {
+                    // there must always be at least an empty graveyard
+                    return builder.indexGraveyard(IndexGraveyard.builder().build());
+                } else {
+                    return builder.removeCustom(name);
+                }
             }
 
             @Override
             public MetaData.Custom randomCreate(String name) {
-                return new RepositoriesMetaData();
+                if (randomBoolean()) {
+                    return new RepositoriesMetaData();
+                } else {
+                    return IndexGraveyardTests.createRandom();
+                }
             }
 
             @Override

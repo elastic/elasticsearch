@@ -71,9 +71,9 @@ curl -XPUT localhost:9200/users/user/2 -d '{
    "followers" : ["1", "3"]
 }'
 
-# index a tweet, from user with id 2
+# index a tweet, from user with id 1
 curl -XPUT localhost:9200/tweets/tweet/1 -d '{
-   "user" : "2"
+   "user" : "1"
 }'
 
 # search on all the tweets that match the followers of user 2

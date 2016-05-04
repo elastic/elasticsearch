@@ -87,6 +87,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
@@ -410,10 +411,21 @@ public abstract class ESTestCase extends LuceneTestCase {
      * helper to get a random value in a certain range that's different from the input
      */
     public static <T> T randomValueOtherThan(T input, Supplier<T> randomSupplier) {
+        if (input != null) {
+            return randomValueOtherThanMany(input::equals, randomSupplier);
+        }
+        
+        return(randomSupplier.get());
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input
+     */
+    public static <T> T randomValueOtherThanMany(Predicate<T> input, Supplier<T> randomSupplier) {
         T randomValue = null;
         do {
             randomValue = randomSupplier.get();
-        } while (randomValue.equals(input));
+        } while (input.test(randomValue));
         return randomValue;
     }
 

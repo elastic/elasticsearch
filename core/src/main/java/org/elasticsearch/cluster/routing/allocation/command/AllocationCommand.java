@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  * This interface defines the basic methods of commands for allocation
  */
-public interface AllocationCommand extends NamedWriteable<AllocationCommand>, ToXContent {
+public interface AllocationCommand extends NamedWriteable, ToXContent {
     interface Parser<T extends AllocationCommand> {
         /**
          * Reads an {@link AllocationCommand} of type <code>T</code> from a {@link XContentParser}.

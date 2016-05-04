@@ -367,11 +367,6 @@ public class BytesStreamsTests extends ESTestCase {
             @Override
             public void writeTo(StreamOutput out) throws IOException {
             }
-
-            @Override
-            public Object readFrom(StreamInput in) throws IOException {
-                return null;
-            }
         });
         StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytes()), namedWriteableRegistry);
         try {
@@ -436,11 +431,11 @@ public class BytesStreamsTests extends ESTestCase {
                 endsWith(" claims to have a different name [intentionally-broken] than it was read from [test-named-writeable]."));
     }
 
-    private static abstract class BaseNamedWriteable<T> implements NamedWriteable<T> {
+    private static abstract class BaseNamedWriteable implements NamedWriteable {
 
     }
 
-    private static class TestNamedWriteable extends BaseNamedWriteable<TestNamedWriteable> {
+    private static class TestNamedWriteable extends BaseNamedWriteable {
 
         private static final String NAME = "test-named-writeable";
 

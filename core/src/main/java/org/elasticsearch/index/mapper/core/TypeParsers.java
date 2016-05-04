@@ -86,7 +86,7 @@ public class TypeParsers {
         parseField(builder, name, numberNode, parserContext);
         for (Iterator<Map.Entry<String, Object>> iterator = numberNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
-            String propName = Strings.toUnderscoreCase(entry.getKey());
+            String propName = entry.getKey();
             Object propNode = entry.getValue();
             if (propName.equals("precision_step")) {
                 builder.precisionStep(nodeIntegerValue(propNode));
@@ -114,7 +114,7 @@ public class TypeParsers {
 
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
-            final String propName = Strings.toUnderscoreCase(entry.getKey());
+            final String propName = entry.getKey();
             final Object propNode = entry.getValue();
             if (propName.equals("term_vector")) {
                 parseTermVector(name, propNode.toString(), builder);
@@ -188,7 +188,7 @@ public class TypeParsers {
                 final Map<String, Object> properties = nodeMapValue(propNode, "norms");
                 for (Iterator<Entry<String, Object>> propsIterator = properties.entrySet().iterator(); propsIterator.hasNext();) {
                     Entry<String, Object> entry2 = propsIterator.next();
-                    final String propName2 = Strings.toUnderscoreCase(entry2.getKey());
+                    final String propName2 = entry2.getKey();
                     final Object propNode2 = entry2.getValue();
                     if (propName2.equals("enabled")) {
                         builder.omitNorms(!lenientNodeBooleanValue(propNode2));
@@ -222,7 +222,7 @@ public class TypeParsers {
         parseAnalyzersAndTermVectors(builder, name, fieldNode, parserContext);
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
-            final String propName = Strings.toUnderscoreCase(entry.getKey());
+            final String propName = entry.getKey();
             final Object propNode = entry.getValue();
             if (parseNorms(builder, propName, propNode, parserContext)) {
                 iterator.remove();
@@ -237,7 +237,7 @@ public class TypeParsers {
         Version indexVersionCreated = parserContext.indexVersionCreated();
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
-            final String propName = Strings.toUnderscoreCase(entry.getKey());
+            final String propName = entry.getKey();
             final Object propNode = entry.getValue();
             if (propName.equals("store")) {
                 builder.store(parseStore(name, propNode.toString(), parserContext));
@@ -362,7 +362,6 @@ public class TypeParsers {
     }
 
     public static void parseTermVector(String fieldName, String termVector, FieldMapper.Builder builder) throws MapperParsingException {
-        termVector = Strings.toUnderscoreCase(termVector);
         if ("no".equals(termVector)) {
             builder.storeTermVectors(false);
         } else if ("yes".equals(termVector)) {

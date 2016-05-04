@@ -36,7 +36,6 @@ public class NamedWriteableRegistry {
      * This method suppresses the rawtypes warning because it intentionally using NamedWriteable instead of {@code NamedWriteable<T>} so it
      * is easier to use and because we might be able to drop the type parameter from NamedWriteable entirely some day.
      */
-    @SuppressWarnings("rawtypes")
     public synchronized <T extends NamedWriteable> void register(Class<T> categoryClass, String name,
             Writeable.Reader<? extends T> reader) {
         @SuppressWarnings("unchecked")

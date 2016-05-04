@@ -465,7 +465,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
                 .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
                 .put("index.analysis.filter.my_shingle.max_shingle_size", 2));
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("_all").field("store", true).field("termVector", "with_positions_offsets").endObject()
+                .startObject("_all").field("store", true).field("term_vector", "with_positions_offsets").endObject()
                 .startObject("properties")
                 .startObject("body").field("type", "text").field("analyzer", "body").endObject()
                 .startObject("body_reverse").field("type", "text").field("analyzer", "reverse").endObject()
@@ -510,7 +510,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("_all")
                         .field("store", true)
-                        .field("termVector", "with_positions_offsets")
+                        .field("term_vector", "with_positions_offsets")
                     .endObject()
                     .startObject("properties")
                         .startObject("body").
@@ -625,7 +625,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
         return Files.readAllLines(PathUtils.get(Suggest.class.getResource("/config/names.txt").toURI()), StandardCharsets.UTF_8);
     }
 
-    public void testSizePararm() throws IOException {
+    public void testSizeParam() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put("index.analysis.analyzer.reverse.tokenizer", "standard")
@@ -644,7 +644,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
                     .startObject("type1")
                         .startObject("_all")
                             .field("store", true)
-                            .field("termVector", "with_positions_offsets")
+                            .field("term_vector", "with_positions_offsets")
                         .endObject()
                         .startObject("properties")
                             .startObject("body")
@@ -712,7 +712,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder()
                     .startObject().startObject("type1")
-                    .startObject("_all").field("store", true).field("termVector", "with_positions_offsets").endObject()
+                    .startObject("_all").field("store", true).field("term_vector", "with_positions_offsets").endObject()
                 .startObject("properties")
                 .startObject("body").field("type", "text").field("analyzer", "body").endObject()
                 .startObject("bigram").field("type", "text").field("analyzer", "bigram").endObject()
@@ -911,7 +911,7 @@ public class SuggestSearchTests extends ESIntegTestCase {
                     .startObject("type1")
                         .startObject("_all")
                             .field("store", true)
-                            .field("termVector", "with_positions_offsets")
+                            .field("term_vector", "with_positions_offsets")
                         .endObject()
                         .startObject("properties")
                             .startObject("body")

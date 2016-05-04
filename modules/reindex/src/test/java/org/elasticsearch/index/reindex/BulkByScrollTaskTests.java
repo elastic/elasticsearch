@@ -21,6 +21,10 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
@@ -39,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -48,7 +53,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     @Before
     public void createTask() {
-        task = new BulkByScrollTask(1, "test_type", "test_action", "test", 0);
+        task = new BulkByScrollTask(1, "test_type", "test_action", "test", TaskId.EMPTY_TASK_ID, Float.POSITIVE_INFINITY);
     }
 
     public void testBasicData() {
@@ -268,5 +273,11 @@ public class BulkByScrollTaskTests extends ESTestCase {
         } finally {
             threadPool.shutdown();
         }
+    }
+
+    public void testXContentRepresentationOfUnlimitedRequestsPerSecon() throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        task.getStatus().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertThat(builder.string(), containsString("\"requests_per_second\":\"unlimited\""));
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -69,8 +70,8 @@ public class BulkByScrollTask extends CancellableTask {
      */
     private final AtomicReference<DelayedPrepareBulkRequest> delayedPrepareBulkRequestReference = new AtomicReference<>();
 
-    public BulkByScrollTask(long id, String type, String action, String description, float requestsPerSecond) {
-        super(id, type, action, description);
+    public BulkByScrollTask(long id, String type, String action, String description, TaskId parentTask, float requestsPerSecond) {
+        super(id, type, action, description, parentTask);
         setRequestsPerSecond(requestsPerSecond);
     }
 
@@ -189,7 +190,7 @@ public class BulkByScrollTask extends CancellableTask {
             builder.field("noops", noops);
             builder.field("retries", retries);
             builder.timeValueField("throttled_millis", "throttled", throttled);
-            builder.field("requests_per_second", requestsPerSecond == 0 ? "unlimited" : requestsPerSecond);
+            builder.field("requests_per_second", requestsPerSecond == Float.POSITIVE_INFINITY ? "unlimited" : requestsPerSecond);
             if (reasonCancelled != null) {
                 builder.field("canceled", reasonCancelled);
             }
@@ -392,9 +393,6 @@ public class BulkByScrollTask extends CancellableTask {
     }
 
     private void setRequestsPerSecond(float requestsPerSecond) {
-        if (requestsPerSecond == -1) {
-            requestsPerSecond = 0;
-        }
         this.requestsPerSecond = requestsPerSecond;
     }
 

@@ -794,26 +794,26 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .startObject("properties")
                     .startObject("foo")
                         .field("type", "text")
-                        .field("termVector", "with_positions_offsets")
+                        .field("term_vector", "with_positions_offsets")
                         .field("store", true)
                         .field("analyzer", "english")
                         .startObject("fields")
                             .startObject("plain")
                                 .field("type", "text")
-                                .field("termVector", "with_positions_offsets")
+                                .field("term_vector", "with_positions_offsets")
                                 .field("analyzer", "standard")
                             .endObject()
                         .endObject()
                     .endObject()
                     .startObject("bar")
                         .field("type", "text")
-                        .field("termVector", "with_positions_offsets")
+                        .field("term_vector", "with_positions_offsets")
                         .field("store", true)
                         .field("analyzer", "english")
                         .startObject("fields")
                             .startObject("plain")
                                 .field("type", "text")
-                                .field("termVector", "with_positions_offsets")
+                                .field("term_vector", "with_positions_offsets")
                                 .field("analyzer", "standard")
                             .endObject()
                         .endObject()
@@ -981,10 +981,10 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
     public XContentBuilder type1TermVectorMapping() throws IOException {
         return XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("_all").field("store", true).field("termVector", "with_positions_offsets").endObject()
+                .startObject("_all").field("store", true).field("term_vector", "with_positions_offsets").endObject()
                 .startObject("properties")
-                .startObject("field1").field("type", "text").field("termVector", "with_positions_offsets").endObject()
-                .startObject("field2").field("type", "text").field("termVector", "with_positions_offsets").endObject()
+                .startObject("field1").field("type", "text").field("term_vector", "with_positions_offsets").endObject()
+                .startObject("field2").field("type", "text").field("term_vector", "with_positions_offsets").endObject()
                 .endObject()
                 .endObject().endObject();
     }
@@ -1365,7 +1365,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .putArray("index.analysis.filter.synonym.synonyms", "quick => fast");
 
         assertAcked(prepareCreate("test").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping())
-                .addMapping("type2", "_all", "store=true,termVector=with_positions_offsets",
+                .addMapping("type2", "_all", "store=true,term_vector=with_positions_offsets",
                         "field4", "type=text,term_vector=with_positions_offsets,analyzer=synonym",
                         "field3", "type=text,analyzer=synonym"));
         ensureGreen();

@@ -5,10 +5,7 @@
       put_template:
         id: "1"
         body: { "template": { "query": { "match": { "text": "{{my_value}}" } }, "aggs": { "my_terms": { "terms": { "field": "{{my_field}}" } } } } }
-  - match: { _id: "1" }
-
-  - do:
-      indices.refresh: {}
+  - match: { acknowledged: true }
 
   - do:
       render_search_template:
@@ -60,10 +57,7 @@
       put_template:
         id: "1"
         body: { "template": "{ \"query\": { \"match\": { \"text\": \"{{my_value}}\" } }, \"size\": {{my_size}} }" }
-  - match: { _id: "1" }
-
-  - do:
-      indices.refresh: {}
+  - match: { acknowledged: true }
 
   - do:
       render_search_template:

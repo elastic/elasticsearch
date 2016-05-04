@@ -42,12 +42,14 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.InnerHitBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -331,7 +333,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * Function to be associated with an optional filter, meaning it will be executed only for the documents
      * that match the given filter.
      */
-    public static class FilterFunctionBuilder implements ToXContent, Writeable<FilterFunctionBuilder> {
+    public static class FilterFunctionBuilder implements ToXContent, Writeable {
         private final QueryBuilder<?> filter;
         private final ScoreFunctionBuilder<?> scoreFunction;
 
@@ -429,8 +431,15 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         return this;
     }
 
+
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+        InnerHitBuilder.extractInnerHits(query(), innerHits);
+    }
+
     public static FunctionScoreQueryBuilder fromXContent(ParseFieldRegistry<ScoreFunctionParser<?>> scoreFunctionsRegistry,
-            QueryParseContext parseContext) throws IOException {
+                                                         QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         QueryBuilder<?> query = null;
@@ -477,7 +486,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     // we try to parse a score function. If there is no score function for the current field name,
                     // getScoreFunction will throw.
                     ScoreFunctionBuilder<?> scoreFunction = scoreFunctionsRegistry
-                            .lookup(currentFieldName, parseContext.parser(), parseContext.getParseFieldMatcher())
+                            .lookup(currentFieldName, parseContext.getParseFieldMatcher(), parser.getTokenLocation())
                             .fromXContent(parseContext);
                     filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(scoreFunction));
                 }
@@ -582,8 +591,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                                         "failed to parse function_score functions. already found [{}], now encountering [{}].",
                                         scoreFunction.getName(), currentFieldName);
                             }
-                            scoreFunction = scoreFunctionsRegistry.lookup(currentFieldName, parser, parseContext.getParseFieldMatcher())
-                                    .fromXContent(parseContext);
+                            scoreFunction = scoreFunctionsRegistry.lookup(currentFieldName, parseContext.getParseFieldMatcher(),
+                                    parser.getTokenLocation()).fromXContent(parseContext);
                         }
                     } else if (token.isValue()) {
                         if (parseContext.getParseFieldMatcher().match(currentFieldName, WEIGHT_FIELD)) {

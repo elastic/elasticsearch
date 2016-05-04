@@ -126,7 +126,13 @@ in favour of `query` and `no_match_query`.
 
 * The `exists` query will now fail if the `_field_names` field is disabled.
 
+* Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoPolygonQuery. Use parameter validation_method instead.
 
+* Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoDistanceRangeQuery. Use parameter validation_method instead.
+
+* Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoDistanceQuery. Use parameter validation_method instead.
+
+* Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoBoundingBoxQuery. Use parameter validation_method instead.
 ==== Top level `filter` parameter
 
 Removed support for the deprecated top level `filter` in the search api,
@@ -149,7 +155,10 @@ vectors don't support distributed document frequencies anymore.
 The `reverse` parameter has been removed, in favour of explicitly
 specifying the sort order with the `order` option.
 
+The `coerce` and `ignore_malformed` parameters were deprecated in favour of `validation_method`.
+
 ==== Inner hits
 
-* The format of top level inner hits has been changed to be more readable. All options are now set on the same level.
-  So the `path` and `type` options are specified on the same level where `query` and other options are specified.
+* Top level inner hits syntax has been removed. Inner hits can now only be specified as part of the `nested`,
+`has_child` and `has_parent` queries. Use cases previously only possible with top level inner hits can now be done
+with inner hits defined inside the query dsl.

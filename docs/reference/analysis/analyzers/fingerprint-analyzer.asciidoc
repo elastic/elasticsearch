@@ -1,0 +1,41 @@
+[[analysis-fingerprint-analyzer]]
+=== Fingerprint Analyzer
+
+The `fingerprint` analyzer implements a
+https://github.com/OpenRefine/OpenRefine/wiki/Clustering-In-Depth#fingerprint[fingerprinting algorithm]
+which is used by the OpenRefine project to assist in clustering.
+
+The `fingerprint` analyzer is composed of a <<analysis-standard-tokenizer>>, and four
+token filters (in this order): <<analysis-lowercase-tokenfilter>>, <<analysis-stop-tokenfilter>>,
+<<analysis-fingerprint-tokenfilter>> and <<analysis-asciifolding-tokenfilter>>.
+
+Input text is lowercased, normalized to remove extended characters, sorted, deduplicated and
+concatenated into a single token.  If a stopword list is configured, stop words will
+also be removed. For example, the sentence:
+
+____
+"Yes yes, Gödel said this sentence is consistent and."
+____
+
+will be transformed into the token: `"and consistent godel is said sentence this yes"`
+
+
+Notice how the words are all lowercased, the umlaut in "gödel" has been normalized to "godel",
+punctuation has been removed, and "yes" has been de-duplicated.
+
+The `fingerprint` analyzer has these configurable settings
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Setting |Description
+|`separator` | The character that separates the tokens after concatenation.
+Defaults to a space.
+|`max_output_size` | The maximum token size to emit. Defaults to `255`. See <<analysis-fingerprint-tokenfilter-max-size>>
+|`preserve_original`| If true, emits both the original and folded version of
+ tokens that contain extended characters.  Defaults to `false`
+|`stopwords` | A list of stop words to use. Defaults to an empty list (`_none_`).
+|`stopwords_path` | A path (either relative to `config` location, or absolute) to a stopwords
+                        file configuration. Each stop word should be in its own "line" (separated
+                        by a line break). The file must be UTF-8 encoded.
+|=======================================================================
+

@@ -9,7 +9,7 @@
             "processors": [
               {
                 "geoip" : {
-                  "source_field" : "field1"
+                  "field" : "field1"
                 }
               }
             ]
@@ -53,8 +53,8 @@
             "processors": [
               {
                 "geoip" : {
-                  "source_field" : "field1",
-                  "fields" : ["city_name", "country_iso_code", "ip", "latitude", "longitude", "location", "timezone", "country_name", "region_name", "continent_name"]
+                  "field" : "field1",
+                  "properties" : ["city_name", "country_iso_code", "ip", "location", "timezone", "country_name", "region_name", "continent_name"]
                 }
               }
             ]
@@ -97,7 +97,7 @@
             "processors": [
               {
                 "geoip" : {
-                  "source_field" : "field1",
+                  "field" : "field1",
                   "database_file" : "GeoLite2-Country.mmdb"
                 }
               }

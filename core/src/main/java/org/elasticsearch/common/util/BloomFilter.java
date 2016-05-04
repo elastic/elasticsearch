@@ -24,7 +24,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -75,7 +74,7 @@ public class BloomFilter {
             if (config == null) {
                 return buildDefault();
             }
-            String[] sEntries = Strings.splitStringToArray(config, ',');
+            String[] sEntries = config.split(",");
             if (sEntries.length == 0) {
                 if (config.length() > 0) {
                     return new Factory(new Entry[]{new Entry(0, Double.parseDouble(config))});

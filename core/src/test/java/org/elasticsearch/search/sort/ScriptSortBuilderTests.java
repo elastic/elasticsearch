@@ -48,24 +48,24 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         ScriptSortBuilder builder = new ScriptSortBuilder(new Script(randomAsciiOfLengthBetween(5, 10)),
                 type);
         if (randomBoolean()) {
-                builder.order(RandomSortDataGenerator.order(null));
+                builder.order(randomFrom(SortOrder.values()));
         }
         if (randomBoolean()) {
             if (type == ScriptSortType.NUMBER) {
-                builder.sortMode(RandomSortDataGenerator.mode(builder.sortMode()));
+                builder.sortMode(randomValueOtherThan(builder.sortMode(), () -> randomFrom(SortMode.values())));
             } else {
                 Set<SortMode> exceptThis = new HashSet<>();
                 exceptThis.add(SortMode.SUM);
                 exceptThis.add(SortMode.AVG);
                 exceptThis.add(SortMode.MEDIAN);
-                builder.sortMode(RandomSortDataGenerator.mode(exceptThis));
+                builder.sortMode(randomValueOtherThanMany(exceptThis::contains, () -> randomFrom(SortMode.values())));
             }
         }
         if (randomBoolean()) {
-            builder.setNestedFilter(RandomSortDataGenerator.nestedFilter(builder.getNestedFilter()));
+            builder.setNestedFilter(randomNestedFilter());
         }
         if (randomBoolean()) {
-            builder.setNestedPath(RandomSortDataGenerator.randomAscii(builder.getNestedPath()));
+            builder.setNestedPath(randomAsciiOfLengthBetween(1, 10));
         }
         return builder;
     }
@@ -101,7 +101,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 break;
             case 1:
                 if (original.type() == ScriptSortType.NUMBER) {
-                    result.sortMode(RandomSortDataGenerator.mode(original.sortMode()));
+                    result.sortMode(randomValueOtherThan(result.sortMode(), () -> randomFrom(SortMode.values())));
                 } else {
                     // script sort type String only allows MIN and MAX, so we only switch
                     if (original.sortMode() == SortMode.MIN) {
@@ -112,7 +112,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 }
                 break;
             case 2:
-                result.setNestedFilter(RandomSortDataGenerator.nestedFilter(original.getNestedFilter()));
+                result.setNestedFilter(randomValueOtherThan(
+                        original.getNestedFilter(),
+                        () -> randomNestedFilter()));
                 break;
             case 3:
                 result.setNestedPath(original.getNestedPath() + "_some_suffix");

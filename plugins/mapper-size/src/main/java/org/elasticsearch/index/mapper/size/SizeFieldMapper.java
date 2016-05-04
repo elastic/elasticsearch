@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.size;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -75,7 +74,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
         private Builder(MappedFieldType existing, Version indexCreated) {
             super(NAME, existing == null
-                    ? indexCreated.before(Version.V_5_0_0) ? Defaults.LEGACY_SIZE_FIELD_TYPE : Defaults.SIZE_FIELD_TYPE
+                    ? indexCreated.before(Version.V_5_0_0_alpha2) ? Defaults.LEGACY_SIZE_FIELD_TYPE : Defaults.SIZE_FIELD_TYPE
                     : existing, Defaults.LEGACY_SIZE_FIELD_TYPE);
             builder = this;
         }
@@ -99,7 +98,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME), parserContext.indexVersionCreated());
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     builder.enabled(lenientNodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
@@ -161,7 +160,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
             return;
         }
         final int value = context.source().length();
-        if (Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0)) {
+        if (Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha2)) {
             fields.add(new LegacyIntegerFieldMapper.CustomIntegerNumericField(value, fieldType()));
         } else {
             boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;

@@ -67,10 +67,10 @@ public class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedM
      */
     public ScriptedMetricAggregatorBuilder(StreamInput in) throws IOException {
         super(in, InternalScriptedMetric.TYPE);
-        initScript = in.readOptionalStreamable(Script.SUPPLIER);
-        mapScript = in.readOptionalStreamable(Script.SUPPLIER);
-        combineScript = in.readOptionalStreamable(Script.SUPPLIER);
-        reduceScript = in.readOptionalStreamable(Script.SUPPLIER);
+        initScript = in.readOptionalWriteable(Script::new);
+        mapScript = in.readOptionalWriteable(Script::new);
+        combineScript = in.readOptionalWriteable(Script::new);
+        reduceScript = in.readOptionalWriteable(Script::new);
         if (in.readBoolean()) {
             params = in.readMap();
         }
@@ -78,10 +78,10 @@ public class ScriptedMetricAggregatorBuilder extends AggregatorBuilder<ScriptedM
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeOptionalStreamable(initScript);
-        out.writeOptionalStreamable(mapScript);
-        out.writeOptionalStreamable(combineScript);
-        out.writeOptionalStreamable(reduceScript);
+        out.writeOptionalWriteable(initScript);
+        out.writeOptionalWriteable(mapScript);
+        out.writeOptionalWriteable(combineScript);
+        out.writeOptionalWriteable(reduceScript);
         boolean hasParams = params != null;
         out.writeBoolean(hasParams);
         if (hasParams) {

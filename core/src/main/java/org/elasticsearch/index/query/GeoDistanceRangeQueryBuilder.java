@@ -78,8 +78,10 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
     private static final ParseField NAME_FIELD = new ParseField("_name");
     private static final ParseField BOOST_FIELD = new ParseField("boost");
     private static final ParseField OPTIMIZE_BBOX_FIELD = new ParseField("optimize_bbox");
-    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
-    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
+    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize")
+            .withAllDeprecated("use validation_method instead");
+    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
+            .withAllDeprecated("use validation_method instead");
     private static final ParseField VALIDATION_METHOD = new ParseField("validation_method");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 

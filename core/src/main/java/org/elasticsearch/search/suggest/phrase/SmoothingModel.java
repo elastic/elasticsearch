@@ -30,7 +30,7 @@ import org.elasticsearch.search.suggest.phrase.WordScorer.WordScorerFactory;
 
 import java.io.IOException;
 
-public abstract class SmoothingModel implements NamedWriteable<SmoothingModel>, ToXContent {
+public abstract class SmoothingModel implements NamedWriteable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

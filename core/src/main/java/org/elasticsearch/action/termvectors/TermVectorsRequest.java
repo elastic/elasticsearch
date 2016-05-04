@@ -133,8 +133,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
             Flag.FieldStatistics);
 
-    long startTime;
-
     public TermVectorsRequest() {
     }
 
@@ -174,7 +172,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         this.realtime = other.realtime();
         this.version = other.version();
         this.versionType = VersionType.fromValue(other.versionType().getValue());
-        this.startTime = other.startTime();
         this.filterSettings = other.filterSettings();
     }
 
@@ -458,10 +455,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             flagsEnum.remove(flag);
             assert (!flagsEnum.contains(flag));
         }
-    }
-
-    public long startTime() {
-        return this.startTime;
     }
 
     @Override

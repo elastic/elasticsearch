@@ -68,17 +68,10 @@ public class NettyHttpRequestSizeLimitIT extends ESIntegTestCase {
         }
 
         @SuppressWarnings("unchecked")
-        Tuple<String, CharSequence>[] requests = new Tuple[] {
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest),
-            Tuple.tuple("/index/type/_bulk", bulkRequest)
-        };
+        Tuple<String, CharSequence>[] requests = new Tuple[150];
+        for (int i = 0; i < requests.length; i++) {
+            requests[i] = Tuple.tuple("/index/type/_bulk", bulkRequest);
+        }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress

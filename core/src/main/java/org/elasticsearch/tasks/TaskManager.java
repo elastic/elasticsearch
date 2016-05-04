@@ -64,35 +64,36 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
      * Returns the task manager tracked task or null if the task doesn't support the task manager
      */
     public Task register(String type, String action, TransportRequest request) {
-        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action);
-        if (task != null) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
-            }
+        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask());
+        if (task == null) {
+            return null;
+        }
+        assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
+        if (logger.isTraceEnabled()) {
+            logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
+        }
 
-            if (task instanceof CancellableTask) {
-                CancellableTask cancellableTask = (CancellableTask) task;
-                CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
-                CancellableTaskHolder oldHolder = cancellableTasks.put(task.getId(), holder);
-                assert oldHolder == null;
-                // Check if this task was banned before we start it
-                if (task.getParentTaskId().isSet() && banedParents.isEmpty() == false) {
-                    String reason = banedParents.get(task.getParentTaskId());
-                    if (reason != null) {
-                        try {
-                            holder.cancel(reason);
-                            throw new IllegalStateException("Task cancelled before it started: " + reason);
-                        } finally {
-                            // let's clean up the registration
-                            unregister(task);
-                        }
+        if (task instanceof CancellableTask) {
+            CancellableTask cancellableTask = (CancellableTask) task;
+            CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
+            CancellableTaskHolder oldHolder = cancellableTasks.put(task.getId(), holder);
+            assert oldHolder == null;
+            // Check if this task was banned before we start it
+            if (task.getParentTaskId().isSet() && banedParents.isEmpty() == false) {
+                String reason = banedParents.get(task.getParentTaskId());
+                if (reason != null) {
+                    try {
+                        holder.cancel(reason);
+                        throw new IllegalStateException("Task cancelled before it started: " + reason);
+                    } finally {
+                        // let's clean up the registration
+                        unregister(task);
                     }
                 }
-            } else {
-                Task previousTask = tasks.put(task.getId(), task);
-                assert previousTask == null;
             }
-
+        } else {
+            Task previousTask = tasks.put(task.getId(), task);
+            assert previousTask == null;
         }
         return task;
     }

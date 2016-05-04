@@ -22,7 +22,6 @@ package org.elasticsearch.ingest.processor;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -51,6 +50,22 @@ public class SetProcessorFactoryTests extends ESTestCase {
         assertThat(setProcessor.getTag(), equalTo(processorTag));
         assertThat(setProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
         assertThat(setProcessor.getValue().copyAndResolve(Collections.emptyMap()), equalTo("value1"));
+        assertThat(setProcessor.isOverrideEnabled(), equalTo(true));
+    }
+
+    public void testCreateWithOverride() throws Exception {
+        boolean overrideEnabled = randomBoolean();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("value", "value1");
+        config.put("override", overrideEnabled);
+        String processorTag = randomAsciiOfLength(10);
+        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
+        SetProcessor setProcessor = factory.create(config);
+        assertThat(setProcessor.getTag(), equalTo(processorTag));
+        assertThat(setProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
+        assertThat(setProcessor.getValue().copyAndResolve(Collections.emptyMap()), equalTo("value1"));
+        assertThat(setProcessor.isOverrideEnabled(), equalTo(overrideEnabled));
     }
 
     public void testCreateNoFieldPresent() throws Exception {

@@ -53,7 +53,7 @@ name, as follows:
 ./bin/elasticsearch -E es.cluster.name=my_cluster -E es.node.name=node_1
 --------------------------------------------
 
-NOTE: Values that contain spaces must be surrounded with qoutes.  For instance `-E es.path.logs="C:\My Logs\logs"`.
+NOTE: Values that contain spaces must be surrounded with quotes.  For instance `-E es.path.logs="C:\My Logs\logs"`.
 
 TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
 added to the `elasticsearch.yml` config file, while any node-specific settings

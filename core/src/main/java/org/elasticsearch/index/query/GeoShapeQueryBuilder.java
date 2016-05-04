@@ -33,7 +33,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
@@ -154,8 +153,8 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             indexedShapeIndex = in.readOptionalString();
             indexedShapePath = in.readOptionalString();
         }
-        relation = ShapeRelation.DISJOINT.readFrom(in);
-        strategy = in.readOptionalWriteable(SpatialStrategy.RECURSIVE::readFrom);
+        relation = ShapeRelation.readFromStream(in);
+        strategy = in.readOptionalWriteable(SpatialStrategy::readFromStream);
         ignoreUnmapped = in.readBoolean();
     }
 
@@ -379,7 +378,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() + "] not found");
         }
 
-        String[] pathElements = Strings.splitStringToArray(path, '.');
+        String[] pathElements = path.split("\\.");
         int currentPathSlot = 0;
 
         try (XContentParser parser = XContentHelper.createParser(response.getSourceAsBytesRef())) {

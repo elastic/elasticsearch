@@ -113,7 +113,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      * Read from a stream.
      */
     public ScriptSortBuilder(StreamInput in) throws IOException {
-        script = Script.readScript(in);
+        script = new Script(in);
         type = ScriptSortType.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
@@ -304,7 +304,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     @Override
     public SortField build(QueryShardContext context) throws IOException {
         final SearchScript searchScript = context.getScriptService().search(
-                context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap(), context.getClusterState());
 
         MultiValueMode valueMode = null;
         if (sortMode != null) {
@@ -396,7 +396,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return NAME;
     }
 
-    public enum ScriptSortType implements Writeable<ScriptSortType> {
+    public enum ScriptSortType implements Writeable {
         /** script sort for a string value **/
         STRING,
         /** script sort for a numeric value **/

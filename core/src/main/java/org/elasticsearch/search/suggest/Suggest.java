@@ -112,6 +112,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             case CompletionSuggestion.TYPE:
                 suggestion = new CompletionSuggestion();
                 break;
+            case org.elasticsearch.search.suggest.completion2x.CompletionSuggestion.TYPE:
+                suggestion = new org.elasticsearch.search.suggest.completion2x.CompletionSuggestion();
+                break;
             case PhraseSuggestion.TYPE:
                 suggestion = new PhraseSuggestion();
                 break;
@@ -173,6 +176,16 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<>(groupedSuggestions.size());
         for (java.util.Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
             List<Suggestion> value = unmergedResults.getValue();
+            Class<? extends Suggestion> suggestionClass = null;
+            for (Suggestion suggestion : value) {
+                if (suggestionClass == null) {
+                    suggestionClass = suggestion.getClass();
+                } else if (suggestionClass != suggestion.getClass()) {
+                    throw new IllegalArgumentException(
+                        "detected mixed suggestion results, due to querying on old and new completion suggester," +
+                        " query on a single completion suggester version");
+                }
+            }
             Suggestion reduce = value.get(0).reduce(value);
             reduce.trim();
             reduced.add(reduce);

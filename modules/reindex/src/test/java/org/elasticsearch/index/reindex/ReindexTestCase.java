@@ -41,11 +41,23 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
         return ReindexAction.INSTANCE.newRequestBuilder(client());
     }
 
-    public IndexBySearchResponseMatcher responseMatcher() {
+    protected IndexBySearchResponseMatcher reindexResponseMatcher() {
         return new IndexBySearchResponseMatcher();
     }
 
-    public static class IndexBySearchResponseMatcher
+    protected UpdateByQueryRequestBuilder updateByQuery() {
+        return UpdateByQueryAction.INSTANCE.newRequestBuilder(client());
+    }
+
+    protected BulkIndexbyScrollResponseMatcher updateByQueryResponseMatcher() {
+        return new BulkIndexbyScrollResponseMatcher();
+    }
+
+    protected RethrottleRequestBuilder rethrottle() {
+        return RethrottleAction.INSTANCE.newRequestBuilder(client());
+    }
+
+    protected static class IndexBySearchResponseMatcher
             extends AbstractBulkIndexByScrollResponseMatcher<ReindexResponse, IndexBySearchResponseMatcher> {
         private Matcher<Long> createdMatcher = equalTo(0L);
 
@@ -71,6 +83,14 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
 
         @Override
         protected IndexBySearchResponseMatcher self() {
+            return this;
+        }
+    }
+
+    protected static class BulkIndexbyScrollResponseMatcher
+            extends AbstractBulkIndexByScrollResponseMatcher<BulkIndexByScrollResponse, BulkIndexbyScrollResponseMatcher> {
+        @Override
+        protected BulkIndexbyScrollResponseMatcher self() {
             return this;
         }
     }

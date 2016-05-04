@@ -109,7 +109,7 @@ public class ScriptModesTests extends ESTestCase {
     public void testDefaultSettings() {
         this.scriptModes = new ScriptModes(scriptSettings, Settings.EMPTY);
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED, ScriptType.INLINE);
+        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.STORED, ScriptType.INLINE);
     }
 
     public void testMissingSetting() {
@@ -147,8 +147,8 @@ public class ScriptModesTests extends ESTestCase {
         if (randomScriptTypesSet.contains(ScriptType.FILE) == false) {
             assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
         }
-        if (randomScriptTypesSet.contains(ScriptType.INDEXED) == false) {
-            assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
+        if (randomScriptTypesSet.contains(ScriptType.STORED) == false) {
+            assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.STORED);
         }
         if (randomScriptTypesSet.contains(ScriptType.INLINE) == false) {
             assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INLINE);
@@ -179,18 +179,18 @@ public class ScriptModesTests extends ESTestCase {
 
         ScriptContext[] complementOf = complementOf(randomScriptContexts);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, complementOf);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, complementOf);
+        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.STORED, ScriptType.INLINE}, complementOf);
     }
 
     public void testConflictingScriptTypeAndOpGenericSettings() {
         ScriptContext scriptContext = randomFrom(scriptContexts);
         Settings.Builder builder = Settings.builder().put("script" + "." + scriptContext.getKey(), randomFrom(DISABLE_VALUES))
-                .put("script.indexed", randomFrom(ENABLE_VALUES)).put("script.inline", "sandbox");
+                .put("script.stored", randomFrom(ENABLE_VALUES)).put("script.inline", "sandbox");
         //operations generic settings have precedence over script type generic settings
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
         assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, scriptContext);
         ScriptContext[] complementOf = complementOf(scriptContext);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE, ScriptType.INDEXED}, complementOf);
+        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE, ScriptType.STORED}, complementOf);
         assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INLINE}, complementOf);
     }
 

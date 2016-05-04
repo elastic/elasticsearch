@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.ip;
 
-import org.apache.lucene.analysis.LegacyNumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
@@ -33,7 +32,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.Cidrs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
@@ -122,7 +120,7 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
 
         @Override
         public LegacyIpFieldMapper build(BuilderContext context) {
-            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0)) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0_alpha2)) {
                 throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
             }
             setupFieldType(context);
@@ -144,7 +142,7 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
             parseNumberField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String propName = Strings.toUnderscoreCase(entry.getKey());
+                String propName = entry.getKey();
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
                     if (propNode == null) {
@@ -254,14 +252,14 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
             int maxDoc = reader.maxDoc();
             Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
             if (terms == null) {
-                return null;
+                return new FieldStats.Ip(maxDoc, isSearchable(), isAggregatable());
             }
             long minValue = LegacyNumericUtils.getMinLong(terms);
             long maxValue = LegacyNumericUtils.getMaxLong(terms);
-            return new FieldStats.Ip(maxDoc, terms.getDocCount(), terms.getSumDocFreq(),
-                    terms.getSumTotalTermFreq(),
-                    InetAddress.getByName(longToIp(minValue)),
-                    InetAddress.getByName(longToIp(maxValue)));
+            return new FieldStats.Ip(maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(),
+                isSearchable(), isAggregatable(),
+                InetAddress.getByName(longToIp(minValue)),
+                InetAddress.getByName(longToIp(maxValue)));
         }
 
         @Override

@@ -92,7 +92,7 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
                                 token);
                     }
                 }
-                template = new Template(templateId, ScriptType.INDEXED, Template.DEFAULT_LANG, null, params);
+                template = new Template(templateId, ScriptType.STORED, Template.DEFAULT_LANG, null, params);
             }
             renderSearchTemplateRequest = new RenderSearchTemplateRequest();
             renderSearchTemplateRequest.template(template);

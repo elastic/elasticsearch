@@ -78,8 +78,8 @@ public abstract class AbstractScriptParser<S extends Script> {
                 } else {
                     throw new ScriptParseException("expected a string value for field [{}], but found [{}]", currentFieldName, token);
                 }
-            } else if (parseFieldMatcher.match(currentFieldName, ScriptType.INDEXED.getParseField()) || parseFieldMatcher.match(currentFieldName, ScriptService.SCRIPT_ID)) {
-                type = ScriptType.INDEXED;
+            } else if (parseFieldMatcher.match(currentFieldName, ScriptType.STORED.getParseField()) || parseFieldMatcher.match(currentFieldName, ScriptService.SCRIPT_ID)) {
+                type = ScriptType.STORED;
                 if (token == XContentParser.Token.VALUE_STRING) {
                     script = parser.text();
                 } else {
@@ -110,7 +110,7 @@ public abstract class AbstractScriptParser<S extends Script> {
         }
         if (script == null) {
             throw new ScriptParseException("expected one of [{}], [{}] or [{}] fields, but found none", ScriptType.INLINE.getParseField()
-                    .getPreferredName(), ScriptType.FILE.getParseField().getPreferredName(), ScriptType.INDEXED.getParseField()
+                    .getPreferredName(), ScriptType.FILE.getParseField().getPreferredName(), ScriptType.STORED.getParseField()
                     .getPreferredName());
         }
         assert type != null : "if script is not null, type should definitely not be null";
@@ -173,10 +173,10 @@ public abstract class AbstractScriptParser<S extends Script> {
                 } else {
                     throw new ScriptParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, ScriptType.INDEXED.getParseField()) || parseFieldMatcher.match(parameterName, ScriptService.SCRIPT_ID)) {
+            } else if (parseFieldMatcher.match(parameterName, ScriptType.STORED.getParseField()) || parseFieldMatcher.match(parameterName, ScriptService.SCRIPT_ID)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
-                    type = ScriptType.INDEXED;
+                    type = ScriptType.STORED;
                     if (removeMatchedEntries) {
                         itr.remove();
                     }
@@ -187,7 +187,7 @@ public abstract class AbstractScriptParser<S extends Script> {
         }
         if (script == null) {
             throw new ScriptParseException("expected one of [{}], [{}] or [{}] fields, but found none", ScriptType.INLINE.getParseField()
-                    .getPreferredName(), ScriptType.FILE.getParseField().getPreferredName(), ScriptType.INDEXED.getParseField()
+                    .getPreferredName(), ScriptType.FILE.getParseField().getPreferredName(), ScriptType.STORED.getParseField()
                     .getPreferredName());
         }
         assert type != null : "if script is not null, type should definitely not be null";

@@ -43,7 +43,7 @@ import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
-import org.elasticsearch.index.query.support.InnerHitBuilder;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -1825,35 +1825,6 @@ public class PercolatorIT extends ESIntegTestCase {
         assertMatchCount(response1, 1L);
         assertThat(response1.getMatches().length, equalTo(1));
         assertThat(response1.getMatches()[0].getId().string(), equalTo("1"));
-    }
-
-    public void testFailNicelyWithInnerHits() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("mapping")
-                    .startObject("properties")
-                        .startObject("nested")
-                            .field("type", "nested")
-                            .startObject("properties")
-                                .startObject("name")
-                                    .field("type", "text")
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject();
-
-        assertAcked(prepareCreate(INDEX_NAME)
-                .addMapping(TYPE_NAME, "query", "type=percolator")
-                .addMapping("mapping", mapping));
-        try {
-            client().prepareIndex(INDEX_NAME, TYPE_NAME, "1")
-                    .setSource(jsonBuilder().startObject().field("query", nestedQuery("nested", matchQuery("nested.name", "value"), ScoreMode.Avg).innerHit(new InnerHitBuilder())).endObject())
-                    .execute().actionGet();
-            fail("Expected a parse error, because inner_hits isn't supported in the percolate api");
-        } catch (Exception e) {
-            assertThat(e.getCause(), instanceOf(QueryShardException.class));
-            assertThat(e.getCause().getMessage(), containsString("inner_hits unsupported"));
-        }
     }
 
     public void testParentChild() throws Exception {

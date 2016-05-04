@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
@@ -105,6 +106,7 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.search.suggest.completion2x.Completion090PostingsFormat;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -678,6 +680,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         CompletionStats completionStats = new CompletionStats();
         try (final Engine.Searcher currentSearcher = acquireSearcher("completion_stats")) {
             completionStats.add(CompletionFieldStats.completionStats(currentSearcher.reader(), fields));
+            // Necessary for 2.x shards:
+            Completion090PostingsFormat postingsFormat = ((Completion090PostingsFormat)
+                PostingsFormat.forName(Completion090PostingsFormat.CODEC_NAME));
+            completionStats.add(postingsFormat.completionStats(currentSearcher.reader(), fields));
         }
         return completionStats;
     }

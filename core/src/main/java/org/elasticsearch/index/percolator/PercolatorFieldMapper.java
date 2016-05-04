@@ -207,7 +207,6 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     static Query toQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, QueryBuilder<?> queryBuilder) throws IOException {
-        context.reset();
         // This means that fields in the query need to exist in the mapping prior to registering this query
         // The reason that this is required, is that if a field doesn't exist then the query assumes defaults, which may be undesired.
         //
@@ -222,14 +221,10 @@ public class PercolatorFieldMapper extends FieldMapper {
         // as an analyzed string.
         context.setAllowUnmappedFields(false);
         context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
-        try {
-            return queryBuilder.toQuery(context);
-        } finally {
-            context.reset();
-        }
+        return queryBuilder.toQuery(context);
     }
 
-    static QueryBuilder<?> parseQueryBuilder(QueryParseContext context, XContentLocation location) {
+    private static QueryBuilder parseQueryBuilder(QueryParseContext context, XContentLocation location) {
         try {
             return context.parseInnerQueryBuilder();
         } catch (IOException e) {

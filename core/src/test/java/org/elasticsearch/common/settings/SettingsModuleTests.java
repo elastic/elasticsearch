@@ -101,7 +101,9 @@ public class SettingsModuleTests extends ModuleTestCase {
                 assertInstanceBinding(module, Settings.class, (s) -> s == settings);
                 fail();
             } catch (IllegalArgumentException ex) {
-                assertEquals("tribe.t1 validation failed: Failed to parse value [[2.0]] for setting [cluster.routing.allocation.balance.shard]", ex.getMessage());
+                assertEquals(
+                        "tribe.t1 validation failed: Failed to parse value [[2.0]] for setting [cluster.routing.allocation.balance.shard]",
+                        ex.getMessage());
             }
         }
     }
@@ -119,7 +121,8 @@ public class SettingsModuleTests extends ModuleTestCase {
                 assertInstanceBinding(module, Settings.class, (s) -> s == settings);
                 fail();
             } catch (IllegalArgumentException ex) {
-                assertEquals("Failed to parse value [BOOM] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]", ex.getMessage());
+                assertEquals("Failed to parse value [BOOM] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]",
+                        ex.getMessage());
             }
         }
         {

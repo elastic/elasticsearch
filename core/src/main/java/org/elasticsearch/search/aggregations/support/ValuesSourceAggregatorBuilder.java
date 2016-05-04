@@ -126,7 +126,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     private void read(StreamInput in) throws IOException {
         field = in.readOptionalString();
         if (in.readBoolean()) {
-            script = Script.readScript(in);
+            script = new Script(in);
         }
         if (in.readBoolean()) {
             valueType = ValueType.readFromStream(in);
@@ -377,7 +377,8 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
 
     private SearchScript createScript(Script script, SearchContext context) {
         return script == null ? null
-                : context.scriptService().search(context.lookup(), script, ScriptContext.Standard.AGGS, Collections.emptyMap());
+                : context.scriptService().search(context.lookup(), script, ScriptContext.Standard.AGGS, Collections.emptyMap(),
+                context.getQueryShardContext().getClusterState());
     }
 
     private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {

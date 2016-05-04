@@ -325,8 +325,8 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         }
     }
 
-    public void updateTookInMillis(long startTime) {
-        this.tookInMillis = Math.max(1, System.currentTimeMillis() - startTime);
+    public void setTookInMillis(long tookInMillis) {
+        this.tookInMillis = tookInMillis;
     }
 
     public TimeValue getTook() {

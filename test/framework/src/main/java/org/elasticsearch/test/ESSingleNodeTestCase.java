@@ -180,7 +180,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put("node.name", nodeName())
 
             .put("script.inline", "true")
-            .put("script.indexed", "true")
+            .put("script.stored", "true")
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("http.enabled", false)
             .put(Node.NODE_LOCAL_SETTING.getKey(), true)

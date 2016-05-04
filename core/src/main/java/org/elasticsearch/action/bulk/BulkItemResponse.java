@@ -78,7 +78,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
     /**
      * Represents a failure.
      */
-    public static class Failure implements Writeable<Failure>, ToXContent {
+    public static class Failure implements Writeable, ToXContent {
         static final String INDEX_FIELD = "index";
         static final String TYPE_FIELD = "type";
         static final String ID_FIELD = "id";

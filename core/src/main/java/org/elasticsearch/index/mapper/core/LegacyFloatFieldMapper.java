@@ -34,7 +34,6 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -79,7 +78,7 @@ public class LegacyFloatFieldMapper extends LegacyNumberFieldMapper {
 
         @Override
         public LegacyFloatFieldMapper build(BuilderContext context) {
-            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0)) {
+            if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0_alpha2)) {
                 throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
             }
             setupFieldType(context);
@@ -101,7 +100,7 @@ public class LegacyFloatFieldMapper extends LegacyNumberFieldMapper {
             parseNumberField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String propName = Strings.toUnderscoreCase(entry.getKey());
+                String propName = entry.getKey();
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
                     if (propNode == null) {
@@ -167,17 +166,16 @@ public class LegacyFloatFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public FieldStats stats(IndexReader reader) throws IOException {
+        public FieldStats.Double stats(IndexReader reader) throws IOException {
             int maxDoc = reader.maxDoc();
             Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
             if (terms == null) {
-                return null;
+                return new FieldStats.Double(maxDoc, isSearchable(), isAggregatable());
             }
             float minValue = NumericUtils.sortableIntToFloat(LegacyNumericUtils.getMinInt(terms));
             float maxValue = NumericUtils.sortableIntToFloat(LegacyNumericUtils.getMaxInt(terms));
-            return new FieldStats.Double(
-                maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
-            );
+            return new FieldStats.Double(maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(),
+                isSearchable(), isAggregatable(), minValue, maxValue);
         }
 
         @Override

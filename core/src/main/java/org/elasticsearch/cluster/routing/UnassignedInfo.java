@@ -40,7 +40,7 @@ import java.io.IOException;
 /**
  * Holds additional information as to why the shard is in unassigned state.
  */
-public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
+public class UnassignedInfo implements ToXContent, Writeable {
 
     public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
     private static final TimeValue DEFAULT_DELAYED_NODE_LEFT_TIMEOUT = TimeValue.timeValueMinutes(1);

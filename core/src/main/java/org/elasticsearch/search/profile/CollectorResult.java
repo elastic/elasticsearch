@@ -80,6 +80,9 @@ public class CollectorResult implements ToXContent, Writeable {
         this.children = children;
     }
 
+    /**
+     * Read from a stream.
+     */
     public CollectorResult(StreamInput in) throws IOException {
         this.collectorName = in.readString();
         this.reason = in.readString();
@@ -89,6 +92,17 @@ public class CollectorResult implements ToXContent, Writeable {
         for (int i = 0; i < size; i++) {
             CollectorResult child = new CollectorResult(in);
             this.children.add(child);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(collectorName);
+        out.writeString(reason);
+        out.writeLong(time);
+        out.writeVInt(children.size());
+        for (CollectorResult child : children) {
+            child.writeTo(out);
         }
     }
 
@@ -136,21 +150,5 @@ public class CollectorResult implements ToXContent, Writeable {
         }
         builder = builder.endObject();
         return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(collectorName);
-        out.writeString(reason);
-        out.writeLong(time);
-        out.writeVInt(children.size());
-        for (CollectorResult child : children) {
-            child.writeTo(out);
-        }
-    }
-
-    @Override
-    public Object readFrom(StreamInput in) throws IOException {
-        return new CollectorResult(in);
     }
 }

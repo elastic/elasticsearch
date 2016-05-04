@@ -57,7 +57,7 @@ Previously script mode settings (e.g., "script.inline: true",
 "script.engine.groovy.inline.aggs: false", etc.) accepted the values
 `on`, `true`, `1`, and `yes` for enabling a scripting mode, and the
 values `off`, `false`, `0`, and `no` for disabling a scripting mode.
-The variants `on`, `1`, and `yes ` for enabling and `off`, `0`,
+The variants `on`, `1`, and `yes` for enabling and `off`, `0`,
 and `no` for disabling are no longer supported.
 
 
@@ -148,14 +148,16 @@ Now, `index.translog.sync_interval`  doesn't accept a value less than `100ms`
 which prevents fsyncing too often if async durability is enabled. The special
 value `0` is no longer supported.
 
+`index.translog.interval` has been removed.
+
 ==== Request Cache Settings
 
 The deprecated settings `index.cache.query.enable` and
 `indices.cache.query.size` have been removed and are replaced with
 `index.requests.cache.enable` and `indices.requests.cache.size` respectively.
 
-`indices.requests.cache.clean_interval has been replaced with
-`indices.cache.clean_interval and is no longer supported.
+`indices.requests.cache.clean_interval` has been replaced with
+`indices.cache.clean_interval` and is no longer supported.
 
 ==== Field Data Cache Settings
 
@@ -226,7 +228,7 @@ name of the setting must be prefixed with `es.`.
 
 ==== Discovery Settings
 
-The `discovery.zen.minimum_master_node` must bet set for nodes that have
+The `discovery.zen.minimum_master_node` must be set for nodes that have
 `network.host`, `network.bind_host`, `network.publish_host`,
 `transport.host`, `transport.bind_host`, or `transport.publish_host`
 configuration options set. We see those nodes as in "production" mode
@@ -238,3 +240,15 @@ The `action.get.realtime` setting has been removed. This setting was
 a fallback realtime setting for the get and mget APIs when realtime
 wasn't specified. Now if the parameter isn't specified we always
 default to true.
+
+==== Indexed script settings
+
+Due to the fact that indexed script has been replaced by stored
+scripts the following settings have been replaced to:
+
+* `script.indexed` has been replaced by `script.stored`
+* `script.engine.*.indexed.aggs` has been replaced by `script.engine.*.stored.aggs` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
+* `script.engine.*.stored.mapping` has been replaced by `script.engine.*.stored.mapping` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
+* `script.engine.*.stored.search` has been replaced by `script.engine.*.stored.search` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
+* `script.engine.*.stored.update` has been replaced by `script.engine.*.stored.update` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
+* `script.engine.*.stored.plugin` has been replaced by `script.engine.*.stored.plugin` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)

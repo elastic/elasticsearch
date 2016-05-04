@@ -198,8 +198,6 @@ public class DefaultSearchContext extends SearchContext {
             long from = from() == -1 ? 0 : from();
             long size = size() == -1 ? 10 : size();
             long resultWindow = from + size;
-            // We need settingsService's view of the settings because its dynamic.
-            // indexService's isn't.
             int maxResultWindow = indexService.getIndexSettings().getMaxResultWindow();
 
             if (resultWindow > maxResultWindow) {
@@ -207,7 +205,19 @@ public class DefaultSearchContext extends SearchContext {
                         "Result window is too large, from + size must be less than or equal to: [" + maxResultWindow + "] but was ["
                                 + resultWindow + "]. See the scroll api for a more efficient way to request large data sets. "
                                 + "This limit can be set by changing the [" + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey()
-                                + "] index level parameter.");
+                                + "] index level setting.");
+            }
+        }
+        if (rescore != null) {
+            int maxWindow = indexService.getIndexSettings().getMaxRescoreWindow();
+            for (RescoreSearchContext rescoreContext: rescore) {
+                if (rescoreContext.window() > maxWindow) {
+                    throw new QueryPhaseExecutionException(this, "Rescore window [" + rescoreContext.window() + "] is too large. It must "
+                            + "be less than [" + maxWindow + "]. This prevents allocating massive heaps for storing the results to be "
+                            + "rescored. This limit can be set by chaning the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
+                            + "] index level setting.");
+                
+                }
             }
         }
 
@@ -297,12 +307,6 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public SearchType searchType() {
         return this.searchType;
-    }
-
-    @Override
-    public SearchContext searchType(SearchType searchType) {
-        this.searchType = searchType;
-        return this;
     }
 
     @Override

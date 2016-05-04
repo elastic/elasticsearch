@@ -38,7 +38,7 @@ public class SetProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
-        Processor processor = createSetProcessor(fieldName, fieldValue);
+        Processor processor = createSetProcessor(fieldName, fieldValue, true);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
@@ -50,7 +50,7 @@ public class SetProcessorTests extends ESTestCase {
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), testIngestDocument, fieldValue);
-        Processor processor = createSetProcessor(fieldName, fieldValue);
+        Processor processor = createSetProcessor(fieldName, fieldValue, true);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(true));
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
@@ -59,7 +59,7 @@ public class SetProcessorTests extends ESTestCase {
     public void testSetFieldsTypeMismatch() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue("field", "value");
-        Processor processor = createSetProcessor("field.inner", "value");
+        Processor processor = createSetProcessor("field.inner", "value", true);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -68,16 +68,47 @@ public class SetProcessorTests extends ESTestCase {
         }
     }
 
+    public void testSetNewFieldWithOverrideDisabled() throws Exception {
+        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
+        Processor processor = createSetProcessor(fieldName, fieldValue, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.hasField(fieldName), equalTo(true));
+        assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
+    }
+
+    public void testSetExistingFieldWithOverrideDisabled() throws Exception {
+        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        Object fieldValue = "foo";
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
+        Processor processor = createSetProcessor(fieldName, "bar", false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.hasField(fieldName), equalTo(true));
+        assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
+    }
+
+    public void testSetExistingNullFieldWithOverrideDisabled() throws Exception {
+        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        Object fieldValue = null;
+        Object newValue = "bar";
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
+        Processor processor = createSetProcessor(fieldName, newValue, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.hasField(fieldName), equalTo(true));
+        assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(newValue));
+    }
+
     public void testSetMetadata() throws Exception {
         IngestDocument.MetaData randomMetaData = randomFrom(IngestDocument.MetaData.values());
-        Processor processor = createSetProcessor(randomMetaData.getFieldName(), "_value");
+        Processor processor = createSetProcessor(randomMetaData.getFieldName(), "_value", true);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), String.class), Matchers.equalTo("_value"));
     }
 
-    private static Processor createSetProcessor(String fieldName, Object fieldValue) {
+    private static Processor createSetProcessor(String fieldName, Object fieldValue, boolean overrideEnabled) {
         TemplateService templateService = TestTemplateService.instance();
-        return new SetProcessor(randomAsciiOfLength(10), templateService.compile(fieldName), ValueSource.wrap(fieldValue, templateService));
+        return new SetProcessor(randomAsciiOfLength(10), templateService.compile(fieldName), ValueSource.wrap(fieldValue, templateService), overrideEnabled);
     }
 }

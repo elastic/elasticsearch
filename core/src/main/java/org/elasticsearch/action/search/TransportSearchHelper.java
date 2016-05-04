@@ -24,7 +24,6 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -89,7 +88,7 @@ final class TransportSearchHelper {
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to decode scrollId", e);
         }
-        String[] elements = Strings.splitStringToArray(spare.get(), ';');
+        String[] elements = spare.get().toString().split(";");
         if (elements.length < 2) {
             throw new IllegalArgumentException("Malformed scrollId [" + scrollId + "]");
         }

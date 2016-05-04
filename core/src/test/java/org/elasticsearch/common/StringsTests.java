@@ -28,16 +28,6 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.containsString;
 
 public class StringsTests extends ESTestCase {
-    public void testToCamelCase() {
-        assertEquals("foo", Strings.toCamelCase("foo"));
-        assertEquals("fooBar", Strings.toCamelCase("fooBar"));
-        assertEquals("FooBar", Strings.toCamelCase("FooBar"));
-        assertEquals("fooBar", Strings.toCamelCase("foo_bar"));
-        assertEquals("fooBarFooBar", Strings.toCamelCase("foo_bar_foo_bar"));
-        assertEquals("fooBar", Strings.toCamelCase("foo_bar_"));
-        assertEquals("_foo", Strings.toCamelCase("_foo"));
-        assertEquals("_fooBar", Strings.toCamelCase("_foo_bar_"));
-    }
 
     public void testSubstring() {
         assertEquals(null, Strings.substring(null, 0, 1000));

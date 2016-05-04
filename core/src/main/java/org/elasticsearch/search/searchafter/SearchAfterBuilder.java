@@ -46,7 +46,7 @@ import java.util.Objects;
 /**
  *
  */
-public class SearchAfterBuilder implements ToXContent, Writeable<SearchAfterBuilder> {
+public class SearchAfterBuilder implements ToXContent, Writeable {
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
     private static final Object[] EMPTY_SORT_VALUES = new Object[0];
 

@@ -123,6 +123,12 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             return CONTENT_TYPE;
         }
 
+        @Override
+        public boolean isSearchable() {
+            // The _index field is always searchable.
+            return true;
+        }
+
         /**
          * This termQuery impl looks at the context to determine the index that
          * is being queried and then returns a MATCH_ALL_QUERY or MATCH_NO_QUERY
@@ -138,11 +144,9 @@ public class IndexFieldMapper extends MetadataFieldMapper {
             if (isSameIndex(value, context.index().getName())) {
                 return Queries.newMatchAllQuery();
             } else {
-                return Queries.newMatchNoDocsQuery();
+                return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + value);
             }
         }
-        
-        
 
         @Override
         public Query termsQuery(List values, QueryShardContext context) {
@@ -157,7 +161,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 }
             }
             // None of the listed index names are this one
-            return Queries.newMatchNoDocsQuery();
+            return Queries.newMatchNoDocsQuery("Index didn't match. Index queried: " + context.index().getName() + " vs. " + values);
         }
 
         private boolean isSameIndex(Object value, String indexName) {

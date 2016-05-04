@@ -45,7 +45,7 @@ import java.util.Set;
 
 public abstract class TermsAggregator extends BucketsAggregator {
 
-    public static class BucketCountThresholds implements Writeable<BucketCountThresholds>, ToXContent {
+    public static class BucketCountThresholds implements Writeable, ToXContent {
         private long minDocCount;
         private long shardMinDocCount;
         private int requiredSize;
@@ -199,7 +199,6 @@ public abstract class TermsAggregator extends BucketsAggregator {
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
         return collectMode == SubAggCollectionMode.BREADTH_FIRST
-                && aggregator.needsScores() == false
                 && !aggsUsedForSorting.contains(aggregator);
     }
 

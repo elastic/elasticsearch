@@ -33,6 +33,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -120,9 +121,24 @@ public class RoundTripTests extends ESTestCase {
         assertResponseEquals(response, tripped);
     }
 
+    public void testRethrottleRequest() throws IOException {
+        RethrottleRequest request = new RethrottleRequest();
+        request.setRequestsPerSecond((float) randomDoubleBetween(0, Float.POSITIVE_INFINITY, false));
+        if (randomBoolean()) {
+            request.setActions(randomFrom(UpdateByQueryAction.NAME, ReindexAction.NAME));
+        } else {
+            request.setTaskId(new TaskId(randomAsciiOfLength(5), randomLong()));
+        }
+        RethrottleRequest tripped = new RethrottleRequest();
+        roundTrip(request, tripped);
+        assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0.00001);
+        assertArrayEquals(request.getActions(), tripped.getActions());
+        assertEquals(request.getTaskId(), tripped.getTaskId());
+    }
+
     private BulkByScrollTask.Status randomStatus() {
         return new BulkByScrollTask.Status(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                randomPositiveInt(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                randomInt(Integer.MAX_VALUE), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
                 parseTimeValue(randomPositiveTimeValue(), "test"), abs(random().nextFloat()),
                 random().nextBoolean() ? null : randomSimpleString(random()), parseTimeValue(randomPositiveTimeValue(), "test"));
     }
@@ -161,10 +177,6 @@ public class RoundTripTests extends ESTestCase {
             l = randomLong();
         } while (l < 0);
         return l;
-    }
-
-    private int randomPositiveInt() {
-        return randomInt(Integer.MAX_VALUE);
     }
 
     private void assertResponseEquals(BulkIndexByScrollResponse expected, BulkIndexByScrollResponse actual) {

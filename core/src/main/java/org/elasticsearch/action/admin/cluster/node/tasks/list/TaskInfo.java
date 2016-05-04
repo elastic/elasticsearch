@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
  * and use in APIs. Instead, immutable and streamable TaskInfo objects are used to represent
  * snapshot information about currently running tasks.
  */
-public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
+public class TaskInfo implements Writeable, ToXContent {
 
     private final DiscoveryNode node;
 
@@ -75,6 +75,9 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         this.parentTaskId = parentTaskId;
     }
 
+    /**
+     * Read from a stream.
+     */
     public TaskInfo(StreamInput in) throws IOException {
         node = new DiscoveryNode(in);
         taskId = new TaskId(node.getId(), in.readLong());
@@ -86,6 +89,20 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         runningTimeNanos = in.readLong();
         cancellable = in.readBoolean();
         parentTaskId = TaskId.readFromStream(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        node.writeTo(out);
+        out.writeLong(taskId.getId());
+        out.writeString(type);
+        out.writeString(action);
+        out.writeOptionalString(description);
+        out.writeOptionalNamedWriteable(status);
+        out.writeLong(startTime);
+        out.writeLong(runningTimeNanos);
+        out.writeBoolean(cancellable);
+        parentTaskId.writeTo(out);
     }
 
     public TaskId getTaskId() {
@@ -146,25 +163,6 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
      */
     public TaskId getParentTaskId() {
         return parentTaskId;
-    }
-
-    @Override
-    public TaskInfo readFrom(StreamInput in) throws IOException {
-        return new TaskInfo(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        node.writeTo(out);
-        out.writeLong(taskId.getId());
-        out.writeString(type);
-        out.writeString(action);
-        out.writeOptionalString(description);
-        out.writeOptionalNamedWriteable(status);
-        out.writeLong(startTime);
-        out.writeLong(runningTimeNanos);
-        out.writeBoolean(cancellable);
-        parentTaskId.writeTo(out);
     }
 
     @Override

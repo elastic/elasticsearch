@@ -21,47 +21,33 @@ package org.elasticsearch.ingest.core;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
-public class IngestInfo implements Writeable<IngestInfo>, ToXContent {
+public class IngestInfo implements Writeable, ToXContent {
 
     private final Set<ProcessorInfo> processors;
-
-    public IngestInfo(StreamInput in) throws IOException {
-        this(Collections.emptyList());
-        final int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            processors.add(new ProcessorInfo(in));
-        }
-    }
 
     public IngestInfo(List<ProcessorInfo> processors) {
         this.processors = new TreeSet<>(processors);  // we use a treeset here to have a test-able / predictable order
     }
 
-    public Iterable<ProcessorInfo> getProcessors() {
-        return processors;
-    }
-
-    public boolean containsProcessor(String type) {
-        return processors.contains(new ProcessorInfo(type));
-    }
-
-    @Override
-    public IngestInfo readFrom(StreamInput in) throws IOException {
-        return new IngestInfo(in);
+    /**
+     * Read from a stream.
+     */
+    public IngestInfo(StreamInput in) throws IOException {
+        processors = new TreeSet<>();
+        final int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            processors.add(new ProcessorInfo(in));
+        }
     }
 
     @Override
@@ -70,6 +56,14 @@ public class IngestInfo implements Writeable<IngestInfo>, ToXContent {
         for (ProcessorInfo info : processors) {
             info.writeTo(out);
         }
+    }
+
+    public Iterable<ProcessorInfo> getProcessors() {
+        return processors;
+    }
+
+    public boolean containsProcessor(String type) {
+        return processors.contains(new ProcessorInfo(type));
     }
 
     @Override

@@ -41,7 +41,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 /**
  * We enforce limits once any network host is configured. In this case we assume the node is running in production
@@ -63,40 +62,75 @@ final class BootstrapCheck {
      * @param boundTransportAddress the node network bindings
      */
     static void check(final Settings settings, final BoundTransportAddress boundTransportAddress) {
-        check(enforceLimits(boundTransportAddress), checks(settings), Node.NODE_NAME_SETTING.get(settings));
+        check(
+                enforceLimits(boundTransportAddress),
+                BootstrapSettings.IGNORE_SYSTEM_BOOTSTRAP_CHECKS.get(settings),
+                checks(settings),
+                Node.NODE_NAME_SETTING.get(settings));
     }
 
     /**
      * executes the provided checks and fails the node if
      * enforceLimits is true, otherwise logs warnings
      *
-     * @param enforceLimits true if the checks should be enforced or
-     *                      warned
-     * @param checks        the checks to execute
-     * @param nodeName      the node name to be used as a logging prefix
+     * @param enforceLimits      true if the checks should be enforced or
+     *                           otherwise warned
+     * @param ignoreSystemChecks true if system checks should be enforced
+     *                           or otherwise warned
+     * @param checks             the checks to execute
+     * @param nodeName           the node name to be used as a logging prefix
      */
     // visible for testing
-    static void check(final boolean enforceLimits, final List<Check> checks, final String nodeName) {
-        final ESLogger logger = Loggers.getLogger(BootstrapCheck.class, nodeName);
+    static void check(final boolean enforceLimits, final boolean ignoreSystemChecks, final List<Check> checks, final String nodeName) {
+        check(enforceLimits, ignoreSystemChecks, checks, Loggers.getLogger(BootstrapCheck.class, nodeName));
+    }
 
-        final List<String> errors =
-                checks.stream()
-                        .filter(BootstrapCheck.Check::check)
-                        .map(BootstrapCheck.Check::errorMessage)
-                        .collect(Collectors.toList());
+    /**
+     * executes the provided checks and fails the node if
+     * enforceLimits is true, otherwise logs warnings
+     *
+     * @param enforceLimits      true if the checks should be enforced or
+     *                           otherwise warned
+     * @param ignoreSystemChecks true if system checks should be enforced
+     *                           or otherwise warned
+     * @param checks             the checks to execute
+     * @param logger             the logger to
+     */
+    static void check(
+            final boolean enforceLimits,
+            final boolean ignoreSystemChecks,
+            final List<Check> checks,
+            final ESLogger logger) {
+        final List<String> errors = new ArrayList<>();
+        final List<String> ignoredErrors = new ArrayList<>();
+
+        for (final Check check : checks) {
+            if (check.check()) {
+                if (!enforceLimits || (check.isSystemCheck() && ignoreSystemChecks)) {
+                    ignoredErrors.add(check.errorMessage());
+                } else {
+                    errors.add(check.errorMessage());
+                }
+            }
+        }
+
+        if (!ignoredErrors.isEmpty()) {
+            ignoredErrors.forEach(error -> log(logger, error));
+        }
 
         if (!errors.isEmpty()) {
             final List<String> messages = new ArrayList<>(1 + errors.size());
             messages.add("bootstrap checks failed");
             messages.addAll(errors);
-            if (enforceLimits) {
-                final RuntimeException re = new RuntimeException(String.join("\n", messages));
-                errors.stream().map(IllegalStateException::new).forEach(re::addSuppressed);
-                throw re;
-            } else {
-                messages.forEach(message -> logger.warn(message));
-            }
+            final RuntimeException re = new RuntimeException(String.join("\n", messages));
+            errors.stream().map(IllegalStateException::new).forEach(re::addSuppressed);
+            throw re;
         }
+
+    }
+
+    static void log(final ESLogger logger, final String error) {
+        logger.warn(error);
     }
 
     /**
@@ -151,6 +185,14 @@ final class BootstrapCheck {
          */
         String errorMessage();
 
+        /**
+         * test if the check is a system-level check
+         *
+         * @return true if the check is a system-level check as opposed
+         * to an Elasticsearch-level check
+         */
+        boolean isSystemCheck();
+
     }
 
     static class HeapSizeCheck implements BootstrapCheck.Check {
@@ -181,6 +223,11 @@ final class BootstrapCheck {
         // visible for testing
         long getMaxHeapSize() {
             return JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+        }
+
+        @Override
+        public final boolean isSystemCheck() {
+            return false;
         }
 
     }
@@ -233,6 +280,11 @@ final class BootstrapCheck {
             return ProcessProbe.getInstance().getMaxFileDescriptorCount();
         }
 
+        @Override
+        public final boolean isSystemCheck() {
+            return true;
+        }
+
     }
 
     // visible for testing
@@ -259,6 +311,11 @@ final class BootstrapCheck {
             return Natives.isMemoryLocked();
         }
 
+        @Override
+        public final boolean isSystemCheck() {
+            return true;
+        }
+
     }
 
     static class MinMasterNodesCheck implements Check {
@@ -279,6 +336,12 @@ final class BootstrapCheck {
             return "please set [" + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() +
                 "] to a majority of the number of master eligible nodes in your cluster.";
         }
+
+        @Override
+        public final boolean isSystemCheck() {
+            return false;
+        }
+
     }
 
     static class MaxNumberOfThreadsCheck implements Check {
@@ -303,6 +366,11 @@ final class BootstrapCheck {
         // visible for testing
         long getMaxNumberOfThreads() {
             return JNANatives.MAX_NUMBER_OF_THREADS;
+        }
+
+        @Override
+        public final boolean isSystemCheck() {
+            return true;
         }
 
     }
@@ -331,6 +399,11 @@ final class BootstrapCheck {
         // visible for testing
         long getMaxSizeVirtualMemory() {
             return JNANatives.MAX_SIZE_VIRTUAL_MEMORY;
+        }
+
+        @Override
+        public final boolean isSystemCheck() {
+            return true;
         }
 
     }
@@ -394,6 +467,11 @@ final class BootstrapCheck {
         // visible for testing
         long parseProcSysVmMaxMapCount(final String procSysVmMaxMapCount) throws NumberFormatException {
             return Long.parseLong(procSysVmMaxMapCount);
+        }
+
+        @Override
+        public final boolean isSystemCheck() {
+            return true;
         }
 
     }

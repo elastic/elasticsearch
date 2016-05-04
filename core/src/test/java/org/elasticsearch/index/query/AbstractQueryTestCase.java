@@ -24,7 +24,6 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
 import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanBoostQuery;
@@ -38,6 +37,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -593,6 +593,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 assertNotEquals("modifying the boost doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
                         rewrite(thirdLuceneQuery));
             }
+
+            // check that context#isFilter is not changed by invoking toQuery/rewrite
+            boolean filterFlag = randomBoolean();
+            context.setIsFilter(filterFlag);
+            rewriteQuery(firstQuery, context).toQuery(context);
+            assertEquals("isFilter should be unchanged", filterFlag, context.isFilter());
         }
     }
 
@@ -738,8 +744,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * @return a new {@link QueryShardContext} based on the base test index and queryParserService
      */
     protected static QueryShardContext createShardContext() {
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
+        Client client = injector.getInstance(Client.class);
         return new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
-                scriptService, indicesQueriesRegistry, percolatorQueryCache, null);
+                scriptService, indicesQueriesRegistry, client, percolatorQueryCache, null, state);
     }
 
     /**

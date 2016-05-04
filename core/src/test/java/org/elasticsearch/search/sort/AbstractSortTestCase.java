@@ -22,6 +22,7 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -44,8 +45,12 @@ import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper.DoubleFieldType;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper.Nested;
+import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -95,7 +100,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         scriptService = new ScriptService(baseSettings, environment, Collections.singleton(new TestEngineService()),
                 new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
-            public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
+            public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params, ClusterState state) {
                 return new CompiledScript(ScriptType.INLINE, "mockName", "test", script);
             }
         };
@@ -226,7 +231,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
         });
         return new QueryShardContext(idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                indicesQueriesRegistry, null, null) {
+                indicesQueriesRegistry, null, null, null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);
@@ -249,6 +254,18 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         doubleFieldType.setName(name);
         doubleFieldType.setHasDocValues(true);
         return doubleFieldType;
+    }
+
+    protected static QueryBuilder<?> randomNestedFilter() {
+        int id = randomIntBetween(0, 2);
+        switch(id) {
+            case 0: return (new MatchAllQueryBuilder()).boost(randomFloat());
+            case 1: return (new IdsQueryBuilder()).boost(randomFloat());
+            case 2: return (new TermQueryBuilder(
+                    randomAsciiOfLengthBetween(1, 10),
+                    randomDouble()).boost(randomFloat()));
+            default: throw new IllegalStateException("Only three query builders supported for testing sort");
+        }
     }
 
     @SuppressWarnings("unchecked")

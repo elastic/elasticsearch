@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -62,9 +63,9 @@ final class Transport<C extends Connection> implements Closeable {
         this.maxRetryTimeout = maxRetryTimeout;
     }
 
-    ElasticsearchResponse performRequest(Verb verb, String endpoint, Map<String, Object> params, HttpEntity entity) throws IOException {
+    ElasticsearchResponse performRequest(String method, String endpoint, Map<String, Object> params, HttpEntity entity) throws IOException {
         URI uri = buildUri(endpoint, params);
-        HttpRequestBase request = createHttpRequest(verb, uri, entity);
+        HttpRequestBase request = createHttpRequest(method, uri, entity);
         Iterator<C> connectionIterator = connectionPool.nextConnection().iterator();
         if (connectionIterator.hasNext() == false) {
             C connection = connectionPool.lastResortConnection();
@@ -153,31 +154,31 @@ final class Transport<C extends Connection> implements Closeable {
         return currentException;
     }
 
-    private static HttpRequestBase createHttpRequest(Verb verb, URI uri, HttpEntity entity) {
-        switch(verb) {
-            case DELETE:
+    private static HttpRequestBase createHttpRequest(String method, URI uri, HttpEntity entity) {
+        switch(method.toUpperCase(Locale.ROOT)) {
+            case HttpDeleteWithEntity.METHOD_NAME:
                 HttpDeleteWithEntity httpDeleteWithEntity = new HttpDeleteWithEntity(uri);
                 addRequestBody(httpDeleteWithEntity, entity);
                 return httpDeleteWithEntity;
-            case GET:
+            case HttpGetWithEntity.METHOD_NAME:
                 HttpGetWithEntity httpGetWithEntity = new HttpGetWithEntity(uri);
                 addRequestBody(httpGetWithEntity, entity);
                 return httpGetWithEntity;
-            case HEAD:
+            case HttpHead.METHOD_NAME:
                 if (entity != null) {
                     throw new UnsupportedOperationException("HEAD with body is not supported");
                 }
                 return new HttpHead(uri);
-            case POST:
+            case HttpPost.METHOD_NAME:
                 HttpPost httpPost = new HttpPost(uri);
                 addRequestBody(httpPost, entity);
                 return httpPost;
-            case PUT:
+            case HttpPut.METHOD_NAME:
                 HttpPut httpPut = new HttpPut(uri);
                 addRequestBody(httpPut, entity);
                 return httpPut;
             default:
-                throw new UnsupportedOperationException("http method not supported: " + verb);
+                throw new UnsupportedOperationException("http method not supported: " + method);
         }
     }
 

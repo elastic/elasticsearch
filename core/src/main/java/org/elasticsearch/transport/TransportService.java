@@ -378,6 +378,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
             discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
             clusterName = ClusterName.readClusterName(in);
             version = Version.readVersion(in);
@@ -385,6 +386,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeOptionalWriteable(discoveryNode);
             clusterName.writeTo(out);
             Version.writeVersion(version, out);

@@ -61,7 +61,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
          * The upper bound of the potential sublist is one less than the size of
          * the array, so we are guaranteed at least one invalid method to test.
          */
-        validHttpMethodArray = validHttpMethodArray.subList(0, randomIntBetween(1, validHttpMethodArray.size() - 1));
+        validHttpMethodArray = validHttpMethodArray.subList(0, randomIntBetween(0, validHttpMethodArray.size() - 1));
         assertTrue(validHttpMethodArray.size() > 0);
         assertTrue(validHttpMethodArray.size() < RestRequest.Method.values().length);
 
@@ -92,21 +92,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         }
 
         // Generate a test request with an invalid HTTP method
-        RestRequest restRequest = (new FakeRestRequest() {
-
-            private RestRequest.Method method;
-
-            @Override
-            public Method method() {
-                return method;
-            }
-
-            private FakeRestRequest initialize(RestRequest.Method method) {
-                this.method = method;
-                return this;
-            }
-
-        }).initialize(invalidHttpMethodArray.get(0));
+        RestRequest restRequest = new FakeRestRequest(null, null, null, invalidHttpMethodArray.get(0));
 
         // Send the request and verify the response status code
         FakeRestChannel restChannel = new FakeRestChannel(restRequest, false, 1);

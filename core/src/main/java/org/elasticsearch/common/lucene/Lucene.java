@@ -642,31 +642,6 @@ public class Lucene {
      * Return a Scorer that throws an ElasticsearchIllegalStateException
      * on all operations with the given message.
      */
-     public static Scorer illegalScorer(final String message) {
-         return new Scorer(null) {
-             @Override
-             public float score() throws IOException {
-                 throw new IllegalStateException(message);
-             }
-             @Override
-             public int freq() throws IOException {
-                 throw new IllegalStateException(message);
-             }
-             @Override
-             public int docID() {
-                 throw new IllegalStateException(message);
-             }
-             @Override
-             public DocIdSetIterator iterator() {
-                 throw new IllegalStateException(message);
-             }
-         };
-    }
-
-    /**
-     * Return a Scorer that throws an ElasticsearchIllegalStateException
-     * on all operations with the given message.
-     */
     public static Scorer illegalScorer(final String message) {
         return new Scorer(null) {
             @Override

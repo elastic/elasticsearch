@@ -38,7 +38,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
-import java.util.Random;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
@@ -557,7 +556,8 @@ public class Strings {
     }
 
     public static String[] splitStringByCommaToArray(final String s) {
-        return splitStringToArray(s, ',');
+        if (s == null || s.isEmpty()) return Strings.EMPTY_ARRAY;
+        else return s.split(",");
     }
 
     public static Set<String> splitStringToSet(final String s, final char c) {
@@ -584,42 +584,6 @@ public class Strings {
         int size = pos - start;
         if (size > 0) {
             result.add(new String(chars, start, size));
-        }
-        return result;
-    }
-
-    public static String[] splitStringToArray(final CharSequence s, final char c) {
-        if (s == null || s.length() == 0) {
-            return Strings.EMPTY_ARRAY;
-        }
-        int count = 1;
-        for (int i = 0; i < s.length(); i++) {
-            if (s.charAt(i) == c) {
-                count++;
-            }
-        }
-        final String[] result = new String[count];
-        final StringBuilder builder = new StringBuilder();
-        int res = 0;
-        for (int i = 0; i < s.length(); i++) {
-            if (s.charAt(i) == c) {
-                if (builder.length() > 0) {
-                    result[res++] = builder.toString();
-                    builder.setLength(0);
-                }
-
-            } else {
-                builder.append(s.charAt(i));
-            }
-        }
-        if (builder.length() > 0) {
-            result[res++] = builder.toString();
-        }
-        if (res != count) {
-            // we have empty strings, copy over to a new array
-            String[] result1 = new String[res];
-            System.arraycopy(result, 0, result1, 0, res);
-            return result1;
         }
         return result;
     }

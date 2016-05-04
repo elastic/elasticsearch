@@ -622,8 +622,8 @@ public final class IngestDocument {
                     newPath = path;
                 }
             }
-            this.pathElements = Strings.splitStringToArray(newPath, '.');
-            if (pathElements.length == 0) {
+            this.pathElements = newPath.split("\\.");
+            if (pathElements.length == 1 && pathElements[0].isEmpty()) {
                 throw new IllegalArgumentException("path [" + path + "] is not valid");
             }
         }

@@ -81,6 +81,17 @@ public enum QueryRescoreMode implements Writeable {
         public String toString() {
             return "product";
         }
+    },
+    Replace {
+        @Override
+        public float combine(float primary, float secondary) {
+            return secondary;
+        }
+
+        @Override
+        public String toString() {
+            return "replace";
+        }
     };
 
     public abstract float combine(float primary, float secondary);

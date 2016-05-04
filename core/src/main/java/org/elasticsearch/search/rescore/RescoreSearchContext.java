@@ -26,18 +26,21 @@ package org.elasticsearch.search.rescore;
 public class RescoreSearchContext {
 
     private int windowSize;
-    
+
     private final String type;
 
     private final Rescorer rescorer;
 
-    public RescoreSearchContext(String type, int windowSize, Rescorer rescorer) {
+    private boolean normalize;
+
+    public RescoreSearchContext(String type, int windowSize, Rescorer rescorer, boolean normalize) {
         super();
         this.type = type;
         this.windowSize = windowSize;
         this.rescorer = rescorer;
+        this.normalize = normalize;
     }
-    
+
     public Rescorer rescorer() {
         return rescorer;
     }
@@ -53,5 +56,11 @@ public class RescoreSearchContext {
     public int window() {
         return windowSize;
     }
-    
+
+    public void setNormalization(boolean normalize) {
+        this.normalize = normalize;
+    }
+
+    public boolean getNormalization() { return normalize; }
+
 }

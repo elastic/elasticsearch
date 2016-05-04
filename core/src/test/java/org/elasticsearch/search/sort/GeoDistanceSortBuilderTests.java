@@ -82,16 +82,19 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.unit(unit(result.unit()));
         }
         if (randomBoolean()) {
-            result.order(RandomSortDataGenerator.order(null));
+            result.order(randomFrom(SortOrder.values()));
         }
         if (randomBoolean()) {
             result.sortMode(mode(result.sortMode()));
         }
         if (randomBoolean()) {
-            result.setNestedFilter(RandomSortDataGenerator.nestedFilter(result.getNestedFilter()));
+            result.setNestedFilter(randomNestedFilter());
         }
         if (randomBoolean()) {
-            result.setNestedPath(RandomSortDataGenerator.randomAscii(result.getNestedPath()));
+            result.setNestedPath(
+                    randomValueOtherThan(
+                            result.getNestedPath(),
+                            () -> randomAsciiOfLengthBetween(1, 10)));
         }
         if (randomBoolean()) {
             result.coerce(! result.coerce());
@@ -167,16 +170,20 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.unit(unit(original.unit()));
             break;
         case 4:
-            result.order(RandomSortDataGenerator.order(original.order()));
+            result.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
             break;
         case 5:
             result.sortMode(mode(original.sortMode()));
             break;
         case 6:
-            result.setNestedFilter(RandomSortDataGenerator.nestedFilter(original.getNestedFilter()));
+            result.setNestedFilter(randomValueOtherThan(
+                    original.getNestedFilter(),
+                    () -> randomNestedFilter()));
             break;
         case 7:
-            result.setNestedPath(RandomSortDataGenerator.randomAscii(original.getNestedPath()));
+            result.setNestedPath(randomValueOtherThan(
+                    result.getNestedPath(),
+                    () -> randomAsciiOfLengthBetween(1, 10)));
             break;
         case 8:
             result.coerce(! original.coerce());

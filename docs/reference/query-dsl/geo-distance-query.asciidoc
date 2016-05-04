@@ -162,6 +162,11 @@ The following are options allowed on the filter:
 
     Optional name field to identify the query
 
+`ignore_malformed`::
+   
+    deprecated[5.0.0,Use `validation_method` instead] Set to `true` to accept geo points with invalid latitude or
+    longitude (default is `false`).
+
 `validation_method`::
 
     Set to `IGNORE_MALFORMED` to accept geo points with invalid latitude or

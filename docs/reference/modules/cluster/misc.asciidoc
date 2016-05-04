@@ -21,19 +21,18 @@ API can make the cluster read-write again.
 ==== Index Tombstones
 
 The cluster state maintains index tombstones to explicitly denote indices that 
-have been deleted.  The tombstones are maintained to prevent indices that were 
-deleted when a node was offline from being reimported as dangling indices when 
-the node comes back online.  The number of tombstones maintained in the cluster 
-state is controlled by the following property, which cannot be updated dynamically:
+have been deleted.  The number of tombstones maintained in the cluster state is 
+controlled by the following property, which cannot be updated dynamically:
 
 `cluster.indices.tombstones.size`::
 
-The maximum number of tombstones that can be in the cluster state before tombstones 
-are purged.  The current default is 500.  Index tombstones remain in the cluster state, 
-until the maximum is exceeded, at which point tombstones are purged to stay within the 
-maximum allowed.  If you change this setting, set the value to the maximum number 
-of index deletions that are expected during the average node downtime in a cluster.
-Otherwise, you may occasionally see deleted indices re-imported as dangling indices.
+Index tombstones prevent nodes that are not part of the cluster when a delete 
+occurs from joining the cluster and reimporting the index as though the delete 
+was never issued. To keep the cluster state from growing huge we only keep the 
+last `cluster.indices.tombstones.size` deletes, which defaults to 500. You can 
+increase it if you expect nodes to be absent from the cluster and miss more 
+than 500 deletes. We think that is rare, thus the default. Tombstones don't take 
+up much space, but we also think that a number like 50,000 is probably too big.
 
 [[cluster-logger]]
 ==== Logger

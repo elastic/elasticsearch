@@ -133,8 +133,8 @@ public class HttpExporterTemplateTests extends AbstractExporterTemplateTestCase 
                     String[] paths = request.getPath().split("/");
 
                     // Templates
-                    if ((paths != null) && (paths.length > 0) && ("_template".equals(paths[0]))) {
-                        String templateName = paths[1];
+                    if ((paths != null) && (paths.length > 1) && ("_template".equals(paths[1]))) {
+                        String templateName = paths[2];
                         boolean templateExist = templates.containsKey(templateName);
 
                         if ("GET".equals(request.getMethod())) {

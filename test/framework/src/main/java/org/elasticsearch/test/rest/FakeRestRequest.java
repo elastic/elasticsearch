@@ -33,6 +33,8 @@ public class FakeRestRequest extends RestRequest {
 
     private final BytesReference content;
 
+    private final Method method;
+
     public FakeRestRequest() {
         this(new HashMap<>());
     }
@@ -46,14 +48,14 @@ public class FakeRestRequest extends RestRequest {
     }
 
     public FakeRestRequest(Map<String, String> headers, Map<String, String> params, BytesReference content) {
+        this(headers, params, content, null);
+    }
+
+    public FakeRestRequest(Map<String, String> headers, Map<String, String> params, BytesReference content, Method method) {
         this.headers = headers;
         this.params = params;
         this.content = content;
-    }
-
-    @Override
-    public Method method() {
-        return Method.GET;
+        this.method = method;
     }
 
     @Override
@@ -108,5 +110,14 @@ public class FakeRestRequest extends RestRequest {
     @Override
     public Map<String, String> params() {
         return params;
+    }
+
+    @Override
+    public Method method() {
+      if (method != null) {
+        return method;
+      } else {
+        return Method.GET;
+      }
     }
 }

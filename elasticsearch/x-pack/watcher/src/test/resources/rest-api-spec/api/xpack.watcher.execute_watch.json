@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-execute-watch.html",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_watcher/watch/{id}/_execute",
-      "paths": [ "/_watcher/watch/{id}/_execute", "/_watcher/watch/_execute" ],
+      "path": "/_xpack/watcher/watch/{id}/_execute",
+      "paths": [ "/_xpack/watcher/watch/{id}/_execute", "/_xpack/watcher/watch/_execute" ],
       "parts": {
         "id": {
           "type" : "string",

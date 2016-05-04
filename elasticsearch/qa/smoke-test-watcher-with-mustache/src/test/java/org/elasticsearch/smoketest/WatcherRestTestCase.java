@@ -36,7 +36,7 @@ public abstract class WatcherRestTestCase extends ESRestTestCase {
     public void startWatcher() throws Exception {
         try(CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
             URL url = getClusterUrls()[0];
-            HttpPut request = new HttpPut(new URI("http", null, url.getHost(), url.getPort(), "/_watcher/_start", null, null));
+            HttpPut request = new HttpPut(new URI("http", null, url.getHost(), url.getPort(), "/_xpack/watcher/_start", null, null));
             client.execute(request);
         }
     }
@@ -45,7 +45,7 @@ public abstract class WatcherRestTestCase extends ESRestTestCase {
     public void stopWatcher() throws Exception {
         try(CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
             URL url = getClusterUrls()[0];
-            HttpPut request = new HttpPut(new URI("http", null, url.getHost(), url.getPort(), "/_watcher/_stop", null, null));
+            HttpPut request = new HttpPut(new URI("http", null, url.getHost(), url.getPort(), "/_xpack/watcher/_stop", null, null));
             client.execute(request);
         }
     }

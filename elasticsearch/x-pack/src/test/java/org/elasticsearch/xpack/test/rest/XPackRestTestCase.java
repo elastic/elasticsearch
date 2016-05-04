@@ -60,7 +60,7 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
                                                   null,
                                                   url.getHost(),
                                                   url.getPort(),
-                                                  "/_watcher/_start", null, null));
+                                                  "/_xpack/watcher/_start", null, null));
             request.addHeader("Authorization", BASIC_AUTH_VALUE);
             try (CloseableHttpResponse response = client.execute(request)) {
             }
@@ -75,7 +75,7 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
                                                   null,
                                                   url.getHost(),
                                                   url.getPort(),
-                                                  "/_watcher/_stop", null, null));
+                                                  "/_xpack/watcher/_stop", null, null));
             request.addHeader("Authorization", BASIC_AUTH_VALUE);
             try (CloseableHttpResponse response = client.execute(request)) {
             }

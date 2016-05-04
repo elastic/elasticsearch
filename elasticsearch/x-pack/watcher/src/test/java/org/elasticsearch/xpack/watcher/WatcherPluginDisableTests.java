@@ -73,7 +73,7 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             HttpRequestBuilder request = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport)
                     .method("GET")
-                    .path("/_watcher");
+                    .path("/_xpack/watcher");
             HttpResponse response = request.execute();
             assertThat(response.getStatusCode(), is(HttpStatus.SC_BAD_REQUEST));
         }

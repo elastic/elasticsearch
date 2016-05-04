@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-stats.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_watcher/stats",
-      "paths": [ "/_watcher/stats", "/_watcher/stats/{metric}" ],
+      "path": "/_xpack/watcher/stats",
+      "paths": [ "/_xpack/watcher/stats", "/_xpack/watcher/stats/{metric}" ],
       "parts": {
         "metric": {
           "type" : "enum",

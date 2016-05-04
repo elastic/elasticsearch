@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.watcher.client.WatcherClient;
  */
 public abstract class WatcherRestHandler extends BaseRestHandler {
 
-    protected static String URI_BASE = "_watcher";
+    protected static String URI_BASE = "_xpack/watcher";
 
     public WatcherRestHandler(Settings settings, Client client) {
         super(settings, client);

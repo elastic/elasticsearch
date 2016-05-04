@@ -3,8 +3,8 @@
     "documentation": "https://www.elastic.co/guide/en/watcher/current/api-rest.html#api-rest-activate-watch",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_watcher/watch/{watch_id}/_activate",
-      "paths": [ "/_watcher/watch/{watch_id}/_activate" ],
+      "path": "/_xpack/watcher/watch/{watch_id}/_activate",
+      "paths": [ "/_xpack/watcher/watch/{watch_id}/_activate" ],
       "parts": {
         "watch_id": {
           "type" : "string",

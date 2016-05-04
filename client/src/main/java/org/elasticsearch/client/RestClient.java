@@ -33,9 +33,9 @@ public final class RestClient implements Closeable {
         this.transport = new Transport<>(client, connectionPool, maxRetryTimeout);
     }
 
-    public ElasticsearchResponse performRequest(Verb verb, String endpoint, Map<String, Object> params, HttpEntity entity)
+    public ElasticsearchResponse performRequest(String method, String endpoint, Map<String, Object> params, HttpEntity entity)
             throws IOException {
-        return transport.performRequest(verb, endpoint, params, entity);
+        return transport.performRequest(method, endpoint, params, entity);
     }
 
     @Override

@@ -88,7 +88,7 @@ final class Transport<C extends Connection> implements Closeable {
                 long timeElapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
                 long timeout = retryTimeout - timeElapsed;
                 if (timeout <= 0) {
-                    RetryTimeoutException retryTimeoutException = new RetryTimeoutException(
+                    IOException retryTimeoutException = new IOException(
                             "request retries exceeded max retry timeout [" + retryTimeout + "]");
                     retryTimeoutException.addSuppressed(lastSeenException);
                     throw retryTimeoutException;

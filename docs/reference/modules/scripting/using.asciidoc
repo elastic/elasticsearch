@@ -118,7 +118,7 @@ files stored on every node in the cluster.  File scripts must be saved in the
 changed with the `path.script` setting.
 
 Any files placed in the `scripts` directory will be compiled automatically
-when the node starts up and then <<script-reloading,every 60 seconds thereafter>>.
+when the node starts up and then <<reload-scripts,every 60 seconds thereafter>>.
 
 The file should be named as follows: `{script-name}.{lang}`.  For instance,
 the following example creates a Groovy script called `calculate-score`:

@@ -39,7 +39,7 @@ to term statistics for <<modules-advanced-scripting,advanced text scoring>>.
 
 Scripts used in the <<query-dsl-function-score-query,`function_score` query>>,
 in <<search-request-sort,script-based sorting>>, or in
-<<aggregations,aggregations>> have access to the `_score` variable which
+<<search-aggregations,aggregations>> have access to the `_score` variable which
 represents the current relevance score of a document.
 
 Here's an example of using a script in a

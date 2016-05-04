@@ -505,6 +505,42 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         }
     }
 
+    public void testFromJsonCoerceFails() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_bounding_box\" : {\n" +
+                "    \"pin.location\" : {\n" +
+                "      \"top_left\" : [ -74.1, 40.73 ],\n" +
+                "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
+                "    },\n" +
+                "    \"coerce\" : true,\n" +
+                "    \"type\" : \"MEMORY\",\n" +
+                        "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+    }
+
+    public void testFromJsonIgnoreMalformedFails() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_bounding_box\" : {\n" +
+                "    \"pin.location\" : {\n" +
+                "      \"top_left\" : [ -74.1, 40.73 ],\n" +
+                "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
+                "    },\n" +
+                "    \"ignore_malformed\" : true,\n" +
+                "    \"type\" : \"MEMORY\",\n" +
+                        "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+    }
+
     @Override
     public void testMustRewrite() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);

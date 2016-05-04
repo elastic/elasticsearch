@@ -207,7 +207,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
             parseQuery(builder.string());
             fail("normalize is deprecated");
         } catch (IllegalArgumentException ex) {
-            assertEquals("Deprecated field [normalize] used, expected [coerce] instead", ex.getMessage());
+            assertEquals("Deprecated field [normalize] used, replaced by [use validation_method instead]", ex.getMessage());
         }
     }
 
@@ -342,8 +342,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                 "    \"person.location\" : {\n" +
                 "      \"points\" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]\n" +
                 "    },\n" +
-                "    \"coerce\" : false,\n" +
-                "    \"ignore_malformed\" : false,\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
@@ -351,6 +350,38 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         GeoPolygonQueryBuilder parsed = (GeoPolygonQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 4, parsed.points().size());
+    }
+
+    public void testFromJsonIgnoreMalformedDeprecated() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_polygon\" : {\n" +
+                "    \"person.location\" : {\n" +
+                "      \"points\" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]\n" +
+                "    },\n" +
+                "    \"ignore_malformed\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+
+    }
+
+    public void testFromJsonCoerceDeprecated() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_polygon\" : {\n" +
+                "    \"person.location\" : {\n" +
+                "      \"points\" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]\n" +
+                "    },\n" +
+                "    \"coerce\" : false,\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
     }
 
     @Override

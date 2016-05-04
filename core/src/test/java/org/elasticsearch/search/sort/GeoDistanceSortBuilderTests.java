@@ -89,7 +89,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.sortMode(mode(result.sortMode()));
         }
         if (randomBoolean()) {
-            result.setNestedFilter(NestedQueryBuilderGenerator.randomNestedFilter());
+            result.setNestedFilter(randomNestedFilter());
         }
         if (randomBoolean()) {
             result.setNestedPath(
@@ -179,7 +179,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         case 6:
             result.setNestedFilter(ESTestCase.randomValueOtherThan(
                     original.getNestedFilter(),
-                    () -> NestedQueryBuilderGenerator.randomNestedFilter()));
+                    () -> randomNestedFilter()));
             break;
         case 7:
             result.setNestedPath(ESTestCase.randomValueOtherThan(

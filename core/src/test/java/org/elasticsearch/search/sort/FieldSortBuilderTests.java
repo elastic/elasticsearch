@@ -25,12 +25,10 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Supplier;
 
 public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder> {
 
@@ -42,8 +40,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     private List<Object> missingContent = Arrays.asList(
             "_last",
             "_first",
-            ESTestCase.randomAsciiOfLength(10), ESTestCase.randomUnicodeOfCodepointLengthBetween(5, 15),
-            ESTestCase.randomInt());
+            randomAsciiOfLength(10), randomUnicodeOfCodepointLengthBetween(5, 15),
+            randomInt());
 
 
     public FieldSortBuilder randomFieldSortBuilder() {
@@ -58,7 +56,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
 
         if (randomBoolean()) {
-            builder.unmappedType(ESTestCase.randomAsciiOfLengthBetween(1, 10));
+            builder.unmappedType(randomAsciiOfLengthBetween(1, 10));
         }
 
         if (randomBoolean()) {
@@ -66,11 +64,11 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
 
         if (randomBoolean()) {
-            builder.setNestedFilter(NestedQueryBuilderGenerator.randomNestedFilter());
+            builder.setNestedFilter(randomNestedFilter());
         }
 
         if (randomBoolean()) {
-            builder.setNestedPath(ESTestCase.randomAsciiOfLengthBetween(1, 10));
+            builder.setNestedPath(randomAsciiOfLengthBetween(1, 10));
         }
 
         return builder;
@@ -82,28 +80,28 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         int parameter = randomIntBetween(0, 5);
         switch (parameter) {
         case 0:
-            mutated.setNestedPath(ESTestCase.randomValueOtherThan(
+            mutated.setNestedPath(randomValueOtherThan(
                     original.getNestedPath(),
-                    () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
+                    () -> randomAsciiOfLengthBetween(1, 10)));
             break;
         case 1:
-            mutated.setNestedFilter(ESTestCase.randomValueOtherThan(
+            mutated.setNestedFilter(randomValueOtherThan(
                     original.getNestedFilter(),
-                    () -> NestedQueryBuilderGenerator.randomNestedFilter()));
+                    () -> randomNestedFilter()));
             break;
         case 2:
-            mutated.sortMode(ESTestCase.randomValueOtherThan(original.sortMode(), () -> randomFrom(SortMode.values())));
+            mutated.sortMode(randomValueOtherThan(original.sortMode(), () -> randomFrom(SortMode.values())));
             break;
         case 3:
-            mutated.unmappedType(ESTestCase.randomValueOtherThan(
+            mutated.unmappedType(randomValueOtherThan(
                     original.unmappedType(),
-                    () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
+                    () -> randomAsciiOfLengthBetween(1, 10)));
             break;
         case 4:
-            mutated.missing(ESTestCase.randomValueOtherThan(original.missing(), () -> randomFrom(missingContent)));
+            mutated.missing(randomValueOtherThan(original.missing(), () -> randomFrom(missingContent)));
             break;
         case 5:
-            mutated.order(ESTestCase.randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
+            mutated.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
             break;
         default:
             throw new IllegalStateException("Unsupported mutation.");

@@ -9,7 +9,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.support.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpClient;
 import org.junit.Before;
 
 import java.util.Collections;

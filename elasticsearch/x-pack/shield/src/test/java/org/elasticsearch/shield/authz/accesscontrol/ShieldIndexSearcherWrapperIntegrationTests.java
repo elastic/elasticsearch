@@ -21,15 +21,18 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.shield.SecurityLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -60,6 +63,7 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
                 singleton(new BytesArray("{}")));
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        QueryParseContext queryParseContext = mock(QueryParseContext.class);
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
             @Override
@@ -133,7 +137,9 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shardId);
         for (int i = 0; i < numValues; i++) {
             ParsedQuery parsedQuery = new ParsedQuery(new TermQuery(new Term("field", values[i])));
-            when(queryShardContext.parse(any(BytesReference.class))).thenReturn(parsedQuery);
+            when(queryShardContext.newParseContext(any(XContentParser.class))).thenReturn(queryParseContext);
+            when(queryParseContext.parseInnerQueryBuilder()).thenReturn((QueryBuilder) new TermQueryBuilder("field", values[i]));
+            when(queryShardContext.toQuery(any(QueryBuilder.class))).thenReturn(parsedQuery);
             DirectoryReader wrappedDirectoryReader = wrapper.wrap(directoryReader);
             IndexSearcher indexSearcher = wrapper.wrap(new IndexSearcher(wrappedDirectoryReader));
 

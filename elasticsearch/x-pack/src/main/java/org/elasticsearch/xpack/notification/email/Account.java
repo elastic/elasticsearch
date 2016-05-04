@@ -10,7 +10,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.watcher.support.secret.SecretService;
+import org.elasticsearch.xpack.common.secret.SecretService;
 
 import javax.activation.CommandMap;
 import javax.activation.MailcapCommandMap;

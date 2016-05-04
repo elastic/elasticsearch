@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.notification.pagerduty;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.xpack.watcher.support.http.HttpClient;
-import org.elasticsearch.xpack.watcher.support.http.HttpRequest;
-import org.elasticsearch.xpack.watcher.support.http.HttpResponse;
+import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpRequest;
+import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;

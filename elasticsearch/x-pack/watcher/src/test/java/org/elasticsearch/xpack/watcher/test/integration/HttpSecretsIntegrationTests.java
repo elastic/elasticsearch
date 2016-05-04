@@ -14,10 +14,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
-import org.elasticsearch.xpack.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.support.http.auth.basic.ApplicableBasicAuth;
-import org.elasticsearch.xpack.watcher.support.http.auth.basic.BasicAuth;
-import org.elasticsearch.xpack.watcher.support.secret.SecretService;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.common.http.auth.basic.ApplicableBasicAuth;
+import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
+import org.elasticsearch.xpack.common.secret.SecretService;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
@@ -89,7 +89,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         if (encryptSensitiveData) {
             return Settings.builder()
                     .put(super.nodeSettings(nodeOrdinal))
-                    .put("xpack.watcher.shield.encrypt_sensitive_data", encryptSensitiveData)
+                    .put("xpack.watcher.encrypt_sensitive_data", encryptSensitiveData)
                     .build();
         }
         return super.nodeSettings(nodeOrdinal);

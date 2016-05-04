@@ -21,6 +21,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.common.init.LazyInitializationModule;
 import org.elasticsearch.xpack.watcher.actions.WatcherActionModule;
 import org.elasticsearch.xpack.watcher.client.WatcherClientModule;
 import org.elasticsearch.xpack.watcher.condition.ConditionModule;
@@ -38,16 +40,11 @@ import org.elasticsearch.xpack.watcher.rest.action.RestHijackOperationAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestPutWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatcherStatsAction;
+import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
 import org.elasticsearch.xpack.watcher.support.clock.ClockModule;
-import org.elasticsearch.xpack.watcher.support.http.HttpClient;
-import org.elasticsearch.xpack.watcher.support.http.HttpClientModule;
-import org.elasticsearch.xpack.watcher.support.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
-import org.elasticsearch.xpack.watcher.support.secret.SecretModule;
-import org.elasticsearch.xpack.watcher.support.secret.SecretService;
-import org.elasticsearch.xpack.watcher.support.text.TextTemplateModule;
 import org.elasticsearch.xpack.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.xpack.watcher.transform.TransformModule;
 import org.elasticsearch.xpack.watcher.transform.chain.ChainTransformFactory;
@@ -70,17 +67,6 @@ import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsActio
 import org.elasticsearch.xpack.watcher.trigger.TriggerModule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.xpack.watcher.watch.WatchModule;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.common.init.LazyInitializationModule;
-import org.elasticsearch.xpack.notification.email.EmailService;
-import org.elasticsearch.xpack.notification.email.InternalEmailService;
-import org.elasticsearch.xpack.notification.hipchat.HipChatService;
-import org.elasticsearch.xpack.notification.hipchat.InternalHipChatService;
-import org.elasticsearch.xpack.notification.pagerduty.InternalPagerDutyService;
-import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
-import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
-import org.elasticsearch.xpack.notification.slack.InternalSlackService;
-import org.elasticsearch.xpack.notification.slack.SlackService;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -99,6 +85,8 @@ public class Watcher {
             new Setting<>("index.xpack.watcher.plugin.version", "", Function.identity(), Setting.Property.IndexScope);
     public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING =
             new Setting<>("index.xpack.watcher.template.version", "", Function.identity(), Setting.Property.IndexScope);
+    public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING =
+            Setting.boolSetting("xpack.watcher.encrypt_sensitive_data", false, Setting.Property.NodeScope);
 
     private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
@@ -122,8 +110,6 @@ public class Watcher {
         modules.add(new WatcherModule(enabled, transportClient));
         if (enabled && transportClient == false) {
             modules.add(new WatchModule());
-            modules.add(new TextTemplateModule());
-            modules.add(new HttpClientModule());
             modules.add(new ClockModule());
             modules.add(new WatcherClientModule());
             modules.add(new TransformModule());
@@ -134,7 +120,6 @@ public class Watcher {
             modules.add(new WatcherActionModule());
             modules.add(new HistoryModule());
             modules.add(new ExecutionModule());
-            modules.add(new SecretModule(settings));
         }
         return modules;
     }
@@ -145,11 +130,6 @@ public class Watcher {
         }
         return Arrays.<Class<? extends LifecycleComponent>>asList(
             WatcherLicensee.class,
-            EmailService.class,
-            HipChatService.class,
-            SlackService.class,
-            PagerDutyService.class,
-            HttpClient.class,
             WatcherSettingsValidation.class);
     }
 
@@ -172,24 +152,17 @@ public class Watcher {
         for (TemplateConfig templateConfig : WatcherIndexTemplateRegistry.TEMPLATE_CONFIGS) {
             module.registerSetting(templateConfig.getSetting());
         }
-        module.registerSetting(InternalSlackService.SLACK_ACCOUNT_SETTING);
-        module.registerSetting(InternalEmailService.EMAIL_ACCOUNT_SETTING);
-        module.registerSetting(InternalHipChatService.HIPCHAT_ACCOUNT_SETTING);
-        module.registerSetting(InternalPagerDutyService.PAGERDUTY_ACCOUNT_SETTING);
         module.registerSetting(INDEX_WATCHER_VERSION_SETTING);
         module.registerSetting(INDEX_WATCHER_TEMPLATE_VERSION_SETTING);
         module.registerSetting(Setting.intSetting("xpack.watcher.execution.scroll.size", 0, Setting.Property.NodeScope));
         module.registerSetting(Setting.intSetting("xpack.watcher.watch.scroll.size", 0, Setting.Property.NodeScope));
         module.registerSetting(Setting.boolSetting(XPackPlugin.featureEnabledSetting(Watcher.NAME), true, Setting.Property.NodeScope));
-        module.registerSetting(SecretService.Secure.ENCRYPT_SENSITIVE_DATA_SETTING);
+        module.registerSetting(ENCRYPT_SENSITIVE_DATA_SETTING);
 
         module.registerSetting(Setting.simpleString("xpack.watcher.internal.ops.search.default_timeout", Setting.Property.NodeScope));
         module.registerSetting(Setting.simpleString("xpack.watcher.internal.ops.bulk.default_timeout", Setting.Property.NodeScope));
         module.registerSetting(Setting.simpleString("xpack.watcher.internal.ops.index.default_timeout", Setting.Property.NodeScope));
         module.registerSetting(Setting.simpleString("xpack.watcher.execution.default_throttle_period", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.http.default_read_timeout", Setting.Property.NodeScope));
-        module.registerSetting(Setting.groupSetting("xpack.watcher.http.ssl.", Setting.Property.NodeScope));
-        module.registerSetting(Setting.groupSetting("xpack.watcher.http.proxy.", Setting.Property.NodeScope));
         module.registerSetting(Setting.simpleString("xpack.watcher.actions.index.default_timeout", Setting.Property.NodeScope));
         module.registerSetting(Setting.simpleString("xpack.watcher.index.rest.direct_access", Setting.Property.NodeScope));
         module.registerSetting(Setting.simpleString("xpack.watcher.trigger.schedule.engine", Setting.Property.NodeScope));
@@ -198,14 +171,6 @@ public class Watcher {
         module.registerSetting(Setting.simpleString("xpack.watcher.trigger.schedule.ticker.tick_interval", Setting.Property.NodeScope));
         module.registerSetting(Setting.simpleString("xpack.watcher.execution.scroll.timeout", Setting.Property.NodeScope));
         module.registerSetting(Setting.simpleString("xpack.watcher.start_immediately", Setting.Property.NodeScope));
-        module.registerSetting(Setting.simpleString("xpack.watcher.http.default_connection_timeout", Setting.Property.NodeScope));
-
-        module.registerSettingsFilter("xpack.notification.email.account.*.smtp.password");
-        module.registerSettingsFilter("xpack.notification.slack.account.*.url");
-        module.registerSettingsFilter("xpack.notification.pagerduty.account.*.url");
-        module.registerSettingsFilter("xpack.notification.pagerduty." + PagerDutyAccount.SERVICE_KEY_SETTING);
-        module.registerSettingsFilter("xpack.notification.pagerduty.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);
-        module.registerSettingsFilter("xpack.notification.hipchat.account.*.auth_token");
     }
 
     public void onModule(NetworkModule module) {

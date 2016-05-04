@@ -24,7 +24,9 @@ public class ObjectPath {
     }
 
     private static Object evalContext(String path, Object ctx) {
-        String[] parts = Strings.splitStringToArray(path, '.');
+        final String[] parts;
+        if (path == null || path.isEmpty()) parts = Strings.EMPTY_ARRAY;
+        else parts = path.split("\\.");
         StringBuilder resolved = new StringBuilder();
         for (String part : parts) {
             if (ctx == null) {

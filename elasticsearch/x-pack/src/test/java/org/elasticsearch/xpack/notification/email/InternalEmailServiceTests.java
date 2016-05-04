@@ -9,8 +9,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.support.secret.Secret;
-import org.elasticsearch.xpack.watcher.support.secret.SecretService;
+import org.elasticsearch.xpack.common.secret.Secret;
+import org.elasticsearch.xpack.common.secret.SecretService;
 import org.junit.After;
 import org.junit.Before;
 

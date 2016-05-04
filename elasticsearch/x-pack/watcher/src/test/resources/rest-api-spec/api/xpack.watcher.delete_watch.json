@@ -1,0 +1,28 @@
+{
+  "xpack.watcher.delete_watch": {
+    "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-delete-watch.html",
+    "methods": [ "DELETE" ],
+    "url": {
+      "path": "/_xpack/watcher/watch/{id}",
+      "paths": [ "/_xpack/watcher/watch/{id}" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "description" : "Watch ID",
+          "required" : true
+        }
+      },
+      "params": {
+        "master_timeout": {
+          "type": "duration",
+          "description": "Specify timeout for watch write operation"
+        },
+        "force": {
+          "type": "boolean",
+          "description": "Specify if this request should be forced and ignore locks"
+        }
+      }
+    },
+    "body": null
+  }
+}

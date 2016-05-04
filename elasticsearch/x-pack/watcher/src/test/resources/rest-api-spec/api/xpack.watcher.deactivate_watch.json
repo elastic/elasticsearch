@@ -1,0 +1,24 @@
+{
+  "xpack.watcher.deactivate_watch": {
+    "documentation": "https://www.elastic.co/guide/en/watcher/current/api-rest.html#api-rest-deactivate-watch",
+    "methods": [ "PUT", "POST" ],
+    "url": {
+      "path": "/_xpack/watcher/watch/{watch_id}/_deactivate",
+      "paths": [ "/_xpack/watcher/watch/{watch_id}/_deactivate" ],
+      "parts": {
+        "watch_id": {
+          "type" : "string",
+          "description" : "Watch ID",
+          "required" : true
+        }
+      },
+      "params": {
+        "master_timeout": {
+          "type": "duration",
+          "description": "Specify timeout for watch write operation"
+        }
+      }
+    },
+    "body": null
+  }
+}

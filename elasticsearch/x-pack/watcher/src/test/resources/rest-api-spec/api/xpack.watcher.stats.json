@@ -1,0 +1,25 @@
+{
+  "xpack.watcher.stats": {
+    "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-stats.html",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_xpack/watcher/stats",
+      "paths": [ "/_xpack/watcher/stats", "/_xpack/watcher/stats/{metric}" ],
+      "parts": {
+        "metric": {
+          "type" : "enum",
+          "options" : ["_all", "queued_watches", "pending_watches"],
+          "description" : "Controls what additional stat metrics should be include in the response"
+        }
+      },
+      "params": {
+        "metric": {
+          "type" : "enum",
+          "options" : ["_all", "queued_watches", "pending_watches"],
+          "description" : "Controls what additional stat metrics should be include in the response"
+        }
+      }
+    },
+    "body": null
+  }
+}

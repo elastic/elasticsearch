@@ -1,0 +1,15 @@
+{
+  "xpack.watcher.restart": {
+    "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-service.html",
+    "methods": [ "PUT" ],
+    "url": {
+      "path": "/_xpack/watcher/_restart",
+      "paths": [ "/_xpack/watcher/_restart" ],
+      "parts": {
+      },
+      "params": {
+      }
+    },
+    "body": null
+  }
+}

@@ -20,7 +20,7 @@ import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.watcher.support.ScriptServiceProxy;
+import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.junit.Ignore;
 import org.mockito.Mockito;
 

@@ -14,7 +14,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -131,11 +130,11 @@ public class HttpExporterTemplateTests extends AbstractExporterTemplateTestCase 
                     }
                     return newResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
                 default:
-                    String[] paths = Strings.splitStringToArray(request.getPath(), '/');
+                    String[] paths = request.getPath().split("/");
 
                     // Templates
-                    if ((paths != null) && (paths.length > 0) && ("_template".equals(paths[0]))) {
-                        String templateName = paths[1];
+                    if ((paths != null) && (paths.length > 1) && ("_template".equals(paths[1]))) {
+                        String templateName = paths[2];
                         boolean templateExist = templates.containsKey(templateName);
 
                         if ("GET".equals(request.getMethod())) {

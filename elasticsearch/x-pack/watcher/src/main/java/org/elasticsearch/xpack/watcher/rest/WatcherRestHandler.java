@@ -9,7 +9,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 
@@ -18,7 +17,7 @@ import org.elasticsearch.xpack.watcher.client.WatcherClient;
  */
 public abstract class WatcherRestHandler extends BaseRestHandler {
 
-    protected static String URI_BASE = "_watcher";
+    protected static String URI_BASE = "_xpack/watcher";
 
     public WatcherRestHandler(Settings settings, Client client) {
         super(settings, client);

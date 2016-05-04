@@ -16,8 +16,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.notification.hipchat.HipChatAccount;
 import org.elasticsearch.xpack.notification.hipchat.HipChatMessage;
 import org.elasticsearch.xpack.notification.hipchat.HipChatService;
-import org.elasticsearch.xpack.watcher.support.text.TextTemplate;
-import org.elasticsearch.xpack.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.xpack.common.text.TextTemplate;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.junit.Before;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;

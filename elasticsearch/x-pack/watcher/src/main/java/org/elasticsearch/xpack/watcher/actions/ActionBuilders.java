@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.notification.pagerduty.IncidentEvent;
 import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
 import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
 import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
-import org.elasticsearch.xpack.watcher.support.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.watcher.support.text.TextTemplate;
+import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.common.text.TextTemplate;
 
 /**
  *

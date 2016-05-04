@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.notification.hipchat.HipChatAccount;
 import org.elasticsearch.xpack.notification.hipchat.HipChatService;
-import org.elasticsearch.xpack.watcher.support.text.TextTemplateEngine;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 
 import java.io.IOException;
 

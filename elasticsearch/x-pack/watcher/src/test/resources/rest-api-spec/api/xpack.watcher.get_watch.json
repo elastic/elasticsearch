@@ -1,0 +1,20 @@
+{
+  "xpack.watcher.get_watch": {
+    "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-get-watch.html",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_xpack/watcher/watch/{id}",
+      "paths": [ "/_xpack/watcher/watch/{id}" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "description" : "Watch ID",
+          "required" : true
+        }
+      },
+      "params": {
+      }
+    },
+    "body": null
+  }
+}

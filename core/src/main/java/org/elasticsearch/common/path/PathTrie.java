@@ -25,9 +25,6 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
 public class PathTrie<T> {
 
     public interface Decoder {
@@ -36,18 +33,14 @@ public class PathTrie<T> {
 
     private final Decoder decoder;
     private final TrieNode root;
-    private final String separator;
     private T rootValue;
 
-    public PathTrie(Decoder decoder) {
-        this('/', "*", decoder);
-    }
+    private static final String SEPARATOR = "/";
+    private static final String WILDCARD = "*";
 
-    public PathTrie(char separator, String wildcard, Decoder decoder) {
+    public PathTrie(Decoder decoder) {
         this.decoder = decoder;
-        final String separatorAsString = new String(new char[]{separator});
-        this.separator = separatorAsString;
-        root = new TrieNode(separatorAsString, null, wildcard);
+        root = new TrieNode(SEPARATOR, null, WILDCARD);
     }
 
     public class TrieNode {
@@ -195,7 +188,7 @@ public class PathTrie<T> {
     }
 
     public void insert(String path, T value) {
-        String[] strings = path.split(separator);
+        String[] strings = path.split(SEPARATOR);
         if (strings.length == 0) {
             rootValue = value;
             return;
@@ -216,7 +209,7 @@ public class PathTrie<T> {
         if (path.length() == 0) {
             return rootValue;
         }
-        String[] strings = path.split(separator);
+        String[] strings = path.split(SEPARATOR);
         if (strings.length == 0) {
             return rootValue;
         }

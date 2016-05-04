@@ -35,16 +35,16 @@ on the underlying field type):
     A boolean indicating that the field has several values within the corpus.
 
 `doc['field_name'].lat`::
-    The latitude of a geo point type.
+    The latitude of a geo point type, or `null`.
 
 `doc['field_name'].lon`::
-    The longitude of a geo point type.
+    The longitude of a geo point type, or `null`.
 
 `doc['field_name'].lats`::
-    The latitudes of a geo point type.
+    The latitudes of a geo point type, or an empty array.
 
 `doc['field_name'].lons`::
-    The longitudes of a geo point type.
+    The longitudes of a geo point type, or an empty array.
 
 `doc['field_name'].distance(lat, lon)`::
     The `plane` distance (in meters) of this geo point field from the provided lat/lon.

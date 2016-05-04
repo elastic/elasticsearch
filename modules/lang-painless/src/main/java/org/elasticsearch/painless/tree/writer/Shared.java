@@ -19,13 +19,40 @@
 
 package org.elasticsearch.painless.tree.writer;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Transform;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
+import static org.elasticsearch.painless.tree.writer.Constants.ADDEXACT_INT;
+import static org.elasticsearch.painless.tree.writer.Constants.ADDEXACT_LONG;
+import static org.elasticsearch.painless.tree.writer.Constants.ADDWOOVERLOW_DOUBLE;
+import static org.elasticsearch.painless.tree.writer.Constants.ADDWOOVERLOW_FLOAT;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_ADD_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_AND_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_DIV_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_LSH_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_MUL_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_OR_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_REM_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_RSH_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_SUB_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_USH_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_XOR_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DIVWOOVERLOW_DOUBLE;
+import static org.elasticsearch.painless.tree.writer.Constants.DIVWOOVERLOW_FLOAT;
+import static org.elasticsearch.painless.tree.writer.Constants.DIVWOOVERLOW_INT;
+import static org.elasticsearch.painless.tree.writer.Constants.DIVWOOVERLOW_LONG;
+import static org.elasticsearch.painless.tree.writer.Constants.MULEXACT_INT;
+import static org.elasticsearch.painless.tree.writer.Constants.MULEXACT_LONG;
+import static org.elasticsearch.painless.tree.writer.Constants.MULWOOVERLOW_DOUBLE;
+import static org.elasticsearch.painless.tree.writer.Constants.MULWOOVERLOW_FLOAT;
+import static org.elasticsearch.painless.tree.writer.Constants.REMWOOVERLOW_DOUBLE;
+import static org.elasticsearch.painless.tree.writer.Constants.REMWOOVERLOW_FLOAT;
 import static org.elasticsearch.painless.tree.writer.Constants.STRINGBUILDER_APPEND_BOOLEAN;
 import static org.elasticsearch.painless.tree.writer.Constants.STRINGBUILDER_APPEND_CHAR;
 import static org.elasticsearch.painless.tree.writer.Constants.STRINGBUILDER_APPEND_DOUBLE;
@@ -37,7 +64,10 @@ import static org.elasticsearch.painless.tree.writer.Constants.STRINGBUILDER_APP
 import static org.elasticsearch.painless.tree.writer.Constants.STRINGBUILDER_CONSTRUCTOR;
 import static org.elasticsearch.painless.tree.writer.Constants.STRINGBUILDER_TOSTRING;
 import static org.elasticsearch.painless.tree.writer.Constants.STRINGBUILDER_TYPE;
-
+import static org.elasticsearch.painless.tree.writer.Constants.SUBEXACT_INT;
+import static org.elasticsearch.painless.tree.writer.Constants.SUBEXACT_LONG;
+import static org.elasticsearch.painless.tree.writer.Constants.SUBWOOVERLOW_DOUBLE;
+import static org.elasticsearch.painless.tree.writer.Constants.SUBWOOVERLOW_FLOAT;
 import static org.elasticsearch.painless.tree.writer.Constants.TOBYTEEXACT_INT;
 import static org.elasticsearch.painless.tree.writer.Constants.TOBYTEEXACT_LONG;
 import static org.elasticsearch.painless.tree.writer.Constants.TOBYTEWOOVERFLOW_DOUBLE;
@@ -122,31 +152,106 @@ public class Shared {
         adapter.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_TOSTRING);
     }
 
-    public static void writeDup(final GeneratorAdapter adapter, final int size, final boolean x1, final boolean x2) {
-        if (size == 1) {
-            if (x2) {
-                adapter.dupX2();
-            } else if (x1) {
-                adapter.dupX1();
-            } else {
-                adapter.dup();
-            }
-        } else if (size == 2) {
-            if (x2) {
-                adapter.dup2X2();
-            } else if (x1) {
-                adapter.dup2X1();
-            } else {
-                adapter.dup2();
-            }
-        }
-    }
+    public static void writeBinaryInstruction(final CompilerSettings settings, final Definition definition,
+                                              final GeneratorAdapter adapter, final String location,
+                                              final Type type, final Operation operation) {
+        final Sort sort = type.sort;
+        boolean exact = !settings.getNumericOverflow() &&
+            ((sort == Sort.INT || sort == Sort.LONG) &&
+                (operation == Operation.MUL || operation == Operation.DIV ||
+                    operation == Operation.ADD || operation == Operation.SUB) ||
+                (sort == Sort.FLOAT || sort == Sort.DOUBLE) &&
+                    (operation == Operation.MUL || operation == Operation.DIV || operation == Operation.REM ||
+                        operation == Operation.ADD || operation == Operation.SUB));
 
-    public static void writePop(final GeneratorAdapter adapter, final int size) {
-        if (size == 1) {
-            adapter.pop();
-        } else if (size == 2) {
-            adapter.pop2();
+        if (exact) {
+            switch (sort) {
+                case INT:
+                    switch (operation) {
+                        case MUL: adapter.invokeStatic(definition.mathType.type,    MULEXACT_INT);     break;
+                        case DIV: adapter.invokeStatic(definition.utilityType.type, DIVWOOVERLOW_INT); break;
+                        case ADD: adapter.invokeStatic(definition.mathType.type,    ADDEXACT_INT);     break;
+                        case SUB: adapter.invokeStatic(definition.mathType.type,    SUBEXACT_INT);     break;
+                    }
+
+                    break;
+                case LONG:
+                    switch (operation) {
+                        case MUL: adapter.invokeStatic(definition.mathType.type,    MULEXACT_LONG);     break;
+                        case DIV: adapter.invokeStatic(definition.utilityType.type, DIVWOOVERLOW_LONG); break;
+                        case ADD: adapter.invokeStatic(definition.mathType.type,    ADDEXACT_LONG);     break;
+                        case SUB: adapter.invokeStatic(definition.mathType.type,    SUBEXACT_LONG);     break;
+                    }
+
+                    break;
+                case FLOAT:
+                    switch (operation) {
+                        case MUL: adapter.invokeStatic(definition.utilityType.type, MULWOOVERLOW_FLOAT); break;
+                        case DIV: adapter.invokeStatic(definition.utilityType.type, DIVWOOVERLOW_FLOAT); break;
+                        case REM: adapter.invokeStatic(definition.utilityType.type, REMWOOVERLOW_FLOAT); break;
+                        case ADD: adapter.invokeStatic(definition.utilityType.type, ADDWOOVERLOW_FLOAT); break;
+                        case SUB: adapter.invokeStatic(definition.utilityType.type, SUBWOOVERLOW_FLOAT); break;
+                        default:
+                            throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
+                    }
+
+                    break;
+                case DOUBLE:
+                    switch (operation) {
+                        case MUL: adapter.invokeStatic(definition.utilityType.type, MULWOOVERLOW_DOUBLE); break;
+                        case DIV: adapter.invokeStatic(definition.utilityType.type, DIVWOOVERLOW_DOUBLE); break;
+                        case REM: adapter.invokeStatic(definition.utilityType.type, REMWOOVERLOW_DOUBLE); break;
+                        case ADD: adapter.invokeStatic(definition.utilityType.type, ADDWOOVERLOW_DOUBLE); break;
+                        case SUB: adapter.invokeStatic(definition.utilityType.type, SUBWOOVERLOW_DOUBLE); break;
+                        default:
+                            throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
+                    }
+
+                    break;
+                default:
+                    throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
+            }
+        } else {
+            if ((sort == Sort.FLOAT || sort == Sort.DOUBLE) &&
+                (operation == Operation.LSH || operation == Operation.USH ||
+                    operation == Operation.RSH || operation == Operation.BWAND ||
+                    operation == Operation.XOR || operation == Operation.BWOR)) {
+                throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
+            }
+
+            if (sort == Sort.DEF) {
+                switch (operation) {
+                    case MUL:   adapter.invokeStatic(definition.defobjType.type, DEF_MUL_CALL); break;
+                    case DIV:   adapter.invokeStatic(definition.defobjType.type, DEF_DIV_CALL); break;
+                    case REM:   adapter.invokeStatic(definition.defobjType.type, DEF_REM_CALL); break;
+                    case ADD:   adapter.invokeStatic(definition.defobjType.type, DEF_ADD_CALL); break;
+                    case SUB:   adapter.invokeStatic(definition.defobjType.type, DEF_SUB_CALL); break;
+                    case LSH:   adapter.invokeStatic(definition.defobjType.type, DEF_LSH_CALL); break;
+                    case USH:   adapter.invokeStatic(definition.defobjType.type, DEF_RSH_CALL); break;
+                    case RSH:   adapter.invokeStatic(definition.defobjType.type, DEF_USH_CALL); break;
+                    case BWAND: adapter.invokeStatic(definition.defobjType.type, DEF_AND_CALL); break;
+                    case XOR:   adapter.invokeStatic(definition.defobjType.type, DEF_XOR_CALL); break;
+                    case BWOR:  adapter.invokeStatic(definition.defobjType.type, DEF_OR_CALL);  break;
+                    default:
+                        throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
+                }
+            } else {
+                switch (operation) {
+                    case MUL:   adapter.math(GeneratorAdapter.MUL,  type.type); break;
+                    case DIV:   adapter.math(GeneratorAdapter.DIV,  type.type); break;
+                    case REM:   adapter.math(GeneratorAdapter.REM,  type.type); break;
+                    case ADD:   adapter.math(GeneratorAdapter.ADD,  type.type); break;
+                    case SUB:   adapter.math(GeneratorAdapter.SUB,  type.type); break;
+                    case LSH:   adapter.math(GeneratorAdapter.SHL,  type.type); break;
+                    case USH:   adapter.math(GeneratorAdapter.USHR, type.type); break;
+                    case RSH:   adapter.math(GeneratorAdapter.SHR,  type.type); break;
+                    case BWAND: adapter.math(GeneratorAdapter.AND,  type.type); break;
+                    case XOR:   adapter.math(GeneratorAdapter.XOR,  type.type); break;
+                    case BWOR:  adapter.math(GeneratorAdapter.OR,   type.type); break;
+                    default:
+                        throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
+                }
+            }
         }
     }
 
@@ -270,6 +375,34 @@ public class Shared {
         }
 
         return true;
+    }
+
+    public static void writeDup(final GeneratorAdapter adapter, final int size, final boolean x1, final boolean x2) {
+        if (size == 1) {
+            if (x2) {
+                adapter.dupX2();
+            } else if (x1) {
+                adapter.dupX1();
+            } else {
+                adapter.dup();
+            }
+        } else if (size == 2) {
+            if (x2) {
+                adapter.dup2X2();
+            } else if (x1) {
+                adapter.dup2X1();
+            } else {
+                adapter.dup2();
+            }
+        }
+    }
+
+    public static void writePop(final GeneratorAdapter adapter, final int size) {
+        if (size == 1) {
+            adapter.pop();
+        } else if (size == 2) {
+            adapter.pop2();
+        }
     }
 
     private Shared() {}

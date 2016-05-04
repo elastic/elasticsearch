@@ -25,14 +25,14 @@ import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.elasticsearch.painless.tree.analyzer.Variables.Variable;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class STrap extends Statement {
+public class STrap extends AStatement {
     protected final String type;
     protected final String name;
-    protected final Statement block;
+    protected final AStatement block;
 
     protected Variable variable;
 
-    public STrap(final String location, final String type, final String name, final Statement block) {
+    public STrap(final String location, final String type, final String name, final AStatement block) {
         super(location);
 
         this.type = type;

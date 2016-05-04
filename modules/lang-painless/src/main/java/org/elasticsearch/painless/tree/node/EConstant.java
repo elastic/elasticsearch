@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class EConstant extends Expression {
+public class EConstant extends AExpression {
     public EConstant(final String location, final Object constant) {
         super(location);
 

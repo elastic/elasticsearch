@@ -21,18 +21,18 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-import java.util.List;
-import java.util.Map;
-
-public class LBrace extends ALink {
+public class LListShortcut extends ALink {
     protected AExpression index;
+    protected Method getter;
+    protected Method setter;
 
-    public LBrace(final String location, final AExpression index) {
+    public LListShortcut(final String location, final AExpression index) {
         super(location);
 
         this.index = index;
@@ -40,41 +40,34 @@ public class LBrace extends ALink {
 
     @Override
     protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        if (before == null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+        getter = before.struct.methods.get("get");
+        setter = before.struct.methods.get("set");
+
+        if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
+            getter.arguments.get(0).sort != Sort.INT)) {
+            throw new IllegalArgumentException(error("Illegal list get shortcut for type [" + before.name + "]."));
         }
 
-        final Sort sort = before.sort;
+        if (setter != null && (setter.arguments.size() != 2 || setter.arguments.get(0).sort != Sort.INT)) {
+            throw new IllegalArgumentException(error("Illegal list set shortcut for type [" + before.name + "]."));
+        }
 
-        if (sort == Sort.ARRAY) {
+        if (getter != null && setter != null && (!getter.arguments.get(0).equals(setter.arguments.get(0))
+            || !getter.rtn.equals(setter.arguments.get(1)))) {
+            throw new IllegalArgumentException(error("Shortcut argument types must match."));
+        }
+
+        if ((load || store) && (!load || getter != null) && (!store || setter != null)) {
             index.expected = definition.intType;
             index.analyze(settings, definition, variables);
             index = index.cast(definition);
 
-            after = definition.getType(before.struct, before.dimensions - 1);
-
-            return this;
-        } else if (sort == Sort.DEF) {
-            return new LDefArray(location, index).copy(this).analyze(settings, definition, variables);
+            after = setter != null ? setter.arguments.get(1) : getter.rtn;
         } else {
-            try {
-                before.clazz.asSubclass(Map.class);
-
-                return new LMapShortcut(location, index).copy(this).analyze(settings, definition, variables);
-            } catch (final ClassCastException exception) {
-                // Do nothing.
-            }
-
-            try {
-                before.clazz.asSubclass(List.class);
-
-                return new LListShortcut(location, index).copy(this).analyze(settings, definition, variables);
-            } catch (final ClassCastException exception) {
-                // Do nothing.
-            }
+            throw new IllegalArgumentException(error("Illegal list shortcut for type [" + before.name + "]."));
         }
 
-        throw new IllegalArgumentException(error("Illegal array access on type [" + before.name + "]."));
+        return this;
     }
 
     @Override
@@ -127,5 +120,27 @@ public class LBrace extends ALink {
         } else {
             adapter.arrayLoad(before.type);
         }
+    }
+
+    protected void load(final GeneratorAdapter adapter) {
+        if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
+            adapter.invokeInterface(getter.owner.type, getter.method);
+        } else {
+            adapter.invokeVirtual(getter.owner.type, getter.method);
+        }
+
+        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
+            adapter.checkCast(getter.rtn.type);
+        }
+    }
+
+    protected void store(final GeneratorAdapter adapter) {
+        if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
+            adapter.invokeInterface(setter.owner.type, setter.method);
+        } else {
+            adapter.invokeVirtual(setter.owner.type, setter.method);
+        }
+
+        Shared.writePop(adapter, setter.rtn.sort.size);
     }
 }

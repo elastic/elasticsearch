@@ -27,11 +27,11 @@ import org.elasticsearch.painless.tree.analyzer.Variables;
 import java.util.Collections;
 import java.util.List;
 
-public class LNewArray extends Link {
+public class LNewArray extends ALink {
     protected final String type;
-    protected final List<Expression> arguments;
+    protected final List<AExpression> arguments;
 
-    public LNewArray(final String location, final String type, final List<Expression> arguments) {
+    public LNewArray(final String location, final String type, final List<AExpression> arguments) {
         super(location);
 
         this.type = type;
@@ -57,7 +57,7 @@ public class LNewArray extends Link {
         }
 
         for (int argument = 0; argument < arguments.size(); ++argument) {
-            final Expression expression = arguments.get(argument);
+            final AExpression expression = arguments.get(argument);
 
             expression.expected = definition.intType;
             expression.analyze(settings, definition, variables);

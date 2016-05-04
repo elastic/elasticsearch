@@ -19,9 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.input.antlr.Walker;
-import org.elasticsearch.painless.tree.node.Node;
-
 public class Tests extends ScriptTestCase {
     public void testCast() {
         assertEquals(4, exec("int x = 1 long y = 2 long z = 1 (int)y z"));

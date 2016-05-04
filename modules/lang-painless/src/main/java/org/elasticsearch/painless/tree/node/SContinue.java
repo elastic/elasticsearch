@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SContinue extends Statement {
+public class SContinue extends AStatement {
     public SContinue(final String location) {
         super(location);
     }

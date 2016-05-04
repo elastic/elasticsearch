@@ -24,12 +24,12 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SIfElse extends Statement {
-    protected Expression condition;
-    protected final Statement ifblock;
-    protected final Statement elseblock;
+public class SIfElse extends AStatement {
+    protected AExpression condition;
+    protected final AStatement ifblock;
+    protected final AStatement elseblock;
 
-    public SIfElse(final String location, final Expression condition, final Statement ifblock, final Statement elseblock) {
+    public SIfElse(final String location, final AExpression condition, final AStatement ifblock, final AStatement elseblock) {
         super(location);
 
         this.condition = condition;

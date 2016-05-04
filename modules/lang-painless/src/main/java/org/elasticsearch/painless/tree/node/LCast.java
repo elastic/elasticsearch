@@ -26,7 +26,7 @@ import org.elasticsearch.painless.tree.analyzer.Caster;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class LCast extends Link {
+public class LCast extends ALink {
     protected final String type;
 
     protected Cast cast = null;
@@ -38,7 +38,7 @@ public class LCast extends Link {
     }
 
     @Override
-    protected Node analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    protected ANode analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         } else if (store) {

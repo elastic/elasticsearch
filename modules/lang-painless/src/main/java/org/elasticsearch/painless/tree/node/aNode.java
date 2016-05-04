@@ -19,36 +19,14 @@
 
 package org.elasticsearch.painless.tree.node;
 
-import org.elasticsearch.painless.tree.analyzer.Operation;
-import org.objectweb.asm.commons.GeneratorAdapter;
+public abstract class ANode {
+    public final String location;
 
-public class TLength extends Target {
-    public TLength(final String location) {
-        super(location);
+    public ANode(final String location) {
+        this.location = location;
     }
 
-    @Override
-    protected void load(final GeneratorAdapter adapter) {
-
-    }
-
-    @Override
-    protected void store(final GeneratorAdapter adapter, final Expression expression) {
-
-    }
-
-    @Override
-    protected void pre(final GeneratorAdapter adapter, final Expression expression, final Operation operation) {
-
-    }
-
-    @Override
-    protected void post(final GeneratorAdapter adapter, final Expression expression, final Operation operation) {
-
-    }
-
-    @Override
-    protected void compound(final GeneratorAdapter adapter, final Expression expression) {
-
+    public String error(final String message) {
+        return "Error " + location  + ": " + message;
     }
 }

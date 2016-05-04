@@ -24,11 +24,11 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SWhile extends Statement {
-    protected Expression condition;
-    protected final Statement block;
+public class SWhile extends AStatement {
+    protected AExpression condition;
+    protected final AStatement block;
 
-    public SWhile(final String location, final Expression condition, final Statement block) {
+    public SWhile(final String location, final AExpression condition, final AStatement block) {
         super(location);
 
         this.condition = condition;

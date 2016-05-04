@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class EBoolean extends Expression {
+public class EBoolean extends AExpression {
     public EBoolean(final String location, final boolean constant) {
         super(location);
 

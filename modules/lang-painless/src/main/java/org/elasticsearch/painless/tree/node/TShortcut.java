@@ -40,22 +40,22 @@ public class TShortcut extends Target {
     }
 
     @Override
-    protected void store(final GeneratorAdapter adapter, final Expression expression) {
+    protected void store(final GeneratorAdapter adapter, final AExpression expression) {
 
     }
 
     @Override
-    protected void pre(final GeneratorAdapter adapter, final Expression expression, final Operation operation) {
+    protected void pre(final GeneratorAdapter adapter, final AExpression expression, final Operation operation) {
 
     }
 
     @Override
-    protected void post(final GeneratorAdapter adapter, final Expression expression, final Operation operation) {
+    protected void post(final GeneratorAdapter adapter, final AExpression expression, final Operation operation) {
 
     }
 
     @Override
-    protected void compound(final GeneratorAdapter adapter, final Expression expression) {
+    protected void compound(final GeneratorAdapter adapter, final AExpression expression) {
 
     }
 }

@@ -30,8 +30,10 @@ import org.elasticsearch.painless.tree.analyzer.Variables;
 import java.util.List;
 import java.util.Map;
 
-public class LField extends Link {
+public class LField extends ALink {
     protected final String value;
+
+    protected Field field;
 
     public LField(final String location, final String value) {
         super(location);
@@ -40,7 +42,7 @@ public class LField extends Link {
     }
 
     @Override
-    protected void analyze(CompilerSettings settings, Definition definition, Variables variables) {
+    protected ALink analyze(CompilerSettings settings, Definition definition, Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
@@ -48,21 +50,9 @@ public class LField extends Link {
         final Sort sort = before.sort;
 
         if (sort == Sort.ARRAY) {
-            if ("length".equals(value)) {
-                if (!load) {
-                    throw new IllegalArgumentException(error("Must read array field [length]."));
-                } else if (store) {
-                    throw new IllegalArgumentException(error("Cannot write to read-only array field [length]."));
-                }
-
-                after = definition.intType;
-                target = new TLength(location);
-            } else {
-                throw new IllegalArgumentException(error("Illegal field access [" + value + "]."));
-            }
+            return new LArrayLength(location, value).copy(this).analyze(settings, definition, variables);
         } else if (sort == Sort.DEF) {
-            after = definition.defType;
-            target = new TDefField(location, value);
+            return new LDefField(location, value).copy(this).analyze(settings, definition, variables);
         } else {
             final Struct struct = before.struct;
             final Field field = statik ? struct.statics.get(value) : struct.members.get(value);
@@ -135,7 +125,7 @@ public class LField extends Link {
                             final EConstant econstant = new EConstant(location, value);
 
                             after = load ? getter.rtn : setter.rtn;
-                            target = new TMapShortcut(location, getter, setter, econstant);
+                            target = new LMapShortcut(location, getter, setter, econstant);
                         } else {
                             throw new IllegalArgumentException(error(
                                 "Illegal map shortcut [" + value + "] for type [" + struct.name + "]."));
@@ -165,7 +155,7 @@ public class LField extends Link {
                                 final EConstant econstant = new EConstant(location, Integer.parseInt(value));
 
                                 after = load ? getter.rtn : setter.rtn;
-                                target = new TMapShortcut(location, getter, setter, econstant);
+                                target = new LMapShortcut(location, getter, setter, econstant);
                             } catch (final NumberFormatException exception) {
                                 throw new IllegalArgumentException(error("Illegal list shortcut value [" + value + "]."));
                             }

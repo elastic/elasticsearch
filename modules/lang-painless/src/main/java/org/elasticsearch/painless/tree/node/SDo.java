@@ -24,11 +24,11 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SDo extends Statement {
-    protected final Statement block;
-    protected Expression condition;
+public class SDo extends AStatement {
+    protected final AStatement block;
+    protected AExpression condition;
 
-    public SDo(final String location, final Statement block, final Expression condition) {
+    public SDo(final String location, final AStatement block, final AExpression condition) {
         super(location);
 
         this.condition = condition;

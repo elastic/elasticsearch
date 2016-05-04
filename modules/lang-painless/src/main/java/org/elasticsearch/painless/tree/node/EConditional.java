@@ -26,12 +26,12 @@ import org.elasticsearch.painless.tree.analyzer.Caster;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class EConditional extends Expression {
-    protected Expression condition;
-    protected Expression left;
-    protected Expression right;
+public class EConditional extends AExpression {
+    protected AExpression condition;
+    protected AExpression left;
+    protected AExpression right;
 
-    public EConditional(final String location, final Expression condition, final Expression left, final Expression right) {
+    public EConditional(final String location, final AExpression condition, final AExpression left, final AExpression right) {
         super(location);
 
         this.condition = condition;

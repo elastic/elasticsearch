@@ -29,12 +29,12 @@ import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class EBinary extends Expression {
+public class EBinary extends AExpression {
     protected final Operation operation;
-    protected Expression left;
-    protected Expression right;
+    protected AExpression left;
+    protected AExpression right;
 
-    public EBinary(final String location, final Operation operation, final Expression left, final Expression right) {
+    public EBinary(final String location, final Operation operation, final AExpression left, final AExpression right) {
         super(location);
 
         this.operation = operation;
@@ -301,8 +301,10 @@ public class EBinary extends Expression {
         }
 
         left.expected = promote;
+        final boolean rtypesafe = right.typesafe;
         right.typesafe = false;
         right.expected = definition.intType;
+        right.typesafe = rtypesafe;
 
         left = left.cast(definition);
         right = right.cast(definition);
@@ -335,8 +337,10 @@ public class EBinary extends Expression {
         }
 
         left.expected = promote;
+        final boolean rtypesafe = right.typesafe;
         right.typesafe = false;
         right.expected = definition.intType;
+        right.typesafe = rtypesafe;
 
         left = left.cast(definition);
         right = right.cast(definition);
@@ -369,8 +373,10 @@ public class EBinary extends Expression {
         }
 
         left.expected = promote;
+        final boolean rtypesafe = right.typesafe;
         right.typesafe = false;
         right.expected = definition.intType;
+        right.typesafe = rtypesafe;
 
         left = left.cast(definition);
         right = right.cast(definition);

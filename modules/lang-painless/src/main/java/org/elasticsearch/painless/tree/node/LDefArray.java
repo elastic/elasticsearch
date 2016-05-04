@@ -21,60 +21,34 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-import java.util.List;
-import java.util.Map;
+import static org.elasticsearch.painless.tree.writer.Constants.CLASS_TYPE;
+import static org.elasticsearch.painless.tree.writer.Constants.DEFINITION_TYPE;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_ARRAY_LOAD;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_ARRAY_STORE;
 
-public class LBrace extends ALink {
+public class LDefArray extends ALink {
     protected AExpression index;
 
-    public LBrace(final String location, final AExpression index) {
+    public LDefArray(final String location, final AExpression index) {
         super(location);
 
         this.index = index;
     }
 
+
     @Override
     protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        if (before == null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
-        }
+        index.expected = definition.objectType;
+        index.analyze(settings, definition, variables);
+        index = index.cast(definition);
 
-        final Sort sort = before.sort;
+        after = definition.defType;
 
-        if (sort == Sort.ARRAY) {
-            index.expected = definition.intType;
-            index.analyze(settings, definition, variables);
-            index = index.cast(definition);
-
-            after = definition.getType(before.struct, before.dimensions - 1);
-
-            return this;
-        } else if (sort == Sort.DEF) {
-            return new LDefArray(location, index).copy(this).analyze(settings, definition, variables);
-        } else {
-            try {
-                before.clazz.asSubclass(Map.class);
-
-                return new LMapShortcut(location, index).copy(this).analyze(settings, definition, variables);
-            } catch (final ClassCastException exception) {
-                // Do nothing.
-            }
-
-            try {
-                before.clazz.asSubclass(List.class);
-
-                return new LListShortcut(location, index).copy(this).analyze(settings, definition, variables);
-            } catch (final ClassCastException exception) {
-                // Do nothing.
-            }
-        }
-
-        throw new IllegalArgumentException(error("Illegal array access on type [" + before.name + "]."));
+        return this;
     }
 
     @Override
@@ -101,7 +75,7 @@ public class LBrace extends ALink {
                 adapter.arrayStore(before.type);
             } else if (operation != null) {
                 adapter.dup2();
-                adapter.arrayLoad(before.type);
+                load(definition, adapter);
 
                 if (load && post) {
                     Shared.writeDup(adapter, after.sort.size, false, true);
@@ -116,16 +90,31 @@ public class LBrace extends ALink {
                     Shared.writeCast(adapter, back);
                 }
 
-                adapter.arrayStore(before.type);
+                store(definition, adapter);
             } else {
                 if (load) {
                     Shared.writeDup(adapter, after.sort.size, false, true);
                 }
 
-                adapter.arrayStore(before.type);
+                store(definition, adapter);
             }
         } else {
-            adapter.arrayLoad(before.type);
+            load(definition, adapter);
         }
+    }
+
+    protected void load(final Definition definition, final GeneratorAdapter adapter) {
+        adapter.loadThis();
+        adapter.getField(CLASS_TYPE, "definition", DEFINITION_TYPE);
+        adapter.push(index.typesafe);
+        adapter.invokeStatic(definition.defobjType.type, DEF_ARRAY_LOAD);
+    }
+
+    protected void store(final Definition definition, final GeneratorAdapter adapter) {
+        adapter.loadThis();
+        adapter.getField(CLASS_TYPE, "definition", DEFINITION_TYPE);
+        adapter.push(index.typesafe);
+        adapter.push(operation == null && expression.typesafe);
+        adapter.invokeStatic(definition.defobjType.type, DEF_ARRAY_STORE);
     }
 }

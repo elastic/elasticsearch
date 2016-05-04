@@ -21,7 +21,6 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Caster;
@@ -32,19 +31,15 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 import java.util.Collections;
 import java.util.List;
 
-public class EChain extends Expression {
-    protected final List<Link> links;
+public class EChain extends AExpression {
+    protected final List<ALink> links;
     protected final boolean pre;
     protected final boolean post;
     protected final Operation operation;
-    protected Expression expression;
+    protected AExpression expression;
 
-    protected boolean cat = false;
-    protected Cast there = null;
-    protected Cast back = null;
-
-    public EChain(final String location, final List<Link> links,
-                  final boolean pre, final boolean post, final Operation operation, final Expression expression) {
+    public EChain(final String location, final List<ALink> links,
+                  final boolean pre, final boolean post, final Operation operation, final AExpression expression) {
         super(location);
 
         this.links = Collections.unmodifiableList(links);
@@ -56,29 +51,41 @@ public class EChain extends Expression {
 
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        Link previous = null;
+        ALink previous = null;
+        int index = 0;
 
-        for (int index = 0; index < links.size(); ++index) {
-            final Link current = links.get(index);
-            current.parent= this;
+        while (index < links.size()) {
+            final ALink current = links.get(index);
 
             if (previous != null) {
                 current.before = previous.after;
-                current.statik = previous.statik;
+
+                if (index == 1) {
+                    current.statik = previous.statik;
+                }
             }
 
-            previous = current.analyze(settings, definition, variables);
+            if (index == links.size() - 1) {
+                current.load = read;
+                current.store = expression != null || pre || post;
+            }
 
-            if (previous != current) {
-                links.set(index, previous);
+            final ALink analyzed = current.analyze(settings, definition, variables);
+
+            if (analyzed == null) {
+                links.remove(index);
+            } else {
+                if (analyzed != current) {
+                    links.set(index, analyzed);
+                }
+
+                previous = analyzed;
+                ++index;
             }
         }
 
-        final Link first = links.get(0);
-        final Link last = links.get(links.size() - 1);
-
-        first.first = true;
-        last.last = true;
+        final ALink first = links.get(0);
+        final ALink last = links.get(links.size() - 1);
 
         if (pre && post) {
             throw new IllegalStateException(error("Illegal tree structure."));
@@ -135,11 +142,11 @@ public class EChain extends Expression {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, false, true);
             } else if (operation == Operation.USH) {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, false, true);
-            } else if (operation == Operation.AND) {
+            } else if (operation == Operation.BWAND) {
                 promote = Caster.promoteXor(definition, last.after, expression.actual);
             } else if (operation == Operation.XOR) {
                 promote = Caster.promoteXor(definition, last.after, expression.actual);
-            } else if (operation == Operation.OR) {
+            } else if (operation == Operation.BWOR) {
                 promote = Caster.promoteXor(definition, last.after, expression.actual);
             } else if (operation == Operation.INCR) {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
@@ -150,23 +157,28 @@ public class EChain extends Expression {
             }
 
             if (promote == null) {
-                throw new IllegalArgumentException("Cannot apply compound assignment to " +
-                    "types [" + last.after + "] and [" + expression.actual + "].");
+                throw new IllegalArgumentException("Cannot apply compound assignment " +
+                    "[" + operation.symbol + "]= to types [" + last.after + "] and [" + expression.actual + "].");
             }
 
-            cat = operation == Operation.ADD && promote.sort == Sort.STRING;
+            last.cat = operation == Operation.ADD && promote.sort == Sort.STRING;
 
-            if (cat) {
+            if (last.cat) {
                 expression.expected = expression.actual;
                 expression.strings = true;
+                first.strings = true;
             } else {
                 expression.expected = promote;
             }
 
             expression.cast(definition);
 
-            there = Caster.getLegalCast(definition, location, last.after, promote, expression.typesafe);
-            back = Caster.getLegalCast(definition, location, promote, last.after, true);
+            last.expression = expression;
+            last.pre = pre;
+            last.post = post;
+            last.operation = operation;
+            last.there = Caster.getLegalCast(definition, location, last.after, promote, expression.typesafe);
+            last.back = Caster.getLegalCast(definition, location, promote, last.after, true);
 
             statement = true;
             actual = read ? last.after : definition.voidType;
@@ -175,6 +187,7 @@ public class EChain extends Expression {
             expression.expected = last.after;
             expression.analyze(settings, definition, variables);
             expression = expression.cast(definition);
+            last.expression = expression;
 
             statement = true;
             actual = read ? last.after : definition.voidType;
@@ -189,7 +202,7 @@ public class EChain extends Expression {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        for (final Link link : links) {
+        for (final ALink link : links) {
             link.write(settings, definition, adapter);
         }
     }

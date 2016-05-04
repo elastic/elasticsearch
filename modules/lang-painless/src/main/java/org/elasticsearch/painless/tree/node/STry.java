@@ -27,11 +27,11 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 import java.util.Collections;
 import java.util.List;
 
-public class STry extends Statement {
-    protected final Statement block;
+public class STry extends AStatement {
+    protected final AStatement block;
     protected final List<STrap> traps;
 
-    public STry(final String location, final Statement block, final List<STrap> traps) {
+    public STry(final String location, final AStatement block, final List<STrap> traps) {
         super(location);
 
         this.block = block;

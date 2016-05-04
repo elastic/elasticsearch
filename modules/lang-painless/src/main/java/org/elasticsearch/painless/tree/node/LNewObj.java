@@ -28,11 +28,11 @@ import org.elasticsearch.painless.tree.walker.analyzer.MetadataExpression;
 import java.util.Collections;
 import java.util.List;
 
-public class LNewObj extends Link {
+public class LNewObj extends ALink {
     protected final String type;
-    protected final List<Expression> arguments;
+    protected final List<AExpression> arguments;
 
-    public LNewObj(final String location, final String type, final List<Expression> arguments) {
+    public LNewObj(final String location, final String type, final List<AExpression> arguments) {
         super(location);
 
         this.type = type;
@@ -68,7 +68,7 @@ public class LNewObj extends Link {
             }
 
             for (int argument = 0; argument < arguments.size(); ++argument) {
-                final Expression expression = arguments.get(argument);
+                final AExpression expression = arguments.get(argument);
 
                 expression.expected = types[argument];
                 expression.analyze(settings, definition, variables);

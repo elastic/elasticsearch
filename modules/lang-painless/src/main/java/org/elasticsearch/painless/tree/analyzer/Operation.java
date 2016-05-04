@@ -20,37 +20,35 @@
 package org.elasticsearch.painless.tree.analyzer;
 
 public enum Operation {
-    MUL     ( "+"   , true  ),
-    DIV     ( "/"   , true  ),
-    REM     ( "%"   , true  ),
-    ADD     ( "+"   , true  ),
-    SUB     ( "-"   , true  ),
-    LSH     ( "<<"  , false ),
-    RSH     ( ">>"  , false ),
-    USH     ( ">>>" , false ),
-    BWNOT   ( "~"   , false ),
-    BWAND   ( "&"   , false ),
-    XOR     ( "^"   , false ),
-    BWOR    ( "|"   , false ),
-    NOT     ( "!"   , false ),
-    AND     ( "&&"  , false ),
-    OR      ( "||"  , false ),
-    LT      ( "<"   , false ),
-    LTE     ( "<="  , false ),
-    GT      ( ">"   , false ),
-    GTE     ( ">="  , false ),
-    EQ      ( "=="  , false ),
-    EQR     ( "===" , false ),
-    NE      ( "!="  , false ),
-    NER     ( "!==" , false ),
-    INCR    ( "++"  , false ),
-    DECR    ( "--"  , false );
+    MUL     ( "+"  ),
+    DIV     ( "/"   ),
+    REM     ( "%"   ),
+    ADD     ( "+"   ),
+    SUB     ( "-"   ),
+    LSH     ( "<<"  ),
+    RSH     ( ">>"  ),
+    USH     ( ">>>" ),
+    BWNOT   ( "~"   ),
+    BWAND   ( "&"   ),
+    XOR     ( "^"   ),
+    BWOR    ( "|"   ),
+    NOT     ( "!"   ),
+    AND     ( "&&"  ),
+    OR      ( "||"  ),
+    LT      ( "<"   ),
+    LTE     ( "<="  ),
+    GT      ( ">"   ),
+    GTE     ( ">="  ),
+    EQ      ( "=="  ),
+    EQR     ( "===" ),
+    NE      ( "!="  ),
+    NER     ( "!==" ),
+    INCR    ( "++"  ),
+    DECR    ( "--"  );
 
     public final String symbol;
-    public final boolean exact;
 
-    Operation(final String symbol, final boolean exact) {
+    Operation(final String symbol) {
         this.symbol = symbol;
-        this.exact = exact;
     }
 }

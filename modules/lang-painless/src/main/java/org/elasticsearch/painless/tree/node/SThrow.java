@@ -24,10 +24,10 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SThrow extends Statement {
-    protected Expression expression;
+public class SThrow extends AStatement {
+    protected AExpression expression;
 
-    public SThrow(final String location, final Expression expression) {
+    public SThrow(final String location, final AExpression expression) {
         super(location);
 
         this.expression = expression;

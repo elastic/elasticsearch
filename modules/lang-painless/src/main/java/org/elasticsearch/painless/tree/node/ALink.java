@@ -21,14 +21,15 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public abstract class Link extends Node {
-    protected EChain parent = null;
-    protected boolean first = false;
-    protected boolean last = false;
+public abstract class ALink extends ANode {
+    protected boolean load = true;
+    protected boolean store = false;
 
     protected boolean statik = false;
     protected Type before = null;
@@ -37,10 +38,42 @@ public abstract class Link extends Node {
     protected boolean statement = false;
     protected Object constant = null;
 
-    public Link(final String location) {
+    protected AExpression expression = null;
+    protected boolean pre = false;
+    protected boolean post = false;
+    protected Operation operation = null;
+    protected boolean strings = false;
+    protected boolean cat = false;
+    protected Cast there = null;
+    protected Cast back = null;
+
+    public ALink(final String location) {
         super(location);
     }
 
-    protected abstract Link analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
+    protected abstract ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
     protected abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
+
+    protected ALink copy(final ALink link) {
+        load       = link.load;
+        store      = link.store;
+
+        statik     = link.statik;
+        before     = link.before;
+        after      = link.after;
+
+        statement  = link.statement;
+        constant   = link.constant;
+
+        expression = link.expression;
+        pre        = link.pre;
+        post       = link.post;
+        operation  = link.operation;
+        strings    = link.strings;
+        cat        = link.cat;
+        there      = link.there;
+        back       = link.back;
+
+        return this;
+    }
 }

@@ -21,54 +21,33 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.tree.analyzer.Caster;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public abstract class Expression extends Node {
-    protected boolean read = true;
-    protected boolean statement = false;
+public abstract class AStatement extends ANode {
+    protected boolean lastSource = false;
 
-    protected Type expected = null;
-    protected Type actual = null;
-    protected boolean typesafe = true;
-    protected boolean strings = false;
+    protected boolean beginLoop = false;
+    protected boolean inLoop = false;
+    protected boolean lastLoop = false;
 
-    protected Object constant = null;
-    protected boolean isNull = false;
+    protected boolean methodEscape = false;
+    protected boolean loopEscape = false;
+    protected boolean allEscape = false;
 
-    protected Label tru = null;
-    protected Label fals = null;
+    protected boolean anyContinue = false;
+    protected boolean anyBreak = false;
 
-    public Expression(final String location) {
+    protected int statementCount = 0;
+
+    protected Label continu = null;
+    protected Label brake = null;
+
+    public AStatement(final String location) {
         super(location);
     }
 
     protected abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
     protected abstract void write(final GeneratorAdapter adapter);
-
-    protected Expression cast(final Definition definition) {
-        final Cast cast = Caster.getLegalCast(definition, location, actual, expected, !typesafe);
-
-        if (cast == null) {
-            return this;
-        }
-
-        if (constant != null && expected.sort.constant) {
-            constant = Caster.constCast(location, constant, cast);
-
-            return this;
-        }
-
-        final Expression ecast = new ECast(location, this, cast);
-
-        ecast.actual = actual;
-        ecast.typesafe = typesafe;
-        ecast.isNull = isNull;
-
-        return ecast;
-    }
 }

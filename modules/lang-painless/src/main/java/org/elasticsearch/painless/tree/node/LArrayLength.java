@@ -22,32 +22,36 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public abstract class Statement extends Node {
-    protected boolean lastSource = false;
+public class LArrayLength extends ALink {
+    protected final String value;
 
-    protected boolean beginLoop = false;
-    protected boolean inLoop = false;
-    protected boolean lastLoop = false;
-
-    protected boolean methodEscape = false;
-    protected boolean loopEscape = false;
-    protected boolean allEscape = false;
-
-    protected boolean anyContinue = false;
-    protected boolean anyBreak = false;
-
-    protected int statementCount = 0;
-
-    protected Label continu = null;
-    protected Label brake = null;
-
-    public Statement(final String location) {
+    public LArrayLength(final String location, final String value) {
         super(location);
+
+        this.value = value;
     }
 
-    protected abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
-    protected abstract void write(final GeneratorAdapter adapter);
+    @Override
+    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        if ("length".equals(value)) {
+            if (!load) {
+                throw new IllegalArgumentException(error("Must read array field [length]."));
+            } else if (store) {
+                throw new IllegalArgumentException(error("Cannot write to read-only array field [length]."));
+            }
+
+            after = definition.intType;
+        } else {
+            throw new IllegalArgumentException(error("Illegal field access [" + value + "]."));
+        }
+
+        return this;
+    }
+
+    @Override
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        adapter.arrayLength();
+    }
 }

@@ -25,14 +25,14 @@ import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.elasticsearch.painless.tree.analyzer.Variables.Variable;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SDeclaration extends Statement {
+public class SDeclaration extends AStatement {
     protected final String type;
     protected final String name;
-    protected Expression expression;
+    protected AExpression expression;
 
     protected Variable variable;
 
-    public SDeclaration(final String location, final String type, final String name, final Expression expression) {
+    public SDeclaration(final String location, final String type, final String name, final AExpression expression) {
         super(location);
 
         this.type = type;

@@ -25,10 +25,10 @@ import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SExpression extends Statement {
-    protected Expression expression;
+public class SExpression extends AStatement {
+    protected AExpression expression;
 
-    public SExpression(final String location, final Expression expression) {
+    public SExpression(final String location, final AExpression expression) {
         super(location);
 
         this.expression = expression;

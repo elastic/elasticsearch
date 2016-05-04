@@ -23,7 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 
-public class LString extends Link {
+public class LString extends ALink {
     public LString(final String location, final String string) {
         super(location);
 

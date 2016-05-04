@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class EDecimal extends Expression {
+public class EDecimal extends AExpression {
     protected final String value;
 
     public EDecimal(final String location, final String value) {

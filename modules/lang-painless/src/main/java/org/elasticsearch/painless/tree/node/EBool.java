@@ -25,12 +25,12 @@ import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class EBool extends Expression {
+public class EBool extends AExpression {
     protected final Operation operation;
-    protected Expression left;
-    protected Expression right;
+    protected AExpression left;
+    protected AExpression right;
 
-    public EBool(final String location, final Operation operation, final Expression left, final Expression right) {
+    public EBool(final String location, final Operation operation, final AExpression left, final AExpression right) {
         super(location);
 
         this.operation = operation;

@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class ENumeric extends Expression {
+public class ENumeric extends AExpression {
     protected final String value;
     protected int radix;
 

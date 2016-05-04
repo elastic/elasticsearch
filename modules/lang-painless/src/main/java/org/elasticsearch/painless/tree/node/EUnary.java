@@ -28,11 +28,11 @@ import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class EUnary extends Expression {
+public class EUnary extends AExpression {
     protected Operation operation;
-    protected Expression child;
+    protected AExpression child;
 
-    public EUnary(final String location, final Operation operation, final Expression child) {
+    public EUnary(final String location, final Operation operation, final AExpression child) {
         super(location);
 
         this.operation = operation;

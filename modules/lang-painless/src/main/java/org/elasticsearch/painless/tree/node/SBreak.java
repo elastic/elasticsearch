@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SBreak extends Statement {
+public class SBreak extends AStatement {
     public SBreak(final String location) {
         super(location);
     }

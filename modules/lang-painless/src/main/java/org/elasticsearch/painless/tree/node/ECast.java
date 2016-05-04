@@ -27,20 +27,20 @@ import org.elasticsearch.painless.tree.analyzer.Caster;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class ECast extends Expression {
+public class ECast extends AExpression {
     protected final String type;
-    protected Expression child;
+    protected AExpression child;
 
     protected Cast cast = null;
 
-    public ECast(final String location, final String type, final Expression child) {
+    public ECast(final String location, final String type, final AExpression child) {
         super(location);
 
         this.type = type;
         this.child = child;
     }
 
-    protected ECast(final String location, final Expression child, final Cast cast) {
+    protected ECast(final String location, final AExpression child, final Cast cast) {
         super(location);
 
         this.type = null;
@@ -71,7 +71,7 @@ public class ECast extends Expression {
     }
 
     @Override
-    protected Expression cast(final Definition definition) {
+    protected AExpression cast(final Definition definition) {
         if (cast == null && constant == null) {
             child.expected = expected;
 

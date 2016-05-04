@@ -24,14 +24,17 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.List;
 
-public class LCall extends Link {
+public class LCall extends ALink {
     protected final String name;
-    protected final List<Expression> arguments;
+    protected final List<AExpression> arguments;
 
-    public LCall(final String location, final String name, final List<Expression> arguments) {
+    protected Method method = null;
+
+    public LCall(final String location, final String name, final List<AExpression> arguments) {
         super(location);
 
         this.name = name;
@@ -39,7 +42,7 @@ public class LCall extends Link {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         } else if (before.sort == Definition.Sort.ARRAY) {
@@ -49,7 +52,7 @@ public class LCall extends Link {
         }
 
         final Struct struct = before.struct;
-        final Method method = statik ? struct.functions.get(name) : struct.methods.get(name);
+        method = statik ? struct.functions.get(name) : struct.methods.get(name);
 
         if (method != null) {
             final Definition.Type[] types = new Definition.Type[method.arguments.size()];
@@ -61,31 +64,43 @@ public class LCall extends Link {
             }
 
             for (int argument = 0; argument < arguments.size(); ++argument) {
-                final Expression expression = arguments.get(argument);
+                final AExpression expression = arguments.get(argument);
 
                 expression.expected = types[argument];
                 expression.analyze(settings, definition, variables);
                 arguments.set(argument, expression.cast(definition));
             }
 
+            statement = true;
             after = method.rtn;
-            target = new TCall(location, method, arguments);
+
+            return this;
         } else if (before.sort == Definition.Sort.DEF) {
-            for (int argument = 0; argument < arguments.size(); ++argument) {
-                final Expression expression = arguments.get(argument);
+            final ALink link = new LDefCall(location, name, arguments);
+            link.copy(this);
 
-                expression.expected = definition.objectType;
-                expression.analyze(settings, definition, variables);
-                arguments.set(argument, expression.cast(definition));
-            }
-
-            after = definition.defType;
-            target = new TDefCall(location, name, arguments);
-        } else {
-            throw new IllegalArgumentException(error("Unknown call [" + name + "] on type [" + struct.name + "]."));
+            return link.analyze(settings, definition, variables);
         }
 
-        statik = false;
-        statement = true;
+        throw new IllegalArgumentException(error("Unknown call [" + name + "] on type [" + struct.name + "]."));
+    }
+
+    @Override
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        for (final AExpression argument : arguments) {
+            argument.write(settings, definition, adapter);
+        }
+
+        if (java.lang.reflect.Modifier.isStatic(method.reflect.getModifiers())) {
+            adapter.invokeStatic(method.owner.type, method.method);
+        } else if (java.lang.reflect.Modifier.isInterface(method.owner.clazz.getModifiers())) {
+            adapter.invokeInterface(method.owner.type, method.method);
+        } else {
+            adapter.invokeVirtual(method.owner.type, method.method);
+        }
+
+        if (!method.rtn.clazz.equals(method.handle.type().returnType())) {
+            adapter.checkCast(method.rtn.type);
+        }
     }
 }

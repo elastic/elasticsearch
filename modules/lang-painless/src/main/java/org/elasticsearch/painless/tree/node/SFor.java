@@ -24,14 +24,14 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SFor extends Statement {
-    protected Node initializer;
-    protected Expression condition;
-    protected Expression afterthought;
-    protected final Statement block;
+public class SFor extends AStatement {
+    protected ANode initializer;
+    protected AExpression condition;
+    protected AExpression afterthought;
+    protected final AStatement block;
 
     public SFor(final String location,
-                final Node initializer, final Expression condition, final Expression afterthought, final Statement block) {
+                final ANode initializer, final AExpression condition, final AExpression afterthought, final AStatement block) {
         super(location);
 
         this.initializer = initializer;
@@ -49,8 +49,8 @@ public class SFor extends Statement {
         if (initializer != null) {
             if (initializer instanceof SDeclBlock) {
                 initializer.analyze(settings, definition, variables);
-            } else if (initializer instanceof Expression) {
-                final Expression initializer = (Expression)this.initializer;
+            } else if (initializer instanceof AExpression) {
+                final AExpression initializer = (AExpression)this.initializer;
 
                 initializer.read = false;
                 initializer.analyze(settings, definition, variables);

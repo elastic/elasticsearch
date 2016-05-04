@@ -27,10 +27,10 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 import java.util.Collections;
 import java.util.List;
 
-public class SBlock extends Statement {
-    protected final List<Statement> statements;
+public class SBlock extends AStatement {
+    protected final List<AStatement> statements;
 
-    public SBlock(final String location, final List<Statement> statements) {
+    public SBlock(final String location, final List<AStatement> statements) {
         super(location);
 
         this.statements = Collections.unmodifiableList(statements);
@@ -38,9 +38,9 @@ public class SBlock extends Statement {
 
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        final Statement last = statements.get(statements.size() - 1);
+        final AStatement last = statements.get(statements.size() - 1);
 
-        for (final Statement statement : statements) {
+        for (final AStatement statement : statements) {
             if (allEscape) {
                 throw new IllegalArgumentException(error("Unreachable statement."));
             }

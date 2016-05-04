@@ -27,7 +27,7 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 import java.util.Collections;
 import java.util.List;
 
-public class SDeclBlock extends Statement {
+public class SDeclBlock extends AStatement {
     final List<SDeclaration> declarations;
 
     public SDeclBlock(final String location, final List<SDeclaration> declarations) {

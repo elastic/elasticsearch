@@ -28,12 +28,12 @@ import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class EComp extends Expression {
+public class EComp extends AExpression {
     protected final Operation operation;
-    protected Expression left;
-    protected Expression right;
+    protected AExpression left;
+    protected AExpression right;
 
-    public EComp(final String location, final Operation operation, final Expression left, final Expression right) {
+    public EComp(final String location, final Operation operation, final AExpression left, final AExpression right) {
         super(location);
 
         this.operation = operation;

@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.elasticsearch.painless.tree.analyzer.Variables.Variable;
 
-public class LVariable extends Link {
+public class LVariable extends ALink {
     protected final String name;
 
     public LVariable(final String location, final String name) {

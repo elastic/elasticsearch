@@ -1,59 +1,102 @@
 [[modules-scripting-groovy]]
-== Groovy Scripting Language
+=== Groovy Scripting Language
 
-.Groovy dynamic scripting off by default from v1.4.3
-[IMPORTANT]
-===================================================
+Groovy is the default scripting language available in Elasticsearch.  Although
+limited by the <<java-security-manager,Java Security Manager>>, it is not a
+sandboxed language and only `file` scripts may be used by default.
 
-Groovy dynamic scripting is off by default. This prevents Groovy scripts
-from being accepted as part of a request or retrieved from the
-`.scripts` index. You can still use Groovy file scripts stored in
-the `config/scripts/` directory on every node.
+Enabling `inline` or `stored` Groovy scripting is a security risk and should
+only be considered if your Elasticsearch cluster is protected from the outside
+world. Even a simple `while (true) { }` loop could behave as a denial-of-
+service attack on your cluster.
 
-To convert an inline script to a file-based script, save the contents
-of the `inline` field to a file with the `.groovy` extension and
-store it in the `config/scripts` directory on every data node in your
-cluster.
+See <<modules-scripting-security, Scripting and Security>> for details
+on security issues with scripts, including how to customize class
+whitelisting.
 
-For example, if you have the following inline script:
+[float]
+=== Doc value properties and methods
 
-[source,js]
------------------------------------
-GET /_search
-{
-    "script_fields": {
-        "my_field": {
-            "inline": "1 + my_var",
-            "params": {
-              "my_var": 2
-            }
-        }
-    }
-}
------------------------------------
+Doc values in Groovy support the following properties and methods (depending
+on the underlying field type):
 
-Save `1 + my_var` in a file called `config/scripts/my_script.groovy`.
+`doc['field_name'].value`::
+    The native value of the field. For example, if its a short type, it will be short.
 
-To use the script in a request, specify its name (without the `.groovy` extension) in the `file` field:
+`doc['field_name'].values`::
+    The native array values of the field. For example, if its a short type,
+     it will be short[]. Remember, a field can have several values within a
+     single doc. Returns an empty array if the field has no values.
 
-[source,js]
------------------------------------
-GET /_search
-{
-    "script_fields": {
-        "my_field": {
-            "script": {
-                "file": "my_script",
-                "params": {
-                    "my_var": 2
-                }
-            }
-        }
-    }
-}
------------------------------------
+`doc['field_name'].empty`::
+    A boolean indicating if the field has no values within the doc.
 
-===================================================
+`doc['field_name'].multiValued`::
+    A boolean indicating that the field has several values within the corpus.
+
+`doc['field_name'].lat`::
+    The latitude of a geo point type.
+
+`doc['field_name'].lon`::
+    The longitude of a geo point type.
+
+`doc['field_name'].lats`::
+    The latitudes of a geo point type.
+
+`doc['field_name'].lons`::
+    The longitudes of a geo point type.
+
+`doc['field_name'].distance(lat, lon)`::
+    The `plane` distance (in meters) of this geo point field from the provided lat/lon.
+
+`doc['field_name'].distanceWithDefault(lat, lon, default)`::
+    The `plane` distance (in meters) of this geo point field from the provided lat/lon with a default value.
+
+`doc['field_name'].distanceInMiles(lat, lon)`::
+    The `plane` distance (in miles) of this geo point field from the provided lat/lon.
+
+`doc['field_name'].distanceInMilesWithDefault(lat, lon, default)`::
+    The `plane` distance (in miles) of this geo point field from the provided lat/lon with a default value.
+
+`doc['field_name'].distanceInKm(lat, lon)`::
+    The `plane` distance (in km) of this geo point field from the provided lat/lon.
+
+`doc['field_name'].distanceInKmWithDefault(lat, lon, default)`::
+    The `plane` distance (in km) of this geo point field from the provided lat/lon with a default value.
+
+`doc['field_name'].arcDistance(lat, lon)`::
+    The `arc` distance (in meters) of this geo point field from the provided lat/lon.
+
+`doc['field_name'].arcDistanceWithDefault(lat, lon, default)`::
+    The `arc` distance (in meters) of this geo point field from the provided lat/lon with a default value.
+
+`doc['field_name'].arcDistanceInMiles(lat, lon)`::
+    The `arc` distance (in miles) of this geo point field from the provided lat/lon.
+
+`doc['field_name'].arcDistanceInMilesWithDefault(lat, lon, default)`::
+    The `arc` distance (in miles) of this geo point field from the provided lat/lon with a default value.
+
+`doc['field_name'].arcDistanceInKm(lat, lon)`::
+    The `arc` distance (in km) of this geo point field from the provided lat/lon.
+
+`doc['field_name'].arcDistanceInKmWithDefault(lat, lon, default)`::
+    The `arc` distance (in km) of this geo point field from the provided lat/lon with a default value.
+
+`doc['field_name'].factorDistance(lat, lon)`::
+    The distance factor of this geo point field from the provided lat/lon.
+
+`doc['field_name'].factorDistance(lat, lon, default)`::
+    The distance factor of this geo point field from the provided lat/lon with a default value.
+
+`doc['field_name'].geohashDistance(geohash)`::
+    The `arc` distance (in meters) of this geo point field from the provided geohash.
+
+`doc['field_name'].geohashDistanceInKm(geohash)`::
+    The `arc` distance (in km) of this geo point field from the provided geohash.
+
+`doc['field_name'].geohashDistanceInMiles(geohash)`::
+    The `arc` distance (in miles) of this geo point field from the provided geohash.
+
 
 [float]
 === Groovy Built In Functions
@@ -136,9 +179,3 @@ power of the second argument.
 |`hypot(x, y)` |Returns sqrt(_x2_ + _y2_) without intermediate overflow
 or underflow.
 |=======================================================================
-
-=== Security Concerns
-
-See <<modules-scripting-security, Scripting and Security>> for
-details on security issues with scripts, including how to customize class 
-whitelisting.

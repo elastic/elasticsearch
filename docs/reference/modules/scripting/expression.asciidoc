@@ -1,17 +1,20 @@
 [[modules-scripting-expression]]
-== Lucene Expressions Language
+=== Lucene Expressions Language
 
-Lucene's expressions compile a `javascript` expression to bytecode. They are designed
-for high-performance custom ranking and sorting functions.
+Lucene's expressions compile a `javascript` expression to bytecode. They are
+designed for high-performance custom ranking and sorting functions and are
+enabled for `inline` and `stored` scripting by default.
 
+[float]
 === Performance
 
 Expressions were designed to have competitive performance with custom Lucene code.
 This performance is due to having low per-document overhead as opposed to other
 scripting engines: expressions do more "up-front".
 
-This allows for very fast execution, even faster than if you had written a `native` script. 
+This allows for very fast execution, even faster than if you had written a `native` script.
 
+[float]
 === Syntax
 
 Expressions support a subset of javascript syntax: a single expression.
@@ -88,6 +91,7 @@ The following example shows the difference in years between the `date` fields da
 
 `doc['date1'].getYear() - doc['date0'].getYear()`
 
+[float]
 === `geo_point` field API
 [cols="<,<",options="header",]
 |=======================================================================

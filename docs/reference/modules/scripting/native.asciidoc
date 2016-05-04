@@ -1,5 +1,5 @@
 [[modules-scripting-native]]
-== Native (Java) Scripts
+=== Native (Java) Scripts
 
 Sometimes `groovy` and <<modules-scripting-expression, expression>> aren't enough. For those times you can
 implement a native script.

@@ -1,10 +1,12 @@
 [[modules-scripting-painless]]
-== Painless Scripting Language
+=== Painless Scripting Language
 
 experimental[The Painless scripting language is new and is still marked as experimental. The syntax or API may be changed in the future in non-backwards compatible ways if required.]
 
-_Painless_ is a simple, secure scripting language built in to Elasticsearch as a module.
-It is designed specifically for use with Elasticsearch and can safely be used dynamically.
+_Painless_ is a simple, secure scripting language available in Elasticsearch
+by default. It is designed specifically for use with Elasticsearch and can
+safely be used with `inline` and `stored` scripting, which is enabled by
+default.
 
 A Painless script is essentially a single function. Painless does not provide support
 for defining multiple functions within a script. The Painless syntax is similar to

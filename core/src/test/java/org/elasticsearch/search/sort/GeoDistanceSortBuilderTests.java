@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
@@ -93,9 +92,9 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         }
         if (randomBoolean()) {
             result.setNestedPath(
-                    ESTestCase.randomValueOtherThan(
+                    randomValueOtherThan(
                             result.getNestedPath(),
-                            () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
+                            () -> randomAsciiOfLengthBetween(1, 10)));
         }
         if (randomBoolean()) {
             result.coerce(! result.coerce());
@@ -171,20 +170,20 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.unit(unit(original.unit()));
             break;
         case 4:
-            result.order(ESTestCase.randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
+            result.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
             break;
         case 5:
             result.sortMode(mode(original.sortMode()));
             break;
         case 6:
-            result.setNestedFilter(ESTestCase.randomValueOtherThan(
+            result.setNestedFilter(randomValueOtherThan(
                     original.getNestedFilter(),
                     () -> randomNestedFilter()));
             break;
         case 7:
-            result.setNestedPath(ESTestCase.randomValueOtherThan(
+            result.setNestedPath(randomValueOtherThan(
                     result.getNestedPath(),
-                    () -> ESTestCase.randomAsciiOfLengthBetween(1, 10)));
+                    () -> randomAsciiOfLengthBetween(1, 10)));
             break;
         case 8:
             result.coerce(! original.coerce());

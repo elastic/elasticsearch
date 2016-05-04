@@ -26,7 +26,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
@@ -46,7 +45,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
     @Override
     protected ScoreSortBuilder mutate(ScoreSortBuilder original) throws IOException {
         ScoreSortBuilder result = new ScoreSortBuilder();
-        result.order(ESTestCase.randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
+        result.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
         return result;
     }
 

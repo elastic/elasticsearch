@@ -32,7 +32,7 @@ public class RestClearRolesCacheAction extends BaseRestHandler {
     @Inject
     public RestClearRolesCacheAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(POST, "/_shield/role/{name}/_clear_cache", this);
+        controller.registerHandler(POST, "/_xpack/security/role/{name}/_clear_cache", this);
     }
 
     @Override

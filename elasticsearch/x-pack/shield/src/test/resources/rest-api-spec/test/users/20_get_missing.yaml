@@ -1,12 +1,12 @@
 "Get missing user":
   - do:
       catch:  missing
-      shield.get_user:
+      xpack.security.get_user:
         username: 'foo'
 
 ---
 "Get missing (multiple) users":
   - do:
       catch:  missing
-      shield.get_user:
+      xpack.security.get_user:
         username: [ 'foo', 'bar' ]

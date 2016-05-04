@@ -31,8 +31,8 @@ public class RestGetUsersAction extends BaseRestHandler {
     @Inject
     public RestGetUsersAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(RestRequest.Method.GET, "/_shield/user/", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_shield/user/{username}", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_xpack/security/user/", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_xpack/security/user/{username}", this);
     }
 
     @Override

@@ -29,8 +29,8 @@ public class RestPutRoleAction extends BaseRestHandler {
     @Inject
     public RestPutRoleAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(RestRequest.Method.POST, "/_shield/role/{name}", this);
-        controller.registerHandler(RestRequest.Method.PUT, "/_shield/role/{name}", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_xpack/security/role/{name}", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_xpack/security/role/{name}", this);
     }
 
     @Override

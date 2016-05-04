@@ -34,8 +34,7 @@ public class RestAuthenticateAction extends BaseRestHandler {
     public RestAuthenticateAction(Settings settings, RestController controller, Client client, SecurityContext securityContext) {
         super(settings, client);
         this.securityContext = securityContext;
-        controller.registerHandler(GET, "/_shield/authenticate", this); // deprecate
-        controller.registerHandler(GET, "/_shield/_authenticate", this);
+        controller.registerHandler(GET, "/_xpack/security/authenticate", this); // deprecate
     }
 
     @Override

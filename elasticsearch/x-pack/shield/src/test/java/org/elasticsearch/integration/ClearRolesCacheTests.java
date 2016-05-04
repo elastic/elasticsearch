@@ -131,9 +131,9 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         if (useHttp) {
             String path;
             if (rolesToClear == null) {
-                path = "/_shield/role/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache";
+                path = "/_xpack/security/role/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache";
             } else {
-                path = "/_shield/role/" + Strings.arrayToCommaDelimitedString(rolesToClear) + "/_clear_cache";
+                path = "/_xpack/security/role/" + Strings.arrayToCommaDelimitedString(rolesToClear) + "/_clear_cache";
             }
             HttpResponse response = httpClient().path(path).method("POST")
                     .addHeader("Authorization",

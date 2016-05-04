@@ -5,7 +5,7 @@
       cluster.health:
           wait_for_status: yellow
   - do:
-      shield.authenticate: {}
+      xpack.security.authenticate: {}
 
   - match: { username: "test_user" }
   - match: { roles.0:  "superuser" }

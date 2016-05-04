@@ -1,10 +1,10 @@
 {
-  "shield.clear_cached_realms": {
+  "xpack.security.clear_cached_realms": {
     "documentation": "Clears the internal user caches for specified realms",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_shield/realm/{realms}/_clear_cache",
-      "paths": [ "/_shield/realm/{realms}/_clear_cache" ],
+      "path": "/_xpack/security/realm/{realms}/_clear_cache",
+      "paths": [ "/_xpack/security/realm/{realms}/_clear_cache" ],
       "parts": {
         "realms": {
           "type" : "string",

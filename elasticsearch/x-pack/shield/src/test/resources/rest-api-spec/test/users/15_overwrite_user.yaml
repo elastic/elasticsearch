@@ -8,7 +8,7 @@
           wait_for_status: yellow
 
   - do:
-      shield.put_user:
+      xpack.security.put_user:
         username: "joe"
         body:  >
             {
@@ -18,7 +18,7 @@
   - match: { user: { created: true } }
 
   - do:
-      shield.get_user:
+      xpack.security.get_user:
         username: "joe"
   - match: { joe.username: "joe" }
   - match: { joe.roles.0:  "superuser" }
@@ -30,7 +30,7 @@
   - match: { timed_out: false }
 
   - do:
-      shield.put_user:
+      xpack.security.put_user:
         username: "joe"
         body:  >
             {
@@ -46,7 +46,7 @@
   - match: { user: { created: false } }
 
   - do:
-      shield.get_user:
+      xpack.security.get_user:
         username: "joe"
   - match: { joe.username:  "joe" }
   - match: { joe.roles.0:  "superuser" }

@@ -8,7 +8,7 @@
           wait_for_status: yellow
 
   - do:
-      shield.put_role:
+      xpack.security.put_role:
         name: "admin_role"
         body:  >
             {
@@ -23,7 +23,7 @@
   - match: { role: { created: true } }
 
   - do:
-      shield.put_user:
+      xpack.security.put_user:
         username: "joe"
         body:  >
             {
@@ -40,7 +40,7 @@
   - match: { timed_out: false }
 
   - do:
-      shield.get_role:
+      xpack.security.get_role:
         name: "admin_role"
   - match: { admin_role.cluster.0:  "all" }
   - match: { admin_role.indices.0.names.0: "*" }

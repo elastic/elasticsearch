@@ -32,10 +32,10 @@ public class RestChangePasswordAction extends BaseRestHandler {
     public RestChangePasswordAction(Settings settings, Client client, RestController controller, SecurityContext securityContext) {
         super(settings, client);
         this.securityContext = securityContext;
-        controller.registerHandler(RestRequest.Method.POST, "/_shield/user/{username}/_password", this);
-        controller.registerHandler(RestRequest.Method.PUT, "/_shield/user/{username}/_password", this);
-        controller.registerHandler(RestRequest.Method.POST, "/_shield/user/_password", this);
-        controller.registerHandler(RestRequest.Method.PUT, "/_shield/user/_password", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_xpack/security/user/{username}/_password", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_xpack/security/user/{username}/_password", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_xpack/security/user/_password", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_xpack/security/user/_password", this);
     }
 
     @Override

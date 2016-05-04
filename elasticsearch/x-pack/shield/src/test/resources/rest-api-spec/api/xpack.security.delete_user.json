@@ -1,10 +1,10 @@
 {
-  "shield.delete_user": {
+  "xpack.security.delete_user": {
     "documentation": "Remove a user from the native shield realm",
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_shield/user/{username}",
-      "paths": [ "/_shield/user/{username}" ],
+      "path": "/_xpack/security/user/{username}",
+      "paths": [ "/_xpack/security/user/{username}" ],
       "parts": {
         "username": {
           "type" : "string",

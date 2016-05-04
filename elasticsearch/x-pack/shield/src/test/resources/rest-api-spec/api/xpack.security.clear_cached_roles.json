@@ -1,10 +1,10 @@
 {
-  "shield.clear_cached_roles": {
+  "xpack.security.clear_cached_roles": {
     "documentation": "Clears the internal caches for specified roles",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_shield/role/{name}/_clear_cache",
-      "paths": [ "/_shield/role/{name}/_clear_cache" ],
+      "path": "/_xpack/security/role/{name}/_clear_cache",
+      "paths": [ "/_xpack/security/role/{name}/_clear_cache" ],
       "parts": {
         "name": {
           "type" : "string",

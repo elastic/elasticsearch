@@ -38,7 +38,7 @@ public class BasicExpressionTests extends ScriptTestCase {
     }
 
     public void testReturnConstantChar() {
-        assertEquals('x', exec("return 'x';"));
+        assertEquals('x', exec("return (char)'x';"));
     }
 
     public void testConstantCharTruncation() {

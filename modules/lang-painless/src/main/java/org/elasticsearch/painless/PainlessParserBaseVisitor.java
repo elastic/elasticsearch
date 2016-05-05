@@ -283,13 +283,6 @@ class PainlessParserBaseVisitor<T> extends AbstractParseTreeVisitor<T> implement
    * <p>The default implementation returns the result of calling
    * {@link #visitChildren} on {@code ctx}.</p>
    */
-  @Override public T visitChar(PainlessParser.CharContext ctx) { return visitChildren(ctx); }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation returns the result of calling
-   * {@link #visitChildren} on {@code ctx}.</p>
-   */
   @Override public T visitTrue(PainlessParser.TrueContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}

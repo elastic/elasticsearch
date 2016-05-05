@@ -33,6 +33,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+
 class Definition {
     enum Sort {
         VOID(       void.class      , 0 , true  , false , false , false ),
@@ -393,6 +396,14 @@ class Definition {
     final Type iargexcepType;
     final Type istateexceptType;
     final Type nfexcepType;
+    
+    // docvalues accessors
+    final Type geoPointType;
+    final Type stringsType;
+    // TODO: add ReadableDateTime? or don't expose the joda stuff?
+    final Type longsType;
+    final Type doublesType;
+    final Type geoPointsType;
 
     public Definition() {
         structs = new HashMap<>();
@@ -470,6 +481,12 @@ class Definition {
         iargexcepType = getType("IllegalArgumentException");
         istateexceptType = getType("IllegalStateException");
         nfexcepType = getType("NumberFormatException");
+
+        geoPointType = getType("GeoPoint");
+        stringsType = getType("Strings");
+        longsType = getType("Longs");
+        doublesType = getType("Doubles");
+        geoPointsType = getType("GeoPoints");
 
         addDefaultElements();
         copyDefaultStructs();
@@ -564,6 +581,12 @@ class Definition {
         iargexcepType = definition.iargexcepType;
         istateexceptType = definition.istateexceptType;
         nfexcepType = definition.nfexcepType;
+        
+        geoPointType = definition.geoPointType;
+        stringsType = definition.stringsType;
+        longsType = definition.longsType;
+        doublesType = definition.doublesType;
+        geoPointsType = definition.geoPointsType;
     }
 
     private void addDefaultStructs() {
@@ -634,6 +657,12 @@ class Definition {
         addStruct( "IllegalArgumentException" , IllegalArgumentException.class);
         addStruct( "IllegalStateException"    , IllegalStateException.class);
         addStruct( "NumberFormatException"    , NumberFormatException.class);
+        
+        addStruct( "GeoPoint"  , GeoPoint.class);
+        addStruct( "Strings"   , ScriptDocValues.Strings.class);
+        addStruct( "Longs"     , ScriptDocValues.Longs.class);
+        addStruct( "Doubles"   , ScriptDocValues.Doubles.class);
+        addStruct( "GeoPoints" , ScriptDocValues.GeoPoints.class);
     }
 
     private void addDefaultClasses() {
@@ -670,6 +699,12 @@ class Definition {
         addClass("HashMap");
 
         addClass("Exception");
+        
+        addClass("GeoPoint");
+        addClass("Strings");
+        addClass("Longs");
+        addClass("Doubles");
+        addClass("GeoPoints");
     }
 
     private void addDefaultElements() {
@@ -1032,6 +1067,61 @@ class Definition {
         addConstructor("IllegalStateException", "new", new Type[] {stringType}, null);
 
         addConstructor("NumberFormatException", "new", new Type[] {stringType}, null);
+        
+        addMethod("GeoPoint", "getLat", null, false, doubleType, new Type[] {}, null, null);
+        addMethod("GeoPoint", "getLon", null, false, doubleType, new Type[] {}, null, null);
+        addMethod("Strings", "getValue", null, false, stringType, new Type[] {}, null, null);
+        addMethod("Strings", "getValues", null, false, slistType, new Type[] {}, null, null);
+        addMethod("Longs", "getValue", null, false, longType, new Type[] {}, null, null);
+        addMethod("Longs", "getValues", null, false, olistType, new Type[] {}, null, null);
+        // TODO: add better date support for Longs here? (carefully?)
+        addMethod("Doubles", "getValue", null, false, doubleType, new Type[] {}, null, null);
+        addMethod("Doubles", "getValues", null, false, olistType, new Type[] {}, null, null);
+        addMethod("GeoPoints", "getValue", null, false, geoPointType, new Type[] {}, null, null);
+        addMethod("GeoPoints", "getValues", null, false, olistType, new Type[] {}, null, null);
+        addMethod("GeoPoints", "getLat", null, false, doubleType, new Type[] {}, null, null);
+        addMethod("GeoPoints", "getLon", null, false, doubleType, new Type[] {}, null, null);
+        addMethod("GeoPoints", "getLats", null, false, getType(doubleType.struct, 1), new Type[] {}, null, null);
+        addMethod("GeoPoints", "getLons", null, false, getType(doubleType.struct, 1), new Type[] {}, null, null);
+        // geo distance functions... so many...
+        addMethod("GeoPoints", "factorDistance", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "factorDistanceWithDefault", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "factorDistance02", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "factorDistance13", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "arcDistance", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "arcDistanceWithDefault", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "arcDistanceInKm", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "arcDistanceInKmWithDefault", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "arcDistanceInMiles", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "arcDistanceInMilesWithDefault", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "distance", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "distanceWithDefault", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "distanceInKm", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "distanceInKmWithDefault", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "distanceInMiles", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "distanceInMilesWithDefault", null, false, doubleType, 
+                  new Type[] { doubleType, doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "geohashDistance", null, false, doubleType, 
+                  new Type[] { stringType }, null, null);
+        addMethod("GeoPoints", "geohashDistanceInKm", null, false, doubleType, 
+                  new Type[] { stringType }, null, null);
+        addMethod("GeoPoints", "geohashDistanceInMiles", null, false, doubleType, 
+                  new Type[] { stringType }, null, null);
     }
 
     private void copyDefaultStructs() {
@@ -1079,6 +1169,12 @@ class Definition {
         copyStruct("IllegalArgumentException", "Exception", "Object");
         copyStruct("IllegalStateException", "Exception", "Object");
         copyStruct("NumberFormatException", "Exception", "Object");
+        
+        copyStruct("GeoPoint", "Object");
+        copyStruct("Strings", "List<String>", "Collection<String>", "Object");
+        copyStruct("Longs", "List", "Collection", "Object");
+        copyStruct("Doubles", "List", "Collection", "Object");
+        copyStruct("GeoPoints", "List", "Collection", "Object");
     }
 
     private void addDefaultTransforms() {

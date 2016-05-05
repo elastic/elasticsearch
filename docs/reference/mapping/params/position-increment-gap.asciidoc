@@ -13,12 +13,12 @@ For example:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index/groups/1
+PUT my_index/groups/1
 {
     "names": [ "John Abraham", "Lincoln Smith"]
 }
 
-GET /my_index/groups/_search
+GET my_index/groups/_search
 {
     "query": {
         "match_phrase": {
@@ -29,7 +29,7 @@ GET /my_index/groups/_search
     }
 }
 
-GET /my_index/groups/_search
+GET my_index/groups/_search
 {
     "query": {
         "match_phrase": {
@@ -65,12 +65,12 @@ PUT my_index
   }
 }
 
-PUT /my_index/groups/1
+PUT my_index/groups/1
 {
     "names": [ "John Abraham", "Lincoln Smith"]
 }
 
-GET /my_index/groups/_search
+GET my_index/groups/_search
 {
     "query": {
         "match_phrase": {

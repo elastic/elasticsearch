@@ -34,24 +34,31 @@ You can achieve the same effect by using the boost parameter directly in the que
 
 [source,js]
 --------------------------------------------------
+POST _search
 {
-    "match" : {
-        "title": {
-            "query": "quick brown fox"
+    "query": {
+        "match" : {
+            "title": {
+                "query": "quick brown fox"
+            }
         }
     }
 }
 --------------------------------------------------
+// AUTOSENSE
 
 is equivalent to:
 
 [source,js]
 --------------------------------------------------
+POST _search
 {
-    "match" : {
-        "title": {
-            "query": "quick brown fox",
-            "boost": 2
+    "query": {
+        "match" : {
+            "title": {
+                "query": "quick brown fox",
+                "boost": 2
+            }
         }
     }
 }

@@ -186,35 +186,27 @@ state:
 
 [source,js]
 -----------------------------------
-POST /_scripts/groovy/calculate-score
+POST _scripts/groovy/calculate-score
 {
   "script": "log(_score * 2) + my_modifier"
 }
 -----------------------------------
 // AUTOSENSE
 
-
 This same script can be retrieved with:
 
 [source,js]
 -----------------------------------
-GET /_scripts/groovy/calculate-score
+GET _scripts/groovy/calculate-score
 -----------------------------------
 // AUTOSENSE
-
-or deleted with:
-
-[source,js]
------------------------------------
-DELETE /_scripts/groovy/calculate-score
------------------------------------
-// AUTOSENSE
+// TEST[continued]
 
 Stored scripts can be used by specifying the `lang` and `id` parameters as follows:
 
 [source,js]
 --------------------------------------------------
-GET my_index/_search
+GET _search
 {
   "query": {
     "script": {
@@ -229,10 +221,19 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
+// AUTOSENSE
+// TEST[continued]
 
+And deleted with:
+
+[source,js]
+-----------------------------------
+DELETE _scripts/groovy/calculate-score
+-----------------------------------
+// AUTOSENSE
+// TEST[continued]
 
 NOTE: The size of stored scripts is limited to 65,535 bytes. This can be
 changed by setting `script.max_size_in_bytes` setting to increase that soft
 limit, but if scripts are really large then alternatives like
 <<modules-scripting-native,native>> scripts should be considered instead.
-

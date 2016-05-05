@@ -40,7 +40,7 @@ PUT my_index/my_type/1
 { "date": "2015-01-01" } <2>
 
 PUT my_index/my_type/2
-{ "date": "2015-01-01T12:10:30Z" } <3>
+{ "date": "2015-01-01T12:10:30Z" } <3>
 
 PUT my_index/my_type/3
 { "date": 1420070400001 } <4>
@@ -134,4 +134,3 @@ The following parameters are accepted by `date` fields:
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
-

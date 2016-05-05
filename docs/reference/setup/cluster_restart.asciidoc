@@ -17,7 +17,7 @@ before shutting down a node:
 
 [source,js]
 --------------------------------------------------
-PUT /_cluster/settings
+PUT _cluster/settings
 {
   "persistent": {
     "cluster.routing.allocation.enable": "none"
@@ -25,6 +25,7 @@ PUT /_cluster/settings
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[skip:indexes don't assign]
 
 ==== Step 2: Perform a synced flush
 
@@ -33,7 +34,7 @@ Shard recovery will be much faster if you stop indexing and issue a
 
 [source,sh]
 --------------------------------------------------
-POST /_flush/synced
+POST _flush/synced
 --------------------------------------------------
 // AUTOSENSE
 
@@ -96,7 +97,7 @@ reenable shard allocation:
 
 [source,js]
 ------------------------------------------------------
-PUT /_cluster/settings
+PUT _cluster/settings
 {
   "persistent": {
     "cluster.routing.allocation.enable": "all"
@@ -123,4 +124,3 @@ GET _cat/recovery
 
 Once the `status` column in the `_cat/health` output has reached `green`, all
 primary and replica shards have been successfully allocated.
-

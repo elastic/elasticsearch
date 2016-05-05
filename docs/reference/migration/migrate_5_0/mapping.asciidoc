@@ -53,7 +53,7 @@ you could map it both as a number and a `keyword` using <<multi-fields>>:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index
+PUT my_index
 {
   "mappings": {
     "my_type": {
@@ -149,4 +149,3 @@ Per-field boosts on the `_all` are now compressed into a single byte instead
 of the 4 bytes used previously. While this will make the index much more
 space-efficient, it also means that index time boosts will be less accurately
 encoded.
-

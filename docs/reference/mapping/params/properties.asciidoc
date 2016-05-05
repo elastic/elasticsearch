@@ -99,7 +99,6 @@ GET my_index/_search
 }
 --------------------------------------------------
 // AUTOSENSE
+// TEST[continued]
 
 IMPORTANT: The full path to the inner field must be specified.
-
-

@@ -89,6 +89,7 @@ GET my_index/_search
 }
 --------------------------
 // AUTOSENSE
+// TEST[continued]
 
 <1> Querying on the `_timestamp` field
 <2> Aggregating on the `_timestamp` field

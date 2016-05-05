@@ -1,12 +1,11 @@
-[[mapping-type-field]]
+\[[mapping-type-field]]
 === `_type` field
 
 Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
 <<mapping-type>>) and an <<mapping-id-field,`_id`>>.  The `_type` field is
 indexed in order to make searching by type name fast.
 
-The value of the `_type` field is accessible in queries, aggregations,
-scripts, and when sorting:
+The value of the `_type` field is accessible in queries and scripts:
 
 [source,js]
 --------------------------
@@ -21,31 +20,16 @@ PUT my_index/type_2/2
   "text": "Document with type 2"
 }
 
-GET my_index/_search/type_*
+GET my_index/type_*/_search
 {
   "query": {
     "terms": {
       "_type": [ "type_1", "type_2" ] <1>
     }
   },
-  "aggs": {
-    "types": {
-      "terms": {
-        "field": "_type", <2>
-        "size": 10
-      }
-    }
-  },
-  "sort": [
-    {
-      "_type": { <3>
-        "order": "desc"
-      }
-    }
-  ],
   "script_fields": {
     "type": {
-      "script": "doc['_type']" <4>
+      "script": "doc['_type']" <2>
     }
   }
 }
@@ -54,7 +38,4 @@ GET my_index/_search/type_*
 // AUTOSENSE
 
 <1> Querying on the `_type` field
-<2> Aggregating on the `_type` field
-<3> Sorting on the `_type` field
-<4> Accessing the `_type` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
-
+<2> Accessing the `_type` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)

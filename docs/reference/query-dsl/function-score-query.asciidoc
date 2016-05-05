@@ -459,7 +459,7 @@ the request would look like this:
 
 [source,js]
 --------------------------------------------------
-GET /hotels/_search/
+GET _search
 {
   "query": {
     "function_score": {
@@ -546,4 +546,3 @@ Only numeric, date, and geo-point fields are supported.
 
 If the numeric field is missing in the document, the function will
 return 1.
-

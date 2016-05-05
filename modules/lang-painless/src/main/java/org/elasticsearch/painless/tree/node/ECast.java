@@ -61,23 +61,6 @@ public class ECast extends AExpression {
         child.expected = actual;
         child.analyze(settings, definition, variables);
         cast = Caster.getLegalCast(definition, location, child.actual, child.expected, true);
-
-        if (child.constant != null) {
-            if (cast != null && child.actual.sort.constant && child.expected.sort.constant) {
-                constant = Caster.constCast(location, child.constant, cast);
-            } else {
-                final AExpression expression = child instanceof EConstant ? child : new EConstant(location, constant);
-
-                expression.actual = child.actual;
-                expression.typesafe = child.typesafe;
-                expression.isNull = child.isNull;
-                expression.strings = strings;
-
-                child = expression;
-            }
-        }
-
-        typesafe = child.typesafe && actual.sort != Sort.DEF;
     }
 
     @Override
@@ -94,6 +77,11 @@ public class ECast extends AExpression {
 
             return child.cast(settings, definition, variables);
         } else {
+            child = child.cast(settings, definition, variables);
+
+            isNull = child.isNull;
+            typesafe = child.typesafe && actual.sort != Sort.DEF;
+
             return super.cast(settings, definition, variables);
         }
     }

@@ -42,8 +42,8 @@ public abstract class ALink extends ANode {
     protected boolean pre = false;
     protected boolean post = false;
     protected Operation operation = null;
-    protected boolean strings = false;
-    protected boolean cat = false;
+    protected boolean begincat = false;
+    protected boolean endcat = false;
     protected Cast there = null;
     protected Cast back = null;
 
@@ -69,8 +69,8 @@ public abstract class ALink extends ANode {
         pre        = link.pre;
         post       = link.post;
         operation  = link.operation;
-        strings    = link.strings;
-        cat        = link.cat;
+        begincat   = link.begincat;
+        endcat     = link.endcat;
         there      = link.there;
         back       = link.back;
 

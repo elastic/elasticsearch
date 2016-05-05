@@ -35,6 +35,8 @@ public class EBinary extends AExpression {
     protected AExpression left;
     protected AExpression right;
 
+    protected boolean cat = false;
+
     public EBinary(final String location, final Operation operation, final AExpression left, final AExpression right) {
         super(location);
 
@@ -213,13 +215,13 @@ public class EBinary extends AExpression {
             left.expected = left.actual;
 
             if (left instanceof EBinary && ((EBinary)left).operation == Operation.ADD && left.actual.sort == Sort.STRING) {
-                left.strings = true;
+                ((EBinary)left).cat = true;
             }
 
             right.expected = right.actual;
 
             if (right instanceof EBinary && ((EBinary)right).operation == Operation.ADD && right.actual.sort == Sort.STRING) {
-                right.strings = true;
+                ((EBinary)right).cat = true;
             }
         } else {
             left.expected = promote;
@@ -509,7 +511,7 @@ public class EBinary extends AExpression {
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         if (actual.sort == Sort.STRING && operation == Operation.ADD) {
-            if (!strings) {
+            if (!cat) {
                 Shared.writeNewStrings(adapter);
             }
 
@@ -525,7 +527,7 @@ public class EBinary extends AExpression {
                 Shared.writeAppendStrings(adapter, right.expected.sort);
             }
 
-            if (!strings) {
+            if (!cat) {
                 Shared.writeToStrings(adapter);
             }
         } else {

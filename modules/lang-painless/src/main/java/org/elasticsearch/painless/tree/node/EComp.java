@@ -26,7 +26,6 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Caster;
 import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
@@ -77,10 +76,6 @@ public class EComp extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        if (left.isNull && right.isNull) {
-            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
-        }
-
         final Type promote = Caster.promoteEquality(definition, left.actual, right.actual);
 
         if (promote == null) {
@@ -94,7 +89,11 @@ public class EComp extends AExpression {
         left = left.cast(settings, definition, variables);
         right = right.cast(settings, definition, variables);
 
-        if (left.constant != null && right.constant != null) {
+        if (left.isNull && right.isNull) {
+            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
+        }
+
+        if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
             final Sort sort = promote.sort;
 
             if (sort == Sort.BOOL) {
@@ -124,10 +123,6 @@ public class EComp extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        if (left.isNull && right.isNull) {
-            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
-        }
-
         final Type promote = Caster.promoteReference(definition, left.actual, right.actual);
 
         if (promote == null) {
@@ -141,7 +136,11 @@ public class EComp extends AExpression {
         left = left.cast(settings, definition, variables);
         right = right.cast(settings, definition, variables);
 
-        if (left.constant != null && right.constant != null) {
+        if (left.isNull && right.isNull) {
+            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
+        }
+
+        if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
             final Sort sort = promote.sort;
 
             if (sort == Sort.BOOL) {
@@ -167,10 +166,6 @@ public class EComp extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        if (left.isNull && right.isNull) {
-            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
-        }
-
         final Type promote = Caster.promoteEquality(definition, left.actual, right.actual);
 
         if (promote == null) {
@@ -184,7 +179,11 @@ public class EComp extends AExpression {
         left = left.cast(settings, definition, variables);
         right = right.cast(settings, definition, variables);
 
-        if (left.constant != null && right.constant != null) {
+        if (left.isNull && right.isNull) {
+            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
+        }
+
+        if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
             final Sort sort = promote.sort;
 
             if (sort == Sort.BOOL) {
@@ -214,10 +213,6 @@ public class EComp extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        if (left.isNull && right.isNull) {
-            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
-        }
-
         final Type promote = Caster.promoteReference(definition, left.actual, right.actual);
 
         if (promote == null) {
@@ -231,7 +226,11 @@ public class EComp extends AExpression {
         left = left.cast(settings, definition, variables);
         right = right.cast(settings, definition, variables);
 
-        if (left.constant != null && right.constant != null) {
+        if (left.isNull && right.isNull) {
+            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
+        }
+
+        if ((left.constant != null || left.isNull) && (right.constant != null || right.isNull)) {
             final Sort sort = promote.sort;
 
             if (sort == Sort.BOOL) {
@@ -256,10 +255,6 @@ public class EComp extends AExpression {
     protected void analyzeGTE(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
-
-        if (left.isNull && right.isNull) {
-            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
-        }
 
         final Type promote = Caster.promoteNumeric(definition, left.actual, right.actual, true, true);
 
@@ -298,10 +293,6 @@ public class EComp extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        if (left.isNull && right.isNull) {
-            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
-        }
-
         final Type promote = Caster.promoteNumeric(definition, left.actual, right.actual, true, true);
 
         if (promote == null) {
@@ -339,10 +330,6 @@ public class EComp extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        if (left.isNull && right.isNull) {
-            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
-        }
-
         final Type promote = Caster.promoteNumeric(definition, left.actual, right.actual, true, true);
 
         if (promote == null) {
@@ -379,10 +366,6 @@ public class EComp extends AExpression {
     protected void analyzeLT(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
-
-        if (left.isNull && right.isNull) {
-            throw new IllegalArgumentException(error("Extraneous comparison of null constants."));
-        }
 
         final Type promote = Caster.promoteNumeric(definition, left.actual, right.actual, true, true);
 

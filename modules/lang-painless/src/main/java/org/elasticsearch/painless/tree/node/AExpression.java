@@ -35,7 +35,6 @@ public abstract class AExpression extends ANode {
     protected Type expected = null;
     protected Type actual = null;
     protected boolean typesafe = true;
-    protected boolean strings = false;
 
     protected Object constant = null;
     protected boolean isNull = false;
@@ -71,6 +70,7 @@ public abstract class AExpression extends ANode {
         } else {
             if (constant == null) {
                 final ECast ecast = new ECast(location, this, cast);
+                ecast.statement = statement;
                 ecast.expected = expected;
                 ecast.actual = actual;
                 ecast.isNull = isNull;

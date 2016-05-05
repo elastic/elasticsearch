@@ -165,28 +165,29 @@ public class EChain extends AExpression {
                     "[" + operation.symbol + "]= to types [" + last.after + "] and [" + expression.actual + "].");
             }
 
-            last.cat = operation == Operation.ADD && promote.sort == Sort.STRING;
+            final boolean cat = operation == Operation.ADD && promote.sort == Sort.STRING;
 
-            if (last.cat) {
-                expression.expected = expression.actual;
-                expression.strings = true;
-                first.strings = true;
-            } else {
-                expression.expected = promote;
+            expression.expected = cat ? expression.actual : promote;
+            expression.cast(settings, definition, variables);
+
+            if (cat && expression instanceof EBinary &&
+                ((EBinary)expression).operation == Operation.ADD && expression.actual.sort == Sort.STRING) {
+                ((EBinary)expression).cat = true;
             }
 
-            expression.cast(settings, definition, variables);
+            first.begincat = cat;
 
             last.expression = expression;
             last.pre = pre;
             last.post = post;
             last.operation = operation;
+            last.endcat = cat;
             last.there = Caster.getLegalCast(definition, location, last.after, promote, expression.typesafe);
             last.back = Caster.getLegalCast(definition, location, promote, last.after, true);
 
             statement = true;
             actual = read ? last.after : definition.voidType;
-            typesafe = actual.sort == Sort.DEF || expression.typesafe;
+            typesafe = actual.sort != Sort.DEF && expression.typesafe;
         } else if (expression != null) {
             expression.expected = last.after;
             expression.analyze(settings, definition, variables);
@@ -195,12 +196,12 @@ public class EChain extends AExpression {
 
             statement = true;
             actual = read ? last.after : definition.voidType;
-            typesafe = actual.sort == Sort.DEF || expression.typesafe;
+            typesafe = actual.sort != Sort.DEF && expression.typesafe;
         } else {
             constant = last.constant;
             statement = last.statement;
             actual = last.after;
-            typesafe = actual.sort == Sort.DEF;
+            typesafe = actual.sort != Sort.DEF;
         }
     }
 

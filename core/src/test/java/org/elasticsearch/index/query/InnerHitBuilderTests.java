@@ -86,7 +86,6 @@ public class InnerHitBuilderTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18166")
     public void testFromAndToXContent() throws Exception {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             InnerHitBuilder innerHit = randomInnerHits(true, false);
@@ -221,7 +220,12 @@ public class InnerHitBuilderTests extends ESTestCase {
         innerHits.setTrackScores(randomBoolean());
         innerHits.setFieldNames(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
         innerHits.setFieldDataFields(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
-        innerHits.setScriptFields(new HashSet<>(randomListStuff(16, InnerHitBuilderTests::randomScript)));
+        // Random script fields deduped on their field name.
+        Map<String, SearchSourceBuilder.ScriptField> scriptFields = new HashMap<>();
+        for (SearchSourceBuilder.ScriptField field: randomListStuff(16, InnerHitBuilderTests::randomScript)) {
+            scriptFields.put(field.fieldName(), field);
+        }
+        innerHits.setScriptFields(new HashSet<>(scriptFields.values()));
         FetchSourceContext randomFetchSourceContext;
         if (randomBoolean()) {
             randomFetchSourceContext = new FetchSourceContext(randomBoolean());

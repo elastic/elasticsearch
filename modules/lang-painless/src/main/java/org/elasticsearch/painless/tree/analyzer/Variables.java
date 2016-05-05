@@ -60,6 +60,7 @@ public final class Variables {
         incrementScope();
 
         addVariable("[ #this ]", "Executable", "#this");
+        addVariable("[ input ]", "Map<String,def>", "input");
 
         if (special.score) {
             addVariable("[ score ]", "float", "score");
@@ -123,7 +124,7 @@ public final class Variables {
             throw new IllegalArgumentException("Error " + location + ": Not a type [" + typestr + "].");
         }
 
-        boolean legal = name.contains("<");
+        boolean legal = !name.contains("<");
 
         try {
             definition.getType(name);

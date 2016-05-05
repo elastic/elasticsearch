@@ -33,6 +33,7 @@ public class ENumeric extends AExpression {
         super(location);
 
         this.value = value;
+        this.radix = radix;
     }
 
     @Override

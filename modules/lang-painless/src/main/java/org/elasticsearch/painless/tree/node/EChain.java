@@ -175,7 +175,7 @@ public class EChain extends AExpression {
                 expression.expected = promote;
             }
 
-            expression.cast(definition);
+            expression.cast(settings, definition, variables);
 
             last.expression = expression;
             last.pre = pre;
@@ -190,7 +190,7 @@ public class EChain extends AExpression {
         } else if (expression != null) {
             expression.expected = last.after;
             expression.analyze(settings, definition, variables);
-            expression = expression.cast(definition);
+            expression = expression.cast(settings, definition, variables);
             last.expression = expression;
 
             statement = true;

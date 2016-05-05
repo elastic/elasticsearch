@@ -85,17 +85,16 @@ public class ECast extends AExpression {
         child.write(settings, definition, adapter);
         Shared.writeCast(adapter, cast);
         Shared.writeBranch(adapter, tru, fals);
-        Shared.writeAppendStrings(adapter, strings, expected.sort);
     }
 
     @Override
-    protected AExpression cast(final Definition definition) {
+    protected AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (cast == null) {
             child.expected = expected;
 
-            return child.cast(definition);
+            return child.cast(settings, definition, variables);
         } else {
-            return super.cast(definition);
+            return super.cast(settings, definition, variables);
         }
     }
 }

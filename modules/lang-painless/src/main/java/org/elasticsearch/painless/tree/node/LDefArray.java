@@ -44,7 +44,7 @@ public class LDefArray extends ALink {
     protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         index.expected = definition.objectType;
         index.analyze(settings, definition, variables);
-        index = index.cast(definition);
+        index = index.cast(settings, definition, variables);
 
         after = definition.defType;
 

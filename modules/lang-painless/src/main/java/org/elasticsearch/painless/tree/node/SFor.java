@@ -69,7 +69,7 @@ public class SFor extends AStatement {
 
             condition.expected = definition.booleanType;
             condition.analyze(settings, definition, variables);
-            condition = condition.cast(definition);
+            condition = condition.cast(settings, definition, variables);
 
             if (condition.constant != null) {
                 continuous = (boolean)condition.constant;

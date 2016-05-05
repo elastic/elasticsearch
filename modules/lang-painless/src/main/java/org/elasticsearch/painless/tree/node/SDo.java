@@ -52,7 +52,7 @@ public class SDo extends AStatement {
 
         condition.expected = definition.booleanType;
         condition.analyze(settings, definition, variables);
-        condition = condition.cast(definition);
+        condition = condition.cast(settings, definition, variables);
 
         if (condition.constant != null) {
             final boolean continuous = (boolean)condition.constant;

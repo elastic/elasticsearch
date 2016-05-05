@@ -64,7 +64,7 @@ public class EUnary extends AExpression {
     protected void analyzeNot(final CompilerSettings settings, final Definition definition, final Variables variables) {
         child.expected = definition.booleanType;
         child.analyze(settings, definition, variables);
-        child = child.cast(definition);
+        child = child.cast(settings, definition, variables);
 
         if (child.constant != null) {
             constant = !(boolean)constant;
@@ -83,7 +83,7 @@ public class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(definition);
+        child = child.cast(settings, definition, variables);
 
         if (child.constant != null) {
             final Sort sort = promote.sort;
@@ -111,7 +111,7 @@ public class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(definition);
+        child = child.cast(settings, definition, variables);
 
         if (child.constant != null) {
             final Sort sort = promote.sort;
@@ -143,7 +143,7 @@ public class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(definition);
+        child = child.cast(settings, definition, variables);
 
         if (child.constant != null) {
             final Sort sort = promote.sort;

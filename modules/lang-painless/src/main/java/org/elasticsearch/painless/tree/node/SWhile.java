@@ -43,7 +43,7 @@ public class SWhile extends AStatement {
 
         condition.expected = definition.booleanType;
         condition.analyze(settings, definition, variables);
-        condition = condition.cast(definition);
+        condition = condition.cast(settings, definition, variables);
 
         boolean continuous = false;
 

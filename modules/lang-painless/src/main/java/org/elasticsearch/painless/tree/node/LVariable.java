@@ -115,10 +115,10 @@ public class LVariable extends ALink {
     }
 
     protected void load(final GeneratorAdapter adapter) {
-        adapter.visitVarInsn(after.type.getOpcode(Opcodes.ISTORE), slot);
+        adapter.visitVarInsn(after.type.getOpcode(Opcodes.ILOAD), slot);
     }
 
     protected void store(final GeneratorAdapter adapter) {
-        adapter.visitVarInsn(after.type.getOpcode(Opcodes.ILOAD), slot);
+        adapter.visitVarInsn(after.type.getOpcode(Opcodes.ISTORE), slot);
     }
 }

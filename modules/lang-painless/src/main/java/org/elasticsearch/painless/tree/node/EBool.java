@@ -43,11 +43,11 @@ public class EBool extends AExpression {
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.expected = definition.booleanType;
         left.analyze(settings, definition, variables);
-        left = left.cast(definition);
+        left = left.cast(settings, definition, variables);
 
         right.expected = definition.booleanType;
         right.analyze(settings, definition, variables);
-        right = right.cast(definition);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             if (operation == Operation.AND) {

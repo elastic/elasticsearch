@@ -68,7 +68,7 @@ public class LCall extends ALink {
 
                 expression.expected = types[argument];
                 expression.analyze(settings, definition, variables);
-                arguments.set(argument, expression.cast(definition));
+                arguments.set(argument, expression.cast(settings, definition, variables));
             }
 
             statement = true;

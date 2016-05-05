@@ -49,7 +49,7 @@ public class SDeclaration extends AStatement {
         if (expression != null) {
             expression.expected = variable.type;
             expression.analyze(settings, definition, variables);
-            expression = expression.cast(definition);
+            expression = expression.cast(settings, definition, variables);
         }
     }
 

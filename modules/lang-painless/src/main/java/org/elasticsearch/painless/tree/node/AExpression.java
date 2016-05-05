@@ -50,30 +50,72 @@ public abstract class AExpression extends ANode {
     protected abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
     protected abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
 
-    protected AExpression cast(final Definition definition) {
-        final AExpression rtn;
-
+    protected AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
         final Cast cast = Caster.getLegalCast(definition, location, actual, expected, !typesafe);
 
-        if (constant != null) {
-            if (actual.sort.constant && expected.sort.constant) {
-                constant = Caster.constCast(location, constant, cast);
+        if (cast == null) {
+            if (constant == null || this instanceof EConstant) {
+                return this;
+            } else {
+                final EConstant econstant = new EConstant(location, constant);
+                econstant.analyze(settings, definition, variables);
+
+                if (!expected.equals(econstant.actual)) {
+                    throw new IllegalStateException(error("Illegal tree structure."));
+                }
+
+                econstant.expected = expected;
+
+                return econstant;
             }
-
-            final AExpression econstant = this instanceof EConstant ? this : new EConstant(location, constant);
-
-            rtn = cast != null ? new ECast(location, econstant, cast) : econstant;
-        } else if (cast != null) {
-            rtn = new ECast(location, this, cast);
         } else {
-            rtn = this;
+            if (constant == null) {
+                final ECast ecast = new ECast(location, this, cast);
+                ecast.expected = expected;
+                ecast.actual = actual;
+                ecast.isNull = isNull;
+                ecast.typesafe = typesafe;
+                expected = actual;
+
+                return ecast;
+            } else {
+                if (expected.sort.constant) {
+                    constant = Caster.constCast(location, constant, cast);
+
+                    final EConstant econstant = new EConstant(location, constant);
+                    econstant.analyze(settings, definition, variables);
+
+                    if (!expected.equals(econstant.actual)) {
+                        throw new IllegalStateException(error("Illegal tree structure."));
+                    }
+
+                    econstant.expected = expected;
+
+                    return econstant;
+                } else if (this instanceof EConstant) {
+                    final ECast ecast = new ECast(location, this, cast);
+                    ecast.expected = expected;
+                    ecast.actual = actual;
+                    expected = actual;
+
+                    return ecast;
+                } else {
+                    final EConstant econstant = new EConstant(location, constant);
+                    econstant.analyze(settings, definition, variables);
+
+                    if (!actual.equals(econstant.actual)) {
+                        throw new IllegalStateException(error("Illegal tree structure."));
+                    }
+
+                    econstant.expected = actual;
+
+                    final ECast ecast = new ECast(location, econstant, cast);
+                    ecast.expected = expected;
+                    ecast.actual = actual;
+
+                    return ecast;
+                }
+            }
         }
-
-        rtn.actual = actual;
-        rtn.typesafe = typesafe;
-        rtn.isNull = isNull;
-        rtn.strings = strings;
-
-        return rtn;
     }
 }

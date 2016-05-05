@@ -69,6 +69,7 @@ public class EConstant extends AExpression {
             case LONG:   adapter.push((long)constant);    break;
             case INT:    adapter.push((int)constant);     break;
             case CHAR:   adapter.push((char)constant);    break;
+            case SHORT:  adapter.push((short)constant);   break;
             case BYTE:   adapter.push((byte)constant);    break;
             case BOOL:
                 if (tru != null && (boolean)constant) {

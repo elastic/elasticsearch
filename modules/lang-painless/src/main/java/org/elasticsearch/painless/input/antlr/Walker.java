@@ -30,7 +30,6 @@ import org.elasticsearch.painless.input.antlr.PainlessParser.AssignmentContext;
 import org.elasticsearch.painless.input.antlr.PainlessParser.BinaryContext;
 import org.elasticsearch.painless.input.antlr.PainlessParser.BreakContext;
 import org.elasticsearch.painless.input.antlr.PainlessParser.CastContext;
-import org.elasticsearch.painless.input.antlr.PainlessParser.CharContext;
 import org.elasticsearch.painless.input.antlr.PainlessParser.ConditionalContext;
 import org.elasticsearch.painless.input.antlr.PainlessParser.ContinueContext;
 import org.elasticsearch.painless.input.antlr.PainlessParser.DeclContext;
@@ -79,11 +78,19 @@ import org.elasticsearch.painless.tree.node.AExpression;
 import org.elasticsearch.painless.tree.node.ALink;
 import org.elasticsearch.painless.tree.node.ANode;
 import org.elasticsearch.painless.tree.node.AStatement;
+import org.elasticsearch.painless.tree.node.EBinary;
+import org.elasticsearch.painless.tree.node.EBool;
 import org.elasticsearch.painless.tree.node.EBoolean;
-import org.elasticsearch.painless.tree.node.EChar;
+import org.elasticsearch.painless.tree.node.ECast;
+import org.elasticsearch.painless.tree.node.EChain;
+import org.elasticsearch.painless.tree.node.EComp;
+import org.elasticsearch.painless.tree.node.EConditional;
 import org.elasticsearch.painless.tree.node.EDecimal;
 import org.elasticsearch.painless.tree.node.ENull;
 import org.elasticsearch.painless.tree.node.ENumeric;
+import org.elasticsearch.painless.tree.node.EUnary;
+import org.elasticsearch.painless.tree.node.LBrace;
+import org.elasticsearch.painless.tree.node.LCast;
 import org.elasticsearch.painless.tree.node.LField;
 import org.elasticsearch.painless.tree.node.LNewArray;
 import org.elasticsearch.painless.tree.node.LNewObj;
@@ -108,31 +115,17 @@ import org.elasticsearch.painless.tree.node.SWhile;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.painless.tree.analyzer.Operation.ADD;
-import static org.elasticsearch.painless.tree.analyzer.Operation.AND;
-import static org.elasticsearch.painless.tree.analyzer.Operation.BWNOT;
-import static org.elasticsearch.painless.tree.analyzer.Operation.DIV;
-import static org.elasticsearch.painless.tree.analyzer.Operation.LSH;
-import static org.elasticsearch.painless.tree.analyzer.Operation.MUL;
-import static org.elasticsearch.painless.tree.analyzer.Operation.NOT;
-import static org.elasticsearch.painless.tree.analyzer.Operation.OR;
-import static org.elasticsearch.painless.tree.analyzer.Operation.REM;
-import static org.elasticsearch.painless.tree.analyzer.Operation.RSH;
-import static org.elasticsearch.painless.tree.analyzer.Operation.SUB;
-import static org.elasticsearch.painless.tree.analyzer.Operation.USH;
-import static org.elasticsearch.painless.tree.analyzer.Operation.XOR;
-
 public class Walker extends PainlessParserBaseVisitor<ANode> {
-    public static ANode buildPainlessTree(final String source, final Special special) {
+    public static SSource buildPainlessTree(final String source, final Special special) {
         return new Walker(source, special).source;
     }
 
     private Special special;
-    private ANode source;
+    private SSource source;
 
     private Walker(final String source, final Special special) {
         this.special = special;
-        this.source = visit(buildAntlrTree(source));
+        this.source = (SSource)visit(buildAntlrTree(source));
     }
 
     private SourceContext buildAntlrTree(final String source) {
@@ -172,6 +165,8 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
         final AExpression condition = (AExpression)visit(ctx.expression());
         final AStatement block = ctx.block() == null ? null : (AStatement)visit(ctx.block());
 
+        special.loop = true;
+
         return new SWhile(location(ctx), condition, block);
     }
 
@@ -180,15 +175,19 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
         final AStatement block = ctx.block() == null ? null : (AStatement)visit(ctx.block());
         final AExpression condition = (AExpression)visit(ctx.expression());
 
+        special.loop = true;
+
         return new SDo(location(ctx), block, condition);
     }
 
     @Override
     public ANode visitFor(final ForContext ctx) {
-        final ANode intializer = ctx.initializer() == null ? null : (ANode)visit(ctx.initializer());
+        final ANode intializer = ctx.initializer() == null ? null : visit(ctx.initializer());
         final AExpression condition = ctx.expression() == null ? null : (AExpression)visit(ctx.expression());
         final AExpression afterthought = ctx.afterthought() == null ? null : (AExpression)visit(ctx.afterthought());
         final AStatement block = ctx.block() == null ? null : (AStatement)visit(ctx.block());
+
+        special.loop = true;
 
         return new SFor(location(ctx), intializer, condition, afterthought, block);
     }
@@ -352,11 +351,6 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitChar(final CharContext ctx) {
-        return new EChar(location(ctx), ctx.CHAR().getText().charAt(1));
-    }
-
-    @Override
     public ANode visitTrue(final TrueContext ctx) {
         return new EBoolean(location(ctx), true);
     }
@@ -374,44 +368,46 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
     @Override
     public ANode visitPostinc(final PostincContext ctx) {
         final List<ALink> links = new ArrayList<>();
+        final Operation operation;
+
+        visitExtstart(ctx.extstart(), links);
 
         if (ctx.INCR() != null) {
-            node.data.put("operation", ADD);
+            operation = Operation.INCR;
         } else if (ctx.DECR() != null) {
-            node.data.put("operation", SUB);
+            operation = Operation.DECR;
         } else {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
 
-        visitExtstart(ctx.extstart(), node);
-
-        return new EChain;
+        return new EChain(location(ctx), links, false, true, operation, null);
     }
 
     @Override
     public ANode visitPreinc(final PreincContext ctx) {
-        final ANode node = new ANode(location(ctx), PRE);
+        final List<ALink> links = new ArrayList<>();
+        final Operation operation;
+
+        visitExtstart(ctx.extstart(), links);
 
         if (ctx.INCR() != null) {
-            node.data.put("operation", ADD);
+            operation = Operation.INCR;
         } else if (ctx.DECR() != null) {
-            node.data.put("operation", SUB);
+            operation = Operation.DECR;
         } else {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
 
-        visitExtstart(ctx.extstart(), node);
-
-        return node;
+        return new EChain(location(ctx), links, true, false, operation, null);
     }
 
     @Override
     public ANode visitExternal(final ExternalContext ctx) {
-        final ANode node = new ANode(location(ctx), EXTERNAL);
+        final List<ALink> links = new ArrayList<>();
 
-        visitExtstart(ctx.extstart(), node);
+        visitExtstart(ctx.extstart(), links);
 
-        return node;
+        return new EChain(location(ctx), links, false, false, null, null);
     }
 
     @Override
@@ -419,38 +415,33 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
         if (ctx.SUB() != null && ctx.expression() instanceof NumericContext) {
             return visit(ctx.expression());
         } else {
-            final ANode node = new ANode(location(ctx), UNARY);
+            final Operation operation;
 
             if (ctx.BOOLNOT() != null) {
-                node.data.put("operation", NOT);
+                operation = Operation.NOT;
             } else if (ctx.BWNOT() != null) {
-                node.data.put("operation", BWNOT);
+                operation = Operation.BWNOT;
             } else if (ctx.ADD() != null) {
-                node.data.put("operation", ADD);
+                operation = Operation.ADD;
             } else if (ctx.SUB() != null) {
-                node.data.put("operation", SUB);
+                operation = Operation.SUB;
             } else {
                 throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
             }
 
-            node.children.add(visit(ctx.expression()));
-
-            return node;
+            return new EUnary(location(ctx), operation, (AExpression)visit(ctx.expression()));
         }
     }
 
     @Override
     public ANode visitCast(final CastContext ctx) {
-        final ANode node = new ANode(location(ctx), CAST);
-
-        node.data.put("type", ctx.decltype().identifier().getText());
-        node.children.add(visit(ctx.expression()));
-
-        return node;
+        return new ECast(location(ctx), ctx.decltype().identifier().getText(), (AExpression)visit(ctx.expression()));
     }
 
     @Override
     public ANode visitBinary(final BinaryContext ctx) {
+        final AExpression left = (AExpression)visit(ctx.expression(0));
+        final AExpression right = (AExpression)visit(ctx.expression(1));
         final Operation operation;
 
         if (ctx.MUL() != null) {
@@ -469,7 +460,26 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
             operation = Operation.RSH;
         } else if (ctx.USH() != null) {
             operation = Operation.USH;
-        } else if (ctx.LT() != null) {
+        } else if (ctx.BWAND() != null) {
+            operation = Operation.BWAND;
+        } else if (ctx.XOR() != null) {
+            operation = Operation.XOR;
+        } else if (ctx.BWOR() != null) {
+            operation = Operation.BWOR;
+        } else {
+            throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
+        }
+
+        return new EBinary(location(ctx), operation, left, right);
+    }
+
+    @Override
+    public ANode visitComp(PainlessParser.CompContext ctx) {
+        final AExpression left = (AExpression)visit(ctx.expression(0));
+        final AExpression right = (AExpression)visit(ctx.expression(1));
+        final Operation operation;
+
+        if (ctx.LT() != null) {
             operation = Operation.LT;
         } else if (ctx.LTE() != null) {
             operation = Operation.LTE;
@@ -485,73 +495,74 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
             operation = Operation.NE;
         } else if (ctx.LT() != null) {
             operation = Operation.NER;
-        } else if (ctx.BWAND() != null) {
-            operation = Operation.BWAND;
-        } else if (ctx.XOR() != null) {
-            operation = Operation.XOR;
-        } else if (ctx.BWOR() != null) {
-            operation = Operation.BWOR;
-        } else if (ctx.BOOLAND() != null) {
+        } else {
+            throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
+        }
+
+        return new EComp(location(ctx), operation, left, right);
+    }
+
+    @Override
+    public ANode visitBool(PainlessParser.BoolContext ctx) {
+        final AExpression left = (AExpression)visit(ctx.expression(0));
+        final AExpression right = (AExpression)visit(ctx.expression(1));
+        final Operation operation;
+
+        if (ctx.BOOLAND() != null) {
             operation = Operation.AND;
-        } else if (ctx.BWOR() != null) {
+        } else if (ctx.BOOLOR() != null) {
             operation = Operation.OR;
         } else {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
 
-        node.children.add(visit(ctx.expression(0)));
-        node.children.add(visit(ctx.expression(1)));
-
-        return node;
+        return new EBool(location(ctx), operation, left, right);
     }
+
 
     @Override
     public ANode visitConditional(final ConditionalContext ctx) {
-        final ANode node = new ANode(location(ctx), CONDITIONAL);
+        final AExpression condition = (AExpression)visit(ctx.expression(0));
+        final AExpression left = (AExpression)visit(ctx.expression(1));
+        final AExpression right = (AExpression)visit(ctx.expression(2));
 
-        node.children.add(visit(ctx.expression(0)));
-        node.children.add(visit(ctx.expression(1)));
-        node.children.add(visit(ctx.expression(2)));
-
-        return node;
+        return new EConditional(location(ctx), condition, left, right);
     }
 
     @Override
     public ANode visitAssignment(final AssignmentContext ctx) {
-        final ANode node = new ANode(location(ctx), ctx.ASSIGN() == null ? COMPOUND : ASSIGNMENT);
+        final List<ALink> links = new ArrayList<>();
+        final Operation operation;
 
-        if (node.type == COMPOUND) {
-            if (ctx.AMUL() != null) {
-                node.data.put("operation", MUL);
-            } else if (ctx.ADIV() != null) {
-                node.data.put("operation", DIV);
-            } else if (ctx.AREM() != null) {
-                node.data.put("operation", REM);
-            } else if (ctx.AADD() != null) {
-                node.data.put("operation", ADD);
-            } else if (ctx.ASUB() != null) {
-                node.data.put("operation", SUB);
-            } else if (ctx.ALSH() != null) {
-                node.data.put("operation", LSH);
-            } else if (ctx.ARSH() != null) {
-                node.data.put("operation", RSH);
-            } else if (ctx.AUSH() != null) {
-                node.data.put("operation", USH);
-            } else if (ctx.AAND() != null) {
-                node.data.put("operation", AND);
-            } else if (ctx.AXOR() != null) {
-                node.data.put("operation", XOR);
-            } else if (ctx.AAND() != null) {
-                node.data.put("operation", OR);
-            } else {
-                throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
-            }
+        visitExtstart(ctx.extstart(), links);
+
+        if (ctx.AMUL() != null) {
+            operation = Operation.MUL;
+        } else if (ctx.ADIV() != null) {
+            operation = Operation.DIV;
+        } else if (ctx.AREM() != null) {
+            operation = Operation.REM;
+        } else if (ctx.AADD() != null) {
+            operation = Operation.ADD;
+        } else if (ctx.ASUB() != null) {
+            operation = Operation.SUB;
+        } else if (ctx.ALSH() != null) {
+            operation = Operation.LSH;
+        } else if (ctx.ARSH() != null) {
+            operation = Operation.RSH;
+        } else if (ctx.AUSH() != null) {
+            operation = Operation.USH;
+        } else if (ctx.AAND() != null) {
+            operation = Operation.AND;
+        } else if (ctx.AXOR() != null) {
+            operation = Operation.XOR;
+        } else if (ctx.AAND() != null) {
+            operation = Operation.OR;
+        } else {
+            operation = null;
         }
 
-        node.children.add(visit(ctx.expression()));
-        visitExtstart(ctx.extstart(), node);
-
-        return node;
+        return new EChain(location(ctx), links, false, false, operation, (AExpression)visit(ctx.expression()));
     }
 
     private void visitExtstart(final ExtstartContext ctx, final List<ALink> links) {
@@ -617,11 +628,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
 
-        final ANode node = new ANode(location(ctx), CAST);
-
-        node.data.put("type", ctx.decltype().identifier().getText());
-
-        links.children.add(node);
+        links.add(new LCast(location(ctx), ctx.decltype().identifier().getText()));
     }
 
     @Override
@@ -630,11 +637,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     private void visitExtbrace(final ExtbraceContext ctx, final List<ALink> links) {
-        final ANode node = new ANode(location(ctx), BRACE);
-
-        node.children.add(visit(ctx.expression()));
-
-        links.children.add(node);
+        links.add(new LBrace(location(ctx), (AExpression)visit(ctx.expression())));
 
         if (ctx.extbrace() != null) {
             visitExtbrace(ctx.extbrace(), links);
@@ -662,15 +665,13 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     private void visitExtcall(final ExtcallContext ctx, final List<ALink> links) {
-        final ANode node = new ANode(location(ctx), CALL);
-
-        node.data.put("symbol", ctx.EXTID().getText());
+        final List<AExpression> arguments = new ArrayList<>();
 
         for (final ExpressionContext expression : ctx.arguments().expression()) {
-            node.children.add(visit(expression));
+            arguments.add((AExpression)visit(expression));
         }
 
-        links.children.add(node);
+        links.add(new LNewObj(location(ctx), ctx.EXTID().getText(), arguments));
 
         if (ctx.extbrace() != null) {
             visitExtbrace(ctx.extbrace(), links);
@@ -686,6 +687,12 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
 
     private void visitExtvar(final ExtvarContext ctx, final List<ALink> links) {
         final String name = ctx.identifier().getText();
+
+        if ("score".equals(name)) {
+            special.score = true;
+        } else if ("doc".equals(name)) {
+            special.doc = true;
+        }
 
         links.add(new LVariable(location(ctx), name));
 

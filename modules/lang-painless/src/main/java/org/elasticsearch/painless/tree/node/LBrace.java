@@ -49,7 +49,7 @@ public class LBrace extends ALink {
         if (sort == Sort.ARRAY) {
             index.expected = definition.intType;
             index.analyze(settings, definition, variables);
-            index = index.cast(definition);
+            index = index.cast(settings, definition, variables);
 
             after = definition.getType(before.struct, before.dimensions - 1);
 

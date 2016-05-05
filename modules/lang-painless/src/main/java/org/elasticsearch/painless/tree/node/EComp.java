@@ -91,8 +91,8 @@ public class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -138,8 +138,8 @@ public class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -181,8 +181,8 @@ public class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -228,8 +228,8 @@ public class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -271,8 +271,8 @@ public class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -312,8 +312,8 @@ public class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -353,8 +353,8 @@ public class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -394,8 +394,8 @@ public class EComp extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;

@@ -47,6 +47,6 @@ public class ENull extends AExpression {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        adapter.visitInsn(Opcodes.NULL);
+        adapter.visitInsn(Opcodes.ACONST_NULL);
     }
 }

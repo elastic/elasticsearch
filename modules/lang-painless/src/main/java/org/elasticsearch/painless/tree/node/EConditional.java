@@ -44,7 +44,7 @@ public class EConditional extends AExpression {
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         condition.expected = definition.booleanType;
         condition.analyze(settings, definition, variables);
-        condition = condition.cast(definition);
+        condition = condition.cast(settings, definition, variables);
 
         if (condition.constant != null) {
             throw new IllegalArgumentException(error("Extraneous conditional statement."));
@@ -65,8 +65,8 @@ public class EConditional extends AExpression {
             actual = promote;
         }
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         typesafe = left.typesafe && right.typesafe;
     }

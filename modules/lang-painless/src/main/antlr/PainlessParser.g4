@@ -96,7 +96,7 @@ expression
     | <assoc=right> ( INCR | DECR ) extstart                            # preinc
     |               extstart                                            # external
     | <assoc=right> ( BOOLNOT | BWNOT | ADD | SUB ) expression          # unary
-    | <assoc=right> LP decltype RP expression                           # ECast
+    | <assoc=right> LP decltype RP expression                           # cast
     |               expression ( MUL | DIV | REM ) expression           # binary
     |               expression ( ADD | SUB ) expression                 # binary
     |               expression ( LSH | RSH | USH ) expression           # binary

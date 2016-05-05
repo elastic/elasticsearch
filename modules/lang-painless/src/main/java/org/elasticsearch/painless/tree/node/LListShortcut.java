@@ -60,7 +60,7 @@ public class LListShortcut extends ALink {
         if ((load || store) && (!load || getter != null) && (!store || setter != null)) {
             index.expected = definition.intType;
             index.analyze(settings, definition, variables);
-            index = index.cast(definition);
+            index = index.cast(settings, definition, variables);
 
             after = setter != null ? setter.arguments.get(1) : getter.rtn;
         } else {

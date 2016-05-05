@@ -140,6 +140,7 @@ public class Caster {
                         return checkTransform(definition, location, cast);
                     case BYTE_OBJ:
                     case SHORT_OBJ:
+                    case STRING:
                         if (explicit)
                             return checkTransform(definition, location, cast);
 
@@ -352,6 +353,7 @@ public class Caster {
                     case SHORT:
                     case BYTE_OBJ:
                     case SHORT_OBJ:
+                    case STRING:
                         if (explicit)
                             return checkTransform(definition, location, cast);
 
@@ -451,6 +453,15 @@ public class Caster {
                 }
 
                 break;
+            case STRING:
+                switch (expected.sort) {
+                    case CHAR:
+                    case CHAR_OBJ:
+                        if (explicit)
+                            return checkTransform(definition, location, cast);
+
+                        break;
+                }
         }
 
         try {
@@ -534,7 +545,7 @@ public class Caster {
             }
         } catch (final IllegalAccessException | IllegalArgumentException |
             InvocationTargetException | NullPointerException | ExceptionInInitializerError exception) {
-            throw new IllegalStateException(
+            throw new IllegalArgumentException(
                 "Error" + location + ": Cannot cast from [" + transform.from.name + "] to [" + transform.to.name + "].");
         }
     }

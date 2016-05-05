@@ -196,13 +196,6 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitAssignment(PainlessParser.AssignmentContext ctx);
   /**
-   * Visit a parse tree produced by the {@code ECast}
-   * labeled alternative in {@link PainlessParser#expression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitECast(PainlessParser.ECastContext ctx);
-  /**
    * Visit a parse tree produced by the {@code false}
    * labeled alternative in {@link PainlessParser#expression}.
    * @param ctx the parse tree
@@ -244,6 +237,13 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitPostinc(PainlessParser.PostincContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code cast}
+   * labeled alternative in {@link PainlessParser#expression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCast(PainlessParser.CastContext ctx);
   /**
    * Visit a parse tree produced by the {@code external}
    * labeled alternative in {@link PainlessParser#expression}.

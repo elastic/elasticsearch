@@ -86,8 +86,8 @@ public class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final boolean overflow = settings.getNumericOverflow();
@@ -128,8 +128,8 @@ public class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final boolean overflow = settings.getNumericOverflow();
@@ -170,8 +170,8 @@ public class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final boolean overflow = settings.getNumericOverflow();
@@ -211,16 +211,23 @@ public class EBinary extends AExpression {
 
         if (sort == Sort.STRING) {
             left.expected = left.actual;
-            left.strings = true;
+
+            if (left instanceof EBinary && ((EBinary)left).operation == Operation.ADD && left.actual.sort == Sort.STRING) {
+                left.strings = true;
+            }
+
             right.expected = right.actual;
-            right.strings = true;
+
+            if (right instanceof EBinary && ((EBinary)right).operation == Operation.ADD && right.actual.sort == Sort.STRING) {
+                right.strings = true;
+            }
         } else {
             left.expected = promote;
             right.expected = promote;
         }
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final boolean overflow = settings.getNumericOverflow();
@@ -262,8 +269,8 @@ public class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final boolean overflow = settings.getNumericOverflow();
@@ -307,8 +314,8 @@ public class EBinary extends AExpression {
         right.expected = definition.intType;
         right.typesafe = rtypesafe;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -343,8 +350,8 @@ public class EBinary extends AExpression {
         right.expected = definition.intType;
         right.typesafe = rtypesafe;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -379,8 +386,8 @@ public class EBinary extends AExpression {
         right.expected = definition.intType;
         right.typesafe = rtypesafe;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -412,8 +419,8 @@ public class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -445,8 +452,8 @@ public class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -480,8 +487,8 @@ public class EBinary extends AExpression {
         left.expected = promote;
         right.expected = promote;
 
-        left = left.cast(definition);
-        right = right.cast(definition);
+        left = left.cast(settings, definition, variables);
+        right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -508,13 +515,13 @@ public class EBinary extends AExpression {
 
             left.write(settings, definition, adapter);
 
-            if (left instanceof EBinary && ((EBinary)left).operation == Operation.ADD && left.actual.sort == Sort.STRING) {
+            if (!(left instanceof EBinary) || ((EBinary)left).operation != Operation.ADD || left.actual.sort != Sort.STRING) {
                 Shared.writeAppendStrings(adapter, left.expected.sort);
             }
 
             right.write(settings, definition, adapter);
 
-            if (right instanceof EBinary && ((EBinary)right).operation == Operation.ADD && right.actual.sort == Sort.STRING) {
+            if (!(right instanceof EBinary) || ((EBinary)right).operation != Operation.ADD || right.actual.sort != Sort.STRING) {
                 Shared.writeAppendStrings(adapter, right.expected.sort);
             }
 

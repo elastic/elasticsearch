@@ -42,7 +42,7 @@ public class SIfElse extends AStatement {
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         condition.expected = definition.booleanType;
         condition.analyze(settings, definition, variables);
-        condition = condition.cast(definition);
+        condition = condition.cast(settings, definition, variables);
 
         if (condition.constant != null) {
             throw new IllegalArgumentException(error("Extraneous if statement."));

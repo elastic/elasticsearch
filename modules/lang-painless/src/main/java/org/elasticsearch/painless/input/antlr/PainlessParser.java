@@ -1400,22 +1400,6 @@ class PainlessParser extends Parser {
       else return visitor.visitChildren(this);
     }
   }
-  public static class ECastContext extends ExpressionContext {
-    public TerminalNode LP() { return getToken(PainlessParser.LP, 0); }
-    public DecltypeContext decltype() {
-      return getRuleContext(DecltypeContext.class,0);
-    }
-    public TerminalNode RP() { return getToken(PainlessParser.RP, 0); }
-    public ExpressionContext expression() {
-      return getRuleContext(ExpressionContext.class,0);
-    }
-    public ECastContext(ExpressionContext ctx) { copyFrom(ctx); }
-    @Override
-    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof PainlessParserVisitor ) return ((PainlessParserVisitor<? extends T>)visitor).visitECast(this);
-      else return visitor.visitChildren(this);
-    }
-  }
   public static class FalseContext extends ExpressionContext {
     public TerminalNode FALSE() { return getToken(PainlessParser.FALSE, 0); }
     public FalseContext(ExpressionContext ctx) { copyFrom(ctx); }
@@ -1488,6 +1472,22 @@ class PainlessParser extends Parser {
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
       if ( visitor instanceof PainlessParserVisitor ) return ((PainlessParserVisitor<? extends T>)visitor).visitPostinc(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+  public static class CastContext extends ExpressionContext {
+    public TerminalNode LP() { return getToken(PainlessParser.LP, 0); }
+    public DecltypeContext decltype() {
+      return getRuleContext(DecltypeContext.class,0);
+    }
+    public TerminalNode RP() { return getToken(PainlessParser.RP, 0); }
+    public ExpressionContext expression() {
+      return getRuleContext(ExpressionContext.class,0);
+    }
+    public CastContext(ExpressionContext ctx) { copyFrom(ctx); }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof PainlessParserVisitor ) return ((PainlessParserVisitor<? extends T>)visitor).visitCast(this);
       else return visitor.visitChildren(this);
     }
   }
@@ -1583,7 +1583,7 @@ class PainlessParser extends Parser {
         break;
       case 2:
         {
-        _localctx = new ECastContext(_localctx);
+        _localctx = new CastContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
         setState(210);

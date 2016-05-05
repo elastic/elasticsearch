@@ -37,7 +37,7 @@ public class SThrow extends AStatement {
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         expression.expected = definition.exceptionType;
         expression.analyze(settings, definition, variables);
-        expression = expression.cast(definition);
+        expression = expression.cast(settings, definition, variables);
 
         methodEscape = true;
         loopEscape = true;

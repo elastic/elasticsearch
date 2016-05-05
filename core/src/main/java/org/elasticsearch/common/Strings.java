@@ -37,8 +37,8 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Properties;
-import java.util.Random;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
@@ -1055,6 +1055,11 @@ public class Strings {
             sb.append(s);
             return sb.toString();
         }
+    }
+
+    public static String stripNonAscii(final String str) {
+        Objects.requireNonNull(str);
+        return str.replaceAll("[^\\x20-\\x7E]", "");
     }
 
 }

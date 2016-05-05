@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -377,8 +378,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          * Initializes a new empty index, to be restored from a snapshot
          */
         public Builder initializeAsNewRestore(IndexMetaData indexMetaData, RestoreSource restoreSource, IntSet ignoreShards) {
+            final SnapshotId snapshotId = restoreSource.snapshotId();
             final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NEW_INDEX_RESTORED,
-                "restore_source[" + restoreSource.snapshotName().getRepository() + "/" + restoreSource.snapshotName().getSnapshot() + "]");
+                "restore_source[" + snapshotId.getSnapshotName().getRepository() + "/" + snapshotId.getName() + "]");
             return initializeAsRestore(indexMetaData, restoreSource, ignoreShards, true, unassignedInfo);
         }
 
@@ -386,8 +388,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          * Initializes an existing index, to be restored from a snapshot
          */
         public Builder initializeAsRestore(IndexMetaData indexMetaData, RestoreSource restoreSource) {
+            final SnapshotId snapshotId = restoreSource.snapshotId();
             final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
-                "restore_source[" + restoreSource.snapshotName().getRepository() + "/" + restoreSource.snapshotName().getSnapshot() + "]");
+                "restore_source[" + snapshotId.getSnapshotName().getRepository() + "/" + snapshotId.getName() + "]");
             return initializeAsRestore(indexMetaData, restoreSource, null, false, unassignedInfo);
         }
 

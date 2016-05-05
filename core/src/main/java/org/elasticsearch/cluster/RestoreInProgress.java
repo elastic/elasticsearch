@@ -82,7 +82,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
      */
     public Entry snapshot(SnapshotName snapshotName) {
         for (Entry entry : entries) {
-            if (snapshotName.equals(entry.snapshotId())) {
+            if (snapshotName.equals(entry.snapshotName())) {
                 return entry;
             }
         }
@@ -135,11 +135,11 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
         }
 
         /**
-         * Returns snapshot id
+         * Returns snapshot name
          *
-         * @return snapshot id
+         * @return snapshot name
          */
-        public SnapshotName snapshotId() {
+        public SnapshotName snapshotName() {
             return this.snapshotName;
         }
 
@@ -435,7 +435,7 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(entries.size());
         for (Entry entry : entries) {
-            entry.snapshotId().writeTo(out);
+            entry.snapshotName().writeTo(out);
             out.writeByte(entry.state().value());
             out.writeVInt(entry.indices().size());
             for (String index : entry.indices()) {
@@ -471,8 +471,8 @@ public class RestoreInProgress extends AbstractDiffable<Custom> implements Custo
      */
     public void toXContent(Entry entry, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.field("snapshot", entry.snapshotId().getSnapshot());
-        builder.field("repository", entry.snapshotId().getRepository());
+        builder.field("snapshot", entry.snapshotName().getSnapshot());
+        builder.field("repository", entry.snapshotName().getRepository());
         builder.field("state", entry.state());
         builder.startArray("indices");
         {

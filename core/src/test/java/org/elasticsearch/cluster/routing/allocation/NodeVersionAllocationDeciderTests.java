@@ -48,6 +48,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
@@ -360,7 +361,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metaData(metaData)
-            .routingTable(RoutingTable.builder().addAsRestore(metaData.index("test"), new RestoreSource(new SnapshotName("rep1", "snp1"),
+            .routingTable(RoutingTable.builder().addAsRestore(metaData.index("test"), new RestoreSource(SnapshotId.create(new SnapshotName("rep1", "snp1")),
                 Version.CURRENT, "test")).build())
             .nodes(DiscoveryNodes.builder().put(newNode).put(oldNode1).put(oldNode2)).build();
         AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[]{

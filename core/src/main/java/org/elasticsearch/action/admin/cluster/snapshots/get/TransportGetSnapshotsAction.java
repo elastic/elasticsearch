@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -103,10 +102,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         }
                     }
                 }
-                for (String snapshot : snapshotsToGet) {
-                    SnapshotName snapshotName = new SnapshotName(request.repository(), snapshot);
-                    snapshotInfoBuilder.add(new SnapshotInfo(snapshotsService.snapshot(snapshotName)));
-                }
+                snapshotsService.resolveSnapshotIds(request.repository(), snapshotsToGet).forEach(snapshotId ->
+                    snapshotInfoBuilder.add(new SnapshotInfo(snapshotsService.snapshot(snapshotId)))
+                );
             }
             listener.onResponse(new GetSnapshotsResponse(Collections.unmodifiableList(snapshotInfoBuilder)));
         } catch (Throwable t) {

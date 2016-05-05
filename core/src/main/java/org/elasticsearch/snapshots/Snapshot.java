@@ -371,6 +371,10 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
         } else {
             throw new ElasticsearchParseException("unexpected token  [" + token + "]");
         }
+        if (uuid == null) {
+            // old version of snapshots where there was no UUID, so give it the unassigned value
+            uuid = SnapshotId.UNASSIGNED_UUID;
+        }
         return new Snapshot(name, uuid, indices, state, reason, version, startTime, endTime, totalShard, successfulShards, shardFailures);
     }
 

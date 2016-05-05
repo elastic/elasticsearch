@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.uri;
 
-import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
@@ -39,11 +38,11 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Read-only URL-based implementation of the BlobStoreRepository
@@ -126,12 +125,12 @@ public class URLRepository extends BlobStoreRepository {
     }
 
     @Override
-    public List<SnapshotName> snapshots() {
+    public List<SnapshotId> snapshots() {
         if (listDirectories) {
             return super.snapshots();
         } else {
             try {
-                return readSnapshots().values().stream().map(SnapshotId::getSnapshotName).collect(Collectors.toList());
+                return Collections.unmodifiableList(new ArrayList<>(readSnapshotList().values()));
             } catch (IOException ex) {
                 throw new RepositoryException(repositoryName, "failed to get snapshot list in repository", ex);
             }

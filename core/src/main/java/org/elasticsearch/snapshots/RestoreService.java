@@ -190,9 +190,12 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             // Read snapshot info and metadata from the repository
             Repository repository = repositoriesService.repository(request.repository());
             final SnapshotName snapshotName = new SnapshotName(request.repository(), request.name());
-            final Snapshot snapshot = repository.readSnapshot(snapshotName);
+            final List<SnapshotId> snapshotIds = repository.resolveSnapshotsIds(snapshotName.getSnapshot());
+            assert snapshotIds.size() > 0; // if the snapshot wasn't found, it should throw a SnapshotMissingException
+            final SnapshotId snapshotId = snapshotIds.get(0);
+            final Snapshot snapshot = repository.readSnapshot(snapshotId);
             List<String> filteredIndices = SnapshotUtils.filterIndices(snapshot.indices(), request.indices(), request.indicesOptions());
-            MetaData metaDataIn = repository.readSnapshotMetaData(snapshotName, snapshot, filteredIndices);
+            MetaData metaDataIn = repository.readSnapshotMetaData(snapshotId, filteredIndices);
 
             final MetaData metaData;
             if (snapshot.version().before(Version.V_2_0_0_beta1)) {
@@ -236,7 +239,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                         for (Map.Entry<String, String> indexEntry : renamedIndices.entrySet()) {
                             String index = indexEntry.getValue();
                             boolean partial = checkPartial(index);
-                            RestoreSource restoreSource = new RestoreSource(snapshotName, snapshot.version(), index);
+                            RestoreSource restoreSource = new RestoreSource(snapshotId, snapshot.version(), index);
                             String renamedIndexName = indexEntry.getKey();
                             IndexMetaData snapshotIndexMetaData = metaData.index(index);
                             snapshotIndexMetaData = updateIndexSettings(snapshotIndexMetaData, request.indexSettings, request.ignoreIndexSettings);
@@ -549,7 +552,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                             final UpdateIndexShardRestoreStatusRequest updateSnapshotState = drainedRequests.get(i);
                             updateSnapshotState.processed = true;
 
-                            if (entry.snapshotId().equals(updateSnapshotState.snapshotId())) {
+                            if (entry.snapshotName().equals(updateSnapshotState.snapshotId())) {
                                 logger.trace("[{}] Updating shard [{}] with status [{}]", updateSnapshotState.snapshotId(), updateSnapshotState.shardId(), updateSnapshotState.status().state());
                                 if (shardsBuilder == null) {
                                     shardsBuilder = ImmutableOpenMap.builder(entry.shards());
@@ -562,16 +565,16 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                         if (shardsBuilder != null) {
                             ImmutableOpenMap<ShardId, ShardRestoreStatus> shards = shardsBuilder.build();
                             if (!completed(shards)) {
-                                entries.add(new RestoreInProgress.Entry(entry.snapshotId(), RestoreInProgress.State.STARTED, entry.indices(), shards));
+                                entries.add(new RestoreInProgress.Entry(entry.snapshotName(), RestoreInProgress.State.STARTED, entry.indices(), shards));
                             } else {
-                                logger.info("restore [{}] is done", entry.snapshotId());
+                                logger.info("restore [{}] is done", entry.snapshotName());
                                 if (batchedRestoreInfo == null) {
                                     batchedRestoreInfo = new HashMap<>();
                                 }
-                                assert !batchedRestoreInfo.containsKey(entry.snapshotId());
-                                batchedRestoreInfo.put(entry.snapshotId(),
+                                assert !batchedRestoreInfo.containsKey(entry.snapshotName());
+                                batchedRestoreInfo.put(entry.snapshotName(),
                                     new Tuple<>(
-                                        new RestoreInfo(entry.snapshotId().getSnapshot(), entry.indices(), shards.size(), shards.size() - failedShards(shards)),
+                                        new RestoreInfo(entry.snapshotName().getSnapshot(), entry.indices(), shards.size(), shards.size() - failedShards(shards)),
                                         shards));
                             }
                         } else {
@@ -746,8 +749,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                 }
                 if (shardsToFail != null) {
                     for (ShardId shardId : shardsToFail) {
-                        logger.trace("[{}] failing running shard restore [{}]", entry.snapshotId(), shardId);
-                        updateRestoreStateOnMaster(new UpdateIndexShardRestoreStatusRequest(entry.snapshotId(), shardId, new ShardRestoreStatus(null, RestoreInProgress.State.FAILURE, "index was deleted")));
+                        logger.trace("[{}] failing running shard restore [{}]", entry.snapshotName(), shardId);
+                        updateRestoreStateOnMaster(new UpdateIndexShardRestoreStatusRequest(entry.snapshotName(), shardId, new ShardRestoreStatus(null, RestoreInProgress.State.FAILURE, "index was deleted")));
                     }
                 }
             }
@@ -846,7 +849,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         RestoreInProgress snapshots = clusterState.custom(RestoreInProgress.TYPE);
         if (snapshots != null) {
             for (RestoreInProgress.Entry snapshot : snapshots.entries()) {
-                if (repository.equals(snapshot.snapshotId().getRepository())) {
+                if (repository.equals(snapshot.snapshotName().getRepository())) {
                     return true;
                 }
             }

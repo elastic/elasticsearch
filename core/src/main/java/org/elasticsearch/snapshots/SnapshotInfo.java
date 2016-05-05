@@ -43,6 +43,8 @@ public class SnapshotInfo implements ToXContent, Streamable {
 
     private String name;
 
+    private String uuid;
+
     private SnapshotState state;
 
     private String reason;
@@ -72,6 +74,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
      */
     public SnapshotInfo(Snapshot snapshot) {
         name = snapshot.name();
+        uuid = snapshot.uuid();
         state = snapshot.state();
         reason = snapshot.reason();
         indices = snapshot.indices();
@@ -90,6 +93,15 @@ public class SnapshotInfo implements ToXContent, Streamable {
      */
     public String name() {
         return name;
+    }
+
+    /**
+     * Returns snapshot uuid
+     *
+     * @return snapshot uuid
+     */
+    public String uuid() {
+        return uuid;
     }
 
     /**
@@ -198,6 +210,8 @@ public class SnapshotInfo implements ToXContent, Streamable {
     }
 
     static final class Fields {
+        static final String NAME = "snapshot";
+        static final String UUID = "uuid";
         static final String INDICES = "indices";
         static final String STATE = "state";
         static final String REASON = "reason";
@@ -219,7 +233,8 @@ public class SnapshotInfo implements ToXContent, Streamable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("snapshot", name);
+        builder.field(Fields.NAME, name);
+        builder.field(Fields.UUID, uuid);
         builder.field(Fields.VERSION_ID, version.id);
         builder.field(Fields.VERSION, version.toString());
         builder.startArray(Fields.INDICES);
@@ -259,6 +274,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         name = in.readString();
+        uuid = in.readString();
         int size = in.readVInt();
         List<String> indicesListBuilder = new ArrayList<>();
         for (int i = 0; i < size; i++) {
@@ -287,6 +303,7 @@ public class SnapshotInfo implements ToXContent, Streamable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+        out.writeString(uuid);
         out.writeVInt(indices.size());
         for (String index : indices) {
             out.writeString(index);

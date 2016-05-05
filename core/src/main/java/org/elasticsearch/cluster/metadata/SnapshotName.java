@@ -51,10 +51,8 @@ public class SnapshotName implements Writeable {
      * @param snapshot   snapshot name
      */
     public SnapshotName(final String repository, final String snapshot) {
-        Objects.requireNonNull(repository);
-        Objects.requireNonNull(snapshot);
-        this.repository = repository;
-        this.snapshot = snapshot;
+        this.repository = Objects.requireNonNull(repository);
+        this.snapshot = Objects.requireNonNull(snapshot);
         this.hashCode = computeHashCode();
     }
 

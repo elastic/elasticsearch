@@ -26,6 +26,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
@@ -54,28 +55,28 @@ public interface Repository extends LifecycleComponent<Repository> {
     /**
      * Reads snapshot description from repository.
      *
-     * @param snapshotName snapshot name
+     * @param snapshotId snapshot id
      * @return information about snapshot
      */
-    Snapshot readSnapshot(SnapshotName snapshotName);
+    Snapshot readSnapshot(SnapshotId snapshotId);
 
     /**
      * Returns global metadata associate with the snapshot.
      * <p>
      * The returned meta data contains global metadata as well as metadata for all indices listed in the indices parameter.
      *
-     * @param snapshot snapshot name
+     * @param snapshotId snapshot id
      * @param indices    list of indices
      * @return information about snapshot
      */
-    MetaData readSnapshotMetaData(SnapshotName snapshotName, Snapshot snapshot, List<String> indices) throws IOException;
+    MetaData readSnapshotMetaData(SnapshotId snapshotId, List<String> indices) throws IOException;
 
     /**
      * Returns the list of snapshots currently stored in the repository
      *
      * @return snapshot list
      */
-    List<SnapshotName> snapshots();
+    List<SnapshotId> snapshots();
 
     /**
      * Starts snapshotting process
@@ -103,9 +104,9 @@ public interface Repository extends LifecycleComponent<Repository> {
     /**
      * Deletes snapshot
      *
-     * @param snapshotName snapshot name
+     * @param snapshotId snapshot id
      */
-    void deleteSnapshot(SnapshotName snapshotName);
+    void deleteSnapshot(SnapshotId snapshotId);
 
     /**
      * Returns snapshot throttle time in nanoseconds
@@ -142,5 +143,14 @@ public interface Repository extends LifecycleComponent<Repository> {
      * @return true if the repository is read/only
      */
     boolean readOnly();
+
+    /**
+     * Resolve the {@link SnapshotId}(s) for the given {@link SnapshotName}(s).
+     *
+     * @param snapshotNames snapshot name(s)
+     * @return the snapshot ids
+     * @throws SnapshotMissingException if a snapshot could not be found
+     */
+    List<SnapshotId> resolveSnapshotsIds(String... snapshotNames);
 
 }

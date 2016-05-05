@@ -669,15 +669,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             threadPool.generic().execute(() -> {
                 final ShardId sId = indexShard.shardId();
                 try {
-                    final IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(restoreSource.snapshotName().getRepository());
+                    final IndexShardRepository indexShardRepository =
+                        repositoriesService.indexShardRepository(restoreSource.snapshotId().getSnapshotName().getRepository());
                     if (indexShard.restoreFromRepository(indexShardRepository, nodes.getLocalNode())) {
-                        restoreService.indexShardRestoreCompleted(restoreSource.snapshotName(), sId);
+                        restoreService.indexShardRestoreCompleted(restoreSource.snapshotId().getSnapshotName(), sId);
                         shardStateAction.shardStarted(shardRouting, "after recovery from repository", SHARD_STATE_ACTION_LISTENER);
                     }
                 } catch (Throwable first) {
                     try {
                         if (Lucene.isCorruptionException(first)) {
-                            restoreService.failRestore(restoreSource.snapshotName(), sId);
+                            restoreService.failRestore(restoreSource.snapshotId().getSnapshotName(), sId);
                         }
                     } catch (Throwable second) {
                         first.addSuppressed(second);

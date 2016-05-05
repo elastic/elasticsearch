@@ -90,7 +90,7 @@ public class RestRecoveryAction extends AbstractCatAction {
                 .addCell("source_host", "alias:shost;desc:source host")
                 .addCell("target_host", "alias:thost;desc:target host")
                 .addCell("repository", "alias:rep;desc:repository")
-                .addCell("snapshot", "alias:snap;desc:snapshot")
+                .addCell("snapshot_name", "alias:snapName;desc:snapshot_name")
                 .addCell("files", "alias:f;desc:number of files to recover")
                 .addCell("files_recovered", "alias:fr;desc:files recovered")
                 .addCell("files_percent", "alias:fp;desc:percent of files recovered")
@@ -150,8 +150,9 @@ public class RestRecoveryAction extends AbstractCatAction {
                 t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName());
                 t.addCell(state.getTargetNode().getHostName());
-                t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotName().getRepository());
-                t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotName().getSnapshot());
+                t.addCell(state.getRestoreSource() == null ? "n/a" :
+                              state.getRestoreSource().snapshotId().getSnapshotName().getRepository());
+                t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getName());
                 t.addCell(state.getIndex().totalRecoverFiles());
                 t.addCell(state.getIndex().recoveredFileCount());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredFilesPercent()));

@@ -37,15 +37,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -190,15 +193,15 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus(shardEntry.key, stage);
                     shardStatusBuilder.add(shardStatus);
                 }
-                builder.add(new SnapshotStatus(entry.snapshotName(), entry.state(), Collections.unmodifiableList(shardStatusBuilder)));
+                builder.add(new SnapshotStatus(entry.snapshotId(), entry.state(), Collections.unmodifiableList(shardStatusBuilder)));
             }
         }
         // Now add snapshots on disk that are not currently running
         if (Strings.hasText(request.repository())) {
             if (request.snapshots() != null && request.snapshots().length > 0) {
-                for (String snapshotName : request.snapshots()) {
-                    SnapshotName snapshotId = new SnapshotName(request.repository(), snapshotName);
-                    if (currentSnapshotNames.contains(snapshotId)) {
+                final Set<String> snapshots = new LinkedHashSet<>(Arrays.asList(request.snapshots()));
+                for (SnapshotId snapshotId : snapshotsService.resolveSnapshotIds(request.repository(), snapshots)) {
+                    if (currentSnapshotNames.contains(snapshotId.getName())) {
                         // This is a snapshot the is currently running - skipping
                         continue;
                     }

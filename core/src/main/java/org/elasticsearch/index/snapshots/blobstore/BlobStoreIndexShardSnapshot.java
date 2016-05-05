@@ -22,7 +22,6 @@ package org.elasticsearch.index.snapshots.blobstore;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -318,7 +318,9 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
 
     }
 
-    private final String snapshot;
+    private final String snapshotName;
+
+    private final String snapshotUUID;
 
     private final long indexVersion;
 
@@ -335,7 +337,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
     /**
      * Constructs new shard snapshot metadata from snapshot metadata
      *
-     * @param snapshot      snapshot id
+     * @param snapshotName  snapshot name
+     * @param snapshotUUID  snapshot uuid
      * @param indexVersion  index version
      * @param indexFiles    list of files in the shard
      * @param startTime     snapshot start time
@@ -343,11 +346,13 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
      * @param numberOfFiles number of files that where snapshotted
      * @param totalSize     total size of all files snapshotted
      */
-    public BlobStoreIndexShardSnapshot(String snapshot, long indexVersion, List<FileInfo> indexFiles, long startTime, long time,
-                                       int numberOfFiles, long totalSize) {
-        assert snapshot != null;
+    public BlobStoreIndexShardSnapshot(String snapshotName, String snapshotUUID, long indexVersion, List<FileInfo> indexFiles,
+                                       long startTime, long time, int numberOfFiles, long totalSize) {
+        assert snapshotName != null;
+        assert snapshotUUID != null;
         assert indexVersion >= 0;
-        this.snapshot = snapshot;
+        this.snapshotName = snapshotName;
+        this.snapshotUUID = snapshotUUID;
         this.indexVersion = indexVersion;
         this.indexFiles = Collections.unmodifiableList(new ArrayList<>(indexFiles));
         this.startTime = startTime;
@@ -360,7 +365,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
      * Special constructor for the prototype
      */
     private BlobStoreIndexShardSnapshot() {
-        this.snapshot = "";
+        this.snapshotName = "";
+        this.snapshotUUID = "";
         this.indexVersion = 0;
         this.indexFiles = Collections.emptyList();
         this.startTime = 0;
@@ -379,12 +385,21 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
     }
 
     /**
-     * Returns snapshot id
+     * Returns snapshot name
      *
-     * @return snapshot id
+     * @return snapshot name
      */
-    public String snapshot() {
-        return snapshot;
+    public String snapshotName() {
+        return snapshotName;
+    }
+
+    /**
+     * Returns snapshot uuid
+     *
+     * @return snapshot uuid
+     */
+    public String snapshotUUID() {
+        return snapshotUUID;
     }
 
     /**
@@ -426,6 +441,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
 
     static final class Fields {
         static final String NAME = "name";
+        static final String UUID = "uuid";
         static final String INDEX_VERSION = "index_version";
         static final String START_TIME = "start_time";
         static final String TIME = "time";
@@ -435,13 +451,14 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
     }
 
     static final class ParseFields {
-        static final ParseField NAME = new ParseField("name");
-        static final ParseField INDEX_VERSION = new ParseField("index_version", "index-version");
-        static final ParseField START_TIME = new ParseField("start_time");
-        static final ParseField TIME = new ParseField("time");
-        static final ParseField NUMBER_OF_FILES = new ParseField("number_of_files");
-        static final ParseField TOTAL_SIZE = new ParseField("total_size");
-        static final ParseField FILES = new ParseField("files");
+        static final ParseField NAME = new ParseField(Fields.NAME);
+        static final ParseField UUID = new ParseField(Fields.UUID);
+        static final ParseField INDEX_VERSION = new ParseField(Fields.INDEX_VERSION, "index-version");
+        static final ParseField START_TIME = new ParseField(Fields.START_TIME);
+        static final ParseField TIME = new ParseField(Fields.TIME);
+        static final ParseField NUMBER_OF_FILES = new ParseField(Fields.NUMBER_OF_FILES);
+        static final ParseField TOTAL_SIZE = new ParseField(Fields.TOTAL_SIZE);
+        static final ParseField FILES = new ParseField(Fields.FILES);
     }
 
 
@@ -453,7 +470,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Fields.NAME, snapshot);
+        builder.field(Fields.NAME, snapshotName);
+        builder.field(Fields.UUID, snapshotUUID);
         builder.field(Fields.INDEX_VERSION, indexVersion);
         builder.field(Fields.START_TIME, startTime);
         builder.field(Fields.TIME, time);
@@ -476,6 +494,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
     public BlobStoreIndexShardSnapshot fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
 
         String snapshot = null;
+        String uuid = null;
         long indexVersion = -1;
         long startTime = 0;
         long time = 0;
@@ -495,6 +514,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
                     if (token.isValue()) {
                         if (parseFieldMatcher.match(currentFieldName, ParseFields.NAME)) {
                             snapshot = parser.text();
+                        } else if (parseFieldMatcher.match(currentFieldName, ParseFields.UUID)) {
+                            uuid = parser.text();
                         } else if (parseFieldMatcher.match(currentFieldName, ParseFields.INDEX_VERSION)) {
                             // The index-version is needed for backward compatibility with v 1.0
                             indexVersion = parser.longValue();
@@ -525,7 +546,11 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
                 }
             }
         }
-        return new BlobStoreIndexShardSnapshot(snapshot, indexVersion, Collections.unmodifiableList(indexFiles),
+        if (uuid == null) {
+            // its an older format that doesn't support uuid, so set the uuid to empty string
+            uuid = SnapshotId.UNASSIGNED_UUID;
+        }
+        return new BlobStoreIndexShardSnapshot(snapshot, uuid, indexVersion, Collections.unmodifiableList(indexFiles),
                 startTime, time, numberOfFiles, totalSize);
     }
 }

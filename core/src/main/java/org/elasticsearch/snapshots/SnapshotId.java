@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.SnapshotName;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,7 +36,9 @@ import java.util.Objects;
 /**
  * A unique identification for a snapshot.  Combines the {@link SnapshotName} with a UUID.
  */
-public final class SnapshotId implements Writeable, ToXContent {
+public class SnapshotId implements Writeable, ToXContent {
+
+    public static final String UNASSIGNED_UUID = "";
 
     private final SnapshotName snapshotName;
 
@@ -47,10 +50,8 @@ public final class SnapshotId implements Writeable, ToXContent {
     }
 
     private SnapshotId(final SnapshotName snapshotName, final String uuid) {
-        Objects.requireNonNull(snapshotName);
-        Objects.requireNonNull(uuid);
-        this.snapshotName = snapshotName;
-        this.uuid = uuid;
+        this.snapshotName = Objects.requireNonNull(snapshotName);
+        this.uuid = Objects.requireNonNull(uuid);
     }
 
     /**
@@ -166,5 +167,20 @@ public final class SnapshotId implements Writeable, ToXContent {
         static final String REPOSITORY = "repository";
         public static final String NAME = "name";
         public static final String UUID = "uuid";
+    }
+
+    /**
+     * Get the blob name suffix for naming the blob in a repository.
+     */
+    public String blobId() {
+        if (uuid.equals("")) {
+            // support the old format where naming was only based on the snapshot name
+            return snapshotName.getSnapshot();
+        }
+        StringBuilder buf = new StringBuilder(Strings.stripNonAscii(snapshotName.getSnapshot()));
+        if (buf.length() > 0) {
+            buf.append("-");
+        }
+        return buf.append(uuid).toString();
     }
 }

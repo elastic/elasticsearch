@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -211,6 +212,8 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         } catch (SnapshotRestoreException ex) {
             assertThat(ex.getMessage(), containsString("cannot restore index"));
             assertThat(ex.getMessage(), containsString("because it cannot be upgraded"));
+        } catch (SnapshotMissingException ex) {
+            assertThat(ex.getMessage(), containsString(repo + ":" + snapshot));
         }
     }
 }

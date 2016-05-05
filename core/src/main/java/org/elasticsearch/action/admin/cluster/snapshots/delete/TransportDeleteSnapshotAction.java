@@ -26,13 +26,17 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.SnapshotName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Transport action for delete snapshot operation
@@ -66,8 +70,12 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
 
     @Override
     protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state, final ActionListener<DeleteSnapshotResponse> listener) {
-        SnapshotName snapshotIds = new SnapshotName(request.repository(), request.snapshot());
-        snapshotsService.deleteSnapshot(snapshotIds, new SnapshotsService.DeleteSnapshotListener() {
+        final Set<String> snapshots = new LinkedHashSet<>();
+        snapshots.add(request.snapshot());
+        final List<SnapshotId> snapshotIds = snapshotsService.resolveSnapshotIds(request.repository(), snapshots);
+        assert snapshotIds.size() > 0; // if the snapshot wasn't resolved, a SnapshotMissingException should've been thrown
+        final SnapshotId snapshotId = snapshotIds.get(0);
+        snapshotsService.deleteSnapshot(snapshotId, new SnapshotsService.DeleteSnapshotListener() {
             @Override
             public void onResponse() {
                 listener.onResponse(new DeleteSnapshotResponse(true));

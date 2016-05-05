@@ -874,7 +874,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         logger.info("--> delete index metadata and shard metadata");
-        Path metadata = repo.resolve("meta-test-snap-1.dat");
+        Path metadata = repo.resolve("meta-test-snap-1-" + createSnapshotResponse.getSnapshotInfo().uuid() +".dat");
         Files.delete(metadata);
 
         logger.info("--> delete snapshot");
@@ -908,7 +908,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         logger.info("--> truncate snapshot file to make it unreadable");
-        Path snapshotPath = repo.resolve("snap-test-snap-1.dat");
+        Path snapshotPath = repo.resolve("snap-test-snap-1-" + createSnapshotResponse.getSnapshotInfo().uuid() + ".dat");
         try(SeekableByteChannel outChan = Files.newByteChannel(snapshotPath, StandardOpenOption.WRITE)) {
             outChan.truncate(randomInt(10));
         }
@@ -2133,32 +2133,33 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
+        final SnapshotName snapshotName = new SnapshotName("test-repo", "_foo");
         try {
-            client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("_foo").get();
+            client.admin().cluster().prepareGetSnapshots(snapshotName.getRepository()).setSnapshots(snapshotName.getSnapshot()).get();
+            fail("shouldn't be here");
+        } catch (SnapshotMissingException ex) {
+            assertThat(ex.getMessage(), containsString(snapshotName.toString()));
+        }
+
+        try {
+            client.admin().cluster().prepareCreateSnapshot(snapshotName.getRepository(), snapshotName.getSnapshot()).get();
             fail("shouldn't be here");
         } catch (InvalidSnapshotNameException ex) {
             assertThat(ex.getMessage(), containsString("Invalid snapshot name"));
         }
 
         try {
-            client.admin().cluster().prepareCreateSnapshot("test-repo", "_foo").get();
+            client.admin().cluster().prepareDeleteSnapshot(snapshotName.getRepository(), snapshotName.getSnapshot()).get();
             fail("shouldn't be here");
-        } catch (InvalidSnapshotNameException ex) {
-            assertThat(ex.getMessage(), containsString("Invalid snapshot name"));
+        } catch (SnapshotMissingException ex) {
+            assertThat(ex.getMessage(), containsString(snapshotName.toString()));
         }
 
         try {
-            client.admin().cluster().prepareDeleteSnapshot("test-repo", "_foo").get();
+            client.admin().cluster().prepareSnapshotStatus(snapshotName.getRepository()).setSnapshots(snapshotName.getSnapshot()).get();
             fail("shouldn't be here");
-        } catch (InvalidSnapshotNameException ex) {
-            assertThat(ex.getMessage(), containsString("Invalid snapshot name"));
-        }
-
-        try {
-            client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("_foo").get();
-            fail("shouldn't be here");
-        } catch (InvalidSnapshotNameException ex) {
-            assertThat(ex.getMessage(), containsString("Invalid snapshot name"));
+        } catch (SnapshotMissingException ex) {
+            assertThat(ex.getMessage(), containsString(snapshotName.toString()));
         }
     }
 
@@ -2189,7 +2190,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         logger.info("--> truncate snapshot file to make it unreadable");
-        Path snapshotPath = repo.resolve("snap-test-snap-2.dat");
+        Path snapshotPath = repo.resolve("snap-test-snap-2-" + createSnapshotResponse.getSnapshotInfo().uuid() + ".dat");
         try(SeekableByteChannel outChan = Files.newByteChannel(snapshotPath, StandardOpenOption.WRITE)) {
             outChan.truncate(randomInt(10));
         }

@@ -57,13 +57,13 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        snapshotInfo = SnapshotInfo.readOptionalSnapshotInfo(in);
+        snapshotInfo = in.readOptionalWriteable(SnapshotInfo::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalStreamable(snapshotInfo);
+        out.writeOptionalWriteable(snapshotInfo);
     }
 
     /**
@@ -90,7 +90,7 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (snapshotInfo != null) {
             builder.field(Fields.SNAPSHOT);
-            snapshotInfo.toXContent(builder, params);
+            snapshotInfo.toExternalXContent(builder, params);
         } else {
             builder.field(Fields.ACCEPTED, true);
         }

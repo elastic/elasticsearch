@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle
+package org.elasticsearch.gradle.doc
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.InvalidUserDataException
@@ -55,6 +55,8 @@ public class SnippetsTask extends DefaultTask {
     ConfigurableFileTree docs = project.fileTree(project.projectDir) {
         // No snippets in the build file
         exclude 'build.gradle'
+        // That is where the snippets go, not where they come from!
+        exclude 'build'
     }
 
     @TaskAction
@@ -166,7 +168,9 @@ public class SnippetsTask extends DefaultTask {
                     }
                     snippet.testResponse = true
                     if (matcher.group(2) != null) {
-                        substitutions = []
+                        if (substitutions == null) {
+                            substitutions = []
+                        }
                         String loc = "$file:$lineNumber"
                         parse(loc, matcher.group(2), /$SUBSTITUTION ?/) {
                             substitutions.add([it.group(1), it.group(2)])

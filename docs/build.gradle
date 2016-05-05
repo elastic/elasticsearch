@@ -17,50 +17,27 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.SnippetsTask
-import org.elasticsearch.gradle.SnippetsTask.Snippet
-import org.elasticsearch.gradle.RestTestsFromSnippetsTask
+apply plugin: 'elasticsearch.docs-test'
 
-apply plugin: 'elasticsearch.rest-test'
-
-task listSnippets(type: SnippetsTask) {
-  group 'Docs'
-  description 'List each snippet'
-  perSnippet { println(it) }
-}
-
-task listAutoSenseCandidates(type: SnippetsTask) {
-  group 'Docs'
-  description 'List snippets that probably should be marked // CONSOLE'
-  perSnippet {
-    if (
-             it.autoSense    // Already marked, nothing to do
-          || it.testResponse // Only commands are autosense
-        ) {
-      return
-    }
-    List<String> languages = [
-      'js', 'json', // These languages should almost always be marked autosense
-      'sh', 'shell', // These are often curl commands that should be converted
-    ]
-    if (false == languages.contains(it.language)) {
-      return
-    }
-    println(it)
+integTest {
+  cluster {
+    setting 'script.inline', 'true'
   }
 }
 
-task buildRestTests(type: RestTestsFromSnippetsTask) {
-  docs = fileTree(project.projectDir) {
-    // No snippets in here!
-    exclude 'build.gradle'
-    // Remove plugins because they aren't installed during this test. Yet?
-    exclude 'plugins'
-    // This file simply doesn't pass yet. We should figure out how to fix it.
-    exclude 'reference/modules/snapshots.asciidoc'
-  }
-  Closure setupTwitter = { String name, int count ->
-    setups[name] = '''
+buildRestTests.docs = fileTree(projectDir) {
+  // No snippets in here!
+  exclude 'build.gradle'
+  // That is where the snippets go, not where they come from!
+  exclude 'build'
+  // Remove plugins because they aren't installed during this test. Yet?
+  exclude 'plugins'
+  // This file simply doesn't pass yet. We should figure out how to fix it.
+  exclude 'reference/modules/snapshots.asciidoc'
+}
+
+Closure setupTwitter = { String name, int count ->
+  buildRestTests.setups[name] = '''
   - do:
       bulk:
         index: twitter
@@ -68,17 +45,10 @@ task buildRestTests(type: RestTestsFromSnippetsTask) {
         refresh: true
         body: |'''
     for (int i = 0; i < count; i++) {
-      setups[name] += """
+      buildRestTests.setups[name] += """
           {"index":{}}
           {"msg": "some message with the number $i", "date": $i}"""
     }
   }
-  setupTwitter('twitter', 5)
-  setupTwitter('big_twitter', 120)
-}
-
-integTest {
-  cluster {
-    setting 'script.inline', 'true'
-  }
-}
+setupTwitter('twitter', 5)
+setupTwitter('big_twitter', 120)

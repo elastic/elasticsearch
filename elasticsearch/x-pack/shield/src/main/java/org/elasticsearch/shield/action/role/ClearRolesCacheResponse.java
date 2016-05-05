@@ -32,14 +32,12 @@ public class ClearRolesCacheResponse extends BaseNodesResponse<ClearRolesCacheRe
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        nodes = in.readList(Node::readNodeResponse);
+    protected List<ClearRolesCacheResponse.Node> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(Node::readNodeResponse);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    protected void writeNodesTo(StreamOutput out, List<ClearRolesCacheResponse.Node> nodes) throws IOException {
         out.writeStreamableList(nodes);
     }
 

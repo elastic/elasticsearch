@@ -26,7 +26,14 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Caster;
 import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.writer.Shared;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
+
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_NEG_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_NOT_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.NEGATEEXACT_INT;
+import static org.elasticsearch.painless.tree.writer.Constants.NEGATEEXACT_LONG;
 
 public class EUnary extends AExpression {
     protected Operation operation;
@@ -159,71 +166,66 @@ public class EUnary extends AExpression {
     }
 
     @Override
-    protected void write(CompilerSettings settings, Definition definition, GeneratorAdapter adapter) {
-        if (operation == Operation.) {
-            final Branch local = utility.markBranch(ctx, exprctx);
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        if (operation == Operation.NOT) {
+            if (tru == null && fals == null) {
+                final Label localfals = new Label();
+                final Label end = new Label();
 
-            if (branch == null) {
-                local.fals = new Label();
-                final Label aend = new Label();
+                child.fals = localfals;
+                child.write(settings, definition, adapter);
 
-                writer.visit(exprctx);
-
-                execute.push(false);
-                execute.goTo(aend);
-                execute.mark(local.fals);
-                execute.push(true);
-                execute.mark(aend);
-
-                caster.checkWriteCast(unaryemd);
+                adapter.push(false);
+                adapter.goTo(end);
+                adapter.mark(localfals);
+                adapter.push(true);
+                adapter.mark(end);
             } else {
-                local.tru = branch.fals;
-                local.fals = branch.tru;
-
-                writer.visit(exprctx);
+                child.tru = fals;
+                child.fals = tru;
+                child.write(settings, definition, adapter);
             }
         } else {
-            final org.objectweb.asm.Type type = unaryemd.from.type;
-            final Sort sort = unaryemd.from.sort;
+            final org.objectweb.asm.Type type = actual.type;
+            final Sort sort = actual.sort;
 
-            writer.visit(exprctx);
+            child.write(settings, definition, adapter);
 
-            if (ctx.BWNOT() != null) {
+            if (operation == Operation.BWNOT) {
                 if (sort == Sort.DEF) {
-                    execute.invokeStatic(definition.defobjType.type, DEF_NOT_CALL);
+                    adapter.invokeStatic(definition.defobjType.type, DEF_NOT_CALL);
                 } else {
                     if (sort == Sort.INT) {
-                        utility.writeConstant(ctx, -1);
+                        adapter.push(-1);
                     } else if (sort == Sort.LONG) {
-                        utility.writeConstant(ctx, -1L);
+                        adapter.push(-1L);
                     } else {
-                        throw new IllegalStateException(WriterUtility.error(ctx) + "Unexpected state.");
+                        throw new IllegalStateException(error("Illegal tree structure."));
                     }
 
-                    execute.math(GeneratorAdapter.XOR, type);
+                    adapter.math(GeneratorAdapter.XOR, type);
                 }
-            } else if (ctx.SUB() != null) {
+            } else if (operation == Operation.SUB) {
                 if (sort == Sort.DEF) {
-                    execute.invokeStatic(definition.defobjType.type, DEF_NEG_CALL);
+                    adapter.invokeStatic(definition.defobjType.type, DEF_NEG_CALL);
                 } else {
                     if (settings.getNumericOverflow()) {
-                        execute.math(GeneratorAdapter.NEG, type);
+                        adapter.math(GeneratorAdapter.NEG, type);
                     } else {
                         if (sort == Sort.INT) {
-                            execute.invokeStatic(definition.mathType.type, NEGATEEXACT_INT);
+                            adapter.invokeStatic(definition.mathType.type, NEGATEEXACT_INT);
                         } else if (sort == Sort.LONG) {
-                            execute.invokeStatic(definition.mathType.type, NEGATEEXACT_LONG);
+                            adapter.invokeStatic(definition.mathType.type, NEGATEEXACT_LONG);
                         } else {
-                            throw new IllegalStateException(WriterUtility.error(ctx) + "Unexpected state.");
+                            throw new IllegalStateException(error("Illegal tree structure."));
                         }
                     }
                 }
-            } else if (ctx.ADD() == null) {
-                throw new IllegalStateException(WriterUtility.error(ctx) + "Unexpected state.");
+            } else if (operation != Operation.ADD) {
+                throw new IllegalStateException(error("Illegal tree structure."));
             }
 
-            caster.checkWriteCast(unaryemd);
-            utility.checkWriteBranch(ctx);
+            Shared.writeBranch(adapter, tru, fals);
         }
     }
 }

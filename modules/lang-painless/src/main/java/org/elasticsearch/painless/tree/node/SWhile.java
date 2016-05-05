@@ -22,6 +22,8 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.writer.Shared;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class SWhile extends AStatement {
@@ -79,11 +81,32 @@ public class SWhile extends AStatement {
 
         statementCount = 1;
 
+        if (settings.getMaxLoopCounter() > 0) {
+            loopCounterSlot = variables.getVariable(location, "#loop").slot;
+        }
+
         variables.decrementScope();
     }
 
     @Override
-    protected void write(final GeneratorAdapter adapter) {
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        continu = new Label();
+        brake = new Label();
 
+        condition.write(settings, definition, adapter);
+
+        if (block != null) {
+            final int statementCount = Math.max(1, block.statementCount);
+            Shared.writeLoopCounter(adapter, loopCounterSlot, statementCount);
+            block.write(settings, definition, adapter);
+        } else {
+            Shared.writeLoopCounter(adapter, loopCounterSlot, 1);
+        }
+
+        if (block == null || !block.allEscape) {
+            adapter.goTo(continu);
+        }
+
+        adapter.mark(brake);
     }
 }

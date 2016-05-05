@@ -23,6 +23,8 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.elasticsearch.painless.tree.analyzer.Variables.Variable;
+import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class STrap extends AStatement {
@@ -67,7 +69,20 @@ public class STrap extends AStatement {
     }
 
     @Override
-    protected void write(final GeneratorAdapter adapter) {
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        final Label jump = new Label();
 
+        adapter.mark(jump);
+        adapter.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.slot);
+
+        if (block != null) {
+            block.write(settings, definition, adapter);
+        }
+
+        adapter.visitTryCatchBlock(continu, brake, jump, variable.type.type.getInternalName());
+
+        if (continu && !trapsmd.allLast) {
+            execute.goTo(branch.tru);
+        }
     }
 }

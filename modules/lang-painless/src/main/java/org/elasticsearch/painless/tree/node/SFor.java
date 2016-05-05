@@ -48,7 +48,7 @@ public class SFor extends AStatement {
 
         if (initializer != null) {
             if (initializer instanceof SDeclBlock) {
-                initializer.analyze(settings, definition, variables);
+                ((SDeclBlock)initializer).analyze(settings, definition, variables);
             } else if (initializer instanceof AExpression) {
                 final AExpression initializer = (AExpression)this.initializer;
 
@@ -119,7 +119,7 @@ public class SFor extends AStatement {
     }
 
     @Override
-    protected void write(final GeneratorAdapter adapter) {
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
 
     }
 }

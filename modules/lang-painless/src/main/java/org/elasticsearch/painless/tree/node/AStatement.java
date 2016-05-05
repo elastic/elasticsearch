@@ -39,6 +39,7 @@ public abstract class AStatement extends ANode {
     protected boolean anyContinue = false;
     protected boolean anyBreak = false;
 
+    protected int loopCounterSlot = -1;
     protected int statementCount = 0;
 
     protected Label continu = null;
@@ -49,5 +50,5 @@ public abstract class AStatement extends ANode {
     }
 
     protected abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
-    protected abstract void write(final GeneratorAdapter adapter);
+    protected abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
 }

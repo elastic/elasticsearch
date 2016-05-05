@@ -22,6 +22,7 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.Collections;
@@ -78,7 +79,30 @@ public class STry extends AStatement {
     }
 
     @Override
-    protected void write(final GeneratorAdapter adapter) {
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        final Label end = new Label();
+        final Label begin = new Label();
+        branch.end = new Label();
+        branch.tru = traps.size() > 1 ? end : null;
 
+        execute.mark(branch.begin);
+
+        final BlockContext blockctx = ctx.block();
+        final StatementMetadata blocksmd = metadata.getStatementMetadata(blockctx);
+        writer.visit(blockctx);
+
+        if (!blocksmd.allLast) {
+            execute.goTo(end);
+        }
+
+        execute.mark(branch.end);
+
+        for (final TrapContext trapctx : trapctxs) {
+            writer.visit(trapctx);
+        }
+
+        if (!blocksmd.allLast || trapctxs.length > 1) {
+            execute.mark(end);
+        }
     }
 }

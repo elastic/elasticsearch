@@ -50,19 +50,25 @@ public class EConditional extends AExpression {
             throw new IllegalArgumentException(error("Extraneous conditional statement."));
         }
 
+        left.expected = expected;
+        right.expected = expected;
+        actual = expected;
+
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = Caster.promoteConditional(definition, left.actual, right.actual, left.constant, right.constant);
+        if (expected == null) {
+            final Type promote = Caster.promoteConditional(definition, left.actual, right.actual, left.constant, right.constant);
 
-        left.expected = promote;
-        right.expected = promote;
+            left.expected = promote;
+            right.expected = promote;
+            actual = promote;
+        }
 
         left = left.cast(definition);
         right = right.cast(definition);
 
-        condition.actual = promote;
-        condition.typesafe = left.typesafe && right.typesafe;
+        typesafe = left.typesafe && right.typesafe;
     }
 
     @Override

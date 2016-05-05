@@ -77,7 +77,8 @@ public class SIfElse extends AStatement {
         }
     }
 
-    protected void write(final GeneratorAdapter adapter) {
+    @Override
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
 
     }
 }

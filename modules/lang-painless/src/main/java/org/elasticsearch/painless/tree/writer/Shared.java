@@ -53,6 +53,7 @@ import static org.elasticsearch.painless.tree.writer.Constants.MULEXACT_INT;
 import static org.elasticsearch.painless.tree.writer.Constants.MULEXACT_LONG;
 import static org.elasticsearch.painless.tree.writer.Constants.MULWOOVERLOW_DOUBLE;
 import static org.elasticsearch.painless.tree.writer.Constants.MULWOOVERLOW_FLOAT;
+import static org.elasticsearch.painless.tree.writer.Constants.PAINLESS_ERROR_TYPE;
 import static org.elasticsearch.painless.tree.writer.Constants.REMWOOVERLOW_DOUBLE;
 import static org.elasticsearch.painless.tree.writer.Constants.REMWOOVERLOW_FLOAT;
 import static org.elasticsearch.painless.tree.writer.Constants.STRINGBUILDER_APPEND_BOOLEAN;
@@ -90,6 +91,20 @@ import static org.elasticsearch.painless.tree.writer.Constants.TOSHORTWOOVERFLOW
 import static org.elasticsearch.painless.tree.writer.Constants.TOSHORTWOOVERFLOW_FLOAT;
 
 public class Shared {
+    public static void writeLoopCounter(final GeneratorAdapter adapter, final int slot, final int count) {
+        if (slot > -1) {
+            final Label end = new Label();
+
+            adapter.iinc(slot, -count);
+            adapter.visitVarInsn(Opcodes.ILOAD, slot);
+            adapter.push(0);
+            adapter.ifICmp(GeneratorAdapter.GT, end);
+            adapter.throwException(PAINLESS_ERROR_TYPE,
+                "The maximum number of statements that can be executed in a loop has been reached.");
+            adapter.mark(end);
+        }
+    }
+
     public static void writeCast(final GeneratorAdapter adapter, final Cast cast) {
         if (cast instanceof Transform) {
             final Transform transform = (Transform)cast;

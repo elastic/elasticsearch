@@ -241,7 +241,8 @@ public class Def {
         }
     }
 
-    public static Method getMethod(final Object owner, final String name, final Definition definition) {
+    /** Method lookup for owner.name(), returns null if no matching method was found */ 
+    private static Method getMethod(final Object owner, final String name, final Definition definition) {
         Class<?> clazz = owner.getClass();
 
         while (clazz != null) {
@@ -273,7 +274,8 @@ public class Def {
         return null;
     }
 
-    public static Field getField(final Object owner, final String name, final Definition definition) {
+    /** Field lookup for owner.name, returns null if no matching field was found */ 
+    private static Field getField(final Object owner, final String name, final Definition definition) {
         Class<?> clazz = owner.getClass();
 
         while (clazz != null) {

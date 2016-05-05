@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -70,7 +71,7 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
         nettyTransport = new NettyTransport(settings, threadPool, networkService, bigArrays, Version.CURRENT, new NamedWriteableRegistry(),
             new NoneCircuitBreakerService());
         nettyTransport.start();
-        TransportService transportService = new TransportService(nettyTransport, threadPool);
+        TransportService transportService = new TransportService(nettyTransport, threadPool, ClusterName.DEFAULT);
         nettyTransport.transportServiceAdapter(transportService.createAdapter());
 
         TransportAddress[] boundAddresses = nettyTransport.boundAddress().boundAddresses();
@@ -84,6 +85,7 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
     public void terminateThreadPool() throws InterruptedException {
         nettyTransport.stop();
         terminate(threadPool);
+        threadPool = null;
     }
 
     public void testThatTextMessageIsReturnedOnHTTPLikeRequest() throws Exception {

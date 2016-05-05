@@ -27,7 +27,6 @@ import org.elasticsearch.painless.PainlessParser.BinaryContext;
 import org.elasticsearch.painless.PainlessParser.BoolContext;
 import org.elasticsearch.painless.PainlessParser.BreakContext;
 import org.elasticsearch.painless.PainlessParser.CastContext;
-import org.elasticsearch.painless.PainlessParser.CharContext;
 import org.elasticsearch.painless.PainlessParser.CompContext;
 import org.elasticsearch.painless.PainlessParser.ConditionalContext;
 import org.elasticsearch.painless.PainlessParser.ContinueContext;
@@ -350,13 +349,6 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     @Override
     public Void visitNumeric(final NumericContext ctx) {
         expression.processNumeric(ctx);
-
-        return null;
-    }
-
-    @Override
-    public Void visitChar(final CharContext ctx) {
-        expression.processChar(ctx);
 
         return null;
     }

@@ -801,6 +801,7 @@ class Definition {
         addMethod("Utility", "charToLong", null, true, longobjType, new Type[] {charType}, null, null);
         addMethod("Utility", "charToFloat", null, true, floatobjType, new Type[] {charType}, null, null);
         addMethod("Utility", "charToDouble", null, true, doubleobjType, new Type[] {charType}, null, null);
+        addMethod("Utility", "charToString", null, true, stringType, new Type[] {charType}, null, null);
         addMethod("Utility", "CharacterToboolean", null, true, booleanType, new Type[] {charobjType}, null, null);
         addMethod("Utility", "CharacterTobyte", null, true, byteType, new Type[] {charobjType}, null, null);
         addMethod("Utility", "CharacterToshort", null, true, shortType, new Type[] {charobjType}, null, null);
@@ -815,6 +816,7 @@ class Definition {
         addMethod("Utility", "CharacterToLong", null, true, longobjType, new Type[] {charobjType}, null, null);
         addMethod("Utility", "CharacterToFloat", null, true, floatobjType, new Type[] {charobjType}, null, null);
         addMethod("Utility", "CharacterToDouble", null, true, doubleobjType, new Type[] {charobjType}, null, null);
+        addMethod("Utility", "CharacterToString", null, true, stringType, new Type[] {charobjType}, null, null);
         addMethod("Utility", "intToboolean", null, true, booleanType, new Type[] {intType}, null, null);
         addMethod("Utility", "intToByte", null, true, byteobjType, new Type[] {intType}, null, null);
         addMethod("Utility", "intToShort", null, true, shortobjType, new Type[] {intType}, null, null);
@@ -851,6 +853,8 @@ class Definition {
         addMethod("Utility", "doubleToFloat", null, true, floatobjType, new Type[] {doubleType}, null, null);
         addMethod("Utility", "DoubleToboolean", null, true, booleanType, new Type[] {doubleobjType}, null, null);
         addMethod("Utility", "DoubleTochar", null, true, charType, new Type[] {doubleobjType}, null, null);
+        addMethod("Utility", "StringTochar", null, true, charType, new Type[] {stringType}, null, null);
+        addMethod("Utility", "StringToCharacter", null, true, charobjType, new Type[] {stringType}, null, null);
 
         addMethod("Math", "abs", null, true, doubleType, new Type[] {doubleType}, null, null);
         addMethod("Math", "fabs", "abs", true, floatType, new Type[] {floatType}, null, null);
@@ -1125,6 +1129,7 @@ class Definition {
         addTransform(charType, longobjType, "Utility", "charToLong", true);
         addTransform(charType, floatobjType, "Utility", "charToFloat", true);
         addTransform(charType, doubleobjType, "Utility", "charToDouble", true);
+        addTransform(charType, stringType, "Utility", "charToString", true);
 
         addTransform(intType, booleanType, "Utility", "intToboolean", true);
         addTransform(intType, objectType, "Integer", "valueOf", true);
@@ -1281,6 +1286,7 @@ class Definition {
         addTransform(charobjType, longobjType, "Utility", "CharacterToLong", true);
         addTransform(charobjType, floatobjType, "Utility", "CharacterToFloat", true);
         addTransform(charobjType, doubleobjType, "Utility", "CharacterToDouble", true);
+        addTransform(charobjType, stringType, "Utility", "CharacterToString", true);
 
         addTransform(intobjType, booleanType, "Utility", "IntegerToboolean", true);
         addTransform(intobjType, byteType, "Integer", "byteValue", false);
@@ -1345,6 +1351,9 @@ class Definition {
         addTransform(doubleobjType, intobjType, "Utility", "NumberToInteger", true);
         addTransform(doubleobjType, longobjType, "Utility", "NumberToLong", true);
         addTransform(doubleobjType, floatobjType, "Utility", "NumberToFloat", true);
+
+        addTransform(stringType, charType, "Utility", "StringTochar", true);
+        addTransform(stringType, charobjType, "Utility", "StringToCharacter", true);
     }
 
     private void addDefaultBounds() {

@@ -584,8 +584,7 @@ class AnalyzerExternal {
                                     "Illegal list get shortcut [" + value + "] for type [" + struct.name + "].");
                             }
 
-                            if (setter != null && (setter.rtn.sort != Sort.VOID || setter.arguments.size() != 2 ||
-                                setter.arguments.get(0).sort != Sort.INT)) {
+                            if (setter != null && (setter.arguments.size() != 2 || setter.arguments.get(0).sort != Sort.INT)) {
                                 throw new IllegalArgumentException(AnalyzerUtility.error(ctx) +
                                     "Illegal list set shortcut [" + value + "] for type [" + struct.name + "].");
                             }

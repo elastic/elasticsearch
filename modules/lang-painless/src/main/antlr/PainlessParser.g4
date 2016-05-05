@@ -89,7 +89,6 @@ generic
 expression
     :               LP expression RP                                    # precedence
     |               ( OCTAL | HEX | INTEGER | DECIMAL )                 # numeric
-    |               CHAR                                                # char
     |               TRUE                                                # true
     |               FALSE                                               # false
     |               NULL                                                # null

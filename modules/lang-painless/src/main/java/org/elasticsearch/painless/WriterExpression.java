@@ -26,7 +26,6 @@ import org.elasticsearch.painless.PainlessParser.AssignmentContext;
 import org.elasticsearch.painless.PainlessParser.BinaryContext;
 import org.elasticsearch.painless.PainlessParser.BoolContext;
 import org.elasticsearch.painless.PainlessParser.CastContext;
-import org.elasticsearch.painless.PainlessParser.CharContext;
 import org.elasticsearch.painless.PainlessParser.CompContext;
 import org.elasticsearch.painless.PainlessParser.ConditionalContext;
 import org.elasticsearch.painless.PainlessParser.ExpressionContext;
@@ -97,20 +96,6 @@ class WriterExpression {
         if (postConst == null) {
             utility.writeNumeric(ctx, numericemd.preConst);
             caster.checkWriteCast(numericemd);
-        } else {
-            utility.writeConstant(ctx, postConst);
-        }
-
-        utility.checkWriteBranch(ctx);
-    }
-
-    void processChar(final CharContext ctx) {
-        final ExpressionMetadata charemd = metadata.getExpressionMetadata(ctx);
-        final Object postConst = charemd.postConst;
-
-        if (postConst == null) {
-            utility.writeNumeric(ctx, (int)(char)charemd.preConst);
-            caster.checkWriteCast(charemd);
         } else {
             utility.writeConstant(ctx, postConst);
         }

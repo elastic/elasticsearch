@@ -27,13 +27,13 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class SFor extends AStatement {
-    protected BNode initializer;
+    protected ANode initializer;
     protected AExpression condition;
     protected AExpression afterthought;
     protected final AStatement block;
 
     public SFor(final String location,
-                final BNode initializer, final AExpression condition, final AExpression afterthought, final AStatement block) {
+                final ANode initializer, final AExpression condition, final AExpression afterthought, final AStatement block) {
         super(location);
 
         this.initializer = initializer;

@@ -25,7 +25,7 @@ import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public abstract class AStatement extends BNode {
+public abstract class AStatement extends ANode {
     protected boolean lastSource = false;
 
     protected boolean beginLoop = false;

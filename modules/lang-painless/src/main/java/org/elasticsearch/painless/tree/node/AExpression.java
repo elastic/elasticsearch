@@ -28,7 +28,7 @@ import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public abstract class AExpression extends BNode {
+public abstract class AExpression extends ANode {
     protected boolean read = true;
     protected boolean statement = false;
 

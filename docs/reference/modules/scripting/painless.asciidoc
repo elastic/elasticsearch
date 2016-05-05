@@ -115,9 +115,8 @@ GET hockey/_search
 ----------------------------------------------------------------
 // AUTOSENSE
 
-You must always specify the index of the field value you want, even if there's only a single item in the field.
-All fields in Elasticsearch are multi-valued and Painless does not provide a `.value` shortcut. The following example uses a Painless script to sort the players by their combined first and last names. The names are accessed using
-`input.doc['first'].0` and `input.doc['last'].0`.
+The following example uses a Painless script to sort the players by their combined first and last names. The names are accessed using
+`input.doc['first'].value` and `input.doc['last'].value`.
 
 [source,js]
 ----------------------------------------------------------------
@@ -132,7 +131,7 @@ GET hockey/_search
       "order": "asc",
       "script": {
         "lang": "painless",
-        "inline": "input.doc['first'].0 + ' ' + input.doc['last'].0"
+        "inline": "input.doc['first'].value + ' ' + input.doc['last'].value"
       }
     }
   }
@@ -218,7 +217,7 @@ GET hockey/_search
     "full_name_dynamic": {
       "script": {
         "lang": "painless",
-        "inline": "def first = input.doc['first'].0; def last = input.doc['last'].0; return first + ' ' + last;"
+        "inline": "def first = input.doc['first'].value; def last = input.doc['last'].value; return first + ' ' + last;"
       }
     },
     "full_name_static": {

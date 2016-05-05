@@ -357,6 +357,48 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         assertEquals(json, -70.0, parsed.point().lon(), 0.0001);
     }
 
+    public void testFromJsonCoerceFails() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_distance_range\" : {\n" +
+                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
+                "    \"from\" : \"200km\",\n" +
+                "    \"to\" : \"400km\",\n" +
+                "    \"include_lower\" : true,\n" +
+                "    \"include_upper\" : true,\n" +
+                "    \"unit\" : \"m\",\n" +
+                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"optimize_bbox\" : \"memory\",\n" +
+                "    \"coerce\" : true,\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+    }
+
+    public void testFromJsonIgnoreMalformedFails() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_distance_range\" : {\n" +
+                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
+                "    \"from\" : \"200km\",\n" +
+                "    \"to\" : \"400km\",\n" +
+                "    \"include_lower\" : true,\n" +
+                "    \"include_upper\" : true,\n" +
+                "    \"unit\" : \"m\",\n" +
+                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"optimize_bbox\" : \"memory\",\n" +
+                "    \"ignore_malformed\" : true,\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+    }
+
     @Override
     public void testMustRewrite() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);

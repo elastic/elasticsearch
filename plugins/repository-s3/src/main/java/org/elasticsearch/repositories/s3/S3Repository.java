@@ -287,7 +287,7 @@ public class S3Repository extends BlobStoreRepository {
         String basePath = getValue(repositorySettings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING);
         if (Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();
-            for(String elem : Strings.splitStringToArray(basePath, '/')) {
+            for(String elem : basePath.split("/")) {
                 path = path.add(elem);
             }
             this.basePath = path;

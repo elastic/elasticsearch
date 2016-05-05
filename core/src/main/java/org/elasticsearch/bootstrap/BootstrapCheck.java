@@ -163,6 +163,7 @@ final class BootstrapCheck {
         if (Constants.LINUX) {
             checks.add(new MaxMapCountCheck());
         }
+        checks.add(new ClientJvmCheck());
         return Collections.unmodifiableList(checks);
     }
 
@@ -472,6 +473,33 @@ final class BootstrapCheck {
         @Override
         public final boolean isSystemCheck() {
             return true;
+        }
+
+    }
+
+    static class ClientJvmCheck implements BootstrapCheck.Check {
+
+        @Override
+        public boolean check() {
+            return getVmName().toLowerCase(Locale.ROOT).contains("client");
+        }
+
+        // visible for testing
+        String getVmName() {
+            return JvmInfo.jvmInfo().getVmName();
+        }
+
+        @Override
+        public String errorMessage() {
+            return String.format(
+                    Locale.ROOT,
+                    "JVM is using the client VM [%s] but should be using a server VM for the best performance",
+                    getVmName());
+        }
+
+        @Override
+        public final boolean isSystemCheck() {
+            return false;
         }
 
     }

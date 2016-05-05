@@ -45,7 +45,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
     @Override
     protected ScoreSortBuilder mutate(ScoreSortBuilder original) throws IOException {
         ScoreSortBuilder result = new ScoreSortBuilder();
-        result.order(RandomSortDataGenerator.order(original.order()));
+        result.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
         return result;
     }
 

@@ -159,6 +159,7 @@ class AnalyzerCaster {
                         return checkTransform(source, cast);
                     case BYTE_OBJ:
                     case SHORT_OBJ:
+                    case STRING:
                         if (explicit)
                             return checkTransform(source, cast);
 
@@ -371,6 +372,7 @@ class AnalyzerCaster {
                     case SHORT:
                     case BYTE_OBJ:
                     case SHORT_OBJ:
+                    case STRING:
                         if (explicit)
                             return checkTransform(source, cast);
 
@@ -470,6 +472,15 @@ class AnalyzerCaster {
                 }
 
                 break;
+            case STRING:
+                switch (to.sort) {
+                    case CHAR:
+                    case CHAR_OBJ:
+                        if (explicit)
+                            return checkTransform(source, cast);
+
+                        break;
+                }
         }
 
         try {
@@ -556,8 +567,8 @@ class AnalyzerCaster {
         } catch (IllegalAccessException | IllegalArgumentException |
             java.lang.reflect.InvocationTargetException | NullPointerException |
             ExceptionInInitializerError exception) {
-            throw new IllegalStateException(AnalyzerUtility.error(source) + "Unable to invoke transform to cast constant from " +
-                "[" + transform.from.name + "] to [" + transform.to.name + "].");
+            throw new IllegalArgumentException(AnalyzerUtility.error(source) +
+                "Cannot cast constant from [" + transform.from.name + "] to [" + transform.to.name + "].");
         }
     }
 }

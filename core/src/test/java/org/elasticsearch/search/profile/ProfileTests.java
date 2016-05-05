@@ -164,7 +164,7 @@ public class ProfileTests extends ESTestCase {
         final LeafCollector leafCollector = profileCollector.getLeafCollector(reader.leaves().get(0));
         assertThat(profileCollector.getTime(), greaterThan(0L));
         long time = profileCollector.getTime();
-        leafCollector.setScorer(Lucene.illegalScorer("dummy scorer"));
+        leafCollector.setScorer(null);
         assertThat(profileCollector.getTime(), greaterThan(time));
         time = profileCollector.getTime();
         leafCollector.collect(0);

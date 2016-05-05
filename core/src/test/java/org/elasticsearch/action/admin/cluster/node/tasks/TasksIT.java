@@ -492,7 +492,7 @@ public class TasksIT extends ESIntegTestCase {
     private void registerTaskManageListeners(String actionMasks) {
         for (String nodeName : internalCluster().getNodeNames()) {
             DiscoveryNode node = internalCluster().getInstance(ClusterService.class, nodeName).localNode();
-            RecordingTaskManagerListener listener = new RecordingTaskManagerListener(node, Strings.splitStringToArray(actionMasks, ','));
+            RecordingTaskManagerListener listener = new RecordingTaskManagerListener(node, actionMasks.split(","));
             ((MockTaskManager) internalCluster().getInstance(TransportService.class, nodeName).getTaskManager()).addListener(listener);
             RecordingTaskManagerListener oldListener = listeners.put(new Tuple<>(node.getName(), actionMasks), listener);
             assertNull(oldListener);

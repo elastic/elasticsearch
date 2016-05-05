@@ -1,10 +1,12 @@
 [[modules-scripting-painless]]
-== Painless Scripting Language
+=== Painless Scripting Language
 
 experimental[The Painless scripting language is new and is still marked as experimental. The syntax or API may be changed in the future in non-backwards compatible ways if required.]
 
-_Painless_ is a simple, secure scripting language built in to Elasticsearch as a module.
-It is designed specifically for use with Elasticsearch and can safely be used dynamically.
+_Painless_ is a simple, secure scripting language available in Elasticsearch
+by default. It is designed specifically for use with Elasticsearch and can
+safely be used with `inline` and `stored` scripting, which is enabled by
+default.
 
 A Painless script is essentially a single function. Painless does not provide support
 for defining multiple functions within a script. The Painless syntax is similar to
@@ -84,7 +86,7 @@ GET /hockey-stats/_search
       "script_score": {
         "script": {
           "lang": "painless",
-          "inline": "int total = 0; for (int i = 0; i < input.doc.goals.size(); ++i) { total += input.doc.goals[i]; } return total;"
+          "inline": "int total = 0; for (int i = 0; i < input.doc['goals'].size(); ++i) { total += input.doc['goals'][i]; } return total;"
         }
       }
     }
@@ -106,7 +108,7 @@ GET /hockey-stats/_search
     "total_goals": {
       "script": {
         "lang": "painless",
-        "inline": "int total = 0; for (int i = 0; i < input.doc.goals.size(); ++i) { total += input.doc.goals[i]; } return total;"
+        "inline": "int total = 0; for (int i = 0; i < input.doc['goals'].size(); ++i) { total += input.doc['goals'][i]; } return total;"
       }
     }
   }
@@ -116,7 +118,7 @@ GET /hockey-stats/_search
 
 You must always specify the index of the field value you want, even if there's only a single item in the field.
 All fields in Elasticsearch are multi-valued and Painless does not provide a `.value` shortcut. The following example uses a Painless script to sort the players by their combined first and last names. The names are accessed using
-`input.doc.first.0` and `input.doc.last.0`.
+`input.doc['first'].0` and `input.doc['last'].0`.
 
 [source,sh]
 ----------------------------------------------------------------
@@ -131,7 +133,7 @@ GET /hockey-stats/_search
       "order": "asc",
       "script": {
         "lang": "painless",
-        "inline": "input.doc.first.0 + \" \" + input.doc.last.0"
+        "inline": "input.doc['first'].0 + ' ' + input.doc['last'].0"
       }
     }
   }
@@ -217,13 +219,13 @@ GET /hockey-stats/_search
     "full_name_dynamic": {
       "script": {
         "lang": "painless",
-        "inline": "def first = input.doc.first.0; def last = input.doc.last.0; return first + \" \" + last;"
+        "inline": "def first = input.doc['first'].0; def last = input.doc['last'].0; return first + ' ' + last;"
       }
     },
     "full_name_static": {
       "script": {
         "lang": "painless",
-        "inline": "String first = (String)((List)((Map)input.get(\"doc\")).get(\"first\")).get(0); String last = (String)((List)((Map)input.get(\"doc\")).get(\"last\")).get(0); return first + \" \" + last;"
+        "inline": "String first = (String)((List)((Map)input.get('doc')).get('first')).get(0); String last = (String)((List)((Map)input.get('doc')).get('last')).get(0); return first + ' ' + last;"
       }
     }
   }

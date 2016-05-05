@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle.vagrant
 
 import org.gradle.api.DefaultTask
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskAction
 import org.gradle.logging.ProgressLoggerFactory
 import org.gradle.process.internal.ExecAction
@@ -30,41 +31,22 @@ import javax.inject.Inject
  * Runs bats over vagrant. Pretty much like running it using Exec but with a
  * nicer output formatter.
  */
-class BatsOverVagrantTask extends DefaultTask {
-  String command
-  String boxName
-  ExecAction execAction
+public class BatsOverVagrantTask extends VagrantCommandTask {
 
-  BatsOverVagrantTask() {
-    execAction = getExecActionFactory().newExecAction()
-  }
+    @Input
+    String command
 
-  @Inject
-  ProgressLoggerFactory getProgressLoggerFactory() {
-    throw new UnsupportedOperationException();
-  }
+    BatsOverVagrantTask() {
+        project.afterEvaluate {
+            args 'ssh', boxName, '--command', command
+        }
+    }
 
-  @Inject
-  ExecActionFactory getExecActionFactory() {
-    throw new UnsupportedOperationException();
-  }
-
-  void boxName(String boxName) {
-    this.boxName = boxName
-  }
-
-  void command(String command) {
-    this.command = command
-  }
-
-  @TaskAction
-  void exec() {
-    // It'd be nice if --machine-readable were, well, nice
-    execAction.commandLine(['vagrant', 'ssh', boxName, '--command', command])
-    execAction.setStandardOutput(new TapLoggerOutputStream(
-      command: command,
-      factory: getProgressLoggerFactory(),
-      logger: logger))
-    execAction.execute();
-  }
+    @Override
+    protected OutputStream createLoggerOutputStream() {
+        return new TapLoggerOutputStream(
+                command: commandLine.join(' '),
+                factory: getProgressLoggerFactory(),
+                logger: logger)
+    }
 }

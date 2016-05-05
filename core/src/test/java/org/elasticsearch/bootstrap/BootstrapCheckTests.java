@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -371,6 +372,27 @@ public class BootstrapCheckTests extends ESTestCase {
         List<BootstrapCheck.Check> defaultChecks = BootstrapCheck.checks(Settings.EMPTY);
 
         expectThrows(RuntimeException.class, () -> BootstrapCheck.check(true, false, defaultChecks, "testMinMasterNodes"));
+    }
+
+    public void testClientJvmCheck() {
+        final AtomicReference<String> vmName = new AtomicReference<>("Java HotSpot(TM) 32-Bit Client VM");
+        final BootstrapCheck.Check check = new BootstrapCheck.ClientJvmCheck() {
+            @Override
+            String getVmName() {
+                return vmName.get();
+            }
+        };
+
+        RuntimeException e = expectThrows(
+                RuntimeException.class,
+                () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testClientJvmCheck"));
+        assertThat(
+                e.getMessage(),
+                containsString("JVM is using the client VM [Java HotSpot(TM) 32-Bit Client VM] " +
+                        "but should be using a server VM for the best performance"));
+
+        vmName.set("Java HotSpot(TM) 32-Bit Server VM");
+        BootstrapCheck.check(true, false, Collections.singletonList(check), "testClientJvmCheck");
     }
 
     public void testIgnoringSystemChecks() {

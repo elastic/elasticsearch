@@ -47,10 +47,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentParser.Token.END_OBJECT;
 
@@ -72,7 +74,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         PARSER.declareStringArray(InnerHitBuilder::setFieldDataFields, SearchSourceBuilder.FIELDDATA_FIELDS_FIELD);
         PARSER.declareField((p, i, c) -> {
             try {
-                List<ScriptField> scriptFields = new ArrayList<>();
+                Set<ScriptField> scriptFields = new HashSet<>();
                 for (XContentParser.Token token = p.nextToken(); token != END_OBJECT; token = p.nextToken()) {
                     scriptFields.add(new ScriptField(c));
                 }
@@ -132,7 +134,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
     private QueryBuilder<?> query = new MatchAllQueryBuilder();
     private List<SortBuilder<?>> sorts;
     private List<String> fieldDataFields;
-    private List<ScriptField> scriptFields;
+    private Set<ScriptField> scriptFields;
     private HighlightBuilder highlightBuilder;
     private FetchSourceContext fetchSourceContext;
     private Map<String, InnerHitBuilder> childInnerHits;
@@ -155,7 +157,11 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         fieldNames = (List<String>) in.readGenericValue();
         fieldDataFields = (List<String>) in.readGenericValue();
         if (in.readBoolean()) {
-            scriptFields = in.readList(ScriptField::new);
+            int size = in.readVInt();
+            scriptFields = new HashSet<>(size);
+            for (int i = 0; i < size; i++) {
+                scriptFields.add(new ScriptField(in));
+            }
         }
         fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
         if (in.readBoolean()) {
@@ -190,7 +196,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             fieldDataFields = new ArrayList<>(other.fieldDataFields);
         }
         if (other.scriptFields != null) {
-            scriptFields = new ArrayList<>(other.scriptFields);
+            scriptFields = new HashSet<>(other.scriptFields);
         }
         if (other.fetchSourceContext != null) {
             fetchSourceContext = new FetchSourceContext(
@@ -240,7 +246,10 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         boolean hasScriptFields = scriptFields != null;
         out.writeBoolean(hasScriptFields);
         if (hasScriptFields) {
-            out.writeList(scriptFields);
+            out.writeVInt(scriptFields.size());
+            for (ScriptField scriptField : scriptFields) {
+                scriptField.writeTo(out);;
+            }
         }
         out.writeOptionalStreamable(fetchSourceContext);
         boolean hasSorts = sorts != null;
@@ -350,18 +359,18 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         return this;
     }
 
-    public List<ScriptField> getScriptFields() {
+    public Set<ScriptField> getScriptFields() {
         return scriptFields;
     }
 
-    public InnerHitBuilder setScriptFields(List<ScriptField> scriptFields) {
+    public InnerHitBuilder setScriptFields(Set<ScriptField> scriptFields) {
         this.scriptFields = scriptFields;
         return this;
     }
 
     public InnerHitBuilder addScriptField(String name, Script script) {
         if (scriptFields == null) {
-            scriptFields = new ArrayList<>();
+            scriptFields = new HashSet<>();
         }
         scriptFields.add(new ScriptField(name, script, false));
         return this;

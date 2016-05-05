@@ -20,6 +20,7 @@
 package org.elasticsearch.search.query;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -30,6 +31,7 @@ public class QueryParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        context.parsedQuery(context.getQueryShardContext().parse(parser));
+        QueryShardContext queryShardContext = context.getQueryShardContext();
+        context.parsedQuery(queryShardContext.toQuery(queryShardContext.newParseContext(parser).parseInnerQueryBuilder()));
     }
 }

@@ -476,3 +476,15 @@ fi
     # restore JAVA_HOME
     export JAVA_HOME=$java_home
 }
+
+@test "[$GROUP] test ES_JAVA_OPTS" {
+    # preserve ES_JAVA_OPTS
+    local es_java_opts=$ES_JAVA_OPTS
+
+    export ES_JAVA_OPTS="-XX:+PrintFlagsFinal"
+    # this will fail if ES_JAVA_OPTS is not passed through
+    "$ESHOME/bin/elasticsearch-plugin" list | grep MaxHeapSize
+
+    # restore ES_JAVA_OPTS
+    export ES_JAVA_OPTS=$es_java_opts
+}

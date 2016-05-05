@@ -27,7 +27,6 @@ import org.elasticsearch.painless.PainlessParser.AssignmentContext;
 import org.elasticsearch.painless.PainlessParser.BinaryContext;
 import org.elasticsearch.painless.PainlessParser.BoolContext;
 import org.elasticsearch.painless.PainlessParser.CastContext;
-import org.elasticsearch.painless.PainlessParser.CharContext;
 import org.elasticsearch.painless.PainlessParser.CompContext;
 import org.elasticsearch.painless.PainlessParser.ConditionalContext;
 import org.elasticsearch.painless.PainlessParser.DecltypeContext;
@@ -159,17 +158,6 @@ class AnalyzerExpression {
                 }
             }
         }
-    }
-
-    void processChar(final CharContext ctx) {
-        final ExpressionMetadata charemd = metadata.getExpressionMetadata(ctx);
-
-        if (ctx.CHAR() == null) {
-            throw new IllegalStateException(AnalyzerUtility.error(ctx) + "Unexpected state.");
-        }
-
-        charemd.preConst = ctx.CHAR().getText().charAt(1);
-        charemd.from = definition.charType;
     }
 
     void processTrue(final TrueContext ctx) {

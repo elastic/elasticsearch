@@ -803,6 +803,7 @@ public class Definition {
         addMethod("Utility", "charToLong", null, true, longobjType, new Type[] {charType}, null, null);
         addMethod("Utility", "charToFloat", null, true, floatobjType, new Type[] {charType}, null, null);
         addMethod("Utility", "charToDouble", null, true, doubleobjType, new Type[] {charType}, null, null);
+        addMethod("Utility", "charToString", null, true, stringType, new Type[] {charType}, null, null);
         addMethod("Utility", "CharacterToboolean", null, true, booleanType, new Type[] {charobjType}, null, null);
         addMethod("Utility", "CharacterTobyte", null, true, byteType, new Type[] {charobjType}, null, null);
         addMethod("Utility", "CharacterToshort", null, true, shortType, new Type[] {charobjType}, null, null);
@@ -817,6 +818,7 @@ public class Definition {
         addMethod("Utility", "CharacterToLong", null, true, longobjType, new Type[] {charobjType}, null, null);
         addMethod("Utility", "CharacterToFloat", null, true, floatobjType, new Type[] {charobjType}, null, null);
         addMethod("Utility", "CharacterToDouble", null, true, doubleobjType, new Type[] {charobjType}, null, null);
+        addMethod("Utility", "CharacterToString", null, true, stringType, new Type[] {charobjType}, null, null);
         addMethod("Utility", "intToboolean", null, true, booleanType, new Type[] {intType}, null, null);
         addMethod("Utility", "intToByte", null, true, byteobjType, new Type[] {intType}, null, null);
         addMethod("Utility", "intToShort", null, true, shortobjType, new Type[] {intType}, null, null);
@@ -853,6 +855,8 @@ public class Definition {
         addMethod("Utility", "doubleToFloat", null, true, floatobjType, new Type[] {doubleType}, null, null);
         addMethod("Utility", "DoubleToboolean", null, true, booleanType, new Type[] {doubleobjType}, null, null);
         addMethod("Utility", "DoubleTochar", null, true, charType, new Type[] {doubleobjType}, null, null);
+        addMethod("Utility", "StringTochar", null, true, charType, new Type[] {stringType}, null, null);
+        addMethod("Utility", "StringToCharacter", null, true, charobjType, new Type[] {stringType}, null, null);
 
         addMethod("Math", "abs", null, true, doubleType, new Type[] {doubleType}, null, null);
         addMethod("Math", "fabs", "abs", true, floatType, new Type[] {floatType}, null, null);

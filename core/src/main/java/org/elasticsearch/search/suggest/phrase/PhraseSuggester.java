@@ -32,8 +32,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
@@ -115,11 +118,14 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     // from the index for a correction, collateMatch is updated
                     final Map<String, Object> vars = suggestion.getCollateScriptParams();
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
-                    ScriptService scriptService = suggestion.getShardContext().getScriptService();
+                    QueryShardContext shardContext = suggestion.getShardContext();
+                    ScriptService scriptService = shardContext.getScriptService();
                     final ExecutableScript executable = scriptService.executable(collateScript, vars);
                     final BytesReference querySource = (BytesReference) executable.run();
-                    final ParsedQuery parsedQuery = suggestion.getShardContext().parse(querySource);
-                    collateMatch = Lucene.exists(searcher, parsedQuery.query());
+                    try (XContentParser parser = XContentFactory.xContent(querySource).createParser(querySource)) {
+                        final ParsedQuery parsedQuery = shardContext.toQuery(shardContext.newParseContext(parser).parseInnerQueryBuilder());
+                        collateMatch = Lucene.exists(searcher, parsedQuery.query());
+                    }
                 }
                 if (!collateMatch && !collatePrune) {
                     continue;
@@ -142,7 +148,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         return response;
     }
 
-    private PhraseSuggestion.Entry buildResultEntry(SuggestionContext suggestion, CharsRefBuilder spare, double cutoffScore) {
+    private static PhraseSuggestion.Entry buildResultEntry(SuggestionContext suggestion, CharsRefBuilder spare, double cutoffScore) {
         spare.copyUTF8Bytes(suggestion.getText());
         return new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length(), cutoffScore);
     }

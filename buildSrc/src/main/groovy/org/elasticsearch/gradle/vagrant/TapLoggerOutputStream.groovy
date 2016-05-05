@@ -47,9 +47,9 @@ class TapLoggerOutputStream extends LoggingOutputStream {
   TapLoggerOutputStream(Map args) {
     logger = args.logger
     progressLogger = args.factory.newOperation(VagrantLoggerOutputStream)
-    progressLogger.setDescription("TAP output for $args.command")
+    progressLogger.setDescription("TAP output for `$args.command`")
     progressLogger.started()
-    progressLogger.progress("Starting $args.command...")
+    progressLogger.progress("Starting `$args.command`...")
   }
 
   void flush() {

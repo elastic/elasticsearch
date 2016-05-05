@@ -123,8 +123,8 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         CountDownLatch clusterStateLatch = new CountDownLatch(1);
 
         @Inject
-        public InternalTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
-            super(settings, transport, threadPool);
+        public InternalTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClusterName clusterName) {
+            super(settings, transport, threadPool, clusterName);
         }
 
         @Override @SuppressWarnings("unchecked")

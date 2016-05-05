@@ -242,18 +242,16 @@ public class Def {
     }
 
     public static Method getMethod(final Object owner, final String name, final Definition definition) {
-        Struct struct = null;
         Class<?> clazz = owner.getClass();
-        Method method = null;
 
         while (clazz != null) {
-            struct = definition.classes.get(clazz);
+            Struct struct = definition.classes.get(clazz);
 
             if (struct != null) {
-                method = struct.methods.get(name);
+                Method method = struct.methods.get(name);
 
                 if (method != null) {
-                    break;
+                    return method;
                 }
             }
 
@@ -261,45 +259,31 @@ public class Def {
                 struct = definition.classes.get(iface);
 
                 if (struct != null) {
-                    method = struct.methods.get(name);
+                    Method method = struct.methods.get(name);
 
                     if (method != null) {
-                        break;
+                        return method;
                     }
-                }
-            }
-
-            if (struct != null) {
-                method = struct.methods.get(name);
-
-                if (method != null) {
-                    break;
                 }
             }
 
             clazz = clazz.getSuperclass();
         }
 
-        if (struct == null) {
-            throw new IllegalArgumentException("Unable to find a dynamic struct for class [" + owner.getClass() + "].");
-        }
-
-        return method;
+        return null;
     }
 
     public static Field getField(final Object owner, final String name, final Definition definition) {
-        Struct struct = null;
         Class<?> clazz = owner.getClass();
-        Field field = null;
 
         while (clazz != null) {
-            struct = definition.classes.get(clazz);
+            Struct struct = definition.classes.get(clazz);
 
             if (struct != null) {
-                field = struct.members.get(name);
+                Field field = struct.members.get(name);
 
                 if (field != null) {
-                    break;
+                    return field;
                 }
             }
 
@@ -307,30 +291,18 @@ public class Def {
                 struct = definition.classes.get(iface);
 
                 if (struct != null) {
-                    field = struct.members.get(name);
+                    Field field = struct.members.get(name);
 
                     if (field != null) {
-                        break;
+                        return field;
                     }
-                }
-            }
-
-            if (struct != null) {
-                field = struct.members.get(name);
-
-                if (field != null) {
-                    break;
                 }
             }
 
             clazz = clazz.getSuperclass();
         }
 
-        if (struct == null) {
-            throw new IllegalArgumentException("Unable to find a dynamic struct for class [" + owner.getClass() + "].");
-        }
-
-        return field;
+        return null;
     }
 
     public static Transform getTransform(Class<?> fromClass, Class<?> toClass, final Definition definition) {

@@ -249,7 +249,7 @@ public class Utility {
     }
 
     public static String charToString(final char value) {
-        return "" + value;
+        return String.valueOf(value);
     }
 
     public static boolean CharacterToboolean(final Character value) {

@@ -101,13 +101,13 @@ expression
     |               expression ( MUL | DIV | REM ) expression           # binary
     |               expression ( ADD | SUB ) expression                 # binary
     |               expression ( LSH | RSH | USH ) expression           # binary
-    |               expression ( LT | LTE | GT | GTE ) expression       # binary
-    |               expression ( EQ | EQR | NE | NER ) expression       # binary
+    |               expression ( LT | LTE | GT | GTE ) expression       # comp
+    |               expression ( EQ | EQR | NE | NER ) expression       # comp
     |               expression BWAND expression                         # binary
     |               expression XOR expression                           # binary
     |               expression BWOR expression                          # binary
-    |               expression BOOLAND expression                       # binary
-    |               expression BOOLOR expression                        # binary
+    |               expression BOOLAND expression                       # bool
+    |               expression BOOLOR expression                        # bool
     | <assoc=right> expression COND expression COLON expression         # conditional
     | <assoc=right> extstart ( ASSIGN | AADD | ASUB | AMUL | ADIV
                                       | AREM | AAND | AXOR | AOR

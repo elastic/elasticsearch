@@ -25,7 +25,7 @@ class PainlessParser extends Parser {
     BWOR=44, BOOLAND=45, BOOLOR=46, COND=47, COLON=48, INCR=49, DECR=50, ASSIGN=51, 
     AADD=52, ASUB=53, AMUL=54, ADIV=55, AREM=56, AAND=57, AXOR=58, AOR=59, 
     ALSH=60, ARSH=61, AUSH=62, OCTAL=63, HEX=64, INTEGER=65, DECIMAL=66, STRING=67, 
-    CHAR=68, TRUE=69, FALSE=70, NULL=71, ID=72, EXTINTEGER=73, EXTID=74;
+    TRUE=68, FALSE=69, NULL=70, ID=71, EXTINTEGER=72, EXTID=73, CHAR=74;
   public static final int
     RULE_source = 0, RULE_statement = 1, RULE_block = 2, RULE_empty = 3, RULE_emptyscope = 4, 
     RULE_initializer = 5, RULE_afterthought = 6, RULE_declaration = 7, RULE_decltype = 8, 
@@ -48,7 +48,7 @@ class PainlessParser extends Parser {
     "'>='", "'=='", "'==='", "'!='", "'!=='", "'&'", "'^'", "'|'", "'&&'", 
     "'||'", "'?'", "':'", "'++'", "'--'", "'='", "'+='", "'-='", "'*='", "'/='", 
     "'%='", "'&='", "'^='", "'|='", "'<<='", "'>>='", "'>>>='", null, null, 
-    null, null, null, null, "'true'", "'false'", "'null'"
+    null, null, null, "'true'", "'false'", "'null'"
   };
   private static final String[] _SYMBOLIC_NAMES = {
     null, "WS", "COMMENT", "LBRACK", "RBRACK", "LBRACE", "RBRACE", "LP", "RP", 
@@ -58,8 +58,8 @@ class PainlessParser extends Parser {
     "GTE", "EQ", "EQR", "NE", "NER", "BWAND", "XOR", "BWOR", "BOOLAND", "BOOLOR", 
     "COND", "COLON", "INCR", "DECR", "ASSIGN", "AADD", "ASUB", "AMUL", "ADIV", 
     "AREM", "AAND", "AXOR", "AOR", "ALSH", "ARSH", "AUSH", "OCTAL", "HEX", 
-    "INTEGER", "DECIMAL", "STRING", "CHAR", "TRUE", "FALSE", "NULL", "ID", 
-    "EXTINTEGER", "EXTID"
+    "INTEGER", "DECIMAL", "STRING", "TRUE", "FALSE", "NULL", "ID", "EXTINTEGER", 
+    "EXTID", "CHAR"
   };
   public static final Vocabulary VOCABULARY = new VocabularyImpl(_LITERAL_NAMES, _SYMBOLIC_NAMES);
 
@@ -149,7 +149,7 @@ class PainlessParser extends Parser {
         setState(53); 
         _errHandler.sync(this);
         _la = _input.LA(1);
-      } while ( (((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << LP) | (1L << IF) | (1L << WHILE) | (1L << DO) | (1L << FOR) | (1L << CONTINUE) | (1L << BREAK) | (1L << RETURN) | (1L << NEW) | (1L << TRY) | (1L << THROW) | (1L << BOOLNOT) | (1L << BWNOT) | (1L << ADD) | (1L << SUB) | (1L << INCR) | (1L << DECR) | (1L << OCTAL))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (HEX - 64)) | (1L << (INTEGER - 64)) | (1L << (DECIMAL - 64)) | (1L << (STRING - 64)) | (1L << (CHAR - 64)) | (1L << (TRUE - 64)) | (1L << (FALSE - 64)) | (1L << (NULL - 64)) | (1L << (ID - 64)))) != 0) );
+      } while ( (((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << LP) | (1L << IF) | (1L << WHILE) | (1L << DO) | (1L << FOR) | (1L << CONTINUE) | (1L << BREAK) | (1L << RETURN) | (1L << NEW) | (1L << TRY) | (1L << THROW) | (1L << BOOLNOT) | (1L << BWNOT) | (1L << ADD) | (1L << SUB) | (1L << INCR) | (1L << DECR) | (1L << OCTAL))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (HEX - 64)) | (1L << (INTEGER - 64)) | (1L << (DECIMAL - 64)) | (1L << (STRING - 64)) | (1L << (TRUE - 64)) | (1L << (FALSE - 64)) | (1L << (NULL - 64)) | (1L << (ID - 64)) | (1L << (CHAR - 64)))) != 0) );
       setState(55);
       match(EOF);
       }
@@ -456,7 +456,7 @@ class PainlessParser extends Parser {
         match(LP);
         setState(86);
         _la = _input.LA(1);
-        if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << LP) | (1L << NEW) | (1L << BOOLNOT) | (1L << BWNOT) | (1L << ADD) | (1L << SUB) | (1L << INCR) | (1L << DECR) | (1L << OCTAL))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (HEX - 64)) | (1L << (INTEGER - 64)) | (1L << (DECIMAL - 64)) | (1L << (STRING - 64)) | (1L << (CHAR - 64)) | (1L << (TRUE - 64)) | (1L << (FALSE - 64)) | (1L << (NULL - 64)) | (1L << (ID - 64)))) != 0)) {
+        if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << LP) | (1L << NEW) | (1L << BOOLNOT) | (1L << BWNOT) | (1L << ADD) | (1L << SUB) | (1L << INCR) | (1L << DECR) | (1L << OCTAL))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (HEX - 64)) | (1L << (INTEGER - 64)) | (1L << (DECIMAL - 64)) | (1L << (STRING - 64)) | (1L << (TRUE - 64)) | (1L << (FALSE - 64)) | (1L << (NULL - 64)) | (1L << (ID - 64)) | (1L << (CHAR - 64)))) != 0)) {
           {
           setState(85);
           initializer();
@@ -467,7 +467,7 @@ class PainlessParser extends Parser {
         match(SEMICOLON);
         setState(90);
         _la = _input.LA(1);
-        if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << LP) | (1L << NEW) | (1L << BOOLNOT) | (1L << BWNOT) | (1L << ADD) | (1L << SUB) | (1L << INCR) | (1L << DECR) | (1L << OCTAL))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (HEX - 64)) | (1L << (INTEGER - 64)) | (1L << (DECIMAL - 64)) | (1L << (STRING - 64)) | (1L << (CHAR - 64)) | (1L << (TRUE - 64)) | (1L << (FALSE - 64)) | (1L << (NULL - 64)) | (1L << (ID - 64)))) != 0)) {
+        if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << LP) | (1L << NEW) | (1L << BOOLNOT) | (1L << BWNOT) | (1L << ADD) | (1L << SUB) | (1L << INCR) | (1L << DECR) | (1L << OCTAL))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (HEX - 64)) | (1L << (INTEGER - 64)) | (1L << (DECIMAL - 64)) | (1L << (STRING - 64)) | (1L << (TRUE - 64)) | (1L << (FALSE - 64)) | (1L << (NULL - 64)) | (1L << (ID - 64)) | (1L << (CHAR - 64)))) != 0)) {
           {
           setState(89);
           expression(0);
@@ -478,7 +478,7 @@ class PainlessParser extends Parser {
         match(SEMICOLON);
         setState(94);
         _la = _input.LA(1);
-        if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << LP) | (1L << NEW) | (1L << BOOLNOT) | (1L << BWNOT) | (1L << ADD) | (1L << SUB) | (1L << INCR) | (1L << DECR) | (1L << OCTAL))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (HEX - 64)) | (1L << (INTEGER - 64)) | (1L << (DECIMAL - 64)) | (1L << (STRING - 64)) | (1L << (CHAR - 64)) | (1L << (TRUE - 64)) | (1L << (FALSE - 64)) | (1L << (NULL - 64)) | (1L << (ID - 64)))) != 0)) {
+        if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << LP) | (1L << NEW) | (1L << BOOLNOT) | (1L << BWNOT) | (1L << ADD) | (1L << SUB) | (1L << INCR) | (1L << DECR) | (1L << OCTAL))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (HEX - 64)) | (1L << (INTEGER - 64)) | (1L << (DECIMAL - 64)) | (1L << (STRING - 64)) | (1L << (TRUE - 64)) | (1L << (FALSE - 64)) | (1L << (NULL - 64)) | (1L << (ID - 64)) | (1L << (CHAR - 64)))) != 0)) {
           {
           setState(93);
           afterthought();
@@ -718,7 +718,7 @@ class PainlessParser extends Parser {
           setState(140); 
           _errHandler.sync(this);
           _la = _input.LA(1);
-        } while ( (((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << LP) | (1L << IF) | (1L << WHILE) | (1L << DO) | (1L << FOR) | (1L << CONTINUE) | (1L << BREAK) | (1L << RETURN) | (1L << NEW) | (1L << TRY) | (1L << THROW) | (1L << BOOLNOT) | (1L << BWNOT) | (1L << ADD) | (1L << SUB) | (1L << INCR) | (1L << DECR) | (1L << OCTAL))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (HEX - 64)) | (1L << (INTEGER - 64)) | (1L << (DECIMAL - 64)) | (1L << (STRING - 64)) | (1L << (CHAR - 64)) | (1L << (TRUE - 64)) | (1L << (FALSE - 64)) | (1L << (NULL - 64)) | (1L << (ID - 64)))) != 0) );
+        } while ( (((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << LP) | (1L << IF) | (1L << WHILE) | (1L << DO) | (1L << FOR) | (1L << CONTINUE) | (1L << BREAK) | (1L << RETURN) | (1L << NEW) | (1L << TRY) | (1L << THROW) | (1L << BOOLNOT) | (1L << BWNOT) | (1L << ADD) | (1L << SUB) | (1L << INCR) | (1L << DECR) | (1L << OCTAL))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (HEX - 64)) | (1L << (INTEGER - 64)) | (1L << (DECIMAL - 64)) | (1L << (STRING - 64)) | (1L << (TRUE - 64)) | (1L << (FALSE - 64)) | (1L << (NULL - 64)) | (1L << (ID - 64)) | (1L << (CHAR - 64)))) != 0) );
         setState(142);
         match(RBRACK);
         }
@@ -745,11 +745,11 @@ class PainlessParser extends Parser {
       case INTEGER:
       case DECIMAL:
       case STRING:
-      case CHAR:
       case TRUE:
       case FALSE:
       case NULL:
       case ID:
+      case CHAR:
         _localctx = new SingleContext(_localctx);
         enterOuterAlt(_localctx, 2);
         {
@@ -1321,6 +1321,44 @@ class PainlessParser extends Parser {
       super.copyFrom(ctx);
     }
   }
+  public static class CompContext extends ExpressionContext {
+    public List<ExpressionContext> expression() {
+      return getRuleContexts(ExpressionContext.class);
+    }
+    public ExpressionContext expression(int i) {
+      return getRuleContext(ExpressionContext.class,i);
+    }
+    public TerminalNode LT() { return getToken(PainlessParser.LT, 0); }
+    public TerminalNode LTE() { return getToken(PainlessParser.LTE, 0); }
+    public TerminalNode GT() { return getToken(PainlessParser.GT, 0); }
+    public TerminalNode GTE() { return getToken(PainlessParser.GTE, 0); }
+    public TerminalNode EQ() { return getToken(PainlessParser.EQ, 0); }
+    public TerminalNode EQR() { return getToken(PainlessParser.EQR, 0); }
+    public TerminalNode NE() { return getToken(PainlessParser.NE, 0); }
+    public TerminalNode NER() { return getToken(PainlessParser.NER, 0); }
+    public CompContext(ExpressionContext ctx) { copyFrom(ctx); }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof PainlessParserVisitor ) return ((PainlessParserVisitor<? extends T>)visitor).visitComp(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+  public static class BoolContext extends ExpressionContext {
+    public List<ExpressionContext> expression() {
+      return getRuleContexts(ExpressionContext.class);
+    }
+    public ExpressionContext expression(int i) {
+      return getRuleContext(ExpressionContext.class,i);
+    }
+    public TerminalNode BOOLAND() { return getToken(PainlessParser.BOOLAND, 0); }
+    public TerminalNode BOOLOR() { return getToken(PainlessParser.BOOLOR, 0); }
+    public BoolContext(ExpressionContext ctx) { copyFrom(ctx); }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof PainlessParserVisitor ) return ((PainlessParserVisitor<? extends T>)visitor).visitBool(this);
+      else return visitor.visitChildren(this);
+    }
+  }
   public static class ConditionalContext extends ExpressionContext {
     public List<ExpressionContext> expression() {
       return getRuleContexts(ExpressionContext.class);
@@ -1360,6 +1398,22 @@ class PainlessParser extends Parser {
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
       if ( visitor instanceof PainlessParserVisitor ) return ((PainlessParserVisitor<? extends T>)visitor).visitAssignment(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+  public static class ECastContext extends ExpressionContext {
+    public TerminalNode LP() { return getToken(PainlessParser.LP, 0); }
+    public DecltypeContext decltype() {
+      return getRuleContext(DecltypeContext.class,0);
+    }
+    public TerminalNode RP() { return getToken(PainlessParser.RP, 0); }
+    public ExpressionContext expression() {
+      return getRuleContext(ExpressionContext.class,0);
+    }
+    public ECastContext(ExpressionContext ctx) { copyFrom(ctx); }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof PainlessParserVisitor ) return ((PainlessParserVisitor<? extends T>)visitor).visitECast(this);
       else return visitor.visitChildren(this);
     }
   }
@@ -1438,22 +1492,6 @@ class PainlessParser extends Parser {
       else return visitor.visitChildren(this);
     }
   }
-  public static class CastContext extends ExpressionContext {
-    public TerminalNode LP() { return getToken(PainlessParser.LP, 0); }
-    public DecltypeContext decltype() {
-      return getRuleContext(DecltypeContext.class,0);
-    }
-    public TerminalNode RP() { return getToken(PainlessParser.RP, 0); }
-    public ExpressionContext expression() {
-      return getRuleContext(ExpressionContext.class,0);
-    }
-    public CastContext(ExpressionContext ctx) { copyFrom(ctx); }
-    @Override
-    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof PainlessParserVisitor ) return ((PainlessParserVisitor<? extends T>)visitor).visitCast(this);
-      else return visitor.visitChildren(this);
-    }
-  }
   public static class ExternalContext extends ExpressionContext {
     public ExtstartContext extstart() {
       return getRuleContext(ExtstartContext.class,0);
@@ -1489,19 +1527,9 @@ class PainlessParser extends Parser {
     public TerminalNode LSH() { return getToken(PainlessParser.LSH, 0); }
     public TerminalNode RSH() { return getToken(PainlessParser.RSH, 0); }
     public TerminalNode USH() { return getToken(PainlessParser.USH, 0); }
-    public TerminalNode LT() { return getToken(PainlessParser.LT, 0); }
-    public TerminalNode LTE() { return getToken(PainlessParser.LTE, 0); }
-    public TerminalNode GT() { return getToken(PainlessParser.GT, 0); }
-    public TerminalNode GTE() { return getToken(PainlessParser.GTE, 0); }
-    public TerminalNode EQ() { return getToken(PainlessParser.EQ, 0); }
-    public TerminalNode EQR() { return getToken(PainlessParser.EQR, 0); }
-    public TerminalNode NE() { return getToken(PainlessParser.NE, 0); }
-    public TerminalNode NER() { return getToken(PainlessParser.NER, 0); }
     public TerminalNode BWAND() { return getToken(PainlessParser.BWAND, 0); }
     public TerminalNode XOR() { return getToken(PainlessParser.XOR, 0); }
     public TerminalNode BWOR() { return getToken(PainlessParser.BWOR, 0); }
-    public TerminalNode BOOLAND() { return getToken(PainlessParser.BOOLAND, 0); }
-    public TerminalNode BOOLOR() { return getToken(PainlessParser.BOOLOR, 0); }
     public BinaryContext(ExpressionContext ctx) { copyFrom(ctx); }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
@@ -1565,7 +1593,7 @@ class PainlessParser extends Parser {
         break;
       case 2:
         {
-        _localctx = new CastContext(_localctx);
+        _localctx = new ECastContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
         setState(210);
@@ -1765,7 +1793,7 @@ class PainlessParser extends Parser {
             break;
           case 4:
             {
-            _localctx = new BinaryContext(new ExpressionContext(_parentctx, _parentState));
+            _localctx = new CompContext(new ExpressionContext(_parentctx, _parentState));
             pushNewRecursionContext(_localctx, _startState, RULE_expression);
             setState(245);
             if (!(precpred(_ctx, 9))) throw new FailedPredicateException(this, "precpred(_ctx, 9)");
@@ -1782,7 +1810,7 @@ class PainlessParser extends Parser {
             break;
           case 5:
             {
-            _localctx = new BinaryContext(new ExpressionContext(_parentctx, _parentState));
+            _localctx = new CompContext(new ExpressionContext(_parentctx, _parentState));
             pushNewRecursionContext(_localctx, _startState, RULE_expression);
             setState(248);
             if (!(precpred(_ctx, 8))) throw new FailedPredicateException(this, "precpred(_ctx, 8)");
@@ -1835,7 +1863,7 @@ class PainlessParser extends Parser {
             break;
           case 9:
             {
-            _localctx = new BinaryContext(new ExpressionContext(_parentctx, _parentState));
+            _localctx = new BoolContext(new ExpressionContext(_parentctx, _parentState));
             pushNewRecursionContext(_localctx, _startState, RULE_expression);
             setState(260);
             if (!(precpred(_ctx, 4))) throw new FailedPredicateException(this, "precpred(_ctx, 4)");
@@ -1847,7 +1875,7 @@ class PainlessParser extends Parser {
             break;
           case 10:
             {
-            _localctx = new BinaryContext(new ExpressionContext(_parentctx, _parentState));
+            _localctx = new BoolContext(new ExpressionContext(_parentctx, _parentState));
             pushNewRecursionContext(_localctx, _startState, RULE_expression);
             setState(263);
             if (!(precpred(_ctx, 3))) throw new FailedPredicateException(this, "precpred(_ctx, 3)");
@@ -2679,7 +2707,7 @@ class PainlessParser extends Parser {
       match(LP);
       setState(368);
       _la = _input.LA(1);
-      if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << LP) | (1L << NEW) | (1L << BOOLNOT) | (1L << BWNOT) | (1L << ADD) | (1L << SUB) | (1L << INCR) | (1L << DECR) | (1L << OCTAL))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (HEX - 64)) | (1L << (INTEGER - 64)) | (1L << (DECIMAL - 64)) | (1L << (STRING - 64)) | (1L << (CHAR - 64)) | (1L << (TRUE - 64)) | (1L << (FALSE - 64)) | (1L << (NULL - 64)) | (1L << (ID - 64)))) != 0)) {
+      if ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << LP) | (1L << NEW) | (1L << BOOLNOT) | (1L << BWNOT) | (1L << ADD) | (1L << SUB) | (1L << INCR) | (1L << DECR) | (1L << OCTAL))) != 0) || ((((_la - 64)) & ~0x3f) == 0 && ((1L << (_la - 64)) & ((1L << (HEX - 64)) | (1L << (INTEGER - 64)) | (1L << (DECIMAL - 64)) | (1L << (STRING - 64)) | (1L << (TRUE - 64)) | (1L << (FALSE - 64)) | (1L << (NULL - 64)) | (1L << (ID - 64)) | (1L << (CHAR - 64)))) != 0)) {
         {
         setState(360);
         expression(0);
@@ -2784,7 +2812,7 @@ class PainlessParser extends Parser {
     "\n\30\3\31\3\31\3\31\5\31\u0168\n\31\3\32\3\32\3\32\3\32\7\32\u016e\n"+
     "\32\f\32\16\32\u0171\13\32\5\32\u0173\n\32\3\32\3\32\3\32\2\3\34\33\2"+
     "\4\6\b\n\f\16\20\22\24\26\30\32\34\36 \"$&(*,.\60\62\2\f\4\2\32\33\37"+
-    " \3\2\65@\3\2AD\3\2\63\64\3\2\34\36\3\2\37 \3\2!#\3\2$\'\3\2(+\3\2KL\u01b5"+
+    " \3\2\65@\3\2AD\3\2\63\64\3\2\34\36\3\2\37 \3\2!#\3\2$\'\3\2(+\3\2JK\u01b5"+
     "\2\65\3\2\2\2\4\u0088\3\2\2\2\6\u0093\3\2\2\2\b\u0097\3\2\2\2\n\u0099"+
     "\3\2\2\2\f\u009e\3\2\2\2\16\u00a0\3\2\2\2\20\u00a2\3\2\2\2\22\u00ab\3"+
     "\2\2\2\24\u00b3\3\2\2\2\26\u00b8\3\2\2\2\30\u00c2\3\2\2\2\32\u00c6\3\2"+
@@ -2828,7 +2856,7 @@ class PainlessParser extends Parser {
     "\3\2\2\2\u00b7\25\3\2\2\2\u00b8\u00b9\7\30\2\2\u00b9\u00ba\7\t\2\2\u00ba"+
     "\u00bb\5\30\r\2\u00bb\u00bc\5\30\r\2\u00bc\u00bd\3\2\2\2\u00bd\u00c0\7"+
     "\n\2\2\u00be\u00c1\5\6\4\2\u00bf\u00c1\5\n\6\2\u00c0\u00be\3\2\2\2\u00c0"+
-    "\u00bf\3\2\2\2\u00c1\27\3\2\2\2\u00c2\u00c4\7J\2\2\u00c3\u00c5\5\32\16"+
+    "\u00bf\3\2\2\2\u00c1\27\3\2\2\2\u00c2\u00c4\7I\2\2\u00c3\u00c5\5\32\16"+
     "\2\u00c4\u00c3\3\2\2\2\u00c4\u00c5\3\2\2\2\u00c5\31\3\2\2\2\u00c6\u00c7"+
     "\7$\2\2\u00c7\u00cc\5\30\r\2\u00c8\u00c9\7\f\2\2\u00c9\u00cb\5\30\r\2"+
     "\u00ca\u00c8\3\2\2\2\u00cb\u00ce\3\2\2\2\u00cc\u00ca\3\2\2\2\u00cc\u00cd"+
@@ -2838,8 +2866,8 @@ class PainlessParser extends Parser {
     "\u00d8\5\34\17\17\u00d8\u00ed\3\2\2\2\u00d9\u00da\5\36\20\2\u00da\u00db"+
     "\t\3\2\2\u00db\u00dc\5\34\17\3\u00dc\u00ed\3\2\2\2\u00dd\u00de\7\t\2\2"+
     "\u00de\u00df\5\34\17\2\u00df\u00e0\7\n\2\2\u00e0\u00ed\3\2\2\2\u00e1\u00ed"+
-    "\t\4\2\2\u00e2\u00ed\7F\2\2\u00e3\u00ed\7G\2\2\u00e4\u00ed\7H\2\2\u00e5"+
-    "\u00ed\7I\2\2\u00e6\u00e7\5\36\20\2\u00e7\u00e8\t\5\2\2\u00e8\u00ed\3"+
+    "\t\4\2\2\u00e2\u00ed\7L\2\2\u00e3\u00ed\7F\2\2\u00e4\u00ed\7G\2\2\u00e5"+
+    "\u00ed\7H\2\2\u00e6\u00e7\5\36\20\2\u00e7\u00e8\t\5\2\2\u00e8\u00ed\3"+
     "\2\2\2\u00e9\u00ea\t\5\2\2\u00ea\u00ed\5\36\20\2\u00eb\u00ed\5\36\20\2"+
     "\u00ec\u00d1\3\2\2\2\u00ec\u00d4\3\2\2\2\u00ec\u00d9\3\2\2\2\u00ec\u00dd"+
     "\3\2\2\2\u00ec\u00e1\3\2\2\2\u00ec\u00e2\3\2\2\2\u00ec\u00e3\3\2\2\2\u00ec"+
@@ -2876,7 +2904,7 @@ class PainlessParser extends Parser {
     "\2\u0138\u013b\5&\24\2\u0139\u013b\5$\23\2\u013a\u0138\3\2\2\2\u013a\u0139"+
     "\3\2\2\2\u013a\u013b\3\2\2\2\u013b%\3\2\2\2\u013c\u013f\7\13\2\2\u013d"+
     "\u0140\5(\25\2\u013e\u0140\5,\27\2\u013f\u013d\3\2\2\2\u013f\u013e\3\2"+
-    "\2\2\u0140\'\3\2\2\2\u0141\u0142\7L\2\2\u0142\u0145\5\62\32\2\u0143\u0146"+
+    "\2\2\u0140\'\3\2\2\2\u0141\u0142\7K\2\2\u0142\u0145\5\62\32\2\u0143\u0146"+
     "\5&\24\2\u0144\u0146\5$\23\2\u0145\u0143\3\2\2\2\u0145\u0144\3\2\2\2\u0145"+
     "\u0146\3\2\2\2\u0146)\3\2\2\2\u0147\u014a\5\30\r\2\u0148\u014b\5&\24\2"+
     "\u0149\u014b\5$\23\2\u014a\u0148\3\2\2\2\u014a\u0149\3\2\2\2\u014a\u014b"+

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.painless.tree.node;
 
-public abstract class ANode {
+public abstract class BNode {
     public final String location;
 
-    public ANode(final String location) {
+    public BNode(final String location) {
         this.location = location;
     }
 

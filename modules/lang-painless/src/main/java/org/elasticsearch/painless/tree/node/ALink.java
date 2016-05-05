@@ -27,7 +27,7 @@ import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public abstract class ALink extends ANode {
+public abstract class ALink extends BNode {
     protected boolean load = true;
     protected boolean store = false;
 

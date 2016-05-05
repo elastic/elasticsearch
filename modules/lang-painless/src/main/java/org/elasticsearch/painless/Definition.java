@@ -1172,9 +1172,9 @@ class Definition {
         
         copyStruct("GeoPoint", "Object");
         copyStruct("Strings", "List<String>", "Collection<String>", "Object");
-        copyStruct("Longs", "List<Object>", "Collection<Object>", "Object");
-        copyStruct("Doubles", "List<Object>", "Collection<Object>", "Object");
-        copyStruct("GeoPoints", "List<Object>", "Collection<Object>", "Object");
+        copyStruct("Longs", "List", "Collection", "Object");
+        copyStruct("Doubles", "List", "Collection", "Object");
+        copyStruct("GeoPoints", "List", "Collection", "Object");
     }
 
     private void addDefaultTransforms() {

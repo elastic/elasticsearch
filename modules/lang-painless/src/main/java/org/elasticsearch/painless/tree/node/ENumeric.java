@@ -91,7 +91,7 @@ public class ENumeric extends AExpression {
     }
 
     @Override
-    protected void write(final GeneratorAdapter adapter) {
-
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 }

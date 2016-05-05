@@ -21,46 +21,46 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Definition.Sort;
+import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.elasticsearch.painless.tree.analyzer.Variables.Variable;
 import org.elasticsearch.painless.tree.writer.Shared;
-import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class LVariable extends ALink {
-    protected final String name;
+public class LShortcut extends ALink {
+    protected final String value;
 
-    protected int slot;
+    protected Method getter = null;
+    protected Method setter = null;
 
-    public LVariable(final String location, final String name) {
+    public LShortcut(final String location, final String value) {
         super(location);
 
-        this.name = name;
+        this.value = value;
     }
 
     @Override
     protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        if (before != null) {
-            throw new IllegalStateException(error("Illegal tree structure."));
+        final Struct struct = before.struct;
+
+        getter = struct.methods.get("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1));
+        setter = struct.methods.get("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1));
+
+        if (getter != null && (getter.rtn.sort == Sort.VOID || !getter.arguments.isEmpty())) {
+            throw new IllegalArgumentException(error(
+                "Illegal get shortcut on field [" + value + "] for type [" + struct.name + "]."));
         }
 
-        Type type = null;
-
-        try {
-            type = definition.getType(name);
-        } catch (final IllegalArgumentException exception) {
-            // Do nothing.
+        if (setter != null && (setter.rtn.sort != Sort.VOID || setter.arguments.size() != 1)) {
+            throw new IllegalArgumentException(error(
+                "Illegal set shortcut on field [" + value + "] for type [" + struct.name + "]."));
         }
 
-        if (type != null) {
-            statik = true;
-            after = type;
+        if ((getter != null || setter != null) && (!load || getter != null) && (!store || setter != null)) {
+            after = load ? getter.rtn : setter.rtn;
         } else {
-            final Variable variable = variables.getVariable(location, name);
-
-            slot = variable.slot;
-            after = variable.type;
+            throw new IllegalArgumentException(error("Illegal shortcut on field [" + value + "] for type [" + struct.name + "]."));
         }
 
         return this;
@@ -74,22 +74,24 @@ public class LVariable extends ALink {
 
         if (store) {
             if (cat) {
-                load(adapter);
+                adapter.dup2X1();
+                adapter.arrayLoad(before.type);
                 Shared.writeAppendStrings(adapter, after.sort);
                 expression.write(settings, definition, adapter);
                 Shared.writeToStrings(adapter);
                 Shared.writeCast(adapter, back);
 
                 if (load) {
-                    Shared.writeDup(adapter, after.sort.size, false, false);
+                    Shared.writeDup(adapter, after.sort.size, false, true);
                 }
 
-                store(adapter);
+                adapter.arrayStore(before.type);
             } else if (operation != null) {
+                adapter.dup2();
                 load(adapter);
 
                 if (load && post) {
-                    Shared.writeDup(adapter, after.sort.size, false, false);
+                    Shared.writeDup(adapter, after.sort.size, false, true);
                 }
 
                 Shared.writeCast(adapter, there);
@@ -104,7 +106,7 @@ public class LVariable extends ALink {
                 store(adapter);
             } else {
                 if (load) {
-                    Shared.writeDup(adapter, after.sort.size, false, false);
+                    Shared.writeDup(adapter, after.sort.size, false, true);
                 }
 
                 store(adapter);
@@ -115,10 +117,24 @@ public class LVariable extends ALink {
     }
 
     protected void load(final GeneratorAdapter adapter) {
-        adapter.visitVarInsn(after.type.getOpcode(Opcodes.ISTORE), slot);
+        if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
+            adapter.invokeInterface(getter.owner.type, getter.method);
+        } else {
+            adapter.invokeVirtual(getter.owner.type, getter.method);
+        }
+
+        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
+            adapter.checkCast(getter.rtn.type);
+        }
     }
 
     protected void store(final GeneratorAdapter adapter) {
-        adapter.visitVarInsn(after.type.getOpcode(Opcodes.ILOAD), slot);
+        if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
+            adapter.invokeInterface(setter.owner.type, setter.method);
+        } else {
+            adapter.invokeVirtual(setter.owner.type, setter.method);
+        }
+
+        Shared.writePop(adapter, setter.rtn.sort.size);
     }
 }

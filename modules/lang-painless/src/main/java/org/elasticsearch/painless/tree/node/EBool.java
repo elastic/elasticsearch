@@ -23,6 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class EBool extends AExpression {
@@ -63,7 +64,73 @@ public class EBool extends AExpression {
     }
 
     @Override
-    protected void write(final GeneratorAdapter adapter) {
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        if (tru != null || fals != null) {
+            if (operation == Operation.AND) {
+                final Label localfals = fals == null ? new Label() : fals;
 
+                left.fals = localfals;
+                right.tru = tru;
+                right.fals = fals;
+
+                left.write(settings, definition, adapter);
+                right.write(settings, definition, adapter);
+
+                if (fals == null) {
+                    adapter.mark(localfals);
+                }
+            } else if (operation == Operation.OR) {
+                final Label localtru = tru == null ? new Label() : tru;
+
+                left.fals = localtru;
+                right.tru = tru;
+                right.fals = fals;
+
+                left.write(settings, definition, adapter);
+                right.write(settings, definition, adapter);
+
+                if (tru == null) {
+                    adapter.mark(localtru);
+                }
+            } else {
+                throw new IllegalStateException(error("Illegal tree structure."));
+            }
+        } else {
+            if (operation == Operation.AND) {
+                final Label localfals = new Label();
+                final Label end = new Label();
+
+                left.fals = localfals;
+                right.fals = localfals;
+
+                left.write(settings, definition, adapter);
+                right.write(settings, definition, adapter);
+
+                adapter.push(true);
+                adapter.goTo(end);
+                adapter.mark(localfals);
+                adapter.push(false);
+                adapter.mark(end);
+            } else if (operation == Operation.OR) {
+                final Label localtru = new Label();
+                final Label localfals = new Label();
+                final Label end = new Label();
+
+                left.tru = localtru;
+                right.fals = localfals;
+
+                left.write(settings, definition, adapter);
+                right.write(settings, definition, adapter);
+
+                adapter.mark(localtru);
+                adapter.push(true);
+                adapter.goTo(end);
+                adapter.mark(localfals);
+                adapter.push(false);
+                adapter.mark(end);
+            } else {
+                throw new IllegalStateException(error("Illegal tree structure."));
+            }
+        }
     }
 }

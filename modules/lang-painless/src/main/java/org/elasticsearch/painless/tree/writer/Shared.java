@@ -26,6 +26,8 @@ import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Transform;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Operation;
+import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import static org.elasticsearch.painless.tree.writer.Constants.ADDEXACT_INT;
@@ -124,6 +126,14 @@ public class Shared {
                     adapter.checkCast(to.type);
                 }
             }
+        }
+    }
+
+    public static void writeBranch(final GeneratorAdapter adapter, final Label tru, final Label fals) {
+        if (tru != null) {
+            adapter.visitJumpInsn(Opcodes.IFNE, tru);
+        } else if (fals != null) {
+            adapter.visitJumpInsn(Opcodes.IFEQ, fals);
         }
     }
 

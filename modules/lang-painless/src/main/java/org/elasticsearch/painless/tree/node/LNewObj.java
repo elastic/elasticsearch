@@ -21,9 +21,12 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Constructor;
+import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.elasticsearch.painless.tree.walker.analyzer.MetadataExpression;
+import org.elasticsearch.painless.tree.writer.Shared;
+import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.Collections;
 import java.util.List;
@@ -31,6 +34,8 @@ import java.util.List;
 public class LNewObj extends ALink {
     protected final String type;
     protected final List<AExpression> arguments;
+
+    protected Constructor constructor;
 
     public LNewObj(final String location, final String type, final List<AExpression> arguments) {
         super(location);
@@ -40,7 +45,7 @@ public class LNewObj extends ALink {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (before != null) {
             throw new IllegalStateException(error("Illegal tree structure"));
         } else if (store) {
@@ -55,11 +60,11 @@ public class LNewObj extends ALink {
             throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
         }
 
-        final Definition.Struct struct = type.struct;
-        final Definition.Constructor constructor = struct.constructors.get("new");
+        final Struct struct = type.struct;
+        constructor = struct.constructors.get("new");
 
         if (constructor != null) {
-            final Definition.Type[] types = new Definition.Type[constructor.arguments.size()];
+            final Type[] types = new Type[constructor.arguments.size()];
             constructor.arguments.toArray(types);
 
             if (constructor.arguments.size() != arguments.size()) {
@@ -77,9 +82,29 @@ public class LNewObj extends ALink {
 
             statement = true;
             after = type;
-            target = new TNewObj(location, constructor, arguments);
         } else {
             throw new IllegalArgumentException(error("Unknown new call on type [" + struct.name + "]."));
         }
+
+        return this;
+    }
+
+    @Override
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        if (strings) {
+            Shared.writeNewStrings(adapter);
+        }
+
+        adapter.newInstance(after.type);
+
+        if (load && store) {
+            adapter.dup();
+        }
+
+        for (final AExpression argument : arguments) {
+            argument.write(settings, definition, adapter);
+        }
+
+        adapter.invokeConstructor(constructor.owner.type, constructor.method);
     }
 }

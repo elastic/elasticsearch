@@ -159,7 +159,71 @@ public class EUnary extends AExpression {
     }
 
     @Override
-    protected void write(final GeneratorAdapter adapter) {
+    protected void write(CompilerSettings settings, Definition definition, GeneratorAdapter adapter) {
+        if (operation == Operation.) {
+            final Branch local = utility.markBranch(ctx, exprctx);
 
+            if (branch == null) {
+                local.fals = new Label();
+                final Label aend = new Label();
+
+                writer.visit(exprctx);
+
+                execute.push(false);
+                execute.goTo(aend);
+                execute.mark(local.fals);
+                execute.push(true);
+                execute.mark(aend);
+
+                caster.checkWriteCast(unaryemd);
+            } else {
+                local.tru = branch.fals;
+                local.fals = branch.tru;
+
+                writer.visit(exprctx);
+            }
+        } else {
+            final org.objectweb.asm.Type type = unaryemd.from.type;
+            final Sort sort = unaryemd.from.sort;
+
+            writer.visit(exprctx);
+
+            if (ctx.BWNOT() != null) {
+                if (sort == Sort.DEF) {
+                    execute.invokeStatic(definition.defobjType.type, DEF_NOT_CALL);
+                } else {
+                    if (sort == Sort.INT) {
+                        utility.writeConstant(ctx, -1);
+                    } else if (sort == Sort.LONG) {
+                        utility.writeConstant(ctx, -1L);
+                    } else {
+                        throw new IllegalStateException(WriterUtility.error(ctx) + "Unexpected state.");
+                    }
+
+                    execute.math(GeneratorAdapter.XOR, type);
+                }
+            } else if (ctx.SUB() != null) {
+                if (sort == Sort.DEF) {
+                    execute.invokeStatic(definition.defobjType.type, DEF_NEG_CALL);
+                } else {
+                    if (settings.getNumericOverflow()) {
+                        execute.math(GeneratorAdapter.NEG, type);
+                    } else {
+                        if (sort == Sort.INT) {
+                            execute.invokeStatic(definition.mathType.type, NEGATEEXACT_INT);
+                        } else if (sort == Sort.LONG) {
+                            execute.invokeStatic(definition.mathType.type, NEGATEEXACT_LONG);
+                        } else {
+                            throw new IllegalStateException(WriterUtility.error(ctx) + "Unexpected state.");
+                        }
+                    }
+                }
+            } else if (ctx.ADD() == null) {
+                throw new IllegalStateException(WriterUtility.error(ctx) + "Unexpected state.");
+            }
+
+            caster.checkWriteCast(unaryemd);
+            utility.checkWriteBranch(ctx);
+        }
     }
 }

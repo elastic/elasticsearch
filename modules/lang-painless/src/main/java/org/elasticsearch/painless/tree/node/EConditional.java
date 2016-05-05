@@ -24,6 +24,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Caster;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class EConditional extends AExpression {
@@ -65,7 +66,19 @@ public class EConditional extends AExpression {
     }
 
     @Override
-    protected void write(final GeneratorAdapter adapter) {
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        final Label localfals = new Label();
+        final Label end = new Label();
 
+        condition.fals = localfals;
+        left.tru = right.tru = tru;
+        left.fals = right.fals = fals;
+
+        condition.write(settings, definition, adapter);
+        left.write(settings, definition, adapter);
+        adapter.goTo(end);
+        adapter.mark(localfals);
+        right.write(settings, definition, adapter);
+        adapter.mark(end);
     }
 }

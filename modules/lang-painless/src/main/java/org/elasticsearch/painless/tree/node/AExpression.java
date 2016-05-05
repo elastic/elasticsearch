@@ -51,24 +51,29 @@ public abstract class AExpression extends ANode {
     protected abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
 
     protected AExpression cast(final Definition definition) {
+        final AExpression rtn;
+
         final Cast cast = Caster.getLegalCast(definition, location, actual, expected, !typesafe);
 
-        if (cast == null) {
-            return this;
+        if (constant != null) {
+            if (actual.sort.constant && expected.sort.constant) {
+                constant = Caster.constCast(location, constant, cast);
+            }
+
+            final AExpression econstant = this instanceof EConstant ? this : new EConstant(location, constant);
+
+            rtn = cast != null ? new ECast(location, econstant, cast) : econstant;
+        } else if (cast != null) {
+            rtn = new ECast(location, this, cast);
+        } else {
+            rtn = this;
         }
 
-        if (constant != null && expected.sort.constant) {
-            constant = Caster.constCast(location, constant, cast);
+        rtn.actual = actual;
+        rtn.typesafe = typesafe;
+        rtn.isNull = isNull;
+        rtn.strings = strings;
 
-            return this;
-        }
-
-        final AExpression ecast = new ECast(location, this, cast);
-
-        ecast.actual = actual;
-        ecast.typesafe = typesafe;
-        ecast.isNull = isNull;
-
-        return ecast;
+        return rtn;
     }
 }

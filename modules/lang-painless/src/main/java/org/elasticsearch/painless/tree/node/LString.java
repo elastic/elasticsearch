@@ -22,16 +22,17 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class LString extends ALink {
-    public LString(final String location, final String string) {
+    public LString(final String location, final String constant) {
         super(location);
 
-        this.constant = string;
+        this.constant = constant;
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (before != null) {
             throw new IllegalStateException("Illegal tree structure.");
         } else if (store) {
@@ -41,6 +42,12 @@ public class LString extends ALink {
         }
 
         after = definition.stringType;
-        target = new TString(location, (String)constant);
+
+        return this;
+    }
+
+    @Override
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        adapter.push((String)constant);
     }
 }

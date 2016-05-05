@@ -37,7 +37,7 @@ public class EChar extends AExpression {
     }
 
     @Override
-    protected void write(GeneratorAdapter adapter) {
-
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 }

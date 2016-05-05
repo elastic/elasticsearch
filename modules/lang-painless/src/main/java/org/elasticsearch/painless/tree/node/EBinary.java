@@ -27,6 +27,7 @@ import org.elasticsearch.painless.Utility;
 import org.elasticsearch.painless.tree.analyzer.Caster;
 import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class EBinary extends AExpression {
@@ -499,7 +500,34 @@ public class EBinary extends AExpression {
     }
 
     @Override
-    protected void write(final GeneratorAdapter adapter) {
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        if (actual.sort == Sort.STRING && operation == Operation.ADD) {
+            if (!strings) {
+                Shared.writeNewStrings(adapter);
+            }
 
+            left.write(settings, definition, adapter);
+
+            if (left instanceof EBinary && ((EBinary)left).operation == Operation.ADD && left.actual.sort == Sort.STRING) {
+                Shared.writeAppendStrings(adapter, left.expected.sort);
+            }
+
+            right.write(settings, definition, adapter);
+
+            if (right instanceof EBinary && ((EBinary)right).operation == Operation.ADD && right.actual.sort == Sort.STRING) {
+                Shared.writeAppendStrings(adapter, right.expected.sort);
+            }
+
+            if (!strings) {
+                Shared.writeToStrings(adapter);
+            }
+        } else {
+            left.write(settings, definition, adapter);
+            right.write(settings, definition, adapter);
+
+            Shared.writeBinaryInstruction(settings, definition, adapter, location, actual, operation);
+        }
+
+        Shared.writeBranch(adapter, tru, fals);
     }
 }

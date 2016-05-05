@@ -24,6 +24,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.tree.analyzer.Caster;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class LCast extends ALink {
@@ -38,7 +39,7 @@ public class LCast extends ALink {
     }
 
     @Override
-    protected ANode analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         } else if (store) {
@@ -57,12 +58,7 @@ public class LCast extends ALink {
     }
 
     @Override
-    protected void load(final GeneratorAdapter adapter) {
-
-    }
-
-    @Override
-    protected void store(final GeneratorAdapter adapter) {
-
+    protected void write(CompilerSettings settings, Definition definition, GeneratorAdapter adapter) {
+        Shared.writeCast(adapter, cast);
     }
 }

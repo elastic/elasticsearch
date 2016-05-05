@@ -21,7 +21,9 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class EConstant extends AExpression {
@@ -33,7 +35,9 @@ public class EConstant extends AExpression {
 
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        if (constant instanceof Double) {
+        if (constant instanceof String) {
+            actual = definition.stringType;
+        } else if (constant instanceof Double) {
             actual = definition.doubleType;
         } else if (constant instanceof Float) {
             actual = definition.floatType;
@@ -55,7 +59,33 @@ public class EConstant extends AExpression {
     }
 
     @Override
-    protected void write(final GeneratorAdapter adapter) {
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        final Sort sort = actual.sort;
 
+        switch (sort) {
+            case STRING: adapter.push((String)constant);  break;
+            case DOUBLE: adapter.push((double)constant);  break;
+            case FLOAT:  adapter.push((float)constant);   break;
+            case LONG:   adapter.push((long)constant);    break;
+            case INT:    adapter.push((int)constant);     break;
+            case CHAR:   adapter.push((char)constant);    break;
+            case BYTE:   adapter.push((byte)constant);    break;
+            case BOOL:
+                if (tru != null && (boolean)constant) {
+                    adapter.goTo(tru);
+                } else if (fals != null && !(boolean)constant) {
+                    adapter.goTo(fals);
+                } else {
+                    adapter.push((boolean)constant);
+                }
+
+                break;
+            default:
+                throw new IllegalStateException(error("Illegal tree structure."));
+        }
+
+        if (sort != Sort.BOOL) {
+            Shared.writeBranch(adapter, tru, fals);
+        }
     }
 }

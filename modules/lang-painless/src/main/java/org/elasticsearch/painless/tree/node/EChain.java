@@ -84,6 +84,10 @@ public class EChain extends AExpression {
             }
         }
 
+        if (links.get(0).statik) {
+            links.remove(0);
+        }
+
         final ALink first = links.get(0);
         final ALink last = links.get(links.size() - 1);
 

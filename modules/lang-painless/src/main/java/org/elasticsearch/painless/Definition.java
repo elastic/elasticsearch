@@ -1127,6 +1127,7 @@ public class Definition {
         addTransform(charType, longobjType, "Utility", "charToLong", true);
         addTransform(charType, floatobjType, "Utility", "charToFloat", true);
         addTransform(charType, doubleobjType, "Utility", "charToDouble", true);
+        addTransform(charType, stringType, "Utility", "charToString", true);
 
         addTransform(intType, booleanType, "Utility", "intToboolean", true);
         addTransform(intType, objectType, "Integer", "valueOf", true);
@@ -1283,6 +1284,7 @@ public class Definition {
         addTransform(charobjType, longobjType, "Utility", "CharacterToLong", true);
         addTransform(charobjType, floatobjType, "Utility", "CharacterToFloat", true);
         addTransform(charobjType, doubleobjType, "Utility", "CharacterToDouble", true);
+        addTransform(charobjType, stringType, "Utility", "CharacterToString", true);
 
         addTransform(intobjType, booleanType, "Utility", "IntegerToboolean", true);
         addTransform(intobjType, byteType, "Integer", "byteValue", false);
@@ -1347,6 +1349,9 @@ public class Definition {
         addTransform(doubleobjType, intobjType, "Utility", "NumberToInteger", true);
         addTransform(doubleobjType, longobjType, "Utility", "NumberToLong", true);
         addTransform(doubleobjType, floatobjType, "Utility", "NumberToFloat", true);
+
+        addTransform(stringType, charType, "Utility", "StringTochar", true);
+        addTransform(stringType, charobjType, "Utility", "StringToCharacter", true);
     }
 
     private void addDefaultBounds() {

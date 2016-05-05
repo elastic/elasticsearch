@@ -22,6 +22,7 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import static org.elasticsearch.painless.tree.writer.Constants.CLASS_TYPE;
@@ -48,7 +49,52 @@ public class LDefField extends ALink {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        if (strings) {
+            Shared.writeNewStrings(adapter);
+        }
 
+        if (store) {
+            if (cat) {
+                adapter.dupX1();
+                load(definition, adapter);
+                Shared.writeAppendStrings(adapter, after.sort);
+                expression.write(settings, definition, adapter);
+                Shared.writeToStrings(adapter);
+                Shared.writeCast(adapter, back);
+
+                if (load) {
+                    Shared.writeDup(adapter, after.sort.size, true, false);
+                }
+
+                store(definition, adapter);
+            } else if (operation != null) {
+                adapter.dup();
+                load(definition, adapter);
+
+                if (load && post) {
+                    Shared.writeDup(adapter, after.sort.size, true, false);
+                }
+
+                Shared.writeCast(adapter, there);
+                expression.write(settings, definition, adapter);
+                Shared.writeBinaryInstruction(settings, definition, adapter, location, there.to, operation);
+
+                if (settings.getNumericOverflow() || !expression.typesafe ||
+                    !Shared.writeExactInstruction(definition, adapter, expression.actual.sort, after.sort)) {
+                    Shared.writeCast(adapter, back);
+                }
+
+                store(definition, adapter);
+            } else {
+                if (load) {
+                    Shared.writeDup(adapter, after.sort.size, true, false);
+                }
+
+                store(definition, adapter);
+            }
+        } else {
+            load(definition, adapter);
+        }
     }
 
     protected void load(final Definition definition, final GeneratorAdapter adapter) {

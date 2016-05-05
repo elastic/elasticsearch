@@ -22,6 +22,7 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class ENull extends AExpression {
@@ -45,7 +46,7 @@ public class ENull extends AExpression {
     }
 
     @Override
-    protected void write(final GeneratorAdapter adapter) {
-
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        adapter.visitInsn(Opcodes.NULL);
     }
 }

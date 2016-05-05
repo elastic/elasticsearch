@@ -26,7 +26,16 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Caster;
 import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.writer.Shared;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
+
+import static org.elasticsearch.painless.tree.writer.Constants.CHECKEQUALS;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_EQ_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_GTE_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_GT_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_LTE_CALL;
+import static org.elasticsearch.painless.tree.writer.Constants.DEF_LT_CALL;
 
 public class EComp extends AExpression {
     protected final Operation operation;
@@ -409,7 +418,132 @@ public class EComp extends AExpression {
     }
 
     @Override
-    protected void write(final GeneratorAdapter adapter) {
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        final boolean branch = tru != null || fals != null;
+        final org.objectweb.asm.Type rtype = right.expected.type;
+        final Sort rsort = right.expected.sort;
 
+        left.write(settings, definition, adapter);
+
+        if (!right.isNull) {
+            right.write(settings, definition, adapter);
+        }
+
+        final Label jump = tru != null ? tru : fals != null ? fals : new Label();
+        final Label end = new Label();
+
+        final boolean eq = (operation == Operation.EQ || operation == Operation.EQR) && (tru != null || fals == null) ||
+            (operation == Operation.NE || operation == Operation.NER) && fals != null;
+        final boolean ne = (operation == Operation.NE || operation == Operation.NER) && (tru != null || fals == null) ||
+            (operation == Operation.EQ || operation == Operation.EQR) && fals != null;
+        final boolean lt  = operation == Operation.LT  && (tru != null || fals == null) || operation == Operation.GTE && fals != null;
+        final boolean lte = operation == Operation.LTE && (tru != null || fals == null) || operation == Operation.GT  && fals != null;
+        final boolean gt  = operation == Operation.GT  && (tru != null || fals == null) || operation == Operation.LTE && fals != null;
+        final boolean gte = operation == Operation.GTE && (tru != null || fals == null) || operation == Operation.LT  && fals != null;
+
+        boolean writejump = true;
+
+        switch (rsort) {
+            case VOID:
+            case BYTE:
+            case SHORT:
+            case CHAR:
+                throw new IllegalStateException(error("Illegal tree structure."));
+            case BOOL:
+                if      (eq) adapter.ifZCmp(GeneratorAdapter.EQ, jump);
+                else if (ne) adapter.ifZCmp(GeneratorAdapter.NE, jump);
+                else {
+                    throw new IllegalStateException(error("Illegal tree structure."));
+                }
+
+                break;
+            case INT:
+            case LONG:
+            case FLOAT:
+            case DOUBLE:
+                if      (eq)  adapter.ifCmp(rtype, GeneratorAdapter.EQ, jump);
+                else if (ne)  adapter.ifCmp(rtype, GeneratorAdapter.NE, jump);
+                else if (lt)  adapter.ifCmp(rtype, GeneratorAdapter.LT, jump);
+                else if (lte) adapter.ifCmp(rtype, GeneratorAdapter.LE, jump);
+                else if (gt)  adapter.ifCmp(rtype, GeneratorAdapter.GT, jump);
+                else if (gte) adapter.ifCmp(rtype, GeneratorAdapter.GE, jump);
+                else {
+                    throw new IllegalStateException(error("Illegal tree structure."));
+                }
+
+                break;
+            case DEF:
+                if (eq) {
+                    if (right.isNull) {
+                        adapter.ifNull(jump);
+                    } else if (!left.isNull && operation == Operation.EQ) {
+                        adapter.invokeStatic(definition.defobjType.type, DEF_EQ_CALL);
+                    } else {
+                        adapter.ifCmp(rtype, GeneratorAdapter.EQ, jump);
+                    }
+                } else if (ne) {
+                    if (right.isNull) {
+                        adapter.ifNonNull(jump);
+                    } else if (!left.isNull && operation == Operation.NE) {
+                        adapter.invokeStatic(definition.defobjType.type, DEF_EQ_CALL);
+                        adapter.ifZCmp(GeneratorAdapter.EQ, jump);
+                    } else {
+                        adapter.ifCmp(rtype, GeneratorAdapter.NE, jump);
+                    }
+                } else if (lt) {
+                    adapter.invokeStatic(definition.defobjType.type, DEF_LT_CALL);
+                } else if (lte) {
+                    adapter.invokeStatic(definition.defobjType.type, DEF_LTE_CALL);
+                } else if (gt) {
+                    adapter.invokeStatic(definition.defobjType.type, DEF_GT_CALL);
+                } else if (gte) {
+                    adapter.invokeStatic(definition.defobjType.type, DEF_GTE_CALL);
+                } else {
+                    throw new IllegalStateException(error("Illegal tree structure."));
+                }
+
+                writejump = left.isNull || ne || operation == Operation.EQR;
+
+                if (branch && !writejump) {
+                    adapter.ifZCmp(GeneratorAdapter.NE, jump);
+                }
+
+                break;
+            default:
+                if (eq) {
+                    if (right.isNull) {
+                        adapter.ifNull(jump);
+                    } else if (operation == Operation.EQ) {
+                        adapter.invokeStatic(definition.utilityType.type, CHECKEQUALS);
+
+                        if (branch) {
+                            adapter.ifZCmp(GeneratorAdapter.NE, jump);
+                        }
+
+                        writejump = false;
+                    } else {
+                        adapter.ifCmp(rtype, GeneratorAdapter.EQ, jump);
+                    }
+                } else if (ne) {
+                    if (right.isNull) {
+                        adapter.ifNonNull(jump);
+                    } else if (operation == Operation.NE) {
+                        adapter.invokeStatic(definition.utilityType.type, CHECKEQUALS);
+                        adapter.ifZCmp(GeneratorAdapter.EQ, jump);
+                    } else {
+                        adapter.ifCmp(rtype, GeneratorAdapter.NE, jump);
+                    }
+                } else {
+                    throw new IllegalStateException(error("Illegal tree structure."));
+                }
+        }
+
+        if (!branch && writejump) {
+            adapter.push(false);
+            adapter.goTo(end);
+            adapter.mark(jump);
+            adapter.push(true);
+            adapter.mark(end);
+        }
     }
 }

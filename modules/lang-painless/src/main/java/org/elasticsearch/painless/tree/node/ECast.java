@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.tree.analyzer.Caster;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class ECast extends AExpression {
@@ -61,28 +62,40 @@ public class ECast extends AExpression {
         child.analyze(settings, definition, variables);
         cast = Caster.getLegalCast(definition, location, child.actual, child.expected, true);
 
-        if (cast == null) {
-            constant = child.constant;
-        } else if (child.constant != null && child.expected.sort.constant) {
-            constant = Caster.constCast(location, constant, cast);
+        if (child.constant != null) {
+            if (cast != null && child.actual.sort.constant && child.expected.sort.constant) {
+                constant = Caster.constCast(location, child.constant, cast);
+            } else {
+                final AExpression expression = child instanceof EConstant ? child : new EConstant(location, constant);
+
+                expression.actual = child.actual;
+                expression.typesafe = child.typesafe;
+                expression.isNull = child.isNull;
+                expression.strings = strings;
+
+                child = expression;
+            }
         }
 
         typesafe = child.typesafe && actual.sort != Sort.DEF;
     }
 
     @Override
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        child.write(settings, definition, adapter);
+        Shared.writeCast(adapter, cast);
+        Shared.writeBranch(adapter, tru, fals);
+        Shared.writeAppendStrings(adapter, strings, expected.sort);
+    }
+
+    @Override
     protected AExpression cast(final Definition definition) {
-        if (cast == null && constant == null) {
+        if (cast == null) {
             child.expected = expected;
 
             return child.cast(definition);
         } else {
             return super.cast(definition);
         }
-    }
-
-    @Override
-    protected void write(final GeneratorAdapter adapter) {
-
     }
 }

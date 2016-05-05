@@ -22,10 +22,11 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Field;
-import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.writer.Shared;
+import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.List;
 import java.util.Map;
@@ -53,124 +54,121 @@ public class LField extends ALink {
             return new LArrayLength(location, value).copy(this).analyze(settings, definition, variables);
         } else if (sort == Sort.DEF) {
             return new LDefField(location, value).copy(this).analyze(settings, definition, variables);
+        }
+
+        final Struct struct = before.struct;
+        field = statik ? struct.statics.get(value) : struct.members.get(value);
+
+        if (field != null) {
+            if (store && java.lang.reflect.Modifier.isFinal(field.reflect.getModifiers())) {
+                throw new IllegalArgumentException(error(
+                    "Cannot write to read-only field [" + value + "] for type [" + struct.name + "]."));
+            }
+
+            after = field.type;
         } else {
-            final Struct struct = before.struct;
-            final Field field = statik ? struct.statics.get(value) : struct.members.get(value);
+            final boolean shortcut =
+                struct.methods.containsKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1)) ||
+                struct.methods.containsKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1));
 
-            if (field != null) {
-                if (store && java.lang.reflect.Modifier.isFinal(field.reflect.getModifiers())) {
-                    throw new IllegalArgumentException(error(
-                        "Cannot write to read-only field [" + value + "] for type [" + struct.name + "]."));
-                }
-
-                after = field.type;
-                target = new TField(location, field);
+            if (shortcut) {
+                return new LShortcut(location, value).copy(this).analyze(settings, definition, variables);
             } else {
-                Method getter = struct.methods.get("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1));
-                Method setter = struct.methods.get("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1));
+                final EConstant index = new EConstant(location, value);
+                index.analyze(settings, definition, variables);
 
-                if (getter != null && (getter.rtn.sort == Sort.VOID || !getter.arguments.isEmpty())) {
-                    throw new IllegalArgumentException(error(
-                        "Illegal get shortcut on field [" + value + "] for type [" + struct.name + "]."));
+                try {
+                    before.clazz.asSubclass(Map.class);
+
+                    return new LMapShortcut(location, index).copy(this).analyze(settings, definition, variables);
+                } catch (final ClassCastException exception) {
+                    // Do nothing.
                 }
 
-                if (setter != null && (setter.rtn.sort != Sort.VOID || setter.arguments.size() != 1)) {
-                    throw new IllegalArgumentException(error(
-                        "Illegal set shortcut on field [" + value + "] for type [" + struct.name + "]."));
-                }
+                try {
+                    before.clazz.asSubclass(List.class);
 
-                if ((getter != null || setter != null) && (load || store) &&
-                    (!load || getter != null) && (!store || setter != null)) {
-                    after = load ? getter.rtn : setter.rtn;
-                    target = new TShortcut(location, getter, setter);
-                } else {
-                    boolean map = false;
-                    boolean list = false;
-
-                    try {
-                        before.clazz.asSubclass(Map.class);
-                        map = true;
-                    } catch (final ClassCastException exception) {
-                        // Do nothing.
-                    }
-
-                    try {
-                        before.clazz.asSubclass(List.class);
-                        list = true;
-                    } catch (final ClassCastException exception) {
-                        // Do nothing.
-                    }
-
-                    if (map) {
-                        getter = struct.methods.get("get");
-                        setter = struct.methods.get("put");
-
-                        if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
-                            getter.arguments.get(0).sort != Sort.STRING)) {
-                            throw new IllegalArgumentException(error(
-                                "Illegal map get shortcut [" + value + "] for type [" + struct.name + "]."));
-                        }
-
-                        if (setter != null && (setter.arguments.size() != 2 ||
-                            setter.arguments.get(0).sort != Sort.STRING)) {
-                            throw new IllegalArgumentException(error(
-                                "Illegal map set shortcut [" + value + "] for type [" + struct.name + "]."));
-                        }
-
-                        if (getter != null && setter != null && !getter.rtn.equals(setter.arguments.get(1))) {
-                            throw new IllegalArgumentException(error("Shortcut argument types must match."));
-                        }
-
-                        if ((load || store) && (!load || getter != null) && (!store || setter != null)) {
-                            final EConstant econstant = new EConstant(location, value);
-
-                            after = load ? getter.rtn : setter.rtn;
-                            target = new LMapShortcut(location, getter, setter, econstant);
-                        } else {
-                            throw new IllegalArgumentException(error(
-                                "Illegal map shortcut [" + value + "] for type [" + struct.name + "]."));
-                        }
-                    } else if (list) {
-                        getter = struct.methods.get("get");
-                        setter = struct.methods.get("set");
-
-                        if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
-                            getter.arguments.get(0).sort != Sort.INT)) {
-                            throw new IllegalArgumentException(error(
-                                "Illegal list get shortcut [" + value + "] for type [" + struct.name + "]."));
-                        }
-
-                        if (setter != null && (setter.rtn.sort != Sort.VOID || setter.arguments.size() != 2 ||
-                            setter.arguments.get(0).sort != Sort.INT)) {
-                            throw new IllegalArgumentException(error(
-                                "Illegal list set shortcut [" + value + "] for type [" + struct.name + "]."));
-                        }
-
-                        if (getter != null && setter != null && !getter.rtn.equals(setter.arguments.get(1))) {
-                            throw new IllegalArgumentException(error("Shortcut argument types must match."));
-                        }
-
-                        if ((load || store) && (!load || getter != null) && (!store || setter != null)) {
-                            try {
-                                final EConstant econstant = new EConstant(location, Integer.parseInt(value));
-
-                                after = load ? getter.rtn : setter.rtn;
-                                target = new LMapShortcut(location, getter, setter, econstant);
-                            } catch (final NumberFormatException exception) {
-                                throw new IllegalArgumentException(error("Illegal list shortcut value [" + value + "]."));
-                            }
-
-                        } else {
-                            throw new IllegalArgumentException(error(
-                                "Illegal map shortcut [" + value + "] for type [" + struct.name + "]."));
-                        }
-                    } else {
-                        throw new IllegalArgumentException(error("Unknown field [" + value + "] for type [" + struct.name + "]."));
-                    }
+                    return new LListShortcut(location, index).copy(this).analyze(settings, definition, variables);
+                } catch (final ClassCastException exception) {
+                    // Do nothing.
                 }
             }
         }
 
-        statik = false;
+        throw new IllegalArgumentException(error("Unknown field [" + value + "] for type [" + struct.name + "]."));
+    }
+
+    @Override
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        if (strings) {
+            Shared.writeNewStrings(adapter);
+        }
+
+        if (store) {
+            if (cat) {
+                adapter.dupX1();
+                load(adapter);
+                Shared.writeAppendStrings(adapter, after.sort);
+                expression.write(settings, definition, adapter);
+                Shared.writeToStrings(adapter);
+                Shared.writeCast(adapter, back);
+
+                if (load) {
+                    Shared.writeDup(adapter, after.sort.size, true, false);
+                }
+
+                store(adapter);
+            } else if (operation != null) {
+                adapter.dup();
+                load(adapter);
+
+                if (load && post) {
+                    Shared.writeDup(adapter, after.sort.size, true, false);
+                }
+
+                Shared.writeCast(adapter, there);
+                expression.write(settings, definition, adapter);
+                Shared.writeBinaryInstruction(settings, definition, adapter, location, there.to, operation);
+
+                if (settings.getNumericOverflow() || !expression.typesafe ||
+                    !Shared.writeExactInstruction(definition, adapter, expression.actual.sort, after.sort)) {
+                    Shared.writeCast(adapter, back);
+                }
+
+                store(adapter);
+            } else {
+                if (load) {
+                    Shared.writeDup(adapter, after.sort.size, true, false);
+                }
+
+                store(adapter);
+            }
+        } else {
+            load(adapter);
+        }
+    }
+
+    protected void load(final GeneratorAdapter adapter) {
+        if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
+            adapter.getStatic(field.owner.type, field.reflect.getName(), field.type.type);
+
+            if (!field.generic.clazz.equals(field.type.clazz)) {
+                adapter.checkCast(field.generic.type);
+            }
+        } else {
+            adapter.getField(field.owner.type, field.reflect.getName(), field.type.type);
+
+            if (!field.generic.clazz.equals(field.type.clazz)) {
+                adapter.checkCast(field.generic.type);
+            }
+        }
+    }
+
+    protected void store(final GeneratorAdapter adapter) {
+        if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
+            adapter.putStatic(field.owner.type, field.reflect.getName(), field.type.type);
+        } else {
+            adapter.putField(field.owner.type, field.reflect.getName(), field.type.type);
+        }
     }
 }

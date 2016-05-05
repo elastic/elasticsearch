@@ -21,8 +21,11 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.writer.Shared;
+import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.Collections;
 import java.util.List;
@@ -39,7 +42,7 @@ public class LNewArray extends ALink {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (before != null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         } else if (store) {
@@ -65,6 +68,24 @@ public class LNewArray extends ALink {
         }
 
         after = definition.getType(type.struct, arguments.size());
-        target = new TNewArray(location, after, arguments);
+
+        return this;
+    }
+
+    @Override
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        if (strings) {
+            Shared.writeNewStrings(adapter);
+        }
+
+        for (final AExpression argument : arguments) {
+            argument.write(settings, definition, adapter);
+        }
+
+        if (arguments.size() > 1) {
+            adapter.visitMultiANewArrayInsn(after.type.getDescriptor(), after.type.getDimensions());
+        } else {
+            adapter.newArray(after.type);
+        }
     }
 }

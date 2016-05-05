@@ -21,8 +21,10 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.elasticsearch.painless.tree.analyzer.Variables.Variable;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class SDeclaration extends AStatement {
@@ -53,6 +55,28 @@ public class SDeclaration extends AStatement {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        final org.objectweb.asm.Type type = variable.type.type;
+        final Sort sort = variable.type.sort;
 
+        final boolean initialize = expression == null;
+
+        if (!initialize) {
+            expression.write(settings, definition, adapter);
+        }
+
+        switch (sort) {
+            case VOID:   throw new IllegalStateException(error("Illegal tree structure."));
+            case BOOL:
+            case BYTE:
+            case SHORT:
+            case CHAR:
+            case INT:    if (initialize) adapter.push(0);    break;
+            case LONG:   if (initialize) adapter.push(0L);   break;
+            case FLOAT:  if (initialize) adapter.push(0.0F); break;
+            case DOUBLE: if (initialize) adapter.push(0.0);  break;
+            default:     if (initialize) adapter.visitInsn(Opcodes.ACONST_NULL);
+        }
+
+        adapter.visitVarInsn(type.getOpcode(Opcodes.ISTORE), variable.slot);
     }
 }

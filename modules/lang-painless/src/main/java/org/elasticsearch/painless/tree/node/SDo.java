@@ -22,6 +22,8 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.writer.Shared;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class SDo extends AStatement {
@@ -67,11 +69,33 @@ public class SDo extends AStatement {
 
         statementCount = 1;
 
+        if (settings.getMaxLoopCounter() > 0) {
+            loopCounterSlot = variables.getVariable(location, "#loop").slot;
+        }
+
         variables.decrementScope();
     }
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        final Label start = new Label();
+        final Label begin = new Label();
+        final Label end = new Label();
 
+        adapter.mark(start);
+
+        block.continu = begin;
+        block.brake = end;
+        block.write(settings, definition, adapter);
+
+        adapter.mark(begin);
+
+        condition.fals = end;
+        condition.write(settings, definition, adapter);
+
+        Shared.writeLoopCounter(adapter, loopCounterSlot, Math.max(1, block.statementCount));
+
+        adapter.goTo(start);
+        adapter.mark(end);
     }
 }

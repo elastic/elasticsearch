@@ -47,6 +47,7 @@ public class SThrow extends AStatement {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-
+        expression.write(settings, definition, adapter);
+        adapter.throwException();
     }
 }

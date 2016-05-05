@@ -22,6 +22,7 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class SIfElse extends AStatement {
@@ -79,6 +80,28 @@ public class SIfElse extends AStatement {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        final Label end = new Label();
+        final Label fals = elseblock != null ? new Label() : end;
 
+        condition.fals = fals;
+        condition.write(settings, definition, adapter);
+
+        ifblock.continu = continu;
+        ifblock.brake = brake;
+        ifblock.write(settings, definition, adapter);
+
+        if (elseblock != null) {
+            if (!ifblock.allEscape) {
+                adapter.goTo(end);
+            }
+
+            adapter.mark(fals);
+
+            elseblock.continu = continu;
+            elseblock.brake = brake;
+            elseblock.write(settings, definition, adapter);
+        }
+
+        adapter.mark(end);
     }
 }

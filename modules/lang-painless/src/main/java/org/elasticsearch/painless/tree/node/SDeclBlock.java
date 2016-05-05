@@ -47,6 +47,8 @@ public class SDeclBlock extends AStatement {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-
+        for (final SDeclaration declaration : declarations) {
+            declaration.write(settings, definition, adapter);
+        }
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class SExpression extends AStatement {
@@ -56,6 +57,12 @@ public class SExpression extends AStatement {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        expression.write(settings, definition, adapter);
 
+        if (methodEscape) {
+            adapter.returnValue();
+        } else {
+            Shared.writePop(adapter, expression.expected.sort.size);
+        }
     }
 }

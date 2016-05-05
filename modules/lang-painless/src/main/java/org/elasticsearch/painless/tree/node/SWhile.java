@@ -93,6 +93,7 @@ public class SWhile extends AStatement {
         continu = new Label();
         brake = new Label();
 
+        condition.fals = brake;
         condition.write(settings, definition, adapter);
 
         if (block != null) {

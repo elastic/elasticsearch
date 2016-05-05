@@ -34,6 +34,10 @@ public class STrap extends AStatement {
 
     protected Variable variable;
 
+    protected Label begin;
+    protected Label end;
+    protected Label exception;
+
     public STrap(final String location, final String type, final String name, final AStatement block) {
         super(location);
 
@@ -76,13 +80,15 @@ public class STrap extends AStatement {
         adapter.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.slot);
 
         if (block != null) {
+            block.continu = continu;
+            block.brake = brake;
             block.write(settings, definition, adapter);
         }
 
-        adapter.visitTryCatchBlock(continu, brake, jump, variable.type.type.getInternalName());
+        adapter.visitTryCatchBlock(begin, end, jump, variable.type.type.getInternalName());
 
-        if (continu && !trapsmd.allLast) {
-            execute.goTo(branch.tru);
+        if (exception != null && !block.allEscape) {
+            adapter.goTo(exception);
         }
     }
 }

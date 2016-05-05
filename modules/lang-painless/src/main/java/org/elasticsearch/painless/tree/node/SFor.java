@@ -22,6 +22,8 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.writer.Shared;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class SFor extends AStatement {
@@ -115,11 +117,61 @@ public class SFor extends AStatement {
 
         statementCount = 1;
 
+        if (settings.getMaxLoopCounter() > 0) {
+            loopCounterSlot = variables.getVariable(location, "#loop").slot;
+        }
+
         variables.decrementScope();
     }
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        final Label start = new Label();
+        final Label begin = afterthought == null ? start : new Label();
+        final Label end = new Label();
 
+        if (initializer instanceof SDeclBlock) {
+            ((SDeclBlock)initializer).write(settings, definition, adapter);
+        } else if (initializer instanceof AExpression) {
+            AExpression initializer = (AExpression)this.initializer;
+
+            initializer.write(settings, definition, adapter);
+            Shared.writePop(adapter, initializer.expected.sort.size);
+        }
+
+        adapter.mark(start);
+
+        if (condition != null) {
+            condition.fals = end;
+            condition.write(settings, definition, adapter);
+        }
+
+        boolean allEscape = false;
+
+        if (block != null) {
+            allEscape = block.allEscape;
+
+            int statementCount = Math.max(1, block.statementCount);
+
+            if (afterthought != null) {
+                ++statementCount;
+            }
+
+            Shared.writeLoopCounter(adapter, loopCounterSlot, statementCount);
+            block.write(settings, definition, adapter);
+        } else {
+            Shared.writeLoopCounter(adapter, loopCounterSlot, 1);
+        }
+
+        if (afterthought != null) {
+            adapter.mark(begin);
+            afterthought.write(settings, definition, adapter);
+        }
+
+        if (afterthought != null || !allEscape) {
+            adapter.goTo(start);
+        }
+
+        adapter.mark(end);
     }
 }

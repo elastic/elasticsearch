@@ -23,6 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.Collections;
@@ -80,29 +81,31 @@ public class STry extends AStatement {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        final Label end = new Label();
         final Label begin = new Label();
-        branch.end = new Label();
-        branch.tru = traps.size() > 1 ? end : null;
+        final Label end = new Label();
+        final Label exception = new Label();
 
-        execute.mark(branch.begin);
+        adapter.mark(begin);
 
-        final BlockContext blockctx = ctx.block();
-        final StatementMetadata blocksmd = metadata.getStatementMetadata(blockctx);
-        writer.visit(blockctx);
+        block.continu = continu;
+        block.brake = brake;
+        block.write(settings, definition, adapter);
 
-        if (!blocksmd.allLast) {
-            execute.goTo(end);
+        if (!block.allEscape) {
+            adapter.goTo(exception);
         }
 
-        execute.mark(branch.end);
+        adapter.mark(end);
 
-        for (final TrapContext trapctx : trapctxs) {
-            writer.visit(trapctx);
+        for (final STrap trap : traps) {
+            trap.begin = begin;
+            trap.end = end;
+            trap.exception = traps.size() > 1 ? exception : null;
+            trap.write(settings, definition, adapter);
         }
 
-        if (!blocksmd.allLast || trapctxs.length > 1) {
-            execute.mark(end);
+        if (!block.allEscape || traps.size() > 1) {
+            adapter.mark(exception);
         }
     }
 }

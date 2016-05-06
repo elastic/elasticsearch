@@ -132,6 +132,9 @@ public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineReque
             throw new IllegalArgumentException("param [pipeline] is null");
         }
         Pipeline pipeline = pipelineStore.get(pipelineId);
+        if (pipeline == null) {
+            throw new IllegalArgumentException("pipeline [" + pipelineId + "] does not exist");
+        }
         List<IngestDocument> ingestDocumentList = parseDocs(config);
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }

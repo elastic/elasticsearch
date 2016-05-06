@@ -26,6 +26,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -102,6 +104,20 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     continue;
                 }
 
+                // We should prevent highlighting if a field is anything but a text or keyword field.
+                // However, someone might implement a custom field type that has text and still want to
+                // highlight on that. We cannot know in advance if the highlighter will be able to
+                // highlight such a field and so we do the following:
+                // If the field is only highlighted because the field matches a wildcard we assume
+                // it was a mistake and do not process it.
+                // If the field was explicitly given we assume that whoever issued the query knew
+                // what they were doing and try to highlight anyway.
+                if (fieldNameContainsWildcards) {
+                    if (fieldMapper.fieldType().typeName().equals(TextFieldMapper.CONTENT_TYPE) == false && fieldMapper.fieldType()
+                        .typeName().equals(StringFieldMapper.CONTENT_TYPE) == false) {
+                        continue;
+                    }
+                }
                 String highlighterType = field.fieldOptions().highlighterType();
                 if (highlighterType == null) {
                     for(String highlighterCandidate : STANDARD_HIGHLIGHTERS_BY_PRECEDENCE) {

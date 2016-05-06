@@ -19,7 +19,6 @@
 package org.elasticsearch.search.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -2541,5 +2540,34 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         // Try with a boosting query using a negative boost
         response = search.setQuery(boostingQuery(phrase, terms).boost(1).negativeBoost(1/boost)).get();
         assertHighlight(response, 0, "field1", 0, 1, highlightedMatcher);
+    }
+
+    public void testGeoFieldHighlighting() throws IOException {
+        // check that we do not get an exception for geo_point fields in case someone tries to highlight
+        // it accidential with a wildcard
+        // see https://github.com/elastic/elasticsearch/issues/17537
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject();
+        mappings.startObject("type")
+            .startObject("properties")
+            .startObject("geo_point")
+            .field("type", "geo_point")
+            .endObject()
+            .endObject()
+            .endObject();
+        mappings.endObject();
+        assertAcked(prepareCreate("test")
+            .addMapping("type", mappings));
+        ensureYellow();
+
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("geo_point", "60.12,100.34").endObject())
+            .get();
+        refresh();
+        SearchResponse search = client().prepareSearch().setSource(
+            new SearchSourceBuilder().query(QueryBuilders.geoBoundingBoxQuery("geo_point").setCorners(61.10078883158897, -170.15625,
+                -64.92354174306496, 118.47656249999999)).highlighter(new HighlightBuilder().field("*"))).get();
+        assertNoFailures(search);
+        assertThat(search.getHits().totalHits(), equalTo(1L));
     }
 }

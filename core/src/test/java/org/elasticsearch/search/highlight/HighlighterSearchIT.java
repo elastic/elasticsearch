@@ -19,9 +19,11 @@
 package org.elasticsearch.search.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,15 +37,18 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder.Field;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -84,6 +89,12 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 public class HighlighterSearchIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(InternalSettingsPlugin.class);
+    }
+
     public void testHighlightingWithWildcardName() throws IOException {
         // test the kibana case with * as fieldname that will try highlight all fields including meta fields
         XContentBuilder mappings = jsonBuilder();
@@ -2572,9 +2583,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testKeywordFieldHighlighting() throws IOException {
-        // check that we do not get an exception for geo_point fields in case someone tries to highlight
-        // it accidential with a wildcard
-        // see https://github.com/elastic/elasticsearch/issues/17537
+        // check that keyword highlighting works
         XContentBuilder mappings = jsonBuilder();
         mappings.startObject();
         mappings.startObject("type")
@@ -2599,5 +2608,34 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertNoFailures(search);
         assertThat(search.getHits().totalHits(), equalTo(1L));
         assertThat(search.getHits().getAt(0).getHighlightFields().get("keyword_field").getFragments()[0].string(), equalTo("<em>some text</em>"));
+    }
+
+    public void testStringFieldHighlighting() throws IOException {
+        // check that string field highlighting on old indexes works
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject();
+        mappings.startObject("type")
+            .startObject("properties")
+            .startObject("string_field")
+            .field("type", "string")
+            .endObject()
+            .endObject()
+            .endObject();
+        mappings.endObject();
+        assertAcked(prepareCreate("test")
+            .addMapping("type", mappings)
+        .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_3_2)));
+        ensureYellow();
+
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("string_field", "some text").endObject())
+            .get();
+        refresh();
+        SearchResponse search = client().prepareSearch().setSource(
+            new SearchSourceBuilder().query(QueryBuilders.matchQuery("string_field", "some text")).highlighter(new HighlightBuilder().field("*")))
+            .get();
+        assertNoFailures(search);
+        assertThat(search.getHits().totalHits(), equalTo(1L));
+        assertThat(search.getHits().getAt(0).getHighlightFields().get("string_field").getFragments()[0].string(), equalTo("<em>some</em> <em>text</em>"));
     }
 }

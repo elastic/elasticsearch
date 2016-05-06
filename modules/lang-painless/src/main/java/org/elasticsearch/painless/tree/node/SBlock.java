@@ -63,6 +63,8 @@ public class SBlock extends AStatement {
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         for (final AStatement statement : statements) {
+            statement.continu = continu;
+            statement.brake = brake;
             statement.write(settings, definition, adapter);
         }
     }

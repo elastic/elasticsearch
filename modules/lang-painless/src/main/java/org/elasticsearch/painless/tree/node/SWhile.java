@@ -90,24 +90,28 @@ public class SWhile extends AStatement {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        continu = new Label();
-        brake = new Label();
+        final Label begin = new Label();
+        final Label end = new Label();
 
-        condition.fals = brake;
+        adapter.mark(begin);
+
+        condition.fals = end;
         condition.write(settings, definition, adapter);
 
         if (block != null) {
-            final int statementCount = Math.max(1, block.statementCount);
-            Shared.writeLoopCounter(adapter, loopCounterSlot, statementCount);
+            Shared.writeLoopCounter(adapter, loopCounterSlot, Math.max(1, block.statementCount));
+
+            block.continu = begin;
+            block.brake = end;
             block.write(settings, definition, adapter);
         } else {
             Shared.writeLoopCounter(adapter, loopCounterSlot, 1);
         }
 
         if (block == null || !block.allEscape) {
-            adapter.goTo(continu);
+            adapter.goTo(begin);
         }
 
-        adapter.mark(brake);
+        adapter.mark(end);
     }
 }

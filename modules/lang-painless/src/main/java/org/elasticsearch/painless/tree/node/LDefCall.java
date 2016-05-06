@@ -39,7 +39,7 @@ public class LDefCall extends ALink {
         super(location, -1);
 
         this.name = name;
-        this.arguments = Collections.unmodifiableList(arguments);
+        this.arguments = arguments;
     }
 
     @Override

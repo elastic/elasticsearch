@@ -288,7 +288,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitDeclaration(final DeclarationContext ctx) {
-        final String type = ctx.decltype().identifier().getText();
+        final String type = ctx.decltype().getText();
         final List<SDeclaration> declarations = new ArrayList<>();
 
         for (final DeclvarContext declvar : ctx.declvar()) {
@@ -436,7 +436,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitCast(final CastContext ctx) {
-        return new ECast(location(ctx), ctx.decltype().identifier().getText(), (AExpression)visit(ctx.expression()));
+        return new ECast(location(ctx), ctx.decltype().getText(), (AExpression)visit(ctx.expression()));
     }
 
     @Override
@@ -494,7 +494,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
             operation = Operation.EQR;
         } else if (ctx.NE() != null) {
             operation = Operation.NE;
-        } else if (ctx.LT() != null) {
+        } else if (ctx.NER() != null) {
             operation = Operation.NER;
         } else {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
@@ -554,11 +554,11 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
         } else if (ctx.AUSH() != null) {
             operation = Operation.USH;
         } else if (ctx.AAND() != null) {
-            operation = Operation.AND;
+            operation = Operation.BWAND;
         } else if (ctx.AXOR() != null) {
             operation = Operation.XOR;
-        } else if (ctx.AAND() != null) {
-            operation = Operation.OR;
+        } else if (ctx.AOR() != null) {
+            operation = Operation.BWOR;
         } else {
             operation = null;
         }
@@ -629,7 +629,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
 
-        links.add(new LCast(location(ctx), ctx.decltype().identifier().getText()));
+        links.add(new LCast(location(ctx), ctx.decltype().getText()));
     }
 
     @Override

@@ -25,7 +25,6 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-import java.util.Collections;
 import java.util.List;
 
 public class LNewArray extends ALink {
@@ -36,7 +35,7 @@ public class LNewArray extends ALink {
         super(location, -1);
 
         this.type = type;
-        this.arguments = Collections.unmodifiableList(arguments);
+        this.arguments = arguments;
     }
 
     @Override
@@ -84,7 +83,7 @@ public class LNewArray extends ALink {
         if (arguments.size() > 1) {
             adapter.visitMultiANewArrayInsn(after.type.getDescriptor(), after.type.getDimensions());
         } else {
-            adapter.newArray(after.type);
+            adapter.newArray(definition.getType(after.struct, 0).type);
         }
     }
 

@@ -67,9 +67,9 @@ public class Constants {
     public final static Method DEF_REM_CALL = getAsmMethod(Object.class, "rem", Object.class, Object.class);
     public final static Method DEF_ADD_CALL = getAsmMethod(Object.class, "add", Object.class, Object.class);
     public final static Method DEF_SUB_CALL = getAsmMethod(Object.class, "sub", Object.class, Object.class);
-    public final static Method DEF_LSH_CALL = getAsmMethod(Object.class, "lsh", Object.class, Object.class);
-    public final static Method DEF_RSH_CALL = getAsmMethod(Object.class, "rsh", Object.class, Object.class);
-    public final static Method DEF_USH_CALL = getAsmMethod(Object.class, "ush", Object.class, Object.class);
+    public final static Method DEF_LSH_CALL = getAsmMethod(Object.class, "lsh", Object.class, int.class);
+    public final static Method DEF_RSH_CALL = getAsmMethod(Object.class, "rsh", Object.class, int.class);
+    public final static Method DEF_USH_CALL = getAsmMethod(Object.class, "ush", Object.class, int.class);
     public final static Method DEF_AND_CALL = getAsmMethod(Object.class, "and", Object.class, Object.class);
     public final static Method DEF_XOR_CALL = getAsmMethod(Object.class, "xor", Object.class, Object.class);
     public final static Method DEF_OR_CALL  = getAsmMethod(Object.class, "or" , Object.class, Object.class);

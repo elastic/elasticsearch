@@ -67,7 +67,7 @@ public class EUnary extends AExpression {
         child = child.cast(settings, definition, variables);
 
         if (child.constant != null) {
-            constant = !(boolean)constant;
+            constant = !(boolean)child.constant;
         }
 
         actual = definition.booleanType;

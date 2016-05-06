@@ -30,7 +30,6 @@ import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-import java.util.Collections;
 import java.util.List;
 
 public class EChain extends AExpression {
@@ -41,6 +40,8 @@ public class EChain extends AExpression {
     protected AExpression expression;
 
     protected boolean cat = false;
+    protected Type promote = null;
+    protected boolean exact = false;
     protected Cast there = null;
     protected Cast back = null;
 
@@ -48,7 +49,7 @@ public class EChain extends AExpression {
                   final boolean pre, final boolean post, final Operation operation, final AExpression expression) {
         super(location);
 
-        this.links = Collections.unmodifiableList(links);
+        this.links = links;
         this.pre = pre;
         this.post = post;
         this.operation = operation;
@@ -127,7 +128,7 @@ public class EChain extends AExpression {
                 } else {
                     expression = new EConstant(location, 1);
                 }
-                
+
                 operation = Operation.SUB;
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
@@ -137,24 +138,27 @@ public class EChain extends AExpression {
         if (operation != null) {
             expression.analyze(settings, definition, variables);
 
-            final Type promote;
-
             if (operation == Operation.MUL) {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
+                exact = true;
             } else if (operation == Operation.DIV) {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
+                exact = true;
             } else if (operation == Operation.REM) {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
+                exact = true;
             } else if (operation == Operation.ADD) {
                 promote = Caster.promoteAdd(definition, last.after, expression.actual);
+                exact = true;
             } else if (operation == Operation.SUB) {
                 promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
+                exact = true;
             } else if (operation == Operation.LSH) {
-                promote = Caster.promoteNumeric(definition, last.after, expression.actual, false, true);
+                promote = Caster.promoteNumeric(definition, last.after, false, true);
             } else if (operation == Operation.RSH) {
-                promote = Caster.promoteNumeric(definition, last.after, expression.actual, false, true);
+                promote = Caster.promoteNumeric(definition, last.after, false, true);
             } else if (operation == Operation.USH) {
-                promote = Caster.promoteNumeric(definition, last.after, expression.actual, false, true);
+                promote = Caster.promoteNumeric(definition, last.after, false, true);
             } else if (operation == Operation.BWAND) {
                 promote = Caster.promoteXor(definition, last.after, expression.actual);
             } else if (operation == Operation.XOR) {
@@ -179,12 +183,15 @@ public class EChain extends AExpression {
                 }
 
                 expression.expected = expression.actual;
+            } else if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
+                expression.expected = definition.intType;
             } else {
                 expression.expected = promote;
             }
 
             expression = expression.cast(settings, definition, variables);
 
+            exact &= settings.getNumericOverflow() && !expression.typesafe;
             there = Caster.getLegalCast(definition, location, last.after, promote, expression.typesafe);
             back = Caster.getLegalCast(definition, location, promote, last.after, true);
 
@@ -250,15 +257,20 @@ public class EChain extends AExpression {
 
                     Shared.writeCast(adapter, there);
                     expression.write(settings, definition, adapter);
-                    Shared.writeBinaryInstruction(settings, definition, adapter, location, expression.expected, operation);
+                    Shared.writeBinaryInstruction(settings, definition, adapter, location, promote, operation);
 
-                    if (settings.getNumericOverflow() || !expression.typesafe ||
-                        !Shared.writeExactInstruction(definition, adapter, expression.expected.sort, link.after.sort)) {
+                    if (!exact || !Shared.writeExactInstruction(definition, adapter, promote.sort, link.after.sort)) {
                         Shared.writeCast(adapter, back);
+                    }
+
+                    if (link.load && !post) {
+                        Shared.writeDup(adapter, link.after.sort.size, link.size);
                     }
 
                     link.store(settings, definition, adapter);
                 } else {
+                    expression.write(settings, definition, adapter);
+
                     if (link.load) {
                         Shared.writeDup(adapter, link.after.sort.size, link.size);
                     }

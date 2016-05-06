@@ -82,7 +82,7 @@ public class EBool extends AExpression {
             } else if (operation == Operation.OR) {
                 final Label localtru = tru == null ? new Label() : tru;
 
-                left.fals = localtru;
+                left.tru = localtru;
                 right.tru = tru;
                 right.fals = fals;
 

@@ -132,14 +132,14 @@ public class StringTests extends ScriptTestCase {
 
         try {
             assertEquals("cc", exec("return (String)(char)\"cc\""));
-        } catch (final IllegalArgumentException ise) {
-            ise.getMessage().contains("Cannot cast constant from [String] to [char].");
+        } catch (final ClassCastException cce) {
+            cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]");
         }
 
         try {
             assertEquals("cc", exec("return (String)(char)'cc'"));
-        } catch (final IllegalArgumentException ise) {
-            ise.getMessage().contains("Cannot cast constant from [String] to [char].");
+        } catch (final ClassCastException cce) {
+            cce.getMessage().contains("CCannot cast [String] with length greater than one to [char].");
         }
 
         try {

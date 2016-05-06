@@ -303,7 +303,7 @@ public class EBinary extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = Caster.promoteNumeric(definition, left.actual, right.actual, false, true);
+        final Type promote = Caster.promoteNumeric(definition, left.actual, false, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply left shift [<<] to types " +
@@ -314,10 +314,11 @@ public class EBinary extends AExpression {
         final boolean rtypesafe = right.typesafe;
         right.typesafe = false;
         right.expected = definition.intType;
-        right.typesafe = rtypesafe;
 
         left = left.cast(settings, definition, variables);
         right = right.cast(settings, definition, variables);
+
+        right.typesafe = rtypesafe;
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -325,7 +326,7 @@ public class EBinary extends AExpression {
             if (sort == Sort.INT) {
                 constant = (int)left.constant << (int)right.constant;
             } else if (sort == Sort.LONG) {
-                constant = (long)left.constant << (long)right.constant;
+                constant = (long)left.constant << (int)right.constant;
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -339,7 +340,7 @@ public class EBinary extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = Caster.promoteNumeric(definition, left.actual, right.actual, false, true);
+        final Type promote = Caster.promoteNumeric(definition, left.actual, false, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply right shift [>>] to types " +
@@ -350,10 +351,11 @@ public class EBinary extends AExpression {
         final boolean rtypesafe = right.typesafe;
         right.typesafe = false;
         right.expected = definition.intType;
-        right.typesafe = rtypesafe;
 
         left = left.cast(settings, definition, variables);
         right = right.cast(settings, definition, variables);
+
+        right.typesafe = rtypesafe;
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -361,7 +363,7 @@ public class EBinary extends AExpression {
             if (sort == Sort.INT) {
                 constant = (int)left.constant >> (int)right.constant;
             } else if (sort == Sort.LONG) {
-                constant = (long)left.constant >> (long)right.constant;
+                constant = (long)left.constant >> (int)right.constant;
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -375,7 +377,7 @@ public class EBinary extends AExpression {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
-        final Type promote = Caster.promoteNumeric(definition, left.actual, right.actual, false, true);
+        final Type promote = Caster.promoteNumeric(definition, left.actual, false, true);
 
         if (promote == null) {
             throw new ClassCastException(error("Cannot apply unsigned shift [>>>] to types " +
@@ -386,10 +388,11 @@ public class EBinary extends AExpression {
         final boolean rtypesafe = right.typesafe;
         right.typesafe = false;
         right.expected = definition.intType;
-        right.typesafe = rtypesafe;
 
         left = left.cast(settings, definition, variables);
         right = right.cast(settings, definition, variables);
+
+        right.typesafe = rtypesafe;
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -397,7 +400,7 @@ public class EBinary extends AExpression {
             if (sort == Sort.INT) {
                 constant = (int)left.constant >>> (int)right.constant;
             } else if (sort == Sort.LONG) {
-                constant = (long)left.constant >>> (long)right.constant;
+                constant = (long)left.constant >>> (int)right.constant;
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }

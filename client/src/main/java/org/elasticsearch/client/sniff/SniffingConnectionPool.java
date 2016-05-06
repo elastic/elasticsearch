@@ -81,11 +81,6 @@ public class SniffingConnectionPool extends AbstractStaticConnectionPool {
     }
 
     @Override
-    public void beforeAttempt(Connection connection) throws IOException {
-
-    }
-
-    @Override
     public void onFailure(Connection connection) throws IOException {
         super.onFailure(connection);
         if (sniffOnFailure) {

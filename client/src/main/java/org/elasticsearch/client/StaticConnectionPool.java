@@ -19,74 +19,28 @@
 
 package org.elasticsearch.client;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHost;
-import org.apache.http.StatusLine;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Static implementation of {@link ConnectionPool}. Its underlying list of connections is immutable.
  */
 public class StaticConnectionPool extends AbstractStaticConnectionPool {
 
-    private static final Log logger = LogFactory.getLog(StaticConnectionPool.class);
-
-    private final CloseableHttpClient client;
-    private final boolean pingEnabled;
-    private final RequestConfig pingRequestConfig;
     private final List<Connection> connections;
 
-    public StaticConnectionPool(CloseableHttpClient client, boolean pingEnabled, RequestConfig pingRequestConfig, HttpHost... hosts) {
-        Objects.requireNonNull(client, "client cannot be null");
-        Objects.requireNonNull(pingRequestConfig, "pingRequestConfig cannot be null");
+    public StaticConnectionPool(HttpHost... hosts) {
         if (hosts == null || hosts.length == 0) {
             throw new IllegalArgumentException("no hosts provided");
         }
-        this.client = client;
-        this.pingEnabled = pingEnabled;
-        this.pingRequestConfig = pingRequestConfig;
         this.connections = createConnections(hosts);
     }
 
     @Override
     protected List<Connection> getConnections() {
         return connections;
-    }
-
-    //TODO do we still need pinging? seems like a workaround for some clients that don't support connect timeout but we have that
-
-    @Override
-    public void beforeAttempt(Connection connection) throws IOException {
-        if (pingEnabled && connection.shouldBeRetried()) {
-            HttpHead httpHead = new HttpHead("/");
-            httpHead.setConfig(pingRequestConfig);
-            StatusLine statusLine;
-            try(CloseableHttpResponse httpResponse = client.execute(connection.getHost(), httpHead)) {
-                statusLine = httpResponse.getStatusLine();
-                EntityUtils.consume(httpResponse.getEntity());
-            } catch(IOException e) {
-                RequestLogger.log(logger, "ping failed", httpHead.getRequestLine(), connection.getHost(), e);
-                onFailure(connection);
-                throw e;
-            }
-            if (statusLine.getStatusCode() >= 300) {
-                RequestLogger.log(logger, "ping failed", httpHead.getRequestLine(), connection.getHost(), statusLine);
-                onFailure(connection);
-                throw new ElasticsearchResponseException(httpHead.getRequestLine(), connection.getHost(), statusLine);
-            } else {
-                RequestLogger.log(logger, "ping succeeded", httpHead.getRequestLine(), connection.getHost(), statusLine);
-                onSuccess(connection);
-            }
-        }
     }
 
     @Override

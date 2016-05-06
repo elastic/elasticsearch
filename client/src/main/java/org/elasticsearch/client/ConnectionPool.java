@@ -26,8 +26,7 @@ import java.util.stream.Stream;
 /**
  * Pool of connections to the different hosts that belong to an elasticsearch cluster.
  * It keeps track of the different hosts to communicate with and allows to retrieve a stream of connections to be used
- * for each request. Exposes the needed hooks to be able to eventually mark connections dead or alive and execute
- * arbitrary operations before each single request attempt.
+ * for each request. Exposes the needed hooks to be able to eventually mark connections dead or alive.
  */
 public interface ConnectionPool extends Closeable {
 
@@ -46,12 +45,6 @@ public interface ConnectionPool extends Closeable {
      * only in case {@link #nextConnection()} returns an empty stream
      */
     Connection lastResortConnection();
-
-    /**
-     * Called before each single request attempt. Allows to execute operations (e.g. ping) before each request.
-     * Receives as an argument the connection that is going to be used for the request.
-     */
-    void beforeAttempt(Connection connection) throws IOException;
 
     /**
      * Called after each successful request call.

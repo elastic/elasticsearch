@@ -48,11 +48,6 @@ public class RestClientTests extends LuceneTestCase {
             }
 
             @Override
-            public void beforeAttempt(Connection connection) throws IOException {
-
-            }
-
-            @Override
             public void onSuccess(Connection connection) {
 
             }

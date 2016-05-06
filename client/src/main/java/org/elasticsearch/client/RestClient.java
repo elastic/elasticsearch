@@ -96,13 +96,6 @@ public final class RestClient implements Closeable {
             }
 
             try {
-                connectionPool.beforeAttempt(connection);
-            } catch(IOException e) {
-                lastSeenException = addSuppressedException(lastSeenException, e);
-                continue;
-            }
-
-            try {
                 ElasticsearchResponse response = performRequest(request, connection);
                 connectionPool.onSuccess(connection);
                 return response;

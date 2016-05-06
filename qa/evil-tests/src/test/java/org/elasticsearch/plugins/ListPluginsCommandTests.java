@@ -59,7 +59,7 @@ public class ListPluginsCommandTests extends ESTestCase {
     }
     
     static String buildMultiline(String... args){
-    	return Arrays.asList(args).stream().collect(Collectors.joining("\n", "", "\n"));
+        return Arrays.asList(args).stream().collect(Collectors.joining("\n", "", "\n"));
     }
     
     static void buildFakePlugin(Environment env, String description, String name, String classname) throws IOException {
@@ -108,7 +108,7 @@ public class ListPluginsCommandTests extends ESTestCase {
         String[] params = { "-v" };
         MockTerminal terminal = listPlugins(env, params);
         assertEquals(terminal.getOutput(), buildMultiline("Plugins directory: " + env.pluginsFile(), "fake_plugin",
-        		"- Plugin information:", "Name: fake_plugin", "Description: fake desc", "Version: 1.0", " * Classname: org.fake"));
+                "- Plugin information:", "Name: fake_plugin", "Description: fake desc", "Version: 1.0", " * Classname: org.fake"));
     }
     
     public void testPluginWithVerboseMultiplePlugins() throws Exception {
@@ -118,9 +118,9 @@ public class ListPluginsCommandTests extends ESTestCase {
         String[] params = { "-v" };
         MockTerminal terminal = listPlugins(env, params);
         assertEquals(terminal.getOutput(), buildMultiline("Plugins directory: " + env.pluginsFile(),
-        		"fake_plugin1", "- Plugin information:", "Name: fake_plugin1", "Description: fake desc 1", "Version: 1.0",
-        		" * Classname: org.fake", "fake_plugin2", "- Plugin information:", "Name: fake_plugin2",
-        		"Description: fake desc 2", "Version: 1.0", " * Classname: org.fake2"));
+                "fake_plugin1", "- Plugin information:", "Name: fake_plugin1", "Description: fake desc 1", "Version: 1.0",
+                " * Classname: org.fake", "fake_plugin2", "- Plugin information:", "Name: fake_plugin2",
+                "Description: fake desc 2", "Version: 1.0", " * Classname: org.fake2"));
     }
         
     public void testPluginWithoutVerboseMultiplePlugins() throws Exception {

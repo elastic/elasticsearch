@@ -28,13 +28,13 @@ import java.io.IOException;
 import java.util.logging.LogManager;
 import java.util.stream.Stream;
 
-public class TransportTests extends LuceneTestCase {
+public class RestClientTests extends LuceneTestCase {
 
     static {
         LogManager.getLogManager().reset();
     }
 
-    public void testConstructor() {
+    public void testConstructor() throws IOException {
         CloseableHttpClient httpClient = HttpClientBuilder.create().build();
         ConnectionPool connectionPool = new ConnectionPool() {
             @Override
@@ -69,27 +69,28 @@ public class TransportTests extends LuceneTestCase {
         };
 
         try {
-            new Transport(null, connectionPool, RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
+            new RestClient(null, connectionPool, RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
             fail("transport creation should have failed");
         } catch(NullPointerException e) {
             assertEquals(e.getMessage(), "client cannot be null");
         }
 
         try {
-            new Transport(httpClient, null, RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
+            new RestClient(httpClient, null, RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
             fail("transport creation should have failed");
         } catch(NullPointerException e) {
             assertEquals(e.getMessage(), "connectionPool cannot be null");
         }
 
         try {
-            new Transport(httpClient, connectionPool, RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
+            new RestClient(httpClient, connectionPool, RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
             fail("transport creation should have failed");
         } catch(IllegalArgumentException e) {
             assertEquals(e.getMessage(), "maxRetryTimeout must be greater than 0");
         }
 
-        Transport transport = new Transport(httpClient, connectionPool, RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
-        assertNotNull(transport);
+        try(RestClient client = new RestClient(httpClient, connectionPool, RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE))) {
+            assertNotNull(client);
+        }
     }
 }

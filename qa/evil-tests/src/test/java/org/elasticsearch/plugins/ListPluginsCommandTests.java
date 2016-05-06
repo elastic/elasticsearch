@@ -135,9 +135,7 @@ public class ListPluginsCommandTests extends ESTestCase {
     public void testPluginWithoutDescriptorFile() throws Exception{
         Environment env = createEnv();
         Files.createDirectories(env.pluginsFile().resolve("fake1"));
-        NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> {
-        	listPlugins(env);
-        });
+        NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> listPlugins(env));
         assertEquals(e.getFile(), env.pluginsFile().resolve("fake1").resolve(PluginInfo.ES_PLUGIN_PROPERTIES).toString());
     }
     
@@ -145,10 +143,9 @@ public class ListPluginsCommandTests extends ESTestCase {
         Environment env = createEnv();        
         PluginTestUtil.writeProperties(env.pluginsFile().resolve("fake1"),
                 "description", "fake desc");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-        	listPlugins(env);
-        });
-        assertEquals(e.getMessage(), "Property [name] is missing in [" + env.pluginsFile().resolve("fake1").resolve(PluginInfo.ES_PLUGIN_PROPERTIES).toString() + "]");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> listPlugins(env));
+        assertEquals(e.getMessage(), "Property [name] is missing in [" +
+                env.pluginsFile().resolve("fake1").resolve(PluginInfo.ES_PLUGIN_PROPERTIES).toString() + "]");
     }
     
 }

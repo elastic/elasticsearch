@@ -314,7 +314,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
             if (logger.isTraceEnabled()) {
                 logger.trace("total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}]",
-                             new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING, indexingBuffer, new ByteSizeValue(totalBytesWriting));
+                             new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer, new ByteSizeValue(totalBytesWriting));
             }
 
             // If we are using more than 50% of our budget across both indexing buffer and bytes we are still moving to disk, then we now
@@ -354,7 +354,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
                 }
 
                 logger.debug("now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}], [{}] shards with non-zero indexing buffer",
-                             new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING, indexingBuffer, new ByteSizeValue(totalBytesWriting), queue.size());
+                             new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer, new ByteSizeValue(totalBytesWriting), queue.size());
 
                 while (totalBytesUsed > indexingBuffer.bytes() && queue.isEmpty() == false) {
                     ShardAndBytesUsed largest = queue.poll();

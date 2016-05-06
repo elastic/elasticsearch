@@ -73,7 +73,7 @@ public class RestUtils {
                     name = decodeComponent(s.substring(pos, i));
                 }
                 pos = i + 1;
-            } else if (c == '&') {
+            } else if (c == '&' || c == ';') {
                 if (name == null && pos != i) {
                     // We haven't seen an `=' so far but moved forward.
                     // Must be a param of the form '&a&' so add it with

@@ -58,7 +58,7 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
 
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
-    private QueryBuilder<?> filterBuilder = null;
+    private QueryBuilder filterBuilder = null;
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     private SignificanceHeuristic significanceHeuristic = DEFAULT_SIGNIFICANCE_HEURISTIC;
 
@@ -176,7 +176,7 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
         return executionHint;
     }
 
-    public SignificantTermsAggregatorBuilder backgroundFilter(QueryBuilder<?> backgroundFilter) {
+    public SignificantTermsAggregatorBuilder backgroundFilter(QueryBuilder backgroundFilter) {
         if (backgroundFilter == null) {
             throw new IllegalArgumentException("[backgroundFilter] must not be null: [" + name + "]");
         }
@@ -184,7 +184,7 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
         return this;
     }
 
-    public QueryBuilder<?> backgroundFilter() {
+    public QueryBuilder backgroundFilter() {
         return filterBuilder;
     }
 

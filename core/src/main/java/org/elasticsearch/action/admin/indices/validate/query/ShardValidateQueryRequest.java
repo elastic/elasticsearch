@@ -34,7 +34,7 @@ import java.io.IOException;
  */
 public class ShardValidateQueryRequest extends BroadcastShardRequest {
 
-    private QueryBuilder<?> query;
+    private QueryBuilder query;
     private String[] types = Strings.EMPTY_ARRAY;
     private boolean explain;
     private boolean rewrite;
@@ -57,7 +57,7 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
         this.nowInMillis = request.nowInMillis;
     }
 
-    public QueryBuilder<?> query() {
+    public QueryBuilder query() {
         return query;
     }
 

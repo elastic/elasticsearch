@@ -121,8 +121,8 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 InnerHitsContext.BaseInnerHits innerHits = searchContext.innerHits()
                         .getInnerHits().get(queryBuilder.innerHit().getName());
                 assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
-                assertEquals(innerHits.sort().getSort().length, 1);
-                assertEquals(innerHits.sort().getSort()[0].getField(), STRING_FIELD_NAME_2);
+                assertEquals(innerHits.sort().sort.getSort().length, 1);
+                assertEquals(innerHits.sort().sort.getSort()[0].getField(), STRING_FIELD_NAME_2);
             } else {
                 assertThat(searchContext.innerHits().getInnerHits().size(), equalTo(0));
             }

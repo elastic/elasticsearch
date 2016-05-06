@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -55,8 +56,10 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * special field name to sort by index order
      */
     public static final String DOC_FIELD_NAME = "_doc";
-    private static final SortField SORT_DOC = new SortField(null, SortField.Type.DOC);
-    private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.Type.DOC, true);
+    private static final SortFieldAndFormat SORT_DOC = new SortFieldAndFormat(
+            new SortField(null, SortField.Type.DOC), DocValueFormat.RAW);
+    private static final SortFieldAndFormat SORT_DOC_REVERSE = new SortFieldAndFormat(
+            new SortField(null, SortField.Type.DOC, true), DocValueFormat.RAW);
 
     private final String fieldName;
 
@@ -66,7 +69,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     private SortMode sortMode;
 
-    private QueryBuilder<?> nestedFilter;
+    private QueryBuilder nestedFilter;
 
     private String nestedPath;
 
@@ -189,7 +192,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * TODO should the above getters and setters be deprecated/ changed in
      * favour of real getters and setters?
      */
-    public FieldSortBuilder setNestedFilter(QueryBuilder<?> nestedFilter) {
+    public FieldSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
     }
@@ -198,7 +201,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Returns the nested filter that the nested objects should match with in
      * order to be taken into account for sorting.
      */
-    public QueryBuilder<?> getNestedFilter() {
+    public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
 
@@ -246,7 +249,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     @Override
-    public SortField build(QueryShardContext context) throws IOException {
+    public SortFieldAndFormat build(QueryShardContext context) throws IOException {
         if (DOC_FIELD_NAME.equals(fieldName)) {
             if (order == SortOrder.DESC) {
                 return SORT_DOC_REVERSE;
@@ -281,7 +284,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             }
             IndexFieldData.XFieldComparatorSource fieldComparatorSource = fieldData
                     .comparatorSource(missing, localSortMode, nested);
-            return new SortField(fieldType.name(), fieldComparatorSource, reverse);
+            SortField field = new SortField(fieldType.name(), fieldComparatorSource, reverse);
+            return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
         }
     }
 
@@ -324,7 +328,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     public static FieldSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
         XContentParser parser = context.parser();
 
-        QueryBuilder<?> nestedFilter = null;
+        QueryBuilder nestedFilter = null;
         String nestedPath = null;
         Object missing = null;
         SortOrder order = null;

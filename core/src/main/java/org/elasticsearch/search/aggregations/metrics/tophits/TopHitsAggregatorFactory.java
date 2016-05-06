@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
-import org.apache.lucene.search.Sort;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -35,6 +34,7 @@ import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SubSearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
@@ -87,7 +87,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
         subSearchContext.from(from);
         subSearchContext.size(size);
         if (sorts != null) {
-            Optional<Sort> optionalSort = SortBuilder.buildSort(sorts, subSearchContext.getQueryShardContext());
+            Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(sorts, subSearchContext.getQueryShardContext());
             if (optionalSort.isPresent()) {
                 subSearchContext.sort(optionalSort.get());
             }

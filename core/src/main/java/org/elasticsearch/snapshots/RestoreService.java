@@ -190,7 +190,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             // Read snapshot info and metadata from the repository
             Repository repository = repositoriesService.repository(request.repository());
             final SnapshotId snapshotId = new SnapshotId(request.repository(), request.name());
-            final Snapshot snapshot = repository.readSnapshot(snapshotId);
+            final SnapshotInfo snapshot = repository.readSnapshot(snapshotId);
             List<String> filteredIndices = SnapshotUtils.filterIndices(snapshot.indices(), request.indices(), request.indicesOptions());
             MetaData metaDataIn = repository.readSnapshotMetaData(snapshotId, snapshot, filteredIndices);
 
@@ -708,7 +708,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
      * @param snapshotId snapshot id
      * @param snapshot   snapshot metadata
      */
-    private void validateSnapshotRestorable(SnapshotId snapshotId, Snapshot snapshot) {
+    private void validateSnapshotRestorable(SnapshotId snapshotId, SnapshotInfo snapshot) {
         if (!snapshot.state().restorable()) {
             throw new SnapshotRestoreException(snapshotId, "unsupported snapshot state [" + snapshot.state() + "]");
         }
@@ -765,7 +765,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     UPDATE_RESTORE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
     }
 
-    private boolean failed(Snapshot snapshot, String index) {
+    private boolean failed(SnapshotInfo snapshot, String index) {
         for (SnapshotShardFailure failure : snapshot.shardFailures()) {
             if (index.equals(failure.index())) {
                 return true;

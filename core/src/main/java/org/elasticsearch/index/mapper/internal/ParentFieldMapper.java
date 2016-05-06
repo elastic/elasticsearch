@@ -31,7 +31,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -264,7 +263,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                     }
                     // we did not add it in the parsing phase, add it now
                     fields.add(new SortedDocValuesField(fieldType.name(), new BytesRef(parentId)));
-                } else if (parentId != null && !parsedParentId.equals(Uid.createUid(context.stringBuilder(), parentType, parentId))) {
+                } else if (parentId != null && !parsedParentId.equals(Uid.createUid(parentType, parentId))) {
                     throw new MapperParsingException("Parent id mismatch, document value is [" + Uid.createUid(parsedParentId).id() + "], while external value is [" + parentId + "]");
                 }
             }

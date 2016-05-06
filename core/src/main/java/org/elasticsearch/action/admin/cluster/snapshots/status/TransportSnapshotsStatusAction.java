@@ -36,7 +36,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -202,7 +202,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         // This is a snapshot the is currently running - skipping
                         continue;
                     }
-                    Snapshot snapshot = snapshotsService.snapshot(snapshotId);
+                    SnapshotInfo snapshot = snapshotsService.snapshot(snapshotId);
                     List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
                     if (snapshot.state().completed()) {
                         Map<ShardId, IndexShardSnapshotStatus> shardStatues = snapshotsService.snapshotShards(snapshotId);

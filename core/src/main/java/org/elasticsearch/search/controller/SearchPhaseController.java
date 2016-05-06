@@ -362,7 +362,7 @@ public class SearchPhaseController extends AbstractComponent {
 
                     if (sorted) {
                         FieldDoc fieldDoc = (FieldDoc) shardDoc;
-                        searchHit.sortValues(fieldDoc.fields);
+                        searchHit.sortValues(fieldDoc.fields, firstResult.sortValueFormats());
                         if (sortScoreIndex != -1) {
                             searchHit.score(((Number) fieldDoc.fields[sortScoreIndex]).floatValue());
                         }

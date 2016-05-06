@@ -81,7 +81,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().get();
         String excludedNodeId = null;
-        for (NodeInfo nodeInfo : nodesInfo) {
+        for (NodeInfo nodeInfo : nodesInfo.getNodes()) {
             if (nodeInfo.getNode().isDataNode()) {
                 excludedNodeId = nodeInfo.getNode().getId();
                 break;
@@ -124,7 +124,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().get();
         String excludedNodeId = null;
-        for (NodeInfo nodeInfo : nodesInfo) {
+        for (NodeInfo nodeInfo : nodesInfo.getNodes()) {
             if (nodeInfo.getNode().isDataNode()) {
                 excludedNodeId = nodeInfo.getNode().getId();
                 break;

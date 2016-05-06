@@ -464,7 +464,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         query.from(queryFromValue);
         query.to(queryToValue);
         QueryShardContext queryShardContext = createShardContext();
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
         RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
         assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
@@ -485,7 +485,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         query.from(queryFromValue);
         query.to(queryToValue);
         QueryShardContext queryShardContext = createShardContext();
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
     }
 
@@ -502,7 +502,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         query.from(queryFromValue);
         query.to(queryToValue);
         QueryShardContext queryShardContext = createShardContext();
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, sameInstance(query));
     }
 
@@ -515,7 +515,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             }
         };
         QueryShardContext queryShardContext = createShardContext();
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, sameInstance(query));
     }
 }

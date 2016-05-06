@@ -42,7 +42,7 @@ GET my_index/_search
   },
   "script_fields": {
     "Routing value": {
-      "script": "doc['_routing']" <4>
+      "script": "doc['_routing']" <2>
     }
   }
 }

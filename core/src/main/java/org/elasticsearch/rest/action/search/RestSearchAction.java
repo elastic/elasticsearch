@@ -162,7 +162,7 @@ public class RestSearchAction extends BaseRestHandler {
      * values that are not overridden by the rest request.
      */
     private static void parseSearchSource(final SearchSourceBuilder searchSourceBuilder, RestRequest request) {
-        QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+        QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
         if (queryBuilder != null) {
             searchSourceBuilder.query(queryBuilder);
         }

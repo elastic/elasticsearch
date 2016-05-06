@@ -32,7 +32,6 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -53,7 +52,7 @@ public class FileInfoTests extends ESTestCase {
             BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_foobar", meta, size);
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
             BlobStoreIndexShardSnapshot.FileInfo.toXContent(info, builder, ToXContent.EMPTY_PARAMS);
-            byte[] xcontent = builder.bytes().toBytes();
+            byte[] xcontent = shuffleXContent(builder).bytes().toBytes();
 
             final BlobStoreIndexShardSnapshot.FileInfo parsedInfo;
             try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xcontent)) {

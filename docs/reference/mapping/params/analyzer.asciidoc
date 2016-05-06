@@ -41,7 +41,7 @@ in the field mapping, as follows:
 
 [source,js]
 --------------------------------------------------
-PUT my_index
+PUT /my_index
 {
   "mappings": {
     "my_type": {
@@ -59,6 +59,8 @@ PUT my_index
     }
   }
 }
+
+GET _cluster/health?wait_for_status=yellow
 
 GET my_index/_analyze?field=text <3>
 {

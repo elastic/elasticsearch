@@ -360,7 +360,7 @@ public class TransportClientNodesService extends AbstractComponent {
                     try {
                         // its a listed node, light connect to it...
                         logger.trace("connecting to listed node (light) [{}]", listedNode);
-                        transportService.connectToNodeLight(listedNode, pingTimeout, !ignoreClusterName);
+                        transportService.connectToNodeLight(listedNode);
                     } catch (Throwable e) {
                         logger.debug("failed to connect to node [{}], removed from nodes list", e, listedNode);
                         newFilteredNodes.add(listedNode);
@@ -435,7 +435,7 @@ public class TransportClientNodesService extends AbstractComponent {
                                     } else {
                                         // its a listed node, light connect to it...
                                         logger.trace("connecting to listed node (light) [{}]", listedNode);
-                                        transportService.connectToNodeLight(listedNode, pingTimeout, !ignoreClusterName);
+                                        transportService.connectToNodeLight(listedNode);
                                     }
                                 } catch (Exception e) {
                                     logger.debug("failed to connect to node [{}], ignoring...", e, listedNode);

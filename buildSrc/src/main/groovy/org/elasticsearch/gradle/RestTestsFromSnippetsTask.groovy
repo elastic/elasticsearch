@@ -176,10 +176,8 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 String body = matcher.group("body")
                 String catchPart = last ? snippet.catchPart : null
                 if (pathAndQuery.startsWith('/')) {
-                    // Why not do some light linting while we're here?
-                    throw new InvalidUserDataException(
-                        "Path shouldn't start with a '/': $snippet\n"
-                        + snippet.contents)
+                    // Leading '/'s break the generated paths
+                    pathAndQuery = pathAndQuery.substring(1)
                 }
                 emitDo(method, pathAndQuery, body, catchPart)
             }

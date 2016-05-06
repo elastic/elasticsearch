@@ -46,7 +46,7 @@ import java.util.Objects;
  * <tt>?</tt>.
  */
 public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuilder>
-        implements MultiTermQueryBuilder<WildcardQueryBuilder> {
+        implements MultiTermQueryBuilder {
 
     public static final String NAME = "wildcard";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);

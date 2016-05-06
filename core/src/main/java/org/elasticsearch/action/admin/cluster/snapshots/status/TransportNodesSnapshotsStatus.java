@@ -43,18 +43,20 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static java.util.Collections.unmodifiableMap;
 
 /**
  * Transport client that collects snapshot shard statuses from data nodes
  */
-public class TransportNodesSnapshotsStatus extends TransportNodesAction<TransportNodesSnapshotsStatus.Request, TransportNodesSnapshotsStatus.NodesSnapshotStatus, TransportNodesSnapshotsStatus.NodeRequest, TransportNodesSnapshotsStatus.NodeSnapshotStatus> {
+public class TransportNodesSnapshotsStatus extends TransportNodesAction<TransportNodesSnapshotsStatus.Request,
+                                                                        TransportNodesSnapshotsStatus.NodesSnapshotStatus,
+                                                                        TransportNodesSnapshotsStatus.NodeRequest,
+                                                                        TransportNodesSnapshotsStatus.NodeSnapshotStatus> {
 
     public static final String ACTION_NAME = SnapshotsStatusAction.NAME + "[nodes]";
 
@@ -66,7 +68,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
                                          SnapshotShardsService snapshotShardsService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                Request::new, NodeRequest::new, ThreadPool.Names.GENERIC);
+              Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeSnapshotStatus.class);
         this.snapshotShardsService = snapshotShardsService;
     }
 
@@ -86,21 +88,8 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     }
 
     @Override
-    protected NodesSnapshotStatus newResponse(Request request, AtomicReferenceArray responses) {
-        final List<NodeSnapshotStatus> nodesList = new ArrayList<>();
-        final List<FailedNodeException> failures = new ArrayList<>();
-        for (int i = 0; i < responses.length(); i++) {
-            Object resp = responses.get(i);
-            if (resp instanceof NodeSnapshotStatus) { // will also filter out null response for unallocated ones
-                nodesList.add((NodeSnapshotStatus) resp);
-            } else if (resp instanceof FailedNodeException) {
-                failures.add((FailedNodeException) resp);
-            } else {
-                logger.warn("unknown response type [{}], expected NodeSnapshotStatus or FailedNodeException", resp);
-            }
-        }
-        return new NodesSnapshotStatus(clusterName, nodesList.toArray(new NodeSnapshotStatus[nodesList.size()]),
-                failures.toArray(new FailedNodeException[failures.size()]));
+    protected NodesSnapshotStatus newResponse(Request request, List<NodeSnapshotStatus> responses, List<FailedNodeException> failures) {
+        return new NodesSnapshotStatus(clusterName, responses, failures);
     }
 
     @Override
@@ -169,75 +158,47 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
     public static class NodesSnapshotStatus extends BaseNodesResponse<NodeSnapshotStatus> {
 
-        private FailedNodeException[] failures;
-
         NodesSnapshotStatus() {
         }
 
-        public NodesSnapshotStatus(ClusterName clusterName, NodeSnapshotStatus[] nodes, FailedNodeException[] failures) {
-            super(clusterName, nodes);
-            this.failures = failures;
+        public NodesSnapshotStatus(ClusterName clusterName, List<NodeSnapshotStatus> nodes, List<FailedNodeException> failures) {
+            super(clusterName, nodes, failures);
         }
 
         @Override
-        public FailedNodeException[] failures() {
-            return failures;
+        protected List<NodeSnapshotStatus> readNodesFrom(StreamInput in) throws IOException {
+            return in.readStreamableList(NodeSnapshotStatus::new);
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            nodes = new NodeSnapshotStatus[in.readVInt()];
-            for (int i = 0; i < nodes.length; i++) {
-                nodes[i] = new NodeSnapshotStatus();
-                nodes[i].readFrom(in);
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeVInt(nodes.length);
-            for (NodeSnapshotStatus response : nodes) {
-                response.writeTo(out);
-            }
+        protected void writeNodesTo(StreamOutput out, List<NodeSnapshotStatus> nodes) throws IOException {
+            out.writeStreamableList(nodes);
         }
     }
 
 
     public static class NodeRequest extends BaseNodeRequest {
 
-        private SnapshotId[] snapshotIds;
+        private List<SnapshotId> snapshotIds;
 
         public NodeRequest() {
         }
 
         NodeRequest(String nodeId, TransportNodesSnapshotsStatus.Request request) {
             super(nodeId);
-            snapshotIds = request.snapshotIds;
+            snapshotIds = Arrays.asList(request.snapshotIds);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            int n = in.readVInt();
-            snapshotIds = new SnapshotId[n];
-            for (int i = 0; i < n; i++) {
-                snapshotIds[i] = SnapshotId.readSnapshotId(in);
-            }
+            snapshotIds = in.readList(SnapshotId::readSnapshotId);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (snapshotIds != null) {
-                out.writeVInt(snapshotIds.length);
-                for (int i = 0; i < snapshotIds.length; i++) {
-                    snapshotIds[i].writeTo(out);
-                }
-            } else {
-                out.writeVInt(0);
-            }
+            out.writeStreamableList(snapshotIds);
         }
     }
 

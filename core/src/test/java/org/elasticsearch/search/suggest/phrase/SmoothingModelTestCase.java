@@ -100,7 +100,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         contentBuilder.startObject();
         testModel.innerToXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
         contentBuilder.endObject();
-        XContentParser parser = XContentHelper.createParser(contentBuilder.bytes());
+        XContentParser parser = XContentHelper.createParser(shuffleXContent(contentBuilder).bytes());
         QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
         parser.nextToken();  // go to start token, real parsing would do that in the outer element parser
         SmoothingModel parsedModel = fromXContent(context);

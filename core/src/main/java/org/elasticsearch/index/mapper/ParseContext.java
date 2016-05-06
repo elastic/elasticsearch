@@ -327,11 +327,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public StringBuilder stringBuilder() {
-            return in.stringBuilder();
-        }
-
-        @Override
         public void addDynamicMapper(Mapper update) {
             in.addDynamicMapper(update);
         }
@@ -365,8 +360,6 @@ public abstract class ParseContext {
         private String id;
 
         private Field uid, version;
-
-        private StringBuilder stringBuilder = new StringBuilder();
 
         private AllEntries allEntries = new AllEntries();
 
@@ -524,16 +517,6 @@ public abstract class ParseContext {
         @Override
         public AllEntries allEntries() {
             return this.allEntries;
-        }
-
-        /**
-         * A string builder that can be used to construct complex names for example.
-         * Its better to reuse the.
-         */
-        @Override
-        public StringBuilder stringBuilder() {
-            stringBuilder.setLength(0);
-            return this.stringBuilder;
         }
 
         @Override
@@ -735,12 +718,6 @@ public abstract class ParseContext {
         }
         return clazz.cast(externalValue());
     }
-
-    /**
-     * A string builder that can be used to construct complex names for example.
-     * Its better to reuse the.
-     */
-    public abstract StringBuilder stringBuilder();
 
     /**
      * Add a new mapper dynamically created while parsing.

@@ -2570,4 +2570,34 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertNoFailures(search);
         assertThat(search.getHits().totalHits(), equalTo(1L));
     }
+
+    public void testKeywordFieldHighlighting() throws IOException {
+        // check that we do not get an exception for geo_point fields in case someone tries to highlight
+        // it accidential with a wildcard
+        // see https://github.com/elastic/elasticsearch/issues/17537
+        XContentBuilder mappings = jsonBuilder();
+        mappings.startObject();
+        mappings.startObject("type")
+            .startObject("properties")
+            .startObject("keyword_field")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject();
+        mappings.endObject();
+        assertAcked(prepareCreate("test")
+            .addMapping("type", mappings));
+        ensureYellow();
+
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("keyword_field", "some text").endObject())
+            .get();
+        refresh();
+        SearchResponse search = client().prepareSearch().setSource(
+            new SearchSourceBuilder().query(QueryBuilders.matchQuery("keyword_field", "some text")).highlighter(new HighlightBuilder().field("*")))
+            .get();
+        assertNoFailures(search);
+        assertThat(search.getHits().totalHits(), equalTo(1L));
+        assertThat(search.getHits().getAt(0).getHighlightFields().get("keyword_field").getFragments()[0].string(), equalTo("<em>some text</em>"));
+    }
 }

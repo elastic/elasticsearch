@@ -76,7 +76,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .field("field", "value")
                 .endObject()
                 .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1").timestamp(1));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source).timestamp(1));
 
         assertThat(doc.rootDoc().getField("_timestamp"), equalTo(null));
     }
@@ -91,7 +91,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .field("field", "value")
                 .endObject()
                 .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1").timestamp(1));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source).timestamp(1));
 
         assertThat(doc.rootDoc().getField("_timestamp").fieldType().stored(), equalTo(true));
         assertNotSame(IndexOptions.NONE, doc.rootDoc().getField("_timestamp").fieldType().indexOptions());

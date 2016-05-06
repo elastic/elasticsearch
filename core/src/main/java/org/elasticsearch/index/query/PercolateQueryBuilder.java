@@ -362,10 +362,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         DocumentMapperForType docMapperForType = mapperService.documentMapperWithAutoCreate(documentType);
         DocumentMapper docMapper = docMapperForType.getDocumentMapper();
 
-        ParsedDocument doc = docMapper.parse(source(document)
-            .index(context.index().getName())
-            .id("_temp_id")
-            .type(documentType));
+        ParsedDocument doc = docMapper.parse(source(context.index().getName(), documentType, "_temp_id", document));
 
         FieldNameAnalyzer fieldNameAnalyzer = (FieldNameAnalyzer) docMapper.mappers().indexAnalyzer();
         // Need to this custom impl because FieldNameAnalyzer is strict and the percolator sometimes isn't when

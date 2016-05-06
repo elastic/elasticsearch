@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +33,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
@@ -138,46 +136,21 @@ public class UidFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-        // if we have the id provided, fill it, and parse now
-        if (context.sourceToParse().id() != null) {
-            context.id(context.sourceToParse().id());
-            super.parse(context);
-        }
+        super.parse(context);
     }
 
     @Override
-    public void postParse(ParseContext context) throws IOException {
-        if (context.id() == null) {
-            throw new MapperParsingException("No id found while parsing the content source");
-        }
-        // if we did not have the id as part of the sourceToParse, then we need to parse it here
-        // it would have been filled in the _id parse phase
-        if (context.sourceToParse().id() == null) {
-            super.parse(context);
-            // since we did not have the uid in the pre phase, we did not add it automatically to the nested docs
-            // as they were created we need to make sure we add it to all the nested docs...
-            if (context.docs().size() > 1) {
-                final IndexableField uidField = context.rootDoc().getField(UidFieldMapper.NAME);
-                assert uidField != null;
-                // we need to go over the docs and add it...
-                for (int i = 1; i < context.docs().size(); i++) {
-                    final Document doc = context.docs().get(i);
-                    doc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), Defaults.NESTED_FIELD_TYPE));
-                }
-            }
-        }
-    }
+    public void postParse(ParseContext context) throws IOException {}
 
     @Override
     public Mapper parse(ParseContext context) throws IOException {
-        // nothing to do here, we either do it in post parse, or in pre parse.
+        // nothing to do here, we do everything in preParse
         return null;
     }
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        Field uid = new Field(NAME, Uid.createUid(context.type(), context.id()), Defaults.FIELD_TYPE);
-        context.uid(uid);
+        Field uid = new Field(NAME, Uid.createUid(context.sourceToParse().type(), context.sourceToParse().id()), Defaults.FIELD_TYPE);
         fields.add(uid);
         if (fieldType().hasDocValues()) {
             fields.add(new BinaryDocValuesField(NAME, new BytesRef(uid.stringValue())));

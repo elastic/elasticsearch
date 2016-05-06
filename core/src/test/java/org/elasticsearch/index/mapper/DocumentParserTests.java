@@ -171,13 +171,12 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     // creates an object mapper, which is about 100x harder than it should be....
     ObjectMapper createObjectMapper(MapperService mapperService, String name) throws Exception {
-        String[] nameParts = name.split("\\.");
-        ContentPath path = new ContentPath();
-        for (int i = 0; i < nameParts.length - 1; ++i) {
-            path.add(nameParts[i]);
-        }
         ParseContext context = new ParseContext.InternalParseContext(Settings.EMPTY,
-            mapperService.documentMapperParser(), mapperService.documentMapper("type"), path);
+            mapperService.documentMapperParser(), mapperService.documentMapper("type"), null, null);
+        String[] nameParts = name.split("\\.");
+        for (int i = 0; i < nameParts.length - 1; ++i) {
+            context.path().add(nameParts[i]);
+        }
         Mapper.Builder builder = new ObjectMapper.Builder(nameParts[nameParts.length - 1]).enabled(true);
         Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
         return (ObjectMapper)builder.build(builderContext);

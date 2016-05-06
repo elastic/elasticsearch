@@ -22,17 +22,11 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.LegacyIntField;
-import org.apache.lucene.document.LegacyLongField;
-import org.apache.lucene.document.LegacyFloatField;
-import org.apache.lucene.document.LegacyDoubleField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.all.AllEntries;
-import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -133,8 +127,6 @@ public abstract class ParseContext {
          * Returns an array of values of the field specified as the method parameter.
          * This method returns an empty array when there are no
          * matching fields.  It never returns null.
-         * For {@link org.apache.lucene.document.LegacyIntField}, {@link org.apache.lucene.document.LegacyLongField}, {@link
-         * org.apache.lucene.document.LegacyFloatField} and {@link org.apache.lucene.document.LegacyDoubleField} it returns the string value of the number.
          * If you want the actual numeric field instances back, use {@link #getFields}.
          * @param name the name of the field
          * @return a <code>String[]</code> of field values
@@ -202,33 +194,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public String index() {
-            return in.index();
-        }
-
-        @Override
         public Settings indexSettings() {
             return in.indexSettings();
         }
 
         @Override
-        public String type() {
-            return in.type();
-        }
-
-        @Override
         public SourceToParse sourceToParse() {
             return in.sourceToParse();
-        }
-
-        @Override
-        public BytesReference source() {
-            return in.source();
-        }
-
-        @Override
-        public void source(BytesReference source) {
-            in.source(source);
         }
 
         @Override
@@ -257,7 +229,7 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addDoc(Document doc) {
+        protected void addDoc(Document doc) {
             in.addDoc(doc);
         }
 
@@ -279,26 +251,6 @@ public abstract class ParseContext {
         @Override
         public MapperService mapperService() {
             return in.mapperService();
-        }
-
-        @Override
-        public String id() {
-            return in.id();
-        }
-
-        @Override
-        public void id(String id) {
-            in.id(id);
-        }
-
-        @Override
-        public Field uid() {
-            return in.uid();
-        }
-
-        @Override
-        public void uid(Field uid) {
-            in.uid(uid);
         }
 
         @Override
@@ -345,48 +297,37 @@ public abstract class ParseContext {
 
         private final ContentPath path;
 
-        private XContentParser parser;
+        private final XContentParser parser;
 
         private Document document;
 
-        private List<Document> documents = new ArrayList<>();
+        private final List<Document> documents;
 
         @Nullable
         private final Settings indexSettings;
 
-        private SourceToParse sourceToParse;
-        private BytesReference source;
+        private final SourceToParse sourceToParse;
 
-        private String id;
+        private Field version;
 
-        private Field uid, version;
+        private StringBuilder stringBuilder = new StringBuilder();
 
-        private AllEntries allEntries = new AllEntries();
+        private final AllEntries allEntries;
 
-        private List<Mapper> dynamicMappers = new ArrayList<>();
+        private final List<Mapper> dynamicMappers;
 
-        public InternalParseContext(@Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
+        public InternalParseContext(@Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
+                SourceToParse source, XContentParser parser) {
             this.indexSettings = indexSettings;
             this.docMapper = docMapper;
             this.docMapperParser = docMapperParser;
-            this.path = path;
-        }
-
-        public void reset(XContentParser parser, Document document, SourceToParse source) {
+            this.path = new ContentPath(0);
             this.parser = parser;
-            this.document = document;
-            if (document != null) {
-                this.documents = new ArrayList<>();
-                this.documents.add(document);
-            } else {
-                this.documents = null;
-            }
-            this.uid = null;
+            this.document = new Document();
+            this.documents = new ArrayList<>();
+            this.documents.add(document);
             this.version = null;
-            this.id = null;
             this.sourceToParse = source;
-            this.source = source == null ? null : sourceToParse.source();
-            this.path.reset();
             this.allEntries = new AllEntries();
             this.dynamicMappers = new ArrayList<>();
         }
@@ -397,35 +338,14 @@ public abstract class ParseContext {
         }
 
         @Override
-        public String index() {
-            return sourceToParse.index();
-        }
-
-        @Override
         @Nullable
         public Settings indexSettings() {
             return this.indexSettings;
         }
 
         @Override
-        public String type() {
-            return sourceToParse.type();
-        }
-
-        @Override
         public SourceToParse sourceToParse() {
             return this.sourceToParse;
-        }
-
-        @Override
-        public BytesReference source() {
-            return source;
-        }
-
-        // only should be used by SourceFieldMapper to update with a compressed source
-        @Override
-        public void source(BytesReference source) {
-            this.source = source;
         }
 
         @Override
@@ -454,7 +374,7 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addDoc(Document doc) {
+        protected void addDoc(Document doc) {
             this.documents.add(doc);
         }
 
@@ -476,32 +396,6 @@ public abstract class ParseContext {
         @Override
         public MapperService mapperService() {
             return docMapperParser.mapperService;
-        }
-
-        @Override
-        public String id() {
-            return id;
-        }
-
-        /**
-         * Really, just the id mapper should set this.
-         */
-        @Override
-        public void id(String id) {
-            this.id = id;
-        }
-
-        @Override
-        public Field uid() {
-            return this.uid;
-        }
-
-        /**
-         * Really, just the uid mapper should set this.
-         */
-        @Override
-        public void uid(Field uid) {
-            this.uid = uid;
         }
 
         @Override
@@ -597,20 +491,10 @@ public abstract class ParseContext {
         return false;
     }
 
-    public abstract String index();
-
     @Nullable
     public abstract Settings indexSettings();
 
-    public abstract String type();
-
     public abstract SourceToParse sourceToParse();
-
-    @Nullable
-    public abstract BytesReference source();
-
-    // only should be used by SourceFieldMapper to update with a compressed source
-    public abstract void source(BytesReference source);
 
     public abstract ContentPath path();
 
@@ -622,7 +506,7 @@ public abstract class ParseContext {
 
     public abstract Document doc();
 
-    public abstract void addDoc(Document doc);
+    protected abstract void addDoc(Document doc);
 
     public abstract RootObjectMapper root();
 
@@ -631,20 +515,6 @@ public abstract class ParseContext {
     public abstract AnalysisService analysisService();
 
     public abstract MapperService mapperService();
-
-    public abstract String id();
-
-    /**
-     * Really, just the id mapper should set this.
-     */
-    public abstract void id(String id);
-
-    public abstract Field uid();
-
-    /**
-     * Really, just the uid mapper should set this.
-     */
-    public abstract void uid(Field uid);
 
     public abstract Field version();
 

@@ -95,15 +95,6 @@ public final class Uid {
         return new Uid(uid.substring(0, delimiterIndex), uid.substring(delimiterIndex + 1));
     }
 
-    public static BytesRef[] createUids(List<? extends DocumentRequest> requests) {
-        BytesRef[] uids = new BytesRef[requests.size()];
-        int idx = 0;
-        for (DocumentRequest item : requests) {
-            uids[idx++] = createUidAsBytes(item.type(), item.id());
-        }
-        return uids;
-    }
-
     public static BytesRef createUidAsBytes(String type, String id) {
         return createUidAsBytes(new BytesRef(type), new BytesRef(id));
     }

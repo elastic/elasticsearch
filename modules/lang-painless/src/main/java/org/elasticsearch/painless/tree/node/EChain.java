@@ -21,11 +21,13 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Caster;
 import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.Collections;
@@ -35,8 +37,12 @@ public class EChain extends AExpression {
     protected final List<ALink> links;
     protected final boolean pre;
     protected final boolean post;
-    protected final Operation operation;
+    protected Operation operation;
     protected AExpression expression;
+
+    protected boolean cat = false;
+    protected Cast there = null;
+    protected Cast back = null;
 
     public EChain(final String location, final List<ALink> links,
                   final boolean pre, final boolean post, final Operation operation, final AExpression expression) {
@@ -88,7 +94,6 @@ public class EChain extends AExpression {
             links.remove(0);
         }
 
-        final ALink first = links.get(0);
         final ALink last = links.get(links.size() - 1);
 
         if (pre && post) {
@@ -110,16 +115,20 @@ public class EChain extends AExpression {
                 } else {
                     expression = new EConstant(location, 1);
                 }
+
+                operation = Operation.ADD;
             } else if (operation == Operation.DECR) {
                 if (sort == Sort.DOUBLE) {
-                    expression = new EConstant(location, -1D);
+                    expression = new EConstant(location, 1D);
                 } else if (sort == Sort.FLOAT) {
-                    expression = new EConstant(location, -1F);
+                    expression = new EConstant(location, 1F);
                 } else if (sort == Sort.LONG) {
-                    expression = new EConstant(location, -1L);
+                    expression = new EConstant(location, 1L);
                 } else {
-                    expression = new EConstant(location, -1);
+                    expression = new EConstant(location, 1);
                 }
+                
+                operation = Operation.SUB;
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -152,10 +161,6 @@ public class EChain extends AExpression {
                 promote = Caster.promoteXor(definition, last.after, expression.actual);
             } else if (operation == Operation.BWOR) {
                 promote = Caster.promoteXor(definition, last.after, expression.actual);
-            } else if (operation == Operation.INCR) {
-                promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
-            } else if (operation == Operation.DECR) {
-                promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -165,25 +170,23 @@ public class EChain extends AExpression {
                     "[" + operation.symbol + "]= to types [" + last.after + "] and [" + expression.actual + "].");
             }
 
-            final boolean cat = operation == Operation.ADD && promote.sort == Sort.STRING;
+            cat = operation == Operation.ADD && promote.sort == Sort.STRING;
 
-            expression.expected = cat ? expression.actual : promote;
-            expression = expression.cast(settings, definition, variables);
+            if (cat) {
+                if (expression instanceof EBinary && ((EBinary)expression).operation == Operation.ADD &&
+                    expression.actual.sort == Sort.STRING) {
+                    ((EBinary)expression).cat = true;
+                }
 
-            if (cat && expression instanceof EBinary &&
-                ((EBinary)expression).operation == Operation.ADD && expression.actual.sort == Sort.STRING) {
-                ((EBinary)expression).cat = true;
+                expression.expected = expression.actual;
+            } else {
+                expression.expected = promote;
             }
 
-            first.begincat = cat;
+            expression = expression.cast(settings, definition, variables);
 
-            last.expression = expression;
-            last.pre = pre;
-            last.post = post;
-            last.operation = pre || post ? Operation.ADD : operation;
-            last.endcat = cat;
-            last.there = Caster.getLegalCast(definition, location, last.after, promote, expression.typesafe);
-            last.back = Caster.getLegalCast(definition, location, promote, last.after, true);
+            there = Caster.getLegalCast(definition, location, last.after, promote, expression.typesafe);
+            back = Caster.getLegalCast(definition, location, promote, last.after, true);
 
             statement = true;
             actual = read ? last.after : definition.voidType;
@@ -192,7 +195,7 @@ public class EChain extends AExpression {
             expression.expected = last.after;
             expression.analyze(settings, definition, variables);
             expression = expression.cast(settings, definition, variables);
-            last.expression = expression;
+            last.typesafe = expression.typesafe;
 
             statement = true;
             actual = read ? last.after : definition.voidType;
@@ -207,8 +210,66 @@ public class EChain extends AExpression {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        if (cat) {
+            Shared.writeNewStrings(adapter);
+        }
+
+        final ALink last = links.get(links.size() - 1);
+
         for (final ALink link : links) {
             link.write(settings, definition, adapter);
+
+            if (link == last && link.store) {
+                if (cat) {
+                    Shared.writeDup(adapter, link.size, 1);
+                    link.load(settings, definition, adapter);
+                    Shared.writeAppendStrings(adapter, link.after.sort);
+
+                    expression.write(settings, definition, adapter);
+
+                    if (!(expression instanceof EBinary) ||
+                        ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
+                        Shared.writeAppendStrings(adapter, expression.expected.sort);
+                    }
+
+                    Shared.writeToStrings(adapter);
+                    Shared.writeCast(adapter, back);
+
+                    if (link.load) {
+                        Shared.writeDup(adapter, link.after.sort.size, link.size);
+                    }
+
+                    link.store(settings, definition, adapter);
+                } else if (operation != null) {
+                    Shared.writeDup(adapter, link.size, 0);
+                    link.load(settings, definition, adapter);
+
+                    if (link.load && post) {
+                        Shared.writeDup(adapter, link.after.sort.size, link.size);
+                    }
+
+                    Shared.writeCast(adapter, there);
+                    expression.write(settings, definition, adapter);
+                    Shared.writeBinaryInstruction(settings, definition, adapter, location, expression.expected, operation);
+
+                    if (settings.getNumericOverflow() || !expression.typesafe ||
+                        !Shared.writeExactInstruction(definition, adapter, expression.expected.sort, link.after.sort)) {
+                        Shared.writeCast(adapter, back);
+                    }
+
+                    link.store(settings, definition, adapter);
+                } else {
+                    if (link.load) {
+                        Shared.writeDup(adapter, link.after.sort.size, link.size);
+                    }
+
+                    link.store(settings, definition, adapter);
+                }
+            } else {
+                link.load(settings, definition, adapter);
+            }
         }
+
+        Shared.writeBranch(adapter, tru, fals);
     }
 }

@@ -25,7 +25,6 @@ import org.elasticsearch.painless.Definition.Constructor;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.Collections;
@@ -38,7 +37,7 @@ public class LNewObj extends ALink {
     protected Constructor constructor;
 
     public LNewObj(final String location, final String type, final List<AExpression> arguments) {
-        super(location);
+        super(location, -1);
 
         this.type = type;
         this.arguments = Collections.unmodifiableList(arguments);
@@ -91,10 +90,11 @@ public class LNewObj extends ALink {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        if (begincat) {
-            Shared.writeNewStrings(adapter);
-        }
+        // Do nothing.
+    }
 
+    @Override
+    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.newInstance(after.type);
 
         if (load) {
@@ -106,5 +106,10 @@ public class LNewObj extends ALink {
         }
 
         adapter.invokeConstructor(constructor.owner.type, constructor.method);
+    }
+
+    @Override
+    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        // Do nothing.
     }
 }

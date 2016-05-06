@@ -33,7 +33,7 @@ public class LCast extends ALink {
     protected Cast cast = null;
 
     public LCast(final String location, final String type) {
-        super(location);
+        super(location, -1);
 
         this.type = type;
     }
@@ -58,7 +58,17 @@ public class LCast extends ALink {
     }
 
     @Override
-    protected void write(CompilerSettings settings, Definition definition, GeneratorAdapter adapter) {
+    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         Shared.writeCast(adapter, cast);
+    }
+
+    @Override
+    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        // Do nothing.
+    }
+
+    @Override
+    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        // Do nothing.
     }
 }

@@ -26,7 +26,7 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class LString extends ALink {
     public LString(final String location, final String constant) {
-        super(location);
+        super(location, -1);
 
         this.constant = constant;
     }
@@ -48,6 +48,16 @@ public class LString extends ALink {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        // Do nothing.
+    }
+
+    @Override
+    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.push((String)constant);
+    }
+
+    @Override
+    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        // Do nothing.
     }
 }

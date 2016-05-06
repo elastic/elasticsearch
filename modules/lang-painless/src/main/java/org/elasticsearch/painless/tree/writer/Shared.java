@@ -402,19 +402,19 @@ public class Shared {
         return true;
     }
 
-    public static void writeDup(final GeneratorAdapter adapter, final int size, final boolean x1, final boolean x2) {
+    public static void writeDup(final GeneratorAdapter adapter, final int size, final int xsize) {
         if (size == 1) {
-            if (x2) {
+            if (xsize == 2) {
                 adapter.dupX2();
-            } else if (x1) {
+            } else if (xsize == 1) {
                 adapter.dupX1();
             } else {
                 adapter.dup();
             }
         } else if (size == 2) {
-            if (x2) {
+            if (xsize == 2) {
                 adapter.dup2X2();
-            } else if (x1) {
+            } else if (xsize == 1) {
                 adapter.dup2X1();
             } else {
                 adapter.dup2();

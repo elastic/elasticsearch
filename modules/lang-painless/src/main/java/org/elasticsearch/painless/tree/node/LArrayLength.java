@@ -28,7 +28,7 @@ public class LArrayLength extends ALink {
     protected final String value;
 
     public LArrayLength(final String location, final String value) {
-        super(location);
+        super(location, -1);
 
         this.value = value;
     }
@@ -52,6 +52,16 @@ public class LArrayLength extends ALink {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        // Do nothing.
+    }
+
+    @Override
+    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.arrayLength();
+    }
+
+    @Override
+    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        // Do nothing.
     }
 }

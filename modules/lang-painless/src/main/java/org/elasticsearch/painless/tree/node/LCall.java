@@ -35,7 +35,7 @@ public class LCall extends ALink {
     protected Method method = null;
 
     public LCall(final String location, final String name, final List<AExpression> arguments) {
-        super(location);
+        super(location, -1);
 
         this.name = name;
         this.arguments = arguments;
@@ -87,6 +87,11 @@ public class LCall extends ALink {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        // Do nothing.
+    }
+
+    @Override
+    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         for (final AExpression argument : arguments) {
             argument.write(settings, definition, adapter);
         }
@@ -102,5 +107,10 @@ public class LCall extends ALink {
         if (!method.rtn.clazz.equals(method.handle.type().returnType())) {
             adapter.checkCast(method.rtn.type);
         }
+    }
+
+    @Override
+    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        // Do nothing.
     }
 }

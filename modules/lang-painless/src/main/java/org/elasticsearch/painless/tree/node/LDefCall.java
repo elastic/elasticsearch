@@ -36,7 +36,7 @@ public class LDefCall extends ALink {
     protected final List<AExpression> arguments;
 
     public LDefCall(final String location, final String name, final List<AExpression> arguments) {
-        super(location);
+        super(location, -1);
 
         this.name = name;
         this.arguments = Collections.unmodifiableList(arguments);
@@ -60,6 +60,11 @@ public class LDefCall extends ALink {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        // Do nothing.
+    }
+
+    @Override
+    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.push(name);
         adapter.loadThis();
         adapter.getField(CLASS_TYPE, "definition", DEFINITION_TYPE);
@@ -85,5 +90,10 @@ public class LDefCall extends ALink {
         }
 
         adapter.invokeStatic(definition.defobjType.type, DEF_METHOD_CALL);
+    }
+
+    @Override
+    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        // Do nothing.
     }
 }

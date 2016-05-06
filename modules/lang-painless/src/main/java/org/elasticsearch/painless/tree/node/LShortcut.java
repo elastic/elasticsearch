@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
@@ -36,7 +35,7 @@ public class LShortcut extends ALink {
     protected Method setter = null;
 
     public LShortcut(final String location, final String value) {
-        super(location);
+        super(location, 1);
 
         this.value = value;
     }
@@ -69,62 +68,11 @@ public class LShortcut extends ALink {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        if (begincat) {
-            Shared.writeNewStrings(adapter);
-        }
-
-        if (store) {
-            if (endcat) {
-                adapter.dup2X1();
-                adapter.arrayLoad(before.type);
-                Shared.writeAppendStrings(adapter, after.sort);
-
-                expression.write(settings, definition, adapter);
-
-                if (!(expression instanceof EBinary) ||
-                    ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
-                    Shared.writeAppendStrings(adapter, expression.expected.sort);
-                }
-
-                Shared.writeToStrings(adapter);
-                Shared.writeCast(adapter, back);
-
-                if (load) {
-                    Shared.writeDup(adapter, after.sort.size, false, true);
-                }
-
-                adapter.arrayStore(before.type);
-            } else if (operation != null) {
-                adapter.dup2();
-                load(adapter);
-
-                if (load && post) {
-                    Shared.writeDup(adapter, after.sort.size, false, true);
-                }
-
-                Shared.writeCast(adapter, there);
-                expression.write(settings, definition, adapter);
-                Shared.writeBinaryInstruction(settings, definition, adapter, location, there.to, operation);
-
-                if (settings.getNumericOverflow() || !expression.typesafe ||
-                    !Shared.writeExactInstruction(definition, adapter, expression.actual.sort, after.sort)) {
-                    Shared.writeCast(adapter, back);
-                }
-
-                store(adapter);
-            } else {
-                if (load) {
-                    Shared.writeDup(adapter, after.sort.size, false, true);
-                }
-
-                store(adapter);
-            }
-        } else {
-            load(adapter);
-        }
+        // Do nothing.
     }
 
-    protected void load(final GeneratorAdapter adapter) {
+    @Override
+    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
             adapter.invokeInterface(getter.owner.type, getter.method);
         } else {
@@ -136,7 +84,8 @@ public class LShortcut extends ALink {
         }
     }
 
-    protected void store(final GeneratorAdapter adapter) {
+    @Override
+    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
             adapter.invokeInterface(setter.owner.type, setter.method);
         } else {

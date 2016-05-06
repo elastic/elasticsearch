@@ -23,7 +23,6 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.Collections;
@@ -34,7 +33,7 @@ public class LNewArray extends ALink {
     protected final List<AExpression> arguments;
 
     public LNewArray(final String location, final String type, final List<AExpression> arguments) {
-        super(location);
+        super(location, -1);
 
         this.type = type;
         this.arguments = Collections.unmodifiableList(arguments);
@@ -73,10 +72,11 @@ public class LNewArray extends ALink {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        if (begincat) {
-            Shared.writeNewStrings(adapter);
-        }
+        // Do nothing.
+    }
 
+    @Override
+    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         for (final AExpression argument : arguments) {
             argument.write(settings, definition, adapter);
         }
@@ -86,5 +86,10 @@ public class LNewArray extends ALink {
         } else {
             adapter.newArray(after.type);
         }
+    }
+
+    @Override
+    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        // Do nothing.
     }
 }

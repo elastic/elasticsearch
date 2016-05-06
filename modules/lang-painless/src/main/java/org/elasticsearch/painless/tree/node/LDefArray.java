@@ -36,7 +36,7 @@ public class LDefArray extends ALink {
     protected AExpression index;
 
     public LDefArray(final String location, final AExpression index) {
-        super(location);
+        super(location, 0);
 
         this.index = index;
     }
@@ -55,75 +55,23 @@ public class LDefArray extends ALink {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        if (begincat) {
-            Shared.writeNewStrings(adapter);
-        }
-
         index.write(settings, definition, adapter);
-
-        if (store) {
-            if (endcat) {
-                adapter.dup2X1();
-                adapter.arrayLoad(before.type);
-                Shared.writeAppendStrings(adapter, after.sort);
-
-                expression.write(settings, definition, adapter);
-
-                if (!(expression instanceof EBinary) ||
-                    ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
-                    Shared.writeAppendStrings(adapter, expression.expected.sort);
-                }
-
-                Shared.writeToStrings(adapter);
-                Shared.writeCast(adapter, back);
-
-                if (load) {
-                    Shared.writeDup(adapter, after.sort.size, false, true);
-                }
-
-                adapter.arrayStore(before.type);
-            } else if (operation != null) {
-                adapter.dup2();
-                load(definition, adapter);
-
-                if (load && post) {
-                    Shared.writeDup(adapter, after.sort.size, false, true);
-                }
-
-                Shared.writeCast(adapter, there);
-                expression.write(settings, definition, adapter);
-                Shared.writeBinaryInstruction(settings, definition, adapter, location, there.to, operation);
-
-                if (settings.getNumericOverflow() || !expression.typesafe ||
-                    !Shared.writeExactInstruction(definition, adapter, expression.actual.sort, after.sort)) {
-                    Shared.writeCast(adapter, back);
-                }
-
-                store(definition, adapter);
-            } else {
-                if (load) {
-                    Shared.writeDup(adapter, after.sort.size, false, true);
-                }
-
-                store(definition, adapter);
-            }
-        } else {
-            load(definition, adapter);
-        }
     }
 
-    protected void load(final Definition definition, final GeneratorAdapter adapter) {
+    @Override
+    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.loadThis();
         adapter.getField(CLASS_TYPE, "definition", DEFINITION_TYPE);
         adapter.push(index.typesafe);
         adapter.invokeStatic(definition.defobjType.type, DEF_ARRAY_LOAD);
     }
 
-    protected void store(final Definition definition, final GeneratorAdapter adapter) {
+    @Override
+    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.loadThis();
         adapter.getField(CLASS_TYPE, "definition", DEFINITION_TYPE);
         adapter.push(index.typesafe);
-        adapter.push(operation == null && expression.typesafe);
+        adapter.push(typesafe);
         adapter.invokeStatic(definition.defobjType.type, DEF_ARRAY_STORE);
     }
 }

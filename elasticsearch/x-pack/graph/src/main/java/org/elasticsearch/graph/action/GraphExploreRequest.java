@@ -278,7 +278,7 @@ public class GraphExploreRequest extends ActionRequest<GraphExploreRequest> impl
      * are considered in this stage
      * @return a {@link Hop} object that holds settings for a stage in the graph exploration
      */
-    public Hop createNextHop(QueryBuilder<?> guidingQuery) {
+    public Hop createNextHop(QueryBuilder guidingQuery) {
         Hop parent = null;
         if (hops.size() > 0) {
            parent = hops.get(hops.size() - 1);

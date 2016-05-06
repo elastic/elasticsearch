@@ -44,7 +44,7 @@ import java.util.List;
 public class Hop {
     final Hop parentHop;
     List<VertexRequest> vertices = null;
-    QueryBuilder<?> guidingQuery = null;
+    QueryBuilder guidingQuery = null;
 
     Hop(Hop parent) {
         this.parentHop = parent;
@@ -88,7 +88,7 @@ public class Hop {
         }
     }
 
-    public QueryBuilder<?> guidingQuery() {
+    public QueryBuilder guidingQuery() {
         if (guidingQuery != null) {
             return guidingQuery;
         }
@@ -117,7 +117,7 @@ public class Hop {
      *
      * @param queryBuilder any query
      */
-    public void guidingQuery(QueryBuilder<?> queryBuilder) {
+    public void guidingQuery(QueryBuilder queryBuilder) {
         guidingQuery = queryBuilder;
     }
 

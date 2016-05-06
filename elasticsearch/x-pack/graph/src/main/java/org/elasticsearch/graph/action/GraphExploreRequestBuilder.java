@@ -120,7 +120,7 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
      * are considered in this stage
      * @return a {@link Hop} object that holds settings for a stage in the graph exploration
      */
-    public Hop createNextHop(@Nullable QueryBuilder<?> guidingQuery) {
+    public Hop createNextHop(@Nullable QueryBuilder guidingQuery) {
         return request.createNextHop(guidingQuery);
     }
 

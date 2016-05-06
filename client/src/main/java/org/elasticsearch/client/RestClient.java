@@ -107,7 +107,7 @@ public final class RestClient implements Closeable {
             }
             int statusCode = response.getStatusLine().getStatusCode();
             //TODO make ignore status code configurable. rest-spec and tests support that parameter (ignore_missing)
-            if (statusCode < 300 || request.getMethod().equals(HttpHead.METHOD_NAME) && statusCode == 404) {
+            if (statusCode < 300 || (request.getMethod().equals(HttpHead.METHOD_NAME) && statusCode == 404) ) {
                 RequestLogger.log(logger, "request succeeded", request.getRequestLine(), connection.getHost(), response.getStatusLine());
                 connectionPool.onSuccess(connection);
                 return new ElasticsearchResponse(request.getRequestLine(), connection.getHost(), response);

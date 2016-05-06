@@ -64,4 +64,10 @@ if [ "$STOP_REQUIRED" = "true" ]; then
     echo " OK"
 fi
 
+SCRIPTS_DIR="/etc/elasticsearch/scripts"
+# delete the scripts directory if and only if empty
+if [ -d "$SCRIPTS_DIR" ]; then
+    rmdir --ignore-fail-on-non-empty "$SCRIPTS_DIR"
+fi
+
 ${scripts.footer}

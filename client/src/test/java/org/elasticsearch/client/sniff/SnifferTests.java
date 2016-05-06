@@ -34,8 +34,6 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.ElasticsearchResponseException;
-import org.elasticsearch.client.sniff.Sniffer;
-import org.elasticsearch.client.sniff.SniffingConnectionPool;
 import org.junit.After;
 import org.junit.Before;
 
@@ -46,6 +44,7 @@ import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -66,14 +65,14 @@ public class SnifferTests extends LuceneTestCase {
     }
 
     private int sniffRequestTimeout;
-    private SniffingConnectionPool.Scheme scheme;
+    private String scheme;
     private SniffResponse sniffResponse;
     private MockWebServer server;
 
     @Before
     public void startMockWebServer() throws IOException {
         this.sniffRequestTimeout = RandomInts.randomIntBetween(random(), 1000, 10000);
-        this.scheme = RandomPicks.randomFrom(random(), SniffingConnectionPool.Scheme.values());
+        this.scheme = RandomPicks.randomFrom(random(), Arrays.asList("http", "https"));
         if (rarely()) {
             this.sniffResponse = SniffResponse.buildFailure();
         } else {
@@ -139,7 +138,7 @@ public class SnifferTests extends LuceneTestCase {
         return server;
     }
 
-    private static SniffResponse buildSniffResponse(SniffingConnectionPool.Scheme scheme) throws IOException {
+    private static SniffResponse buildSniffResponse(String scheme) throws IOException {
         int numNodes = RandomInts.randomIntBetween(random(), 1, 5);
         List<HttpHost> hosts = new ArrayList<>(numNodes);
         JsonFactory jsonFactory = new JsonFactory();

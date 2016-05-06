@@ -30,7 +30,6 @@ import org.elasticsearch.client.Connection;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -51,7 +50,7 @@ public class SniffingConnectionPool extends AbstractStaticConnectionPool {
 
     //TODO do we still need the sniff request timeout? or should we just use a low connect timeout?
     public SniffingConnectionPool(int sniffInterval, boolean sniffOnFailure, int sniffAfterFailureDelay,
-                                  CloseableHttpClient client, RequestConfig sniffRequestConfig, int sniffRequestTimeout, Scheme scheme,
+                                  CloseableHttpClient client, RequestConfig sniffRequestConfig, int sniffRequestTimeout, String scheme,
                                   HttpHost... hosts) {
         if (sniffInterval <= 0) {
             throw new IllegalArgumentException("sniffInterval must be greater than 0");
@@ -60,11 +59,14 @@ public class SniffingConnectionPool extends AbstractStaticConnectionPool {
             throw new IllegalArgumentException("sniffAfterFailureDelay must be greater than 0");
         }
         Objects.requireNonNull(scheme, "scheme cannot be null");
+        if (scheme.equals("http") == false && scheme.equals("https") == false) {
+            throw new IllegalArgumentException("scheme must be either http or https");
+        }
         if (hosts == null || hosts.length == 0) {
             throw new IllegalArgumentException("no hosts provided");
         }
         this.sniffOnFailure = sniffOnFailure;
-        this.sniffer = new Sniffer(client, sniffRequestConfig, sniffRequestTimeout, scheme.toString());
+        this.sniffer = new Sniffer(client, sniffRequestConfig, sniffRequestTimeout, scheme);
         this.connections = createConnections(hosts);
         this.snifferTask = new SnifferTask(sniffInterval, sniffAfterFailureDelay);
     }
@@ -91,15 +93,6 @@ public class SniffingConnectionPool extends AbstractStaticConnectionPool {
     @Override
     public void close() throws IOException {
         snifferTask.shutdown();
-    }
-
-    public enum Scheme {
-        HTTP, HTTPS;
-
-        @Override
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
-        }
     }
 
     private class SnifferTask implements Runnable {

@@ -37,6 +37,7 @@ public class SniffingConnectionPoolTests extends LuceneTestCase {
 
     public void testConstructor() throws Exception {
         CloseableHttpClient httpClient = HttpClientBuilder.create().build();
+        String[] schemes = new String[]{"http", "https"};
         int numNodes = RandomInts.randomIntBetween(random(), 1, 5);
         HttpHost[] hosts = new HttpHost[numNodes];
         for (int i = 0; i < numNodes; i++) {
@@ -47,7 +48,7 @@ public class SniffingConnectionPoolTests extends LuceneTestCase {
                 RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0), random().nextBoolean(),
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), httpClient, RequestConfig.DEFAULT,
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE),
-                RandomPicks.randomFrom(random(), SniffingConnectionPool.Scheme.values()), hosts)) {
+                RandomPicks.randomFrom(random(), schemes), hosts)) {
 
             fail("pool creation should have failed " + connectionPool);
         } catch(IllegalArgumentException e) {
@@ -58,7 +59,7 @@ public class SniffingConnectionPoolTests extends LuceneTestCase {
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), random().nextBoolean(),
                 RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0), httpClient, RequestConfig.DEFAULT,
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE),
-                RandomPicks.randomFrom(random(), SniffingConnectionPool.Scheme.values()), hosts)) {
+                RandomPicks.randomFrom(random(), schemes), hosts)) {
             fail("pool creation should have failed " + connectionPool);
         } catch(IllegalArgumentException e) {
             assertEquals(e.getMessage(), "sniffAfterFailureDelay must be greater than 0");
@@ -68,7 +69,7 @@ public class SniffingConnectionPoolTests extends LuceneTestCase {
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), random().nextBoolean(),
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), null, RequestConfig.DEFAULT,
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE),
-                RandomPicks.randomFrom(random(), SniffingConnectionPool.Scheme.values()), hosts)) {
+                RandomPicks.randomFrom(random(), schemes), hosts)) {
             fail("pool creation should have failed " + connectionPool);
         } catch(NullPointerException e) {
             assertEquals(e.getMessage(), "client cannot be null");
@@ -78,7 +79,7 @@ public class SniffingConnectionPoolTests extends LuceneTestCase {
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), random().nextBoolean(),
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), httpClient, null,
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE),
-                RandomPicks.randomFrom(random(), SniffingConnectionPool.Scheme.values()), hosts)) {
+                RandomPicks.randomFrom(random(), schemes), hosts)) {
             fail("pool creation should have failed " + connectionPool);
         } catch(NullPointerException e) {
             assertEquals(e.getMessage(), "sniffRequestConfig cannot be null");
@@ -88,7 +89,7 @@ public class SniffingConnectionPoolTests extends LuceneTestCase {
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), random().nextBoolean(),
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), httpClient, RequestConfig.DEFAULT,
                 RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0),
-                RandomPicks.randomFrom(random(), SniffingConnectionPool.Scheme.values()), hosts)) {
+                RandomPicks.randomFrom(random(), schemes), hosts)) {
             fail("pool creation should have failed " + connectionPool);
         } catch(IllegalArgumentException e) {
             assertEquals(e.getMessage(), "sniffRequestTimeout must be greater than 0");
@@ -97,8 +98,28 @@ public class SniffingConnectionPoolTests extends LuceneTestCase {
         try (SniffingConnectionPool connectionPool = new SniffingConnectionPool(
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), random().nextBoolean(),
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), httpClient, RequestConfig.DEFAULT,
+                RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0),
+                null, hosts)) {
+            fail("pool creation should have failed " + connectionPool);
+        } catch(NullPointerException e) {
+            assertEquals(e.getMessage(), "scheme cannot be null");
+        }
+
+        try (SniffingConnectionPool connectionPool = new SniffingConnectionPool(
+                RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), random().nextBoolean(),
+                RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), httpClient, RequestConfig.DEFAULT,
+                RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0),
+                "whatever", hosts)) {
+            fail("pool creation should have failed " + connectionPool);
+        } catch(IllegalArgumentException e) {
+            assertEquals(e.getMessage(), "scheme must be either http or https");
+        }
+
+        try (SniffingConnectionPool connectionPool = new SniffingConnectionPool(
+                RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), random().nextBoolean(),
+                RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), httpClient, RequestConfig.DEFAULT,
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE),
-                RandomPicks.randomFrom(random(), SniffingConnectionPool.Scheme.values()), (HttpHost[])null)) {
+                RandomPicks.randomFrom(random(), schemes), (HttpHost[])null)) {
             fail("pool creation should have failed " + connectionPool);
         } catch(IllegalArgumentException e) {
             assertEquals(e.getMessage(), "no hosts provided");
@@ -108,7 +129,7 @@ public class SniffingConnectionPoolTests extends LuceneTestCase {
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), random().nextBoolean(),
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), httpClient, RequestConfig.DEFAULT,
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE),
-                RandomPicks.randomFrom(random(), SniffingConnectionPool.Scheme.values()), (HttpHost) null)) {
+                RandomPicks.randomFrom(random(), schemes), (HttpHost) null)) {
             fail("pool creation should have failed " + connectionPool);
         } catch(NullPointerException e) {
             assertEquals(e.getMessage(), "host cannot be null");
@@ -118,7 +139,7 @@ public class SniffingConnectionPoolTests extends LuceneTestCase {
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), random().nextBoolean(),
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), httpClient, RequestConfig.DEFAULT,
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE),
-                RandomPicks.randomFrom(random(), SniffingConnectionPool.Scheme.values()))) {
+                RandomPicks.randomFrom(random(), schemes))) {
             fail("pool creation should have failed " + connectionPool);
         } catch(IllegalArgumentException e) {
             assertEquals(e.getMessage(), "no hosts provided");
@@ -128,7 +149,7 @@ public class SniffingConnectionPoolTests extends LuceneTestCase {
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), random().nextBoolean(),
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE), httpClient, RequestConfig.DEFAULT,
                 RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE),
-                RandomPicks.randomFrom(random(), SniffingConnectionPool.Scheme.values()), hosts)) {
+                RandomPicks.randomFrom(random(), schemes), hosts)) {
             assertNotNull(sniffingConnectionPool);
         }
     }

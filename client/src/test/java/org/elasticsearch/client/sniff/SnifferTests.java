@@ -89,7 +89,7 @@ public class SnifferTests extends LuceneTestCase {
 
     public void testSniffNodes() throws IOException, URISyntaxException {
         CloseableHttpClient client = HttpClientBuilder.create().build();
-        Sniffer sniffer = new Sniffer(client, RequestConfig.DEFAULT, sniffRequestTimeout, scheme.toString());
+        Sniffer sniffer = new Sniffer(client, RequestConfig.DEFAULT, sniffRequestTimeout, scheme);
         HttpHost httpHost = new HttpHost(server.getHostName(), server.getPort());
         try {
             List<HttpHost> sniffedHosts = sniffer.sniffNodes(httpHost);
@@ -107,10 +107,10 @@ public class SnifferTests extends LuceneTestCase {
                         "/_nodes/http?timeout=" + sniffRequestTimeout));
                 assertThat(e.getMessage(), containsString(Integer.toString(sniffResponse.nodesInfoResponseCode)));
                 assertThat(e.getHost(), equalTo(httpHost));
-                assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(sniffResponse.nodesInfoResponseCode));
+                assertThat(e.getStatusLine().getStatusCode(), equalTo(sniffResponse.nodesInfoResponseCode));
                 assertThat(e.getRequestLine().toString(), equalTo("GET /_nodes/http?timeout=" + sniffRequestTimeout + "ms HTTP/1.1"));
             } else {
-                fail("sniffNodes should have succeeded: " + e.getResponse().getStatusLine());
+                fail("sniffNodes should have succeeded: " + e.getStatusLine());
             }
         }
     }
@@ -170,7 +170,7 @@ public class SnifferTests extends LuceneTestCase {
             if (isHttpEnabled) {
                 String host = "host" + i;
                 int port = RandomInts.randomIntBetween(random(), 9200, 9299);
-                HttpHost httpHost = new HttpHost(host, port, scheme.toString());
+                HttpHost httpHost = new HttpHost(host, port, scheme);
                 hosts.add(httpHost);
                 generator.writeObjectFieldStart("http");
                 if (random().nextBoolean()) {

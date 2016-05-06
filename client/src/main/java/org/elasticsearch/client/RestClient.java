@@ -21,7 +21,6 @@ package org.elasticsearch.client;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpEntity;
-import org.apache.http.StatusLine;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpHead;
@@ -30,6 +29,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.util.EntityUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -94,48 +94,44 @@ public final class RestClient implements Closeable {
                 }
             }
 
+            CloseableHttpResponse response;
             try {
-                ElasticsearchResponse response = performRequest(request, connection);
-                connectionPool.onSuccess(connection);
-                return response;
-            } catch(ElasticsearchResponseException e) {
-                if (e.isRecoverable()) {
-                    connectionPool.onFailure(connection);
-                    lastSeenException = addSuppressedException(lastSeenException, e);
-                } else {
-                    //don't retry and call onSuccess as the error should be a request problem
-                    connectionPool.onSuccess(connection);
-                    throw e;
-                }
+                response = client.execute(connection.getHost(), request);
             } catch(IOException e) {
+                RequestLogger.log(logger, "request failed", request.getRequestLine(), connection.getHost(), e);
                 connectionPool.onFailure(connection);
                 lastSeenException = addSuppressedException(lastSeenException, e);
+                continue;
+            } finally {
+                request.reset();
+            }
+            int statusCode = response.getStatusLine().getStatusCode();
+            //TODO make ignore status code configurable. rest-spec and tests support that parameter (ignore_missing)
+            if (statusCode < 300 || request.getMethod().equals(HttpHead.METHOD_NAME) && statusCode == 404) {
+                RequestLogger.log(logger, "request succeeded", request.getRequestLine(), connection.getHost(), response.getStatusLine());
+                connectionPool.onSuccess(connection);
+                return new ElasticsearchResponse(request.getRequestLine(), connection.getHost(), response);
+            } else {
+                RequestLogger.log(logger, "request failed", request.getRequestLine(), connection.getHost(), response.getStatusLine());
+                String responseBody = null;
+                if (response.getEntity() != null) {
+                    responseBody = EntityUtils.toString(response.getEntity());
+                }
+                ElasticsearchResponseException elasticsearchResponseException = new ElasticsearchResponseException(
+                        request.getRequestLine(), connection.getHost(), response.getStatusLine(), responseBody);
+                lastSeenException = addSuppressedException(lastSeenException, elasticsearchResponseException);
+                //clients don't retry on 500 because elasticsearch still misuses it instead of 400 in some places
+                if (statusCode == 502 || statusCode == 503 || statusCode == 504) {
+                    connectionPool.onFailure(connection);
+                } else {
+                    //don't retry and call onSuccess as the error should be a request problem, the node is alive
+                    connectionPool.onSuccess(connection);
+                    break;
+                }
             }
         }
         assert lastSeenException != null;
         throw lastSeenException;
-    }
-
-    private ElasticsearchResponse performRequest(HttpRequestBase request, Connection connection) throws IOException {
-        CloseableHttpResponse response;
-        try {
-            response = client.execute(connection.getHost(), request);
-        } catch(IOException e) {
-            RequestLogger.log(logger, "request failed", request.getRequestLine(), connection.getHost(), e);
-            throw e;
-        } finally {
-            request.reset();
-        }
-        StatusLine statusLine = response.getStatusLine();
-        //TODO make ignore status code configurable. rest-spec and tests support that parameter.
-        if (statusLine.getStatusCode() < 300 ||
-                request.getMethod().equals(HttpHead.METHOD_NAME) && statusLine.getStatusCode() == 404) {
-            RequestLogger.log(logger, "request succeeded", request.getRequestLine(), connection.getHost(), response.getStatusLine());
-            return new ElasticsearchResponse(request.getRequestLine(), connection.getHost(), response);
-        } else {
-            RequestLogger.log(logger, "request failed", request.getRequestLine(), connection.getHost(), response.getStatusLine());
-            throw new ElasticsearchResponseException(request.getRequestLine(), connection.getHost(), response);
-        }
     }
 
     private static IOException addSuppressedException(IOException suppressedException, IOException currentException) {

@@ -21,7 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.HttpHost;
 import org.apache.http.RequestLine;
-import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.StatusLine;
 
 import java.io.IOException;
 
@@ -32,26 +32,19 @@ public class ElasticsearchResponseException extends IOException {
 
     private final HttpHost host;
     private final RequestLine requestLine;
-    private final CloseableHttpResponse response;
+    private final StatusLine statusLine;
+    private final String responseBody;
 
-    public ElasticsearchResponseException(RequestLine requestLine, HttpHost host, CloseableHttpResponse response) {
-        super(buildMessage(requestLine, host, response));
+    public ElasticsearchResponseException(RequestLine requestLine, HttpHost host, StatusLine statusLine, String responseBody) {
+        super(buildMessage(requestLine, host, statusLine));
         this.host = host;
         this.requestLine = requestLine;
-        this.response = response;
+        this.responseBody = responseBody;
+        this.statusLine = statusLine;
     }
 
-    private static String buildMessage(RequestLine requestLine, HttpHost host, CloseableHttpResponse response) {
-        return requestLine.getMethod() + " " + host + requestLine.getUri() + ": " + response.getStatusLine().toString();
-    }
-
-    /**
-     * Returns whether the error is recoverable or not, hence whether the same request should be retried on other nodes or not
-     */
-    public boolean isRecoverable() {
-        int statusCode = response.getStatusLine().getStatusCode();
-        //clients don't retry on 500 because elasticsearch still misuses it instead of 400 in some places
-        return statusCode >= 502 && statusCode <= 504;
+    private static String buildMessage(RequestLine requestLine, HttpHost host, StatusLine statusLine) {
+        return requestLine.getMethod() + " " + host + requestLine.getUri() + ": " + statusLine.toString();
     }
 
     /**
@@ -68,10 +61,11 @@ public class ElasticsearchResponseException extends IOException {
         return requestLine;
     }
 
-    /**
-     * Returns the {@link CloseableHttpResponse} that was returned by elasticsearch
-     */
-    public CloseableHttpResponse getResponse() {
-        return response;
+    public StatusLine getStatusLine() {
+        return statusLine;
+    }
+
+    public String getResponseBody() {
+        return responseBody;
     }
 }

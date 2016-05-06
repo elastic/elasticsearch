@@ -31,6 +31,7 @@ import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.ElasticsearchResponseException;
 import org.elasticsearch.client.RequestLogger;
 
@@ -77,7 +78,11 @@ final class Sniffer {
             StatusLine statusLine = response.getStatusLine();
             if (statusLine.getStatusCode() >= 300) {
                 RequestLogger.log(logger, "sniff failed", httpGet.getRequestLine(), host, statusLine);
-                throw new ElasticsearchResponseException(httpGet.getRequestLine(), host, response);
+                String responseBody = null;
+                if (response.getEntity() != null) {
+                    responseBody = EntityUtils.toString(response.getEntity());
+                }
+                throw new ElasticsearchResponseException(httpGet.getRequestLine(), host, response.getStatusLine(), responseBody);
             } else {
                 List<HttpHost> nodes = readHosts(response.getEntity());
                 RequestLogger.log(logger, "sniff succeeded", httpGet.getRequestLine(), host, statusLine);

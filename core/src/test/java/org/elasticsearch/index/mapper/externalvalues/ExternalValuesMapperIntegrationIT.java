@@ -25,11 +25,13 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.util.Collection;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
@@ -40,6 +42,55 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
     }
 
     @Test
+    public void testHighlightingOnCustomString() throws Exception {
+        prepareCreate("test-idx").addMapping("type",
+            XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("field").field("type", FakeStringFieldMapper.CONTENT_TYPE).endObject()
+                .endObject()
+                .endObject().endObject()).execute().get();
+        ensureYellow("test-idx");
+
+        index("test-idx", "type", "1", XContentFactory.jsonBuilder()
+            .startObject()
+            .field("field", "Every day is exactly the same")
+            .endObject());
+        refresh();
+
+        SearchResponse response;
+        // test if the highlighting is excluded when we use wildcards
+        response = client().prepareSearch("test-idx")
+            .setQuery(QueryBuilders.matchQuery("field", "exactly the same"))
+            .addHighlightedField("*")
+            .execute().actionGet();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(0).getHighlightFields().size(), equalTo(0));
+
+        // make sure it is not excluded when we explicitly provide the fieldname
+        response = client().prepareSearch("test-idx")
+            .setQuery(QueryBuilders.matchQuery("field", "exactly the same"))
+            .addHighlightedField("field")
+            .execute().actionGet();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(0).getHighlightFields().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getHighlightFields().get("field").fragments()[0].string(), equalTo("Every day is " +
+            "<em>exactly</em> <em>the</em> <em>same</em>"));
+
+        // make sure it is not excluded when we explicitly provide the fieldname and a wildcard
+        response = client().prepareSearch("test-idx")
+            .setQuery(QueryBuilders.matchQuery("field", "exactly the same"))
+            .addHighlightedField("*")
+            .addHighlightedField("field")
+            .execute().actionGet();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(0).getHighlightFields().size(), equalTo(1));
+        assertThat(response.getHits().getAt(0).getHighlightFields().get("field").fragments()[0].string(), equalTo("Every day is " +
+            "<em>exactly</em> <em>the</em> <em>same</em>"));
+    }
+
     public void testExternalValues() throws Exception {
         prepareCreate("test-idx").addMapping("type",
                 XContentFactory.jsonBuilder().startObject().startObject("type")

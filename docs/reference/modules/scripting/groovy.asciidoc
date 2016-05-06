@@ -31,9 +31,6 @@ on the underlying field type):
 `doc['field_name'].empty`::
     A boolean indicating if the field has no values within the doc.
 
-`doc['field_name'].multiValued`::
-    A boolean indicating that the field has several values within the corpus.
-
 `doc['field_name'].lat`::
     The latitude of a geo point type, or `null`.
 

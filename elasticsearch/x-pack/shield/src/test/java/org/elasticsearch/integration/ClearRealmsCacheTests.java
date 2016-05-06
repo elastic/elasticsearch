@@ -106,7 +106,7 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
 
             @Override
             public void executeRequest() throws Exception {
-                executeHttpRequest("/_shield/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache",
+                executeHttpRequest("/_xpack/security/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache",
                         Collections.<String, String>emptyMap());
             }
         },
@@ -129,7 +129,7 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
 
             @Override
             public void executeRequest() throws Exception {
-                String path = "/_shield/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache";
+                String path = "/_xpack/security/realm/" + (randomBoolean() ? "*" : "_all") + "/_clear_cache";
                 Map<String, String> params = Collections.singletonMap("usernames", String.join(",", evicted_usernames));
                 executeHttpRequest(path, params);
             }
@@ -147,7 +147,7 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
             securityClient.clearRealmCache(request, new ActionListener<ClearRealmCacheResponse>() {
                 @Override
                 public void onResponse(ClearRealmCacheResponse response) {
-                    assertThat(response.getNodes().length, equalTo(internalCluster().getNodeNames().length));
+                    assertThat(response.getNodes().size(), equalTo(internalCluster().getNodeNames().length));
                     latch.countDown();
                 }
 

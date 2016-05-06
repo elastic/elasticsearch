@@ -1,10 +1,10 @@
 {
-  "shield.authenticate": {
+  "xpack.security.authenticate": {
     "documentation": "Retrieve details about the currently authenticated user",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_shield/authenticate",
-      "paths": [ "/_shield/authenticate" ],
+      "path": "/_xpack/security/authenticate",
+      "paths": [ "/_xpack/security/authenticate" ],
       "parts": {},
       "params": {}
     },

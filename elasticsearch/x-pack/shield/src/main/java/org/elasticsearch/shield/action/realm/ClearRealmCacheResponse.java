@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.action.realm;
 
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  *
@@ -25,40 +27,31 @@ public class ClearRealmCacheResponse extends BaseNodesResponse<ClearRealmCacheRe
     public ClearRealmCacheResponse() {
     }
 
-    public ClearRealmCacheResponse(ClusterName clusterName, Node[] nodes) {
-        super(clusterName, nodes);
+    public ClearRealmCacheResponse(ClusterName clusterName, List<Node> nodes, List<FailedNodeException> failures) {
+        super(clusterName, nodes, failures);
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        nodes = new Node[in.readVInt()];
-        for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = Node.readNodeResponse(in);
-        }
+    protected List<ClearRealmCacheResponse.Node> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(Node::readNodeResponse);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(nodes.length);
-        for (Node node : nodes) {
-            node.writeTo(out);
-        }
+    protected void writeNodesTo(StreamOutput out, List<ClearRealmCacheResponse.Node> nodes) throws IOException {
+        out.writeStreamableList(nodes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("cluster_name", getClusterName().value());
         builder.startObject("nodes");
-        for (ClearRealmCacheResponse.Node node: getNodes()) {
+        for (ClearRealmCacheResponse.Node node : getNodes()) {
             builder.startObject(node.getNode().getId());
             builder.field("name", node.getNode().getName());
             builder.endObject();
         }
         builder.endObject();
-        return builder.endObject();
+
+        return builder;
     }
 
     @Override

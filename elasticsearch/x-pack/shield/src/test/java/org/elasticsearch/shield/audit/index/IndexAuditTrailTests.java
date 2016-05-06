@@ -146,7 +146,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         remoteCluster.beforeTest(random(), 0.5);
 
         NodesInfoResponse response = remoteCluster.client().admin().cluster().prepareNodesInfo().execute().actionGet();
-        TransportInfo info = response.getNodes()[0].getTransport();
+        TransportInfo info = response.getNodes().get(0).getTransport();
         InetSocketTransportAddress inet = (InetSocketTransportAddress) info.address().publishAddress();
 
         Settings.Builder builder = Settings.builder()

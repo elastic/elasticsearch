@@ -82,7 +82,7 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
         final List<String> addresses = new ArrayList<>();
         // get addresses for current cluster
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
-        final String clusterName = response.getClusterNameAsString();
+        final String clusterName = response.getClusterName().value();
         for (NodeInfo nodeInfo : response.getNodes()) {
             InetSocketTransportAddress address = (InetSocketTransportAddress) nodeInfo.getTransport().address().publishAddress();
             addresses.add(address.address().getHostString() + ":" + address.address().getPort());

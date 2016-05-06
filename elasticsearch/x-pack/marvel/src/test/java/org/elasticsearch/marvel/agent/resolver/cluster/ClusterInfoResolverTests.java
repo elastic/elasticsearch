@@ -6,7 +6,6 @@
 package org.elasticsearch.marvel.agent.resolver.cluster;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodeResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,6 +17,7 @@ import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoMonitoringDoc
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolverTestCase;
 
+import java.util.Collections;
 import java.util.UUID;
 
 import static java.util.Collections.emptyMap;
@@ -46,7 +46,7 @@ public class ClusterInfoResolverTests extends MonitoringIndexNameResolverTestCas
             doc.setLicense(licenseBuilder.build());
             doc.setClusterName(randomAsciiOfLength(5));
             doc.setClusterStats(new ClusterStatsResponse(Math.abs(randomLong()), ClusterName.DEFAULT,
-                    randomAsciiOfLength(5), new ClusterStatsNodeResponse[]{}));
+                    randomAsciiOfLength(5), Collections.emptyList(), Collections.emptyList()));
             return doc;
         } catch (Exception e) {
             throw new IllegalStateException("Failed to generated random ClusterInfoMarvelDoc", e);

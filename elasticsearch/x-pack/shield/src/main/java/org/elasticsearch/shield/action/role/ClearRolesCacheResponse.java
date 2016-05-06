@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.action.role;
 
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * The response object that will be returned when clearing the cache of native roles
@@ -25,32 +27,22 @@ public class ClearRolesCacheResponse extends BaseNodesResponse<ClearRolesCacheRe
     public ClearRolesCacheResponse() {
     }
 
-    public ClearRolesCacheResponse(ClusterName clusterName, Node[] nodes) {
-        super(clusterName, nodes);
+    public ClearRolesCacheResponse(ClusterName clusterName, List<Node> nodes, List<FailedNodeException> failures) {
+        super(clusterName, nodes, failures);
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        nodes = new Node[in.readVInt()];
-        for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = Node.readNodeResponse(in);
-        }
+    protected List<ClearRolesCacheResponse.Node> readNodesFrom(StreamInput in) throws IOException {
+        return in.readList(Node::readNodeResponse);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(nodes.length);
-        for (Node node : nodes) {
-            node.writeTo(out);
-        }
+    protected void writeNodesTo(StreamOutput out, List<ClearRolesCacheResponse.Node> nodes) throws IOException {
+        out.writeStreamableList(nodes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("cluster_name", getClusterName().value());
         builder.startObject("nodes");
         for (ClearRolesCacheResponse.Node node: getNodes()) {
             builder.startObject(node.getNode().getId());
@@ -58,7 +50,8 @@ public class ClearRolesCacheResponse extends BaseNodesResponse<ClearRolesCacheRe
             builder.endObject();
         }
         builder.endObject();
-        return builder.endObject();
+
+        return builder;
     }
 
     @Override

@@ -88,7 +88,7 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
         // TODO remove this once the built-in SUPERUSER role is added that can delete the index and we use the built in admin user here
         try (CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {
             final URL url = getClusterUrls()[0];
-            HttpGet getUsersRequest = new HttpGet(new URI("http", null, url.getHost(), url.getPort(), "/_shield/user", null, null));
+            HttpGet getUsersRequest = new HttpGet(new URI("http", null, url.getHost(), url.getPort(), "/_xpack/security/user", null, null));
             getUsersRequest.addHeader("Authorization", BASIC_AUTH_VALUE);
             try (CloseableHttpResponse closeableHttpResponse = client.execute(getUsersRequest)) {
                 assertThat(closeableHttpResponse.getStatusLine().getStatusCode(), is(200));
@@ -99,14 +99,14 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
                 // in the structure of this API, the users are the keyset
                 for (String user : responseMap.keySet()) {
                     HttpDelete delete = new HttpDelete(new URI("http", null, url.getHost(), url.getPort(),
-                            "/_shield/user/" + user, null, null));
+                            "/_xpack/security/user/" + user, null, null));
                     delete.addHeader("Authorization", BASIC_AUTH_VALUE);
                     try (CloseableHttpResponse deleteResponse = client.execute(delete)) {
                     }
                 }
             }
 
-            HttpGet getRolesRequest = new HttpGet(new URI("http", null, url.getHost(), url.getPort(), "/_shield/role",
+            HttpGet getRolesRequest = new HttpGet(new URI("http", null, url.getHost(), url.getPort(), "/_xpack/security/role",
                     null, null));
             getRolesRequest.addHeader("Authorization", BASIC_AUTH_VALUE);
             try (CloseableHttpResponse closeableHttpResponse = client.execute(getRolesRequest)) {
@@ -118,7 +118,7 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
                 // in the structure of this API, the users are the keyset
                 for (String role : responseMap.keySet()) {
                     HttpDelete delete = new HttpDelete(new URI("http", null, url.getHost(), url.getPort(),
-                            "/_shield/role/" + role, null, null));
+                            "/_xpack/security/role/" + role, null, null));
                     delete.addHeader("Authorization", BASIC_AUTH_VALUE);
                     try (CloseableHttpResponse deleteResponse = client.execute(delete)) {
                     }

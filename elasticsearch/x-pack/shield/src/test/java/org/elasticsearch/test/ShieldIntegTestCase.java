@@ -140,7 +140,7 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
     //before methods from the superclass are run before this, which means that the current cluster is ready to go
     public void assertShieldIsInstalled() {
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).get();
-        for (NodeInfo nodeInfo : nodeInfos) {
+        for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
             // TODO: disable this assertion for now, due to random runs with mock plugins. perhaps run without mock plugins?
 //            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
             Collection<String> pluginNames =

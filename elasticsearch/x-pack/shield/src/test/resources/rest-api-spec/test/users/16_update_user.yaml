@@ -6,7 +6,7 @@
 
   - do:
       catch: request
-      shield.put_user:
+      xpack.security.put_user:
         username: "joe"
         body:  >
             {
@@ -24,7 +24,7 @@
         wait_for_status: yellow
 
   - do:
-      shield.put_user:
+      xpack.security.put_user:
         username: "joe"
         body:  >
             {
@@ -41,7 +41,7 @@
   - match: { timed_out: false }
 
   - do:
-      shield.get_user:
+      xpack.security.get_user:
         username: "joe"
   - match: { joe.username:  "joe" }
   - match: { joe.roles.0:  "superuser" }
@@ -51,7 +51,7 @@
 # update the user without a password
 
   - do:
-      shield.put_user:
+      xpack.security.put_user:
         username: "joe"
         body:  >
             {
@@ -74,7 +74,7 @@
 
 # validate other properties
   - do:
-      shield.get_user:
+      xpack.security.get_user:
         username: "joe"
   - match: { joe.username:  "joe" }
   - match: { joe.roles.0:  "superuser" }
@@ -86,7 +86,7 @@
 
 # update with password
   - do:
-      shield.put_user:
+      xpack.security.put_user:
         username: "joe"
         body:  >
             {
@@ -118,7 +118,7 @@
 
 # validate properties
   - do:
-      shield.get_user:
+      xpack.security.get_user:
         username: "joe"
   - match: { joe.username:  "joe" }
   - match: { joe.roles.0:  "superuser" }

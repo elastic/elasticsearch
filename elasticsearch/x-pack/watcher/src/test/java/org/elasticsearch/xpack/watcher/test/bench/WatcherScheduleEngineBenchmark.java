@@ -165,7 +165,7 @@ public class WatcherScheduleEngineBenchmark {
                             try {
                                 while (start.get()) {
                                     NodesStatsResponse response = client.admin().cluster().prepareNodesStats("_master").setJvm(true).get();
-                                    ByteSizeValue heapUsed = response.getNodes()[0].getJvm().getMem().getHeapUsed();
+                                    ByteSizeValue heapUsed = response.getNodes().get(0).getJvm().getMem().getHeapUsed();
                                     jvmUsedHeapSpace.inc(heapUsed.bytes());
                                     Thread.sleep(1000);
                                 }
@@ -179,7 +179,7 @@ public class WatcherScheduleEngineBenchmark {
                     sampleThread.join();
 
                     NodesStatsResponse response = client.admin().cluster().prepareNodesStats().setThreadPool(true).get();
-                    for (NodeStats nodeStats : response) {
+                    for (NodeStats nodeStats : response.getNodes()) {
                         for (ThreadPoolStats.Stats threadPoolStats : nodeStats.getThreadPool()) {
                             if ("watcher".equals(threadPoolStats.getName())) {
                                 stats.setWatcherThreadPoolStats(threadPoolStats);

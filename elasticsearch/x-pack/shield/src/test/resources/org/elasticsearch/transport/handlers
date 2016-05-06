@@ -110,3 +110,4 @@ internal:indices/flush/synced/pre
 internal:indices/flush/synced/sync
 internal:admin/repository/verify
 internal:plugin/license/cluster/register_trial_license
+internal:transport/handshake

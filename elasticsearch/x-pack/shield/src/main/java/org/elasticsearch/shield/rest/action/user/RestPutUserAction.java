@@ -29,8 +29,8 @@ public class RestPutUserAction extends BaseRestHandler {
     @Inject
     public RestPutUserAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(RestRequest.Method.POST, "/_shield/user/{username}", this);
-        controller.registerHandler(RestRequest.Method.PUT, "/_shield/user/{username}", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_xpack/security/user/{username}", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_xpack/security/user/{username}", this);
     }
 
     @Override

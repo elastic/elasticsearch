@@ -72,7 +72,7 @@ public class MarvelPluginTests extends MarvelIntegTestCase {
 
     private void assertPluginIsLoaded() {
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().setPlugins(true).get();
-        for (NodeInfo nodeInfo : response) {
+        for (NodeInfo nodeInfo : response.getNodes()) {
             assertNotNull(nodeInfo.getPlugins());
 
             boolean found = false;
@@ -103,7 +103,7 @@ public class MarvelPluginTests extends MarvelIntegTestCase {
             internalCluster().getDataNodeInstance(klass);
             fail("should have thrown an exception about missing implementation");
         } catch (Exception ce) {
-            assertThat("message contains error about missing implemention: " + ce.getMessage(),
+            assertThat("message contains error about missing implementation: " + ce.getMessage(),
                     ce.getMessage().contains("No implementation"), equalTo(true));
         }
     }

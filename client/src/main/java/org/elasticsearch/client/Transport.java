@@ -44,15 +44,15 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-final class Transport<C extends Connection> implements Closeable {
+final class Transport implements Closeable {
 
     private static final Log logger = LogFactory.getLog(Transport.class);
 
     private final CloseableHttpClient client;
-    private final ConnectionPool<C> connectionPool;
+    private final ConnectionPool connectionPool;
     private final long maxRetryTimeout;
 
-    Transport(CloseableHttpClient client, ConnectionPool<C> connectionPool, long maxRetryTimeout) {
+    Transport(CloseableHttpClient client, ConnectionPool connectionPool, long maxRetryTimeout) {
         Objects.requireNonNull(client, "client cannot be null");
         Objects.requireNonNull(connectionPool, "connectionPool cannot be null");
         if (maxRetryTimeout <= 0) {
@@ -66,23 +66,23 @@ final class Transport<C extends Connection> implements Closeable {
     ElasticsearchResponse performRequest(String method, String endpoint, Map<String, Object> params, HttpEntity entity) throws IOException {
         URI uri = buildUri(endpoint, params);
         HttpRequestBase request = createHttpRequest(method, uri, entity);
-        Iterator<C> connectionIterator = connectionPool.nextConnection().iterator();
+        Iterator<Connection> connectionIterator = connectionPool.nextConnection().iterator();
         if (connectionIterator.hasNext() == false) {
-            C connection = connectionPool.lastResortConnection();
+            Connection connection = connectionPool.lastResortConnection();
             logger.info("no healthy nodes available, trying " + connection.getHost());
             return performRequest(request, Stream.of(connection).iterator());
         }
         return performRequest(request, connectionIterator);
     }
 
-    private ElasticsearchResponse performRequest(HttpRequestBase request, Iterator<C> connectionIterator) throws IOException {
+    private ElasticsearchResponse performRequest(HttpRequestBase request, Iterator<Connection> connectionIterator) throws IOException {
         //we apply a soft margin so that e.g. if a request took 59 seconds and timeout is set to 60 we don't do another attempt
         long retryTimeout = Math.round(this.maxRetryTimeout / (float)100 * 98);
         IOException lastSeenException = null;
         long startTime = System.nanoTime();
 
         while (connectionIterator.hasNext()) {
-            C connection = connectionIterator.next();
+            Connection connection = connectionIterator.next();
 
             if (lastSeenException != null) {
                 long timeElapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
@@ -124,7 +124,7 @@ final class Transport<C extends Connection> implements Closeable {
         throw lastSeenException;
     }
 
-    private ElasticsearchResponse performRequest(HttpRequestBase request, C connection) throws IOException {
+    private ElasticsearchResponse performRequest(HttpRequestBase request, Connection connection) throws IOException {
         CloseableHttpResponse response;
         try {
             response = client.execute(connection.getHost(), request);

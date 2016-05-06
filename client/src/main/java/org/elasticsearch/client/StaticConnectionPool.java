@@ -40,7 +40,7 @@ public class StaticConnectionPool extends AbstractStaticConnectionPool {
     private final CloseableHttpClient client;
     private final boolean pingEnabled;
     private final RequestConfig pingRequestConfig;
-    private final List<StatefulConnection> connections;
+    private final List<Connection> connections;
 
     public StaticConnectionPool(CloseableHttpClient client, boolean pingEnabled, RequestConfig pingRequestConfig, HttpHost... hosts) {
         Objects.requireNonNull(client, "client cannot be null");
@@ -55,12 +55,14 @@ public class StaticConnectionPool extends AbstractStaticConnectionPool {
     }
 
     @Override
-    protected List<StatefulConnection> getConnections() {
+    protected List<Connection> getConnections() {
         return connections;
     }
 
+    //TODO do we still need pinging? seems like a workaround for some clients that don't support connect timeout but we have that
+
     @Override
-    public void beforeAttempt(StatefulConnection connection) throws IOException {
+    public void beforeAttempt(Connection connection) throws IOException {
         if (pingEnabled && connection.shouldBeRetried()) {
             HttpHead httpHead = new HttpHead("/");
             httpHead.setConfig(pingRequestConfig);

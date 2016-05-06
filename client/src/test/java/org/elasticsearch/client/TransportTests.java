@@ -36,7 +36,7 @@ public class TransportTests extends LuceneTestCase {
 
     public void testConstructor() {
         CloseableHttpClient httpClient = HttpClientBuilder.create().build();
-        ConnectionPool<Connection> connectionPool = new ConnectionPool<Connection>() {
+        ConnectionPool connectionPool = new ConnectionPool() {
             @Override
             public Stream<Connection> nextConnection() {
                 return null;
@@ -69,27 +69,27 @@ public class TransportTests extends LuceneTestCase {
         };
 
         try {
-            new Transport<>(null, connectionPool, RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
+            new Transport(null, connectionPool, RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
             fail("transport creation should have failed");
         } catch(NullPointerException e) {
             assertEquals(e.getMessage(), "client cannot be null");
         }
 
         try {
-            new Transport<>(httpClient, null, RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
+            new Transport(httpClient, null, RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
             fail("transport creation should have failed");
         } catch(NullPointerException e) {
             assertEquals(e.getMessage(), "connectionPool cannot be null");
         }
 
         try {
-            new Transport<>(httpClient, connectionPool, RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
+            new Transport(httpClient, connectionPool, RandomInts.randomIntBetween(random(), Integer.MIN_VALUE, 0));
             fail("transport creation should have failed");
         } catch(IllegalArgumentException e) {
             assertEquals(e.getMessage(), "maxRetryTimeout must be greater than 0");
         }
 
-        Transport<Connection> transport = new Transport<>(httpClient, connectionPool, RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
+        Transport transport = new Transport(httpClient, connectionPool, RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
         assertNotNull(transport);
     }
 }

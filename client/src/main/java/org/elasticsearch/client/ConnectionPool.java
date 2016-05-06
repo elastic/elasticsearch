@@ -24,14 +24,12 @@ import java.io.IOException;
 import java.util.stream.Stream;
 
 /**
- * Pool of connections to the different nodes that belong to an elasticsearch cluster.
- * It keeps track of the different nodes to communicate with and allows to retrieve a stream of connections to be used
+ * Pool of connections to the different hosts that belong to an elasticsearch cluster.
+ * It keeps track of the different hosts to communicate with and allows to retrieve a stream of connections to be used
  * for each request. Exposes the needed hooks to be able to eventually mark connections dead or alive and execute
  * arbitrary operations before each single request attempt.
- *
- * @param <C> the type of {@link Connection} that the pool supports
  */
-public interface ConnectionPool<C extends Connection> extends Closeable {
+public interface ConnectionPool extends Closeable {
 
     /**
      * Returns a stream of connections that should be used for a request call.
@@ -41,29 +39,29 @@ public interface ConnectionPool<C extends Connection> extends Closeable {
      * It may happen that the stream is empty, in which case it means that there aren't healthy connections to use.
      * Then {@link #lastResortConnection()} should be called to retrieve a non healthy connection and try it.
      */
-    Stream<C> nextConnection();
+    Stream<Connection> nextConnection();
 
     /**
      * Returns a connection that is not necessarily healthy, but can be used for a request attempt. To be called as last resort
      * only in case {@link #nextConnection()} returns an empty stream
      */
-    C lastResortConnection();
+    Connection lastResortConnection();
 
     /**
      * Called before each single request attempt. Allows to execute operations (e.g. ping) before each request.
      * Receives as an argument the connection that is going to be used for the request.
      */
-    void beforeAttempt(C connection) throws IOException;
+    void beforeAttempt(Connection connection) throws IOException;
 
     /**
      * Called after each successful request call.
      * Receives as an argument the connection that was used for the successful request.
      */
-    void onSuccess(C connection);
+    void onSuccess(Connection connection);
 
     /**
      * Called after each failed attempt.
      * Receives as an argument the connection that was used for the failed attempt.
      */
-    void onFailure(C connection) throws IOException;
+    void onFailure(Connection connection) throws IOException;
 }

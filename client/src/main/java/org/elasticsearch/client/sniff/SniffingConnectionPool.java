@@ -25,7 +25,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.elasticsearch.client.AbstractStaticConnectionPool;
-import org.elasticsearch.client.StatefulConnection;
+import org.elasticsearch.client.Connection;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -46,9 +46,10 @@ public class SniffingConnectionPool extends AbstractStaticConnectionPool {
 
     private final boolean sniffOnFailure;
     private final Sniffer sniffer;
-    private volatile List<StatefulConnection> connections;
+    private volatile List<Connection> connections;
     private final SnifferTask snifferTask;
 
+    //TODO do we still need the sniff request timeout? or should we just use a low connect timeout?
     public SniffingConnectionPool(int sniffInterval, boolean sniffOnFailure, int sniffAfterFailureDelay,
                                   CloseableHttpClient client, RequestConfig sniffRequestConfig, int sniffRequestTimeout, Scheme scheme,
                                   HttpHost... hosts) {
@@ -69,17 +70,17 @@ public class SniffingConnectionPool extends AbstractStaticConnectionPool {
     }
 
     @Override
-    protected List<StatefulConnection> getConnections() {
+    protected List<Connection> getConnections() {
         return this.connections;
     }
 
     @Override
-    public void beforeAttempt(StatefulConnection connection) throws IOException {
+    public void beforeAttempt(Connection connection) throws IOException {
 
     }
 
     @Override
-    public void onFailure(StatefulConnection connection) throws IOException {
+    public void onFailure(Connection connection) throws IOException {
         super.onFailure(connection);
         if (sniffOnFailure) {
             //re-sniff immediately but take out the node that failed
@@ -130,11 +131,11 @@ public class SniffingConnectionPool extends AbstractStaticConnectionPool {
         void sniff(Predicate<HttpHost> hostFilter) {
             if (running.compareAndSet(false, true)) {
                 try {
-                    Iterator<StatefulConnection> connectionIterator = nextConnection().iterator();
+                    Iterator<Connection> connectionIterator = nextConnection().iterator();
                     if (connectionIterator.hasNext()) {
                         sniff(connectionIterator, hostFilter);
                     } else {
-                        StatefulConnection connection = lastResortConnection();
+                        Connection connection = lastResortConnection();
                         logger.info("no healthy nodes available, trying " + connection.getHost());
                         sniff(Stream.of(connection).iterator(), hostFilter);
                     }
@@ -160,10 +161,10 @@ public class SniffingConnectionPool extends AbstractStaticConnectionPool {
             }
         }
 
-        void sniff(Iterator<StatefulConnection> connectionIterator, Predicate<HttpHost> hostFilter) throws IOException {
+        void sniff(Iterator<Connection> connectionIterator, Predicate<HttpHost> hostFilter) throws IOException {
             IOException lastSeenException = null;
             while (connectionIterator.hasNext()) {
-                StatefulConnection connection = connectionIterator.next();
+                Connection connection = connectionIterator.next();
                 try {
                     List<HttpHost> sniffedNodes = sniffer.sniffNodes(connection.getHost());
                     HttpHost[] filteredNodes = sniffedNodes.stream().filter(hostFilter).toArray(HttpHost[]::new);

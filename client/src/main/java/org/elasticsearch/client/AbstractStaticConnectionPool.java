@@ -38,57 +38,57 @@ import java.util.stream.Stream;
  * allows to filter connections through a customizable {@link Predicate}, called connection selector.
  * In case the returned stream is empty a last resort dead connection should be retrieved by calling {@link #lastResortConnection()}
  * and resurrected so that a single request attempt can be performed.
- * The {@link #onSuccess(StatefulConnection)} method marks the connection provided as an argument alive.
- * The {@link #onFailure(StatefulConnection)} method marks the connection provided as an argument dead.
+ * The {@link #onSuccess(Connection)} method marks the connection provided as an argument alive.
+ * The {@link #onFailure(Connection)} method marks the connection provided as an argument dead.
  * This base implementation doesn't define the list implementation that stores connections, so that concurrency can be
  * handled in the subclasses depending on the usecase (e.g. defining the list volatile when needed).
  */
-public abstract class AbstractStaticConnectionPool implements ConnectionPool<StatefulConnection> {
+public abstract class AbstractStaticConnectionPool implements ConnectionPool {
 
     private static final Log logger = LogFactory.getLog(AbstractStaticConnectionPool.class);
 
     private final AtomicInteger lastConnectionIndex = new AtomicInteger(0);
 
-    protected abstract List<StatefulConnection> getConnections();
+    protected abstract List<Connection> getConnections();
 
     @Override
-    public final Stream<StatefulConnection> nextConnection() {
-        List<StatefulConnection> connections = getConnections();
+    public final Stream<Connection> nextConnection() {
+        List<Connection> connections = getConnections();
         if (connections.isEmpty()) {
             throw new IllegalStateException("no connections available in the connection pool");
         }
 
-        List<StatefulConnection> sortedConnections = new ArrayList<>(connections);
+        List<Connection> sortedConnections = new ArrayList<>(connections);
         //TODO is it possible to make this O(1)? (rotate is O(n))
         Collections.rotate(sortedConnections, sortedConnections.size() - lastConnectionIndex.getAndIncrement());
         return sortedConnections.stream().filter(connection -> connection.isAlive() || connection.shouldBeRetried());
     }
 
-    protected List<StatefulConnection> createConnections(HttpHost... hosts) {
-        List<StatefulConnection> connections = new ArrayList<>();
+    protected List<Connection> createConnections(HttpHost... hosts) {
+        List<Connection> connections = new ArrayList<>();
         for (HttpHost host : hosts) {
             Objects.requireNonNull(host, "host cannot be null");
-            connections.add(new StatefulConnection(host));
+            connections.add(new Connection(host));
         }
         return Collections.unmodifiableList(connections);
     }
 
     @Override
-    public StatefulConnection lastResortConnection() {
-        StatefulConnection statefulConnection = getConnections().stream()
+    public Connection lastResortConnection() {
+        Connection Connection = getConnections().stream()
                 .sorted((o1, o2) -> Long.compare(o1.getDeadUntil(), o2.getDeadUntil())).findFirst().get();
-        statefulConnection.markResurrected();
-        return statefulConnection;
+        Connection.markResurrected();
+        return Connection;
     }
 
     @Override
-    public void onSuccess(StatefulConnection connection) {
+    public void onSuccess(Connection connection) {
         connection.markAlive();
         logger.trace("marked connection alive for " + connection.getHost());
     }
 
     @Override
-    public void onFailure(StatefulConnection connection) throws IOException {
+    public void onFailure(Connection connection) throws IOException {
         connection.markDead();
         logger.debug("marked connection dead for " + connection.getHost());
     }

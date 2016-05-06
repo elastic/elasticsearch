@@ -29,8 +29,8 @@ public final class RestClient implements Closeable {
 
     private final Transport transport;
 
-    public RestClient(CloseableHttpClient client, ConnectionPool<? extends Connection> connectionPool, long maxRetryTimeout) {
-        this.transport = new Transport<>(client, connectionPool, maxRetryTimeout);
+    public RestClient(CloseableHttpClient client, ConnectionPool connectionPool, long maxRetryTimeout) {
+        this.transport = new Transport(client, connectionPool, maxRetryTimeout);
     }
 
     public ElasticsearchResponse performRequest(String method, String endpoint, Map<String, Object> params, HttpEntity entity)

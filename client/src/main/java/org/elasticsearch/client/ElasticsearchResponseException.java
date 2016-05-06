@@ -34,7 +34,7 @@ public class ElasticsearchResponseException extends IOException {
     private final RequestLine requestLine;
     private final StatusLine statusLine;
 
-    ElasticsearchResponseException(RequestLine requestLine, HttpHost host, StatusLine statusLine) {
+    public ElasticsearchResponseException(RequestLine requestLine, HttpHost host, StatusLine statusLine) {
         super(buildMessage(requestLine, host, statusLine));
         this.host = host;
         this.requestLine = requestLine;

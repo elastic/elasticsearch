@@ -21,7 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.HttpHost;
 import org.apache.http.RequestLine;
-import org.apache.http.StatusLine;
+import org.apache.http.client.methods.CloseableHttpResponse;
 
 import java.io.IOException;
 
@@ -32,25 +32,26 @@ public class ElasticsearchResponseException extends IOException {
 
     private final HttpHost host;
     private final RequestLine requestLine;
-    private final StatusLine statusLine;
+    private final CloseableHttpResponse response;
 
-    public ElasticsearchResponseException(RequestLine requestLine, HttpHost host, StatusLine statusLine) {
-        super(buildMessage(requestLine, host, statusLine));
+    public ElasticsearchResponseException(RequestLine requestLine, HttpHost host, CloseableHttpResponse response) {
+        super(buildMessage(requestLine, host, response));
         this.host = host;
         this.requestLine = requestLine;
-        this.statusLine = statusLine;
+        this.response = response;
     }
 
-    private static String buildMessage(RequestLine requestLine, HttpHost host, StatusLine statusLine) {
-        return requestLine.getMethod() + " " + host + requestLine.getUri() + ": " + statusLine.toString();
+    private static String buildMessage(RequestLine requestLine, HttpHost host, CloseableHttpResponse response) {
+        return requestLine.getMethod() + " " + host + requestLine.getUri() + ": " + response.getStatusLine().toString();
     }
 
     /**
      * Returns whether the error is recoverable or not, hence whether the same request should be retried on other nodes or not
      */
     public boolean isRecoverable() {
+        int statusCode = response.getStatusLine().getStatusCode();
         //clients don't retry on 500 because elasticsearch still misuses it instead of 400 in some places
-        return statusLine.getStatusCode() >= 502 && statusLine.getStatusCode() <= 504;
+        return statusCode >= 502 && statusCode <= 504;
     }
 
     /**
@@ -68,9 +69,9 @@ public class ElasticsearchResponseException extends IOException {
     }
 
     /**
-     * Returns the {@link StatusLine} that was returned by elasticsearch
+     * Returns the {@link CloseableHttpResponse} that was returned by elasticsearch
      */
-    public StatusLine getStatusLine() {
-        return statusLine;
+    public CloseableHttpResponse getResponse() {
+        return response;
     }
 }

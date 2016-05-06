@@ -30,7 +30,6 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.util.EntityUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -134,9 +133,8 @@ public final class RestClient implements Closeable {
             RequestLogger.log(logger, "request succeeded", request.getRequestLine(), connection.getHost(), response.getStatusLine());
             return new ElasticsearchResponse(request.getRequestLine(), connection.getHost(), response);
         } else {
-            EntityUtils.consume(response.getEntity());
             RequestLogger.log(logger, "request failed", request.getRequestLine(), connection.getHost(), response.getStatusLine());
-            throw new ElasticsearchResponseException(request.getRequestLine(), connection.getHost(), statusLine);
+            throw new ElasticsearchResponseException(request.getRequestLine(), connection.getHost(), response);
         }
     }
 

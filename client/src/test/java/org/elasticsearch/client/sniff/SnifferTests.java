@@ -107,10 +107,10 @@ public class SnifferTests extends LuceneTestCase {
                         "/_nodes/http?timeout=" + sniffRequestTimeout));
                 assertThat(e.getMessage(), containsString(Integer.toString(sniffResponse.nodesInfoResponseCode)));
                 assertThat(e.getHost(), equalTo(httpHost));
-                assertThat(e.getStatusLine().getStatusCode(), equalTo(sniffResponse.nodesInfoResponseCode));
+                assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(sniffResponse.nodesInfoResponseCode));
                 assertThat(e.getRequestLine().toString(), equalTo("GET /_nodes/http?timeout=" + sniffRequestTimeout + "ms HTTP/1.1"));
             } else {
-                fail("sniffNodes should have succeeded: " + e.getStatusLine());
+                fail("sniffNodes should have succeeded: " + e.getResponse().getStatusLine());
             }
         }
     }

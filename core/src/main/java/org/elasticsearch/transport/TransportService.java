@@ -278,6 +278,18 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     /**
+     * Lightly connect to the specified node
+     *
+     * @param node the node to connect to
+     */
+    public void connectToNodeLight(final DiscoveryNode node) {
+        if (node.equals(localNode)) {
+            return;
+        }
+        transport.connectToNodeLight(node);
+    }
+
+    /**
      * Lightly connect to the specified node, and handshake cluster
      * name and version
      *
@@ -287,8 +299,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * @throws ConnectTransportException if the connection or the
      *                                   handshake failed
      */
-    public DiscoveryNode connectToNodeLight(final DiscoveryNode node, final long handshakeTimeout) throws ConnectTransportException {
-        return connectToNodeLight(node, handshakeTimeout, true);
+    public DiscoveryNode connectToNodeLightAndHandshake(
+            final DiscoveryNode node,
+            final long handshakeTimeout) throws ConnectTransportException {
+        return connectToNodeLightAndHandshake(node, handshakeTimeout, true);
     }
 
     /**
@@ -305,7 +319,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * @throws ConnectTransportException if the connection or the
      *                                   handshake failed
      */
-    public DiscoveryNode connectToNodeLight(final DiscoveryNode node, final long handshakeTimeout, final boolean checkClusterName) {
+    public DiscoveryNode connectToNodeLightAndHandshake(
+            final DiscoveryNode node,
+            final long handshakeTimeout,
+            final boolean checkClusterName) {
         if (node.equals(localNode)) {
             return localNode;
         }
@@ -353,7 +370,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 localNode != null ? localNode.getVersion().minimumCompatibilityVersion() : Version.CURRENT.minimumCompatibilityVersion());
     }
 
-    public static class HandshakeRequest extends TransportRequest {
+    static class HandshakeRequest extends TransportRequest {
 
         public static final HandshakeRequest INSTANCE = new HandshakeRequest();
 
@@ -362,7 +379,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     }
 
-    public static class HandshakeResponse extends TransportResponse {
+    static class HandshakeResponse extends TransportResponse {
         private DiscoveryNode discoveryNode;
         private ClusterName clusterName;
         private Version version;

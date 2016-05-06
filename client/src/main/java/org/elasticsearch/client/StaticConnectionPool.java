@@ -33,6 +33,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Static implementation of {@link ConnectionPool}. Its underlying list of connections is immutable.
+ */
 public class StaticConnectionPool extends AbstractStaticConnectionPool {
 
     private static final Log logger = LogFactory.getLog(StaticConnectionPool.class);

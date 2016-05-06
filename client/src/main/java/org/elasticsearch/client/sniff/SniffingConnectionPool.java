@@ -39,6 +39,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+/**
+ * Connection pool implementation that sniffs nodes from elasticsearch at regular intervals.
+ * Can optionally sniff nodes on each failure as well.
+ */
 public class SniffingConnectionPool extends AbstractStaticConnectionPool {
 
     private static final Log logger = LogFactory.getLog(SniffingConnectionPool.class);

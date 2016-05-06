@@ -43,9 +43,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Calls nodes info api and returns a list of http hosts extracted from it
+ * Calls nodes info api and returns a list of http hosts extracted from it.
  */
-//TODO this could potentially a call to _cat/nodes (although it doesn't support timeout param), but how would we handle bw comp with 2.x?
+//TODO This could potentially be using _cat/nodes which wouldn't require jackson as a dependency, but we'd have bw comp problems with 2.x
 final class Sniffer {
 
     private static final Log logger = LogFactory.getLog(Sniffer.class);

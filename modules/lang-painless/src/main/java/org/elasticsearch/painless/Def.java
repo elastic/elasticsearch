@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Method;
@@ -119,9 +120,22 @@ public class Def {
 
     @SuppressWarnings("rawtypes")
     public static Object fieldLoad(final Object owner, final String name, final Definition definition) {
-        if (owner.getClass().isArray() && "length".equals(name)) {
+        final Class<?> clazz = owner.getClass();
+        if (clazz.isArray() && "length".equals(name)) {
             return Array.getLength(owner);
         } else {
+            // TODO: remove this fast-path, once we speed up dynamics some more
+            if ("value".equals(name) && owner instanceof ScriptDocValues) {
+                if (clazz == ScriptDocValues.Doubles.class) {
+                    return ((ScriptDocValues.Doubles)owner).getValue();
+                } else if (clazz == ScriptDocValues.Longs.class) {
+                    return ((ScriptDocValues.Longs)owner).getValue();
+                } else if (clazz == ScriptDocValues.Strings.class) {
+                    return ((ScriptDocValues.Strings)owner).getValue();
+                } else if (clazz == ScriptDocValues.GeoPoints.class) {
+                    return ((ScriptDocValues.GeoPoints)owner).getValue();
+                }
+            }
             final Field field = getField(owner, name, definition);
             MethodHandle handle;
 
@@ -143,7 +157,7 @@ public class Def {
                     }
                 } else {
                     throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
-                            "for class [" + owner.getClass().getCanonicalName() + "].");
+                            "for class [" + clazz.getCanonicalName() + "].");
                 }
             } else {
                 handle = field.getter;
@@ -151,13 +165,13 @@ public class Def {
 
             if (handle == null) {
                 throw new IllegalArgumentException(
-                        "Unable to read from field [" + name + "] with owner class [" + owner.getClass() + "].");
+                        "Unable to read from field [" + name + "] with owner class [" + clazz + "].");
             } else {
                 try {
                     return handle.invoke(owner);
                 } catch (final Throwable throwable) {
                     throw new IllegalArgumentException("Error loading value from " +
-                            "field [" + name + "] with owner class [" + owner.getClass() + "].", throwable);
+                            "field [" + name + "] with owner class [" + clazz + "].", throwable);
                 }
             }
         }

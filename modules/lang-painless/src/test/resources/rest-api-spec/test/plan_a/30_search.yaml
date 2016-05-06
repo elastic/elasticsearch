@@ -29,12 +29,12 @@
                 query:
                     script:
                         script:
-                            inline: "input.doc['num1'].0 > 1;"
+                            inline: "input.doc['num1'].value > 1;"
                             lang: painless
                 script_fields:
                     sNum1:
                         script: 
-                            inline: "input.doc['num1'].0;"
+                            inline: "input.doc['num1'].value;"
                             lang: painless
                 sort:
                     num1:
@@ -51,7 +51,7 @@
                 query:
                     script:
                         script:
-                            inline: "input.doc['num1'].0 > input.param1;"
+                            inline: "input.doc['num1'].value > input.param1;"
                             lang: painless
                             params:
                                 param1: 1
@@ -59,7 +59,7 @@
                 script_fields:
                     sNum1:
                         script:
-                            inline: "return input.doc['num1'].0;"
+                            inline: "return input.doc['num1'].value;"
                             lang: painless
                 sort:
                     num1:
@@ -76,7 +76,7 @@
                 query:
                     script:
                         script:
-                            inline: "input.doc['num1'].0 > input.param1;"
+                            inline: "input.doc['num1'].value > input.param1;"
                             lang: painless
                             params:
                                 param1: -1
@@ -84,7 +84,7 @@
                 script_fields:
                     sNum1:
                         script: 
-                            inline: "input.doc['num1'].0;"
+                            inline: "input.doc['num1'].value;"
                             lang: painless
                 sort:
                     num1:

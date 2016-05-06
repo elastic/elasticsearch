@@ -19,6 +19,9 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -33,8 +36,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class Definition {
-    public enum Sort {
+class Definition {
+    enum Sort {
         VOID(       void.class      , 0 , true  , false , false , false ),
         BOOL(       boolean.class   , 1 , true  , true  , false , true  ),
         BYTE(       byte.class      , 1 , true  , false , true  , true  ),
@@ -323,78 +326,86 @@ public class Definition {
         }
     }
 
-    public final Map<String, Struct> structs;
-    public final Map<Class<?>, Struct> classes;
-    public final Map<Cast, Transform> transforms;
-    public final Map<Pair, Type> bounds;
+    final Map<String, Struct> structs;
+    final Map<Class<?>, Struct> classes;
+    final Map<Cast, Transform> transforms;
+    final Map<Pair, Type> bounds;
 
-    public final Type voidType;
-    public final Type booleanType;
-    public final Type byteType;
-    public final Type shortType;
-    public final Type charType;
-    public final Type intType;
-    public final Type longType;
-    public final Type floatType;
-    public final Type doubleType;
+    final Type voidType;
+    final Type booleanType;
+    final Type byteType;
+    final Type shortType;
+    final Type charType;
+    final Type intType;
+    final Type longType;
+    final Type floatType;
+    final Type doubleType;
 
-    public final Type voidobjType;
-    public final Type booleanobjType;
-    public final Type byteobjType;
-    public final Type shortobjType;
-    public final Type charobjType;
-    public final Type intobjType;
-    public final Type longobjType;
-    public final Type floatobjType;
-    public final Type doubleobjType;
+    final Type voidobjType;
+    final Type booleanobjType;
+    final Type byteobjType;
+    final Type shortobjType;
+    final Type charobjType;
+    final Type intobjType;
+    final Type longobjType;
+    final Type floatobjType;
+    final Type doubleobjType;
 
-    public final Type objectType;
-    public final Type defType;
-    public final Type numberType;
-    public final Type charseqType;
-    public final Type stringType;
-    public final Type mathType;
-    public final Type utilityType;
-    public final Type defobjType;
+    final Type objectType;
+    final Type defType;
+    final Type numberType;
+    final Type charseqType;
+    final Type stringType;
+    final Type mathType;
+    final Type utilityType;
+    final Type defobjType;
 
-    public final Type itrType;
-    public final Type oitrType;
-    public final Type sitrType;
+    final Type itrType;
+    final Type oitrType;
+    final Type sitrType;
 
-    public final Type collectionType;
-    public final Type ocollectionType;
-    public final Type scollectionType;
+    final Type collectionType;
+    final Type ocollectionType;
+    final Type scollectionType;
 
-    public final Type listType;
-    public final Type arraylistType;
-    public final Type olistType;
-    public final Type oarraylistType;
-    public final Type slistType;
-    public final Type sarraylistType;
+    final Type listType;
+    final Type arraylistType;
+    final Type olistType;
+    final Type oarraylistType;
+    final Type slistType;
+    final Type sarraylistType;
 
-    public final Type setType;
-    public final Type hashsetType;
-    public final Type osetType;
-    public final Type ohashsetType;
-    public final Type ssetType;
-    public final Type shashsetType;
+    final Type setType;
+    final Type hashsetType;
+    final Type osetType;
+    final Type ohashsetType;
+    final Type ssetType;
+    final Type shashsetType;
 
-    public final Type mapType;
-    public final Type hashmapType;
-    public final Type oomapType;
-    public final Type oohashmapType;
-    public final Type smapType;
-    public final Type shashmapType;
-    public final Type somapType;
-    public final Type sohashmapType;
+    final Type mapType;
+    final Type hashmapType;
+    final Type oomapType;
+    final Type oohashmapType;
+    final Type smapType;
+    final Type shashmapType;
+    final Type somapType;
+    final Type sohashmapType;
 
-    public final Type execType;
+    final Type execType;
 
-    public final Type exceptionType;
-    public final Type arithexcepType;
-    public final Type iargexcepType;
-    public final Type istateexceptType;
-    public final Type nfexcepType;
+    final Type exceptionType;
+    final Type arithexcepType;
+    final Type iargexcepType;
+    final Type istateexceptType;
+    final Type nfexcepType;
+
+    // docvalues accessors
+    final Type geoPointType;
+    final Type stringsType;
+    // TODO: add ReadableDateTime? or don't expose the joda stuff?
+    final Type longsType;
+    final Type doublesType;
+    final Type geoPointsType;
 
     public Definition() {
         structs = new HashMap<>();
@@ -472,6 +483,12 @@ public class Definition {
         iargexcepType = getType("IllegalArgumentException");
         istateexceptType = getType("IllegalStateException");
         nfexcepType = getType("NumberFormatException");
+
+        geoPointType = getType("GeoPoint");
+        stringsType = getType("Strings");
+        longsType = getType("Longs");
+        doublesType = getType("Doubles");
+        geoPointsType = getType("GeoPoints");
 
         addDefaultElements();
         copyDefaultStructs();
@@ -566,6 +583,12 @@ public class Definition {
         iargexcepType = definition.iargexcepType;
         istateexceptType = definition.istateexceptType;
         nfexcepType = definition.nfexcepType;
+
+        geoPointType = definition.geoPointType;
+        stringsType = definition.stringsType;
+        longsType = definition.longsType;
+        doublesType = definition.doublesType;
+        geoPointsType = definition.geoPointsType;
     }
 
     private void addDefaultStructs() {
@@ -636,6 +659,12 @@ public class Definition {
         addStruct( "IllegalArgumentException" , IllegalArgumentException.class);
         addStruct( "IllegalStateException"    , IllegalStateException.class);
         addStruct( "NumberFormatException"    , NumberFormatException.class);
+
+        addStruct( "GeoPoint"  , GeoPoint.class);
+        addStruct( "Strings"   , ScriptDocValues.Strings.class);
+        addStruct( "Longs"     , ScriptDocValues.Longs.class);
+        addStruct( "Doubles"   , ScriptDocValues.Doubles.class);
+        addStruct( "GeoPoints" , ScriptDocValues.GeoPoints.class);
     }
 
     private void addDefaultClasses() {
@@ -672,6 +701,12 @@ public class Definition {
         addClass("HashMap");
 
         addClass("Exception");
+
+        addClass("GeoPoint");
+        addClass("Strings");
+        addClass("Longs");
+        addClass("Doubles");
+        addClass("GeoPoints");
     }
 
     private void addDefaultElements() {
@@ -1034,6 +1069,61 @@ public class Definition {
         addConstructor("IllegalStateException", "new", new Type[] {stringType}, null);
 
         addConstructor("NumberFormatException", "new", new Type[] {stringType}, null);
+
+        addMethod("GeoPoint", "getLat", null, false, doubleType, new Type[] {}, null, null);
+        addMethod("GeoPoint", "getLon", null, false, doubleType, new Type[] {}, null, null);
+        addMethod("Strings", "getValue", null, false, stringType, new Type[] {}, null, null);
+        addMethod("Strings", "getValues", null, false, slistType, new Type[] {}, null, null);
+        addMethod("Longs", "getValue", null, false, longType, new Type[] {}, null, null);
+        addMethod("Longs", "getValues", null, false, olistType, new Type[] {}, null, null);
+        // TODO: add better date support for Longs here? (carefully?)
+        addMethod("Doubles", "getValue", null, false, doubleType, new Type[] {}, null, null);
+        addMethod("Doubles", "getValues", null, false, olistType, new Type[] {}, null, null);
+        addMethod("GeoPoints", "getValue", null, false, geoPointType, new Type[] {}, null, null);
+        addMethod("GeoPoints", "getValues", null, false, olistType, new Type[] {}, null, null);
+        addMethod("GeoPoints", "getLat", null, false, doubleType, new Type[] {}, null, null);
+        addMethod("GeoPoints", "getLon", null, false, doubleType, new Type[] {}, null, null);
+        addMethod("GeoPoints", "getLats", null, false, getType(doubleType.struct, 1), new Type[] {}, null, null);
+        addMethod("GeoPoints", "getLons", null, false, getType(doubleType.struct, 1), new Type[] {}, null, null);
+        // geo distance functions... so many...
+        addMethod("GeoPoints", "factorDistance", null, false, doubleType,
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "factorDistanceWithDefault", null, false, doubleType,
+                  new Type[] { doubleType, doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "factorDistance02", null, false, doubleType,
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "factorDistance13", null, false, doubleType,
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "arcDistance", null, false, doubleType,
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "arcDistanceWithDefault", null, false, doubleType,
+                  new Type[] { doubleType, doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "arcDistanceInKm", null, false, doubleType,
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "arcDistanceInKmWithDefault", null, false, doubleType,
+                  new Type[] { doubleType, doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "arcDistanceInMiles", null, false, doubleType,
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "arcDistanceInMilesWithDefault", null, false, doubleType,
+                  new Type[] { doubleType, doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "distance", null, false, doubleType,
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "distanceWithDefault", null, false, doubleType,
+                  new Type[] { doubleType, doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "distanceInKm", null, false, doubleType,
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "distanceInKmWithDefault", null, false, doubleType,
+                  new Type[] { doubleType, doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "distanceInMiles", null, false, doubleType,
+                  new Type[] { doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "distanceInMilesWithDefault", null, false, doubleType,
+                  new Type[] { doubleType, doubleType, doubleType }, null, null);
+        addMethod("GeoPoints", "geohashDistance", null, false, doubleType,
+                  new Type[] { stringType }, null, null);
+        addMethod("GeoPoints", "geohashDistanceInKm", null, false, doubleType,
+                  new Type[] { stringType }, null, null);
+        addMethod("GeoPoints", "geohashDistanceInMiles", null, false, doubleType,
+                  new Type[] { stringType }, null, null);
     }
 
     private void copyDefaultStructs() {
@@ -1081,6 +1171,12 @@ public class Definition {
         copyStruct("IllegalArgumentException", "Exception", "Object");
         copyStruct("IllegalStateException", "Exception", "Object");
         copyStruct("NumberFormatException", "Exception", "Object");
+
+        copyStruct("GeoPoint", "Object");
+        copyStruct("Strings", "List<String>", "Collection<String>", "Object");
+        copyStruct("Longs", "List", "Collection", "Object");
+        copyStruct("Doubles", "List", "Collection", "Object");
+        copyStruct("GeoPoints", "List", "Collection", "Object");
     }
 
     private void addDefaultTransforms() {

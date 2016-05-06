@@ -115,7 +115,7 @@ public class EComp extends AExpression {
             }
         }
 
-        actual = promote;
+        actual = definition.booleanType;
         typesafe = left.typesafe && right.typesafe;
     }
 
@@ -158,7 +158,7 @@ public class EComp extends AExpression {
             }
         }
 
-        actual = promote;
+        actual = definition.booleanType;
         typesafe = left.typesafe && right.typesafe;
     }
 
@@ -205,7 +205,7 @@ public class EComp extends AExpression {
             }
         }
 
-        actual = promote;
+        actual = definition.booleanType;
         typesafe = left.typesafe && right.typesafe;
     }
 
@@ -248,7 +248,7 @@ public class EComp extends AExpression {
             }
         }
 
-        actual = promote;
+        actual = definition.booleanType;
         typesafe = left.typesafe && right.typesafe;
     }
 
@@ -285,7 +285,7 @@ public class EComp extends AExpression {
             }
         }
 
-        actual = promote;
+        actual = definition.booleanType;
         typesafe = left.typesafe && right.typesafe;
     }
 
@@ -322,7 +322,7 @@ public class EComp extends AExpression {
             }
         }
 
-        actual = promote;
+        actual = definition.booleanType;
         typesafe = left.typesafe && right.typesafe;
     }
 
@@ -359,7 +359,7 @@ public class EComp extends AExpression {
             }
         }
 
-        actual = promote;
+        actual = definition.booleanType;
         typesafe = left.typesafe && right.typesafe;
     }
 
@@ -396,7 +396,7 @@ public class EComp extends AExpression {
             }
         }
 
-        actual = promote;
+        actual = definition.booleanType;
         typesafe = left.typesafe && right.typesafe;
     }
 

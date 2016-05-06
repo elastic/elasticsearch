@@ -36,8 +36,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-class Definition {
-    enum Sort {
+public class Definition {
+    public enum Sort {
         VOID(       void.class      , 0 , true  , false , false , false ),
         BOOL(       boolean.class   , 1 , true  , true  , false , true  ),
         BYTE(       byte.class      , 1 , true  , false , true  , true  ),
@@ -326,86 +326,86 @@ class Definition {
         }
     }
 
-    final Map<String, Struct> structs;
-    final Map<Class<?>, Struct> classes;
-    final Map<Cast, Transform> transforms;
-    final Map<Pair, Type> bounds;
+    public final Map<String, Struct> structs;
+    public final Map<Class<?>, Struct> classes;
+    public final Map<Cast, Transform> transforms;
+    public final Map<Pair, Type> bounds;
 
-    final Type voidType;
-    final Type booleanType;
-    final Type byteType;
-    final Type shortType;
-    final Type charType;
-    final Type intType;
-    final Type longType;
-    final Type floatType;
-    final Type doubleType;
+    public final Type voidType;
+    public final Type booleanType;
+    public final Type byteType;
+    public final Type shortType;
+    public final Type charType;
+    public final Type intType;
+    public final Type longType;
+    public final Type floatType;
+    public final Type doubleType;
 
-    final Type voidobjType;
-    final Type booleanobjType;
-    final Type byteobjType;
-    final Type shortobjType;
-    final Type charobjType;
-    final Type intobjType;
-    final Type longobjType;
-    final Type floatobjType;
-    final Type doubleobjType;
+    public final Type voidobjType;
+    public final Type booleanobjType;
+    public final Type byteobjType;
+    public final Type shortobjType;
+    public final Type charobjType;
+    public final Type intobjType;
+    public final Type longobjType;
+    public final Type floatobjType;
+    public final Type doubleobjType;
 
-    final Type objectType;
-    final Type defType;
-    final Type numberType;
-    final Type charseqType;
-    final Type stringType;
-    final Type mathType;
-    final Type utilityType;
-    final Type defobjType;
+    public final Type objectType;
+    public final Type defType;
+    public final Type numberType;
+    public final Type charseqType;
+    public final Type stringType;
+    public final Type mathType;
+    public final Type utilityType;
+    public final Type defobjType;
 
-    final Type itrType;
-    final Type oitrType;
-    final Type sitrType;
+    public final Type itrType;
+    public final Type oitrType;
+    public final Type sitrType;
 
-    final Type collectionType;
-    final Type ocollectionType;
-    final Type scollectionType;
+    public final Type collectionType;
+    public final Type ocollectionType;
+    public final Type scollectionType;
 
-    final Type listType;
-    final Type arraylistType;
-    final Type olistType;
-    final Type oarraylistType;
-    final Type slistType;
-    final Type sarraylistType;
+    public final Type listType;
+    public final Type arraylistType;
+    public final Type olistType;
+    public final Type oarraylistType;
+    public final Type slistType;
+    public final Type sarraylistType;
 
-    final Type setType;
-    final Type hashsetType;
-    final Type osetType;
-    final Type ohashsetType;
-    final Type ssetType;
-    final Type shashsetType;
+    public final Type setType;
+    public final Type hashsetType;
+    public final Type osetType;
+    public final Type ohashsetType;
+    public final Type ssetType;
+    public final Type shashsetType;
 
-    final Type mapType;
-    final Type hashmapType;
-    final Type oomapType;
-    final Type oohashmapType;
-    final Type smapType;
-    final Type shashmapType;
-    final Type somapType;
-    final Type sohashmapType;
+    public final Type mapType;
+    public final Type hashmapType;
+    public final Type oomapType;
+    public final Type oohashmapType;
+    public final Type smapType;
+    public final Type shashmapType;
+    public final Type somapType;
+    public final Type sohashmapType;
 
-    final Type execType;
+    public final Type execType;
 
-    final Type exceptionType;
-    final Type arithexcepType;
-    final Type iargexcepType;
-    final Type istateexceptType;
-    final Type nfexcepType;
+    public final Type exceptionType;
+    public final Type arithexcepType;
+    public final Type iargexcepType;
+    public final Type istateexceptType;
+    public final Type nfexcepType;
 
     // docvalues accessors
-    final Type geoPointType;
-    final Type stringsType;
+    public final Type geoPointType;
+    public final Type stringsType;
     // TODO: add ReadableDateTime? or don't expose the joda stuff?
-    final Type longsType;
-    final Type doublesType;
-    final Type geoPointsType;
+    public final Type longsType;
+    public final Type doublesType;
+    public final Type geoPointsType;
 
     public Definition() {
         structs = new HashMap<>();

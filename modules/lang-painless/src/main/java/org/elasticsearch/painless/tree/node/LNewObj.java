@@ -91,13 +91,13 @@ public class LNewObj extends ALink {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        if (strings) {
+        if (begincat) {
             Shared.writeNewStrings(adapter);
         }
 
         adapter.newInstance(after.type);
 
-        if (load && store) {
+        if (load) {
             adapter.dup();
         }
 

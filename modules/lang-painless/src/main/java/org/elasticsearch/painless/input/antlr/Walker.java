@@ -90,6 +90,7 @@ import org.elasticsearch.painless.tree.node.ENull;
 import org.elasticsearch.painless.tree.node.ENumeric;
 import org.elasticsearch.painless.tree.node.EUnary;
 import org.elasticsearch.painless.tree.node.LBrace;
+import org.elasticsearch.painless.tree.node.LCall;
 import org.elasticsearch.painless.tree.node.LCast;
 import org.elasticsearch.painless.tree.node.LField;
 import org.elasticsearch.painless.tree.node.LNewArray;
@@ -671,7 +672,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
             arguments.add((AExpression)visit(expression));
         }
 
-        links.add(new LNewObj(location(ctx), ctx.EXTID().getText(), arguments));
+        links.add(new LCall(location(ctx), ctx.EXTID().getText(), arguments));
 
         if (ctx.extbrace() != null) {
             visitExtbrace(ctx.extbrace(), links);

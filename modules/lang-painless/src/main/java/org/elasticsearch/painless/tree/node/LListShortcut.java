@@ -23,6 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
+import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
@@ -72,18 +73,25 @@ public class LListShortcut extends ALink {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        if (strings) {
+        if (begincat) {
             Shared.writeNewStrings(adapter);
         }
 
         index.write(settings, definition, adapter);
 
         if (store) {
-            if (cat) {
+            if (endcat) {
                 adapter.dup2X1();
                 adapter.arrayLoad(before.type);
                 Shared.writeAppendStrings(adapter, after.sort);
+
                 expression.write(settings, definition, adapter);
+
+                if (!(expression instanceof EBinary) ||
+                    ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
+                    Shared.writeAppendStrings(adapter, expression.expected.sort);
+                }
+
                 Shared.writeToStrings(adapter);
                 Shared.writeCast(adapter, back);
 

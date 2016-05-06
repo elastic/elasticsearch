@@ -21,7 +21,9 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.elasticsearch.painless.tree.analyzer.Variables.Variable;
 import org.elasticsearch.painless.tree.writer.Shared;
@@ -68,15 +70,22 @@ public class LVariable extends ALink {
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        if (strings) {
+        if (begincat) {
             Shared.writeNewStrings(adapter);
         }
 
         if (store) {
-            if (cat) {
+            if (endcat) {
                 load(adapter);
                 Shared.writeAppendStrings(adapter, after.sort);
+
                 expression.write(settings, definition, adapter);
+
+                if (!(expression instanceof EBinary) ||
+                    ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
+                    Shared.writeAppendStrings(adapter, expression.expected.sort);
+                }
+
                 Shared.writeToStrings(adapter);
                 Shared.writeCast(adapter, back);
 
@@ -94,10 +103,10 @@ public class LVariable extends ALink {
 
                 Shared.writeCast(adapter, there);
                 expression.write(settings, definition, adapter);
-                Shared.writeBinaryInstruction(settings, definition, adapter, location, there.to, operation);
+                Shared.writeBinaryInstruction(settings, definition, adapter, location, expression.expected, operation);
 
                 if (settings.getNumericOverflow() || !expression.typesafe ||
-                    !Shared.writeExactInstruction(definition, adapter, expression.actual.sort, after.sort)) {
+                    !Shared.writeExactInstruction(definition, adapter, expression.expected.sort, after.sort)) {
                     Shared.writeCast(adapter, back);
                 }
 

@@ -70,19 +70,38 @@ public class ECast extends AExpression {
         Shared.writeBranch(adapter, tru, fals);
     }
 
-    @Override
     protected AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (cast == null) {
             child.expected = expected;
 
             return child.cast(settings, definition, variables);
         } else {
-            child = child.cast(settings, definition, variables);
+            if (child.constant == null) {
+                isNull = child.isNull;
+                typesafe = child.typesafe;
 
-            isNull = child.isNull;
-            typesafe = child.typesafe && actual.sort != Sort.DEF;
+                return super.cast(settings, definition, variables);
+            } else {
+                if (child.expected.sort.constant) {
+                    constant = Caster.constCast(location, child.constant, cast);
 
-            return super.cast(settings, definition, variables);
+                    return super.cast(settings, definition, variables);
+                } else if (child instanceof EConstant) {
+                    return super.cast(settings, definition, variables);
+                } else {
+                    final EConstant econstant = new EConstant(location, child.constant);
+                    econstant.analyze(settings, definition, variables);
+
+                    if (!child.actual.equals(econstant.actual)) {
+                        throw new IllegalStateException(error("Illegal tree structure."));
+                    }
+
+                    econstant.expected = actual;
+                    child = econstant;
+
+                    return super.cast(settings, definition, variables);
+                }
+            }
         }
     }
 }

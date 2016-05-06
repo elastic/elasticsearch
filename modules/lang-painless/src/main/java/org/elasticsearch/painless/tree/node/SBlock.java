@@ -46,8 +46,8 @@ public class SBlock extends AStatement {
             }
 
             statement.inLoop = inLoop;
-            statement.lastSource = statement == last;
-            statement.lastLoop = (statement.beginLoop || statement.lastLoop) && statement == last;
+            statement.lastSource = lastSource && statement == last;
+            statement.lastLoop = (beginLoop || lastLoop) && statement == last;
 
             statement.analyze(settings, definition, variables);
 

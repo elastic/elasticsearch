@@ -168,7 +168,7 @@ public class EChain extends AExpression {
             final boolean cat = operation == Operation.ADD && promote.sort == Sort.STRING;
 
             expression.expected = cat ? expression.actual : promote;
-            expression.cast(settings, definition, variables);
+            expression = expression.cast(settings, definition, variables);
 
             if (cat && expression instanceof EBinary &&
                 ((EBinary)expression).operation == Operation.ADD && expression.actual.sort == Sort.STRING) {
@@ -180,7 +180,7 @@ public class EChain extends AExpression {
             last.expression = expression;
             last.pre = pre;
             last.post = post;
-            last.operation = operation;
+            last.operation = pre || post ? Operation.ADD : operation;
             last.endcat = cat;
             last.there = Caster.getLegalCast(definition, location, last.after, promote, expression.typesafe);
             last.back = Caster.getLegalCast(definition, location, promote, last.after, true);

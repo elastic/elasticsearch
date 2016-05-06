@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.transport;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
@@ -307,9 +308,9 @@ public class TransportFilterTests extends ESIntegTestCase {
 
         @Inject
         public InternalPluginServerTransportService(Settings settings, Transport transport, ThreadPool threadPool,
-                AuthenticationService authcService, AuthorizationService authzService, ShieldActionMapper actionMapper,
-                ClientTransportFilter clientTransportFilter) {
-            super(settings, transport, threadPool, authcService, authzService, actionMapper, clientTransportFilter,
+                ClusterName clusterName, AuthenticationService authcService, AuthorizationService authzService,
+                ShieldActionMapper actionMapper, ClientTransportFilter clientTransportFilter) {
+            super(settings, transport, threadPool, clusterName, authcService, authzService, actionMapper, clientTransportFilter,
                     mock(SecurityLicenseState.class));
             when(licenseState.authenticationAndAuthorizationEnabled()).thenReturn(true);
         }

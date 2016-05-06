@@ -26,8 +26,6 @@ apply plugin: 'com.bmuschko.nexus'
 apply plugin: 'nebula.optional-base'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
-//apply plugin: 'nebula.source-jar'
-//apply plugin: 'nebula.javadoc-jar'
 
 publishing {
   publications {

@@ -22,6 +22,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.core.TemplateService;
+import org.elasticsearch.painless.PainlessScriptEngineService;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
@@ -29,10 +30,12 @@ import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.mockito.internal.util.collections.Sets;
 
+import java.util.Arrays;
 import java.util.Collections;
 
-public abstract class AbstractMustacheTestCase extends ESTestCase {
+public abstract class AbstractScriptTestCase extends ESTestCase {
 
     protected TemplateService templateService;
 
@@ -43,14 +46,15 @@ public abstract class AbstractMustacheTestCase extends ESTestCase {
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
             .build();
         MustacheScriptEngineService mustache = new MustacheScriptEngineService(settings);
-        ScriptEngineRegistry scriptEngineRegistry =
-                new ScriptEngineRegistry(Collections.singletonList(
-                                new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class,
-                                                                                  MustacheScriptEngineService.NAME,
-                                                                                  true)));
+        PainlessScriptEngineService painless = new PainlessScriptEngineService(settings);
+
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(
+            new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.NAME, true),
+            new ScriptEngineRegistry.ScriptEngineRegistration(PainlessScriptEngineService.class, PainlessScriptEngineService.NAME, true)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        ScriptService scriptService = new ScriptService(settings, new Environment(settings), Collections.singleton(mustache), null,
+
+        ScriptService scriptService = new ScriptService(settings, new Environment(settings), Sets.newSet(mustache, painless), null,
                 scriptEngineRegistry, scriptContextRegistry, scriptSettings);
         templateService = new InternalTemplateService(scriptService);
     }

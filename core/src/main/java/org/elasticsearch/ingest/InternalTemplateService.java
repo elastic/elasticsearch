@@ -38,6 +38,10 @@ public class InternalTemplateService implements TemplateService {
         this.scriptService = scriptService;
     }
 
+    public ScriptService getScriptService() {
+        return scriptService;
+    }
+
     @Override
     public Template compile(String template) {
         int mustacheStart = template.indexOf("{{");

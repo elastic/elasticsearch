@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.ingest.core;
 
+import org.elasticsearch.script.ScriptService;
+
 import java.util.Map;
 
 /**
@@ -28,6 +30,7 @@ import java.util.Map;
 public interface TemplateService {
 
     Template compile(String template);
+    ScriptService getScriptService();
 
     interface Template {
 

@@ -396,7 +396,11 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
         super.doXContentBody(builder, includeDefaults, params);
 
         if (includeDefaults || fieldType().nullValue() != null) {
-            builder.field("null_value", InetAddresses.toAddrString((InetAddress) fieldType().nullValue()));
+            Object nullValue = fieldType().nullValue();
+            if (nullValue != null) {
+                nullValue = InetAddresses.toAddrString((InetAddress) nullValue);
+            }
+            builder.field("null_value", nullValue);
         }
 
         if (includeDefaults || ignoreMalformed.explicit()) {

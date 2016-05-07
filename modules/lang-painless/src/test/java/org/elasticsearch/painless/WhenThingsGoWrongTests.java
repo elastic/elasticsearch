@@ -112,8 +112,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             exec("try { int x } catch (PainlessError error) {}");
             fail("should have hit ParseException");
         } catch (RuntimeException expected) {
-            assertTrue(expected.getMessage().contains(
-                "Invalid type [PainlessError]."));
+            assertTrue(expected.getMessage().contains("Not a type [PainlessError]."));
         }
 
     }

@@ -65,6 +65,8 @@ public class LField extends ALink {
             }
 
             after = field.type;
+
+            return this;
         } else {
             final boolean shortcut =
                 struct.methods.containsKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1)) ||

@@ -24,7 +24,6 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.tree.analyzer.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.painless.tree.writer.Constants.CLASS_TYPE;
@@ -35,7 +34,7 @@ public class LDefCall extends ALink {
     protected final String name;
     protected final List<AExpression> arguments;
 
-    public LDefCall(final String location, final String name, final List<AExpression> arguments) {
+    protected LDefCall(final String location, final String name, final List<AExpression> arguments) {
         super(location, -1);
 
         this.name = name;

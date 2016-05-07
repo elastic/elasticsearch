@@ -76,7 +76,7 @@ public class EConstant extends AExpression {
                     adapter.goTo(tru);
                 } else if (fals != null && !(boolean)constant) {
                     adapter.goTo(fals);
-                } else {
+                } else if (tru == null && fals == null) {
                     adapter.push((boolean)constant);
                 }
 

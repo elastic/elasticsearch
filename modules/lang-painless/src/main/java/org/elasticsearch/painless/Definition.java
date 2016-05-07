@@ -58,7 +58,7 @@ public class Definition {
         FLOAT_OBJ(  Float.class     , 1 , false , false , true  , false ),
         DOUBLE_OBJ( Double.class    , 1 , false , false , true  , false ),
 
-        NUMBER(     Number.class    , 1 , false , false , true  , false ),
+        NUMBER(     Number.class    , 1 , false , false , false , false ),
         STRING(     String.class    , 1 , false , false , false , true  ),
 
         OBJECT(     null            , 1 , false , false , false , false ),

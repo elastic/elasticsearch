@@ -403,8 +403,8 @@ public class EComp extends AExpression {
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final boolean branch = tru != null || fals != null;
-        final org.objectweb.asm.Type rtype = right.expected.type;
-        final Sort rsort = right.expected.sort;
+        final org.objectweb.asm.Type rtype = right.actual.type;
+        final Sort rsort = right.actual.sort;
 
         left.write(settings, definition, adapter);
 

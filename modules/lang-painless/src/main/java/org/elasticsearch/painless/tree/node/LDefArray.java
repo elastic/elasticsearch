@@ -21,10 +21,7 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import static org.elasticsearch.painless.tree.writer.Constants.CLASS_TYPE;
@@ -35,7 +32,7 @@ import static org.elasticsearch.painless.tree.writer.Constants.DEF_ARRAY_STORE;
 public class LDefArray extends ALink {
     protected AExpression index;
 
-    public LDefArray(final String location, final AExpression index) {
+    protected LDefArray(final String location, final AExpression index) {
         super(location, 0);
 
         this.index = index;

@@ -146,12 +146,14 @@ public class EUnary extends AExpression {
         child = child.cast(settings, definition, variables);
 
         if (child.constant != null) {
+            final boolean overflow = settings.getNumericOverflow();
             final Sort sort = promote.sort;
 
+
             if (sort == Sort.INT) {
-                constant = -(int)child.constant;
+                constant = overflow ? -(int)child.constant : Math.negateExact((int)child.constant);
             } else if (sort == Sort.LONG) {
-                constant = -(long)child.constant;
+                constant = overflow ? -(long)child.constant : Math.negateExact((long)child.constant);
             } else if (sort == Sort.FLOAT) {
                 constant = -(float)child.constant;
             } else if (sort == Sort.DOUBLE) {

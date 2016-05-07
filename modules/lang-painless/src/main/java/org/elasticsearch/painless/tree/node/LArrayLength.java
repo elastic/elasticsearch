@@ -27,7 +27,7 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 public class LArrayLength extends ALink {
     protected final String value;
 
-    public LArrayLength(final String location, final String value) {
+    protected LArrayLength(final String location, final String value) {
         super(location, -1);
 
         this.value = value;

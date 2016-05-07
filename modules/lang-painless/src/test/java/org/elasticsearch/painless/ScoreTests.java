@@ -48,7 +48,7 @@ public class ScoreTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "type", "5").setSource("t", "a a b c d e").get();
         client().admin().indices().prepareRefresh("test").get();
 
-        final Script script = new Script("_score + 1", ScriptService.ScriptType.INLINE, "painless", null);
+        final Script script = new Script("score + 1", ScriptService.ScriptType.INLINE, "painless", null);
 
         final SearchResponse sr = client().prepareSearch("test").setQuery(
             QueryBuilders.functionScoreQuery(QueryBuilders.matchQuery("t", "a"),

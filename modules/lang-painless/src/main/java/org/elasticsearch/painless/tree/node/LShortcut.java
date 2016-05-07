@@ -34,7 +34,7 @@ public class LShortcut extends ALink {
     protected Method getter = null;
     protected Method setter = null;
 
-    public LShortcut(final String location, final String value) {
+    protected LShortcut(final String location, final String value) {
         super(location, 1);
 
         this.value = value;
@@ -57,8 +57,12 @@ public class LShortcut extends ALink {
                 "Illegal set shortcut on field [" + value + "] for type [" + struct.name + "]."));
         }
 
+        if (getter != null && setter != null && setter.arguments.get(0) != getter.rtn) {
+            throw new IllegalArgumentException(error("Shortcut argument types must match."));
+        }
+
         if ((getter != null || setter != null) && (!load || getter != null) && (!store || setter != null)) {
-            after = load ? getter.rtn : setter.rtn;
+            after = setter != null ? setter.arguments.get(0) : getter.rtn;
         } else {
             throw new IllegalArgumentException(error("Illegal shortcut on field [" + value + "] for type [" + struct.name + "]."));
         }

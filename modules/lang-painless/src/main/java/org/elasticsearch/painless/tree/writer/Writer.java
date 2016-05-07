@@ -98,7 +98,7 @@ public class Writer {
     private void writeExecute() {
         final Variable input = variables.getVariable(null, "input");
 
-        final Variable score = variables.getVariable(null, "#score");
+        final Variable score = variables.getVariable(null, "score");
 
         if (score != null) {
             final Label fals = new Label();

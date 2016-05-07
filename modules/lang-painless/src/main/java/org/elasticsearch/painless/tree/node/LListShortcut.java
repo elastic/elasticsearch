@@ -32,7 +32,7 @@ public class LListShortcut extends ALink {
     protected Method getter;
     protected Method setter;
 
-    public LListShortcut(final String location, final AExpression index) {
+    protected LListShortcut(final String location, final AExpression index) {
         super(location, 2);
 
         this.index = index;

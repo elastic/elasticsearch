@@ -34,6 +34,7 @@ public abstract class AExpression extends ANode {
 
     protected Type expected = null;
     protected Type actual = null;
+    protected boolean explicit = false;
     protected boolean typesafe = true;
 
     protected Object constant = null;
@@ -50,7 +51,7 @@ public abstract class AExpression extends ANode {
     protected abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
 
     protected AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        final Cast cast = Caster.getLegalCast(definition, location, actual, expected, !typesafe);
+        final Cast cast = Caster.getLegalCast(definition, location, actual, expected, explicit || !typesafe);
 
         if (cast == null) {
             if (constant == null || this instanceof EConstant) {
@@ -63,19 +64,15 @@ public abstract class AExpression extends ANode {
                     throw new IllegalStateException(error("Illegal tree structure."));
                 }
 
-                econstant.expected = expected;
-
                 return econstant;
             }
         } else {
             if (constant == null) {
                 final ECast ecast = new ECast(location, this, cast);
                 ecast.statement = statement;
-                ecast.expected = expected;
-                ecast.actual = actual;
+                ecast.actual = expected;
                 ecast.isNull = isNull;
                 ecast.typesafe = typesafe;
-                expected = actual;
 
                 return ecast;
             } else {
@@ -89,14 +86,10 @@ public abstract class AExpression extends ANode {
                         throw new IllegalStateException(error("Illegal tree structure."));
                     }
 
-                    econstant.expected = expected;
-
                     return econstant;
                 } else if (this instanceof EConstant) {
                     final ECast ecast = new ECast(location, this, cast);
-                    ecast.expected = expected;
-                    ecast.actual = actual;
-                    expected = actual;
+                    ecast.actual = expected;
 
                     return ecast;
                 } else {
@@ -107,11 +100,8 @@ public abstract class AExpression extends ANode {
                         throw new IllegalStateException(error("Illegal tree structure."));
                     }
 
-                    econstant.expected = actual;
-
                     final ECast ecast = new ECast(location, econstant, cast);
-                    ecast.expected = expected;
-                    ecast.actual = actual;
+                    ecast.actual = expected;
 
                     return ecast;
                 }

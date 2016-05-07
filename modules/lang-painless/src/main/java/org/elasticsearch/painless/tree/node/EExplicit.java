@@ -22,34 +22,47 @@ package org.elasticsearch.painless.tree.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
+import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class ECast extends AExpression {
+public class EExplicit extends AExpression {
     protected final String type;
     protected AExpression child;
 
     protected Cast cast = null;
 
-    protected ECast(final String location, final AExpression child, final Cast cast) {
+    public EExplicit(final String location, final String type, final AExpression child) {
         super(location);
 
-        this.type = null;
+        this.type = type;
         this.child = child;
-
-        this.cast = cast;
     }
 
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+        try {
+            actual = definition.getType(this.type);
+        } catch (final IllegalArgumentException exception) {
+            throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
+        }
+
+        child.expected = actual;
+        child.explicit = true;
+        child.analyze(settings, definition, variables);
+        child = child.cast(settings, definition, variables);
+        child.typesafe |= actual.sort == Sort.DEF;
     }
 
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        child.write(settings, definition, adapter);
-        Shared.writeCast(adapter, cast);
-        Shared.writeBranch(adapter, tru, fals);
+        throw new IllegalArgumentException(error("Illegal tree structure."));
+    }
+
+    protected AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        child.expected = expected;
+        child.explicit = explicit;
+
+        return child.cast(settings, definition, variables);
     }
 }

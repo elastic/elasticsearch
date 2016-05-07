@@ -170,8 +170,8 @@ public class EChain extends AExpression {
             }
 
             if (promote == null) {
-                throw new IllegalArgumentException("Cannot apply compound assignment " +
-                    "[" + operation.symbol + "]= to types [" + last.after + "] and [" + expression.actual + "].");
+                throw new ClassCastException("Cannot apply compound assignment " +
+                    "[" + operation.symbol + "=] to types [" + last.after + "] and [" + expression.actual + "].");
             }
 
             cat = operation == Operation.ADD && promote.sort == Sort.STRING;
@@ -185,13 +185,14 @@ public class EChain extends AExpression {
                 expression.expected = expression.actual;
             } else if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
                 expression.expected = definition.intType;
+                expression.explicit = true;
             } else {
                 expression.expected = promote;
             }
 
             expression = expression.cast(settings, definition, variables);
 
-            exact &= settings.getNumericOverflow() && !expression.typesafe;
+            exact &= !settings.getNumericOverflow() && expression.typesafe;
             there = Caster.getLegalCast(definition, location, last.after, promote, expression.typesafe);
             back = Caster.getLegalCast(definition, location, promote, last.after, true);
 
@@ -236,7 +237,7 @@ public class EChain extends AExpression {
 
                     if (!(expression instanceof EBinary) ||
                         ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
-                        Shared.writeAppendStrings(adapter, expression.expected.sort);
+                        Shared.writeAppendStrings(adapter, expression.actual.sort);
                     }
 
                     Shared.writeToStrings(adapter);

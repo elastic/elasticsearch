@@ -311,14 +311,11 @@ public class EBinary extends AExpression {
         }
 
         left.expected = promote;
-        final boolean rtypesafe = right.typesafe;
-        right.typesafe = false;
         right.expected = definition.intType;
+        right.explicit = true;
 
         left = left.cast(settings, definition, variables);
         right = right.cast(settings, definition, variables);
-
-        right.typesafe = rtypesafe;
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -348,14 +345,11 @@ public class EBinary extends AExpression {
         }
 
         left.expected = promote;
-        final boolean rtypesafe = right.typesafe;
-        right.typesafe = false;
         right.expected = definition.intType;
+        right.explicit = true;
 
         left = left.cast(settings, definition, variables);
         right = right.cast(settings, definition, variables);
-
-        right.typesafe = rtypesafe;
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -385,14 +379,11 @@ public class EBinary extends AExpression {
         }
 
         left.expected = promote;
-        final boolean rtypesafe = right.typesafe;
-        right.typesafe = false;
         right.expected = definition.intType;
+        right.explicit = true;
 
         left = left.cast(settings, definition, variables);
         right = right.cast(settings, definition, variables);
-
-        right.typesafe = rtypesafe;
 
         if (left.constant != null && right.constant != null) {
             final Sort sort = promote.sort;
@@ -521,13 +512,13 @@ public class EBinary extends AExpression {
             left.write(settings, definition, adapter);
 
             if (!(left instanceof EBinary) || ((EBinary)left).operation != Operation.ADD || left.actual.sort != Sort.STRING) {
-                Shared.writeAppendStrings(adapter, left.expected.sort);
+                Shared.writeAppendStrings(adapter, left.actual.sort);
             }
 
             right.write(settings, definition, adapter);
 
             if (!(right instanceof EBinary) || ((EBinary)right).operation != Operation.ADD || right.actual.sort != Sort.STRING) {
-                Shared.writeAppendStrings(adapter, right.expected.sort);
+                Shared.writeAppendStrings(adapter, right.actual.sort);
             }
 
             if (!cat) {

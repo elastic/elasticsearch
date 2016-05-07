@@ -32,7 +32,7 @@ public class LMapShortcut extends ALink {
     protected Method getter;
     protected Method setter;
 
-    public LMapShortcut(final String location, final AExpression index) {
+    protected LMapShortcut(final String location, final AExpression index) {
         super(location, 2);
 
         this.index = index;

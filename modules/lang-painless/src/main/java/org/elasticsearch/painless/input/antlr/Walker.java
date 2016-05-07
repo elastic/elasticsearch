@@ -81,7 +81,7 @@ import org.elasticsearch.painless.tree.node.AStatement;
 import org.elasticsearch.painless.tree.node.EBinary;
 import org.elasticsearch.painless.tree.node.EBool;
 import org.elasticsearch.painless.tree.node.EBoolean;
-import org.elasticsearch.painless.tree.node.ECast;
+import org.elasticsearch.painless.tree.node.EExplicit;
 import org.elasticsearch.painless.tree.node.EChain;
 import org.elasticsearch.painless.tree.node.EComp;
 import org.elasticsearch.painless.tree.node.EConditional;
@@ -436,7 +436,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitCast(final CastContext ctx) {
-        return new ECast(location(ctx), ctx.decltype().getText(), (AExpression)visit(ctx.expression()));
+        return new EExplicit(location(ctx), ctx.decltype().getText(), (AExpression)visit(ctx.expression()));
     }
 
     @Override

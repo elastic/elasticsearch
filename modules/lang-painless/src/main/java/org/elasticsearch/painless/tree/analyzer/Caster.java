@@ -545,7 +545,7 @@ public class Caster {
             }
         } catch (final IllegalAccessException | IllegalArgumentException |
             InvocationTargetException | NullPointerException | ExceptionInInitializerError exception) {
-            throw new IllegalArgumentException(
+            throw new ClassCastException(
                 "Error" + location + ": Cannot cast from [" + transform.from.name + "] to [" + transform.to.name + "].");
         }
     }
@@ -555,13 +555,16 @@ public class Caster {
 
         if (sort == Sort.DEF) {
             return definition.defType;
-        } else if ((sort == Sort.DOUBLE || sort == Sort.DOUBLE_OBJ || sort == Sort.NUMBER) && decimal) {
+        } else if ((sort == Sort.DOUBLE || sort == Sort.DOUBLE_OBJ) && decimal) {
             return primitive ? definition.doubleType : definition.doubleobjType;
         } else if ((sort == Sort.FLOAT || sort == Sort.FLOAT_OBJ) && decimal) {
             return primitive ? definition.floatType : definition.floatobjType;
-        } else if (sort == Sort.LONG || sort == Sort.LONG_OBJ || sort == Sort.NUMBER) {
+        } else if (sort == Sort.LONG || sort == Sort.LONG_OBJ) {
             return primitive ? definition.longType : definition.longobjType;
-        } else if (sort.numeric) {
+        } else if (sort == Sort.INT   || sort == Sort.INT_OBJ   ||
+                   sort == Sort.CHAR  || sort == Sort.CHAR_OBJ  ||
+                   sort == Sort.SHORT || sort == Sort.SHORT_OBJ ||
+                   sort == Sort.BYTE  || sort == Sort.BYTE_OBJ) {
             return primitive ? definition.intType : definition.intobjType;
         }
 
@@ -578,18 +581,25 @@ public class Caster {
         }
 
         if (decimal) {
-            if (sort0 == Sort.DOUBLE || sort0 == Sort.DOUBLE_OBJ || sort0 == Sort.NUMBER ||
-                sort1 == Sort.DOUBLE || sort1 == Sort.DOUBLE_OBJ || sort1 == Sort.NUMBER) {
+            if (sort0 == Sort.DOUBLE || sort0 == Sort.DOUBLE_OBJ ||
+                sort1 == Sort.DOUBLE || sort1 == Sort.DOUBLE_OBJ) {
                 return primitive ? definition.doubleType : definition.doubleobjType;
             } else if (sort0 == Sort.FLOAT || sort0 == Sort.FLOAT_OBJ || sort1 == Sort.FLOAT || sort1 == Sort.FLOAT_OBJ) {
                 return primitive ? definition.floatType : definition.floatobjType;
             }
         }
 
-        if (sort0 == Sort.LONG || sort0 == Sort.LONG_OBJ || sort0 == Sort.NUMBER ||
-            sort1 == Sort.LONG || sort1 == Sort.LONG_OBJ || sort1 == Sort.NUMBER) {
+        if (sort0 == Sort.LONG || sort0 == Sort.LONG_OBJ ||
+            sort1 == Sort.LONG || sort1 == Sort.LONG_OBJ) {
             return primitive ? definition.longType : definition.longobjType;
-        } else if (sort0.numeric && sort1.numeric) {
+        } else if (sort0 == Sort.INT   || sort0 == Sort.INT_OBJ   ||
+                   sort1 == Sort.INT   || sort1 == Sort.INT_OBJ   ||
+                   sort0 == Sort.CHAR  || sort0 == Sort.CHAR_OBJ  ||
+                   sort1 == Sort.CHAR  || sort1 == Sort.CHAR_OBJ  ||
+                   sort0 == Sort.SHORT || sort0 == Sort.SHORT_OBJ ||
+                   sort1 == Sort.SHORT || sort1 == Sort.SHORT_OBJ ||
+                   sort0 == Sort.BYTE  || sort0 == Sort.BYTE_OBJ  ||
+                   sort1 == Sort.BYTE  || sort1 == Sort.BYTE_OBJ) {
             return primitive ? definition.intType : definition.intobjType;
         }
 

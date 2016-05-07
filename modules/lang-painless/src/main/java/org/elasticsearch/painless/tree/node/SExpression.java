@@ -40,7 +40,7 @@ public class SExpression extends AStatement {
         expression.read = lastSource;
         expression.analyze(settings, definition, variables);
 
-        if (!expression.statement && !lastSource) {
+        if (!lastSource && !expression.statement) {
             throw new IllegalArgumentException(error("Not a statement."));
         }
 

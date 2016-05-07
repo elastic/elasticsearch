@@ -21,10 +21,7 @@ package org.elasticsearch.painless.tree.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.tree.analyzer.Operation;
 import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.elasticsearch.painless.tree.writer.Shared;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import static org.elasticsearch.painless.tree.writer.Constants.CLASS_TYPE;
@@ -35,7 +32,7 @@ import static org.elasticsearch.painless.tree.writer.Constants.DEF_FIELD_STORE;
 public class LDefField extends ALink {
     protected final String value;
 
-    public LDefField(final String location, final String value) {
+    protected LDefField(final String location, final String value) {
         super(location, 1);
 
         this.value = value;

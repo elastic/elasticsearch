@@ -381,7 +381,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (this.termsLookup != null) {
             TermsLookup termsLookup = new TermsLookup(this.termsLookup);
             if (termsLookup.index() == null) { // TODO this should go away?

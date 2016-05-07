@@ -42,15 +42,12 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Set;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQueryBuilder> {
 
-    private static final Set<String> SHUFFLE_PROTECTED_FIELDS =
-            Collections.singleton(PercolateQueryBuilder.DOCUMENT_FIELD.getPreferredName());
+    private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[] { PercolateQueryBuilder.DOCUMENT_FIELD.getPreferredName()};
 
     private static String queryField;
     private static String docType;
@@ -105,7 +102,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
      * compare when check for equality of the original and the shuffled builder
      */
     @Override
-    protected Set<String> shuffleProtectedFields() {
+    protected String[] shuffleProtectedFields() {
         return SHUFFLE_PROTECTED_FIELDS;
     }
 
@@ -142,7 +139,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         PercolateQueryBuilder pqb = doCreateTestQueryBuilder(true);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> pqb.toQuery(createShardContext()));
         assertThat(e.getMessage(), equalTo("query builder must be rewritten first"));
-        QueryBuilder<?> rewrite = pqb.rewrite(createShardContext());
+        QueryBuilder rewrite = pqb.rewrite(createShardContext());
         PercolateQueryBuilder geoShapeQueryBuilder = new PercolateQueryBuilder(pqb.getField(), pqb.getDocumentType(), documentSource);
         assertEquals(geoShapeQueryBuilder, rewrite);
     }

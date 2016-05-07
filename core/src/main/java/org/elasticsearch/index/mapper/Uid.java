@@ -123,13 +123,6 @@ public final class Uid {
         return ref;
     }
 
-    public static BytesRef createUidAsBytes(BytesRef type, BytesRef id, BytesRefBuilder spare) {
-        spare.copyBytes(type);
-        spare.append(DELIMITER_BYTES);
-        spare.append(id);
-        return spare.get();
-    }
-
     public static BytesRef[] createUidsForTypesAndId(Collection<String> types, Object id) {
         return createUidsForTypesAndIds(types, Collections.singletonList(id));
     }
@@ -149,11 +142,7 @@ public final class Uid {
     }
 
     public static String createUid(String type, String id) {
-        return createUid(new StringBuilder(), type, id);
-    }
-
-    public static String createUid(StringBuilder sb, String type, String id) {
-        return sb.append(type).append(DELIMITER).append(id).toString();
+        return type + DELIMITER + id;
     }
 
     public static boolean hasDelimiter(BytesRef uid) {

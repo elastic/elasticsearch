@@ -41,7 +41,7 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
     public static final String NAME = InternalFilter.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
-    private final QueryBuilder<?> filter;
+    private final QueryBuilder filter;
 
     /**
      * @param name
@@ -51,7 +51,7 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
      *            filter will fall into the bucket defined by this
      *            {@link Filter} aggregation.
      */
-    public FilterAggregatorBuilder(String name, QueryBuilder<?> filter) {
+    public FilterAggregatorBuilder(String name, QueryBuilder filter) {
         super(name, InternalFilter.TYPE);
         if (filter == null) {
             throw new IllegalArgumentException("[filter] must not be null: [" + name + "]");
@@ -92,7 +92,7 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
 
     public static FilterAggregatorBuilder parse(String aggregationName, QueryParseContext context)
             throws IOException {
-        QueryBuilder<?> filter = context.parseInnerQueryBuilder();
+        QueryBuilder filter = context.parseInnerQueryBuilder();
 
         if (filter == null) {
             throw new ParsingException(null, "filter cannot be null in filter aggregation [{}]", aggregationName);

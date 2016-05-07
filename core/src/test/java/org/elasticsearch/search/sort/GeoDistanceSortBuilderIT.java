@@ -350,7 +350,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
                 .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("keyword")).get();
 
         assertSortValues(resp,
-                new Object[] {new Text("bcd"), null},
+                new Object[] {"bcd", null},
                 new Object[] {null, null});
 
         resp = client().prepareSearch("test1", "test2")

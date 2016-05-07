@@ -51,6 +51,7 @@ import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -292,7 +293,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
      * Sets the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
      */
-    public GeoDistanceSortBuilder setNestedFilter(QueryBuilder<?> nestedFilter) {
+    public GeoDistanceSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
     }
@@ -301,7 +302,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
      * Returns the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
      **/
-    public QueryBuilder<?> getNestedFilter() {
+    public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
 
@@ -406,7 +407,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         SortOrder order = SortOrder.ASC;
         SortMode sortMode = null;
-        QueryBuilder<?> nestedFilter = null;
+        QueryBuilder nestedFilter = null;
         String nestedPath = null;
 
         boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
@@ -504,7 +505,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     @Override
-    public SortField build(QueryShardContext context) throws IOException {
+    public SortFieldAndFormat build(QueryShardContext context) throws IOException {
         final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);
         // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
         List<GeoPoint> localPoints = new ArrayList<GeoPoint>();
@@ -585,7 +586,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
         };
 
-        return new SortField(fieldName, geoDistanceComparatorSource, reverse);
+        return new SortFieldAndFormat(new SortField(fieldName, geoDistanceComparatorSource, reverse), DocValueFormat.RAW);
     }
 
     static void parseGeoPoints(XContentParser parser, List<GeoPoint> geoPoints) throws IOException {

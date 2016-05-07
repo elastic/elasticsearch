@@ -48,9 +48,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  * This transport action is used to fetch the shard version from each node during primary allocation in {@link GatewayAllocator}.
@@ -63,7 +61,7 @@ public class TransportNodesListGatewayStartedShards extends
         TransportNodesListGatewayStartedShards.NodeRequest,
         TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>
     implements
-    AsyncShardFetch.List<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
+    AsyncShardFetch.Lister<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
         TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
@@ -77,7 +75,8 @@ public class TransportNodesListGatewayStartedShards extends
                                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                                   NodeEnvironment env) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-            indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED);
+              indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED,
+              NodeGatewayStartedShards.class);
         this.nodeEnv = env;
     }
 
@@ -110,23 +109,9 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    protected NodesGatewayStartedShards newResponse(Request request, AtomicReferenceArray responses) {
-        final List<NodeGatewayStartedShards> nodesList = new ArrayList<>();
-        final List<FailedNodeException> failures = new ArrayList<>();
-        for (int i = 0; i < responses.length(); i++) {
-            Object resp = responses.get(i);
-            if (resp instanceof NodeGatewayStartedShards) { // will also filter out null response for unallocated ones
-                nodesList.add((NodeGatewayStartedShards) resp);
-            } else if (resp instanceof FailedNodeException) {
-                failures.add((FailedNodeException) resp);
-            } else {
-                logger.warn("unknown response type [{}], expected NodeLocalGatewayStartedShards or FailedNodeException",
-                    resp);
-            }
-        }
-        return new NodesGatewayStartedShards(clusterName,
-            nodesList.toArray(new NodeGatewayStartedShards[nodesList.size()]),
-            failures.toArray(new FailedNodeException[failures.size()]));
+    protected NodesGatewayStartedShards newResponse(Request request,
+                                                    List<NodeGatewayStartedShards> responses, List<FailedNodeException> failures) {
+        return new NodesGatewayStartedShards(clusterName, responses, failures);
     }
 
     @Override
@@ -217,36 +202,19 @@ public class TransportNodesListGatewayStartedShards extends
 
     public static class NodesGatewayStartedShards extends BaseNodesResponse<NodeGatewayStartedShards> {
 
-        private FailedNodeException[] failures;
-
-        public NodesGatewayStartedShards(ClusterName clusterName, NodeGatewayStartedShards[] nodes,
-                                         FailedNodeException[] failures) {
-            super(clusterName, nodes);
-            this.failures = failures;
+        public NodesGatewayStartedShards(ClusterName clusterName, List<NodeGatewayStartedShards> nodes,
+                                         List<FailedNodeException> failures) {
+            super(clusterName, nodes, failures);
         }
 
         @Override
-        public FailedNodeException[] failures() {
-            return failures;
+        protected List<NodeGatewayStartedShards> readNodesFrom(StreamInput in) throws IOException {
+            return in.readStreamableList(NodeGatewayStartedShards::new);
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            nodes = new NodeGatewayStartedShards[in.readVInt()];
-            for (int i = 0; i < nodes.length; i++) {
-                nodes[i] = new NodeGatewayStartedShards();
-                nodes[i].readFrom(in);
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeVInt(nodes.length);
-            for (NodeGatewayStartedShards response : nodes) {
-                response.writeTo(out);
-            }
+        protected void writeNodesTo(StreamOutput out, List<NodeGatewayStartedShards> nodes) throws IOException {
+            out.writeStreamableList(nodes);
         }
     }
 
@@ -258,7 +226,7 @@ public class TransportNodesListGatewayStartedShards extends
         public NodeRequest() {
         }
 
-        NodeRequest(String nodeId, Request request) {
+        public NodeRequest(String nodeId, Request request) {
             super(nodeId);
             this.shardId = request.shardId();
         }

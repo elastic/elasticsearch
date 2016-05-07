@@ -36,7 +36,7 @@ import java.util.Objects;
  * Builder for {@link org.apache.lucene.search.spans.SpanWithinQuery}.
  */
 public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQueryBuilder>
-        implements SpanQueryBuilder<SpanWithinQueryBuilder> {
+        implements SpanQueryBuilder {
 
     public static final String NAME = "span_within";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
@@ -44,15 +44,15 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
     private static final ParseField BIG_FIELD = new ParseField("big");
     private static final ParseField LITTLE_FIELD = new ParseField("little");
 
-    private final SpanQueryBuilder<?> big;
-    private final SpanQueryBuilder<?> little;
+    private final SpanQueryBuilder big;
+    private final SpanQueryBuilder little;
 
     /**
      * Query that returns spans from <code>little</code> that are contained in a spans from <code>big</code>.
      * @param big clause that must enclose {@code little} for a match.
      * @param little the little clause, it must be contained within {@code big} for a match.
      */
-    public SpanWithinQueryBuilder(SpanQueryBuilder<?> big, SpanQueryBuilder<?> little) {
+    public SpanWithinQueryBuilder(SpanQueryBuilder big, SpanQueryBuilder little) {
         if (big == null) {
             throw new IllegalArgumentException("inner clause [big] cannot be null.");
         }
@@ -68,8 +68,8 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
      */
     public SpanWithinQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        big = (SpanQueryBuilder<?>) in.readNamedWriteable(QueryBuilder.class);
-        little = (SpanQueryBuilder<?>) in.readNamedWriteable(QueryBuilder.class);
+        big = (SpanQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
+        little = (SpanQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
     }
 
     @Override

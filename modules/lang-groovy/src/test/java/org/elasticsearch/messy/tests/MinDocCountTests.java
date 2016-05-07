@@ -68,7 +68,7 @@ public class MinDocCountTests extends AbstractTermsTestCase {
         return Collections.singleton(GroovyPlugin.class);
     }
 
-    private static final QueryBuilder<?> QUERY = QueryBuilders.termQuery("match", true);
+    private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);
 
     private static int cardinality;
 

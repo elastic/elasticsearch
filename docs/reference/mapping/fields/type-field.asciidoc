@@ -1,4 +1,4 @@
-\[[mapping-type-field]]
+[[mapping-type-field]]
 === `_type` field
 
 Each document indexed is associated with a <<mapping-type-field,`_type`>> (see

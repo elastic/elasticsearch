@@ -35,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -124,9 +125,11 @@ public class PipelineExecutionService implements ClusterStateListener {
     void updatePipelineStats(IngestMetadata ingestMetadata) {
         boolean changed = false;
         Map<String, StatsHolder> newStatsPerPipeline = new HashMap<>(statsHolderPerPipeline);
-        for (String pipeline : newStatsPerPipeline.keySet()) {
+        Iterator<String> iterator = newStatsPerPipeline.keySet().iterator();
+        while (iterator.hasNext()) {
+            String pipeline = iterator.next();
             if (ingestMetadata.getPipelines().containsKey(pipeline) == false) {
-                newStatsPerPipeline.remove(pipeline);
+                iterator.remove();
                 changed = true;
             }
         }

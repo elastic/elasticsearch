@@ -109,7 +109,7 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
                         test);
 
         DiscoveryNode connectedNode =
-                handleA.transportService.connectToNodeLight(
+                handleA.transportService.connectToNodeLightAndHandshake(
                         new DiscoveryNode(
                                 "",
                                 handleB.discoveryNode.getAddress(),
@@ -131,7 +131,7 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
         NetworkHandle handleB = startServices("TS_B", settings, Version.CURRENT, new ClusterName("b"));
 
         try {
-            handleA.transportService.connectToNodeLight(
+            handleA.transportService.connectToNodeLightAndHandshake(
                     new DiscoveryNode(
                             "",
                             handleB.discoveryNode.getAddress(),
@@ -154,7 +154,7 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
                 startServices("TS_B", settings, VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion()), test);
 
         try {
-            handleA.transportService.connectToNodeLight(
+            handleA.transportService.connectToNodeLightAndHandshake(
                     new DiscoveryNode(
                             "",
                             handleB.discoveryNode.getAddress(),
@@ -180,7 +180,7 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
                         new ClusterName("b")
                 );
 
-        DiscoveryNode connectedNode = handleA.transportService.connectToNodeLight(
+        DiscoveryNode connectedNode = handleA.transportService.connectToNodeLightAndHandshake(
                 new DiscoveryNode(
                         "",
                         handleB.discoveryNode.getAddress(),

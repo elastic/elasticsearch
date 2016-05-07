@@ -168,8 +168,8 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
 
         // Check that node info is correct
         NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().all().execute().actionGet();
-        for (int i = 0; i < 2; i++) {
-            NodeInfo nodeInfo = nodesInfoResponse.getNodes()[i];
+        assertEquals(2, nodesInfoResponse.getNodes().size());
+        for (NodeInfo nodeInfo : nodesInfoResponse.getNodes()) {
             boolean found = false;
             for (ThreadPool.Info info : nodeInfo.getThreadPool()) {
                 if (info.getName().equals(Names.SEARCH)) {

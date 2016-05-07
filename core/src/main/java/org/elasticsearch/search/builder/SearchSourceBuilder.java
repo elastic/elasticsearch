@@ -120,9 +120,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return new HighlightBuilder();
     }
 
-    private QueryBuilder<?> queryBuilder;
+    private QueryBuilder queryBuilder;
 
-    private QueryBuilder<?> postQueryBuilder;
+    private QueryBuilder postQueryBuilder;
 
     private int from = -1;
 
@@ -371,7 +371,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
-    public SearchSourceBuilder query(QueryBuilder<?> query) {
+    public SearchSourceBuilder query(QueryBuilder query) {
         this.queryBuilder = query;
         return this;
     }
@@ -379,7 +379,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Gets the query for this request
      */
-    public QueryBuilder<?> query() {
+    public QueryBuilder query() {
         return queryBuilder;
     }
 
@@ -388,7 +388,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * only has affect on the search hits (not aggregations). This filter is
      * always executed as last filtering mechanism.
      */
-    public SearchSourceBuilder postFilter(QueryBuilder<?> postFilter) {
+    public SearchSourceBuilder postFilter(QueryBuilder postFilter) {
         this.postQueryBuilder = postFilter;
         return this;
     }
@@ -396,7 +396,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Gets the post filter for this request
      */
-    public QueryBuilder<?> postFilter() {
+    public QueryBuilder postFilter() {
         return postQueryBuilder;
     }
 
@@ -910,11 +910,11 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      */
     public SearchSourceBuilder rewrite(QueryShardContext context) throws IOException {
         assert (this.equals(shallowCopy(queryBuilder, postQueryBuilder)));
-        QueryBuilder<?> queryBuilder = null;
+        QueryBuilder queryBuilder = null;
         if (this.queryBuilder != null) {
             queryBuilder = this.queryBuilder.rewrite(context);
         }
-        QueryBuilder<?> postQueryBuilder = null;
+        QueryBuilder postQueryBuilder = null;
         if (this.postQueryBuilder != null) {
             postQueryBuilder = this.postQueryBuilder.rewrite(context);
         }
@@ -925,7 +925,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return this;
     }
 
-    private SearchSourceBuilder shallowCopy(QueryBuilder<?> queryBuilder, QueryBuilder<?> postQueryBuilder) {
+    private SearchSourceBuilder shallowCopy(QueryBuilder queryBuilder, QueryBuilder postQueryBuilder) {
             SearchSourceBuilder rewrittenBuilder = new SearchSourceBuilder();
             rewrittenBuilder.aggregations = aggregations;
             rewrittenBuilder.explain = explain;

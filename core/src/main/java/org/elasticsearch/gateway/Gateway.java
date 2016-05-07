@@ -82,7 +82,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         int requiredAllocation = Math.max(1, minimumMasterNodesProvider.get());
 
 
-        if (nodesState.failures().length > 0) {
+        if (nodesState.hasFailures()) {
             for (FailedNodeException failedNodeException : nodesState.failures()) {
                 logger.warn("failed to fetch state from node", failedNodeException);
             }
@@ -91,7 +91,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         ObjectFloatHashMap<Index> indices = new ObjectFloatHashMap<>();
         MetaData electedGlobalState = null;
         int found = 0;
-        for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState) {
+        for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState.getNodes()) {
             if (nodeState.metaData() == null) {
                 continue;
             }
@@ -119,7 +119,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                 Index index = (Index) keys[i];
                 IndexMetaData electedIndexMetaData = null;
                 int indexMetaDataCount = 0;
-                for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState) {
+                for (TransportNodesListGatewayMetaState.NodeGatewayMetaState nodeState : nodesState.getNodes()) {
                     if (nodeState.metaData() == null) {
                         continue;
                     }

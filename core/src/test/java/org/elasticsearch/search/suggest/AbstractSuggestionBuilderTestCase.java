@@ -39,9 +39,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Set;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -173,8 +170,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      * Subclasses can override this method and return a set of fields which should be protected from
      * recursive random shuffling in the {@link #testFromXContent()} test case
      */
-    protected Set<String> shuffleProtectedFields() {
-        return Collections.emptySet();
+    protected String[] shuffleProtectedFields() {
+        return new String[0];
     }
 
     private SB mutate(SB firstBuilder) throws IOException {

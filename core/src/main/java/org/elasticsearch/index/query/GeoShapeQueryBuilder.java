@@ -587,7 +587,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     }
 
     @Override
-    protected QueryBuilder<GeoShapeQueryBuilder> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         if (this.shape == null) {
             GetRequest getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
             ShapeBuilder shape = fetch(queryShardContext.getClient(), getRequest, indexedShapePath);

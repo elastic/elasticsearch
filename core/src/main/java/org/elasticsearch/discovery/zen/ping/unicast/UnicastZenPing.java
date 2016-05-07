@@ -402,7 +402,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                             // connect to the node, see if we manage to do it, if not, bail
                             if (!nodeFoundByAddress) {
                                 logger.trace("[{}] connecting (light) to {}", sendPingsHandler.id(), finalNodeToSend);
-                                transportService.connectToNodeLight(finalNodeToSend, timeout.getMillis());
+                                transportService.connectToNodeLightAndHandshake(finalNodeToSend, timeout.getMillis());
                             } else {
                                 logger.trace("[{}] connecting to {}", sendPingsHandler.id(), finalNodeToSend);
                                 transportService.connectToNode(finalNodeToSend);

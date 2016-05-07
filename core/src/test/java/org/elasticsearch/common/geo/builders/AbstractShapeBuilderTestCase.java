@@ -34,8 +34,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Collections;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -81,7 +79,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
                 contentBuilder.prettyPrint();
             }
             XContentBuilder builder = testShape.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
-            XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+            XContentBuilder shuffled = shuffleXContent(builder);
             XContentParser shapeParser = XContentHelper.createParser(shuffled.bytes());
             shapeParser.nextToken();
             ShapeBuilder parsedShape = ShapeBuilder.parse(shapeParser);

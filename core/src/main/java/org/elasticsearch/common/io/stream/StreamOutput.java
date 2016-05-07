@@ -728,11 +728,21 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes a list of {@link Streamable} objects
+     */
+    public void writeStreamableList(List<? extends Streamable> list) throws IOException {
+        writeVInt(list.size());
+        for (Streamable obj: list) {
+            obj.writeTo(this);
+        }
+    }
+
+    /**
      * Writes a list of {@link Writeable} objects
      */
-    public <T extends Writeable> void writeList(List<T> list) throws IOException {
+    public void writeList(List<? extends Writeable> list) throws IOException {
         writeVInt(list.size());
-        for (T obj: list) {
+        for (Writeable obj: list) {
             obj.writeTo(this);
         }
     }

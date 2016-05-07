@@ -158,6 +158,19 @@ subprojects {
       MavenFilteringHack.filter(it, expansions)
     }
   }
+
+   /*****************************************************************************
+   *                           Publishing setup                                *
+   *****************************************************************************/
+  apply plugin: 'nebula.maven-base-publish'
+  apply plugin: 'nebula.maven-scm'
+  publishing {
+    publications {
+      nebula {
+        artifactId 'elasticsearch'
+      }
+    }
+  }
 }
 
 /*****************************************************************************
@@ -322,12 +335,13 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
     configurationFile '/etc/elasticsearch/jvm.options'
     configurationFile '/etc/elasticsearch/logging.yml'
-    into('/etc') {
-      from "${packagingFiles}/etc"
+    into('/etc/elasticsearch') {
       fileMode 0750
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
       createDirectoryEntry true
+      fileType CONFIG | NOREPLACE
+      from "${packagingFiles}/etc/elasticsearch"
     }
 
     into('/usr/lib/tmpfiles.d') {
@@ -335,21 +349,25 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     }
     configurationFile '/usr/lib/systemd/system/elasticsearch.service'
     into('/usr/lib/systemd/system') {
+      fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/elasticsearch.service"
     }
     into('/usr/lib/sysctl.d') {
+      fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
     }
     configurationFile '/etc/init.d/elasticsearch'
     into('/etc/init.d') {
-      from "${packagingFiles}/init.d/elasticsearch"
       fileMode 0755
+      fileType CONFIG | NOREPLACE
+      from "${packagingFiles}/init.d/elasticsearch"
     }
     configurationFile project.expansions['path.env']
     into(new File(project.expansions['path.env']).getParent()) {
-      from "${project.packagingFiles}/env/elasticsearch"
       fileMode 0644
       dirMode 0755
+      fileType CONFIG | NOREPLACE
+      from "${project.packagingFiles}/env/elasticsearch"
     }
 
     /**

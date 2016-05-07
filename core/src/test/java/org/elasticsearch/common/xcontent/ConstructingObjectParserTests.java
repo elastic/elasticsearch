@@ -28,7 +28,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -48,7 +47,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
         expected.setD(randomBoolean());
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         expected.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder = shuffleXContent(builder, emptySet());
+        builder = shuffleXContent(builder);
         BytesReference bytes = builder.bytes();
         XContentParser parser = XContentFactory.xContent(bytes).createParser(bytes);
         try {

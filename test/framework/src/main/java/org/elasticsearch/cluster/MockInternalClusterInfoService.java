@@ -38,6 +38,8 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
 import static java.util.Collections.emptyMap;
@@ -107,7 +109,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
 
     @Override
     public CountDownLatch updateNodeStats(final ActionListener<NodesStatsResponse> listener) {
-        NodesStatsResponse response = new NodesStatsResponse(clusterName, stats);
+        NodesStatsResponse response = new NodesStatsResponse(clusterName, Arrays.asList(stats), Collections.emptyList());
         listener.onResponse(response);
         return new CountDownLatch(0);
     }

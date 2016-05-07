@@ -14,7 +14,7 @@ determine which datatype the field should have:
 
 `null`::                            No field is added.
 `true` or `false`::                 <<boolean,`boolean`>> field
-floating{nbsp}point{nbsp}number::   <<number,`double`>> field
+floating{nbsp}point{nbsp}number::   <<number,`float`>> field
 integer::                           <<number,`long`>> field
 object::                            <<object,`object`>> field
 array::                             Depends on the first non-`null` value in the array.
@@ -22,7 +22,7 @@ string::                            Either a <<date,`date`>> field
                                         (if the value passes <<date-detection,date detection>>),
                                     a <<number,`double`>> or <<number,`long`>> field
                                         (if the value passes <<numeric-detection,numeric detection>>)
-                                    or an <<text,`text`>> field.
+                                    or a <<text,`text`>> field, with a <<keyword,`keyword`>> sub-field.
 
 These are the only <<mapping-types,field datatypes>> that are dynamically
 detected.  All other datatypes must be mapped explicitly.

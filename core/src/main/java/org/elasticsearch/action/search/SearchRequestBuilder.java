@@ -166,7 +166,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
-    public SearchRequestBuilder setQuery(QueryBuilder<?> queryBuilder) {
+    public SearchRequestBuilder setQuery(QueryBuilder queryBuilder) {
         sourceBuilder().query(queryBuilder);
         return this;
     }
@@ -175,7 +175,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
      * (not aggregations). This filter is always executed as last filtering mechanism.
      */
-    public SearchRequestBuilder setPostFilter(QueryBuilder<?> postFilter) {
+    public SearchRequestBuilder setPostFilter(QueryBuilder postFilter) {
         sourceBuilder().postFilter(postFilter);
         return this;
     }

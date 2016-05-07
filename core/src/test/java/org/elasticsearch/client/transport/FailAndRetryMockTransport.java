@@ -74,11 +74,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
         //we make sure that nodes get added to the connected ones when calling addTransportAddress, by returning proper nodes info
         if (connectMode) {
             TransportResponseHandler transportResponseHandler = transportServiceAdapter.onResponseReceived(requestId);
-            if (action.equals(TransportLivenessAction.NAME)) {
-                transportResponseHandler.handleResponse(new LivenessResponse(clusterName, node));
-            } else {
-                transportResponseHandler.handleResponse(new TransportService.HandshakeResponse(node, clusterName, Version.CURRENT));
-            }
+            transportResponseHandler.handleResponse(new LivenessResponse(ClusterName.DEFAULT, node));
             return;
         }
 

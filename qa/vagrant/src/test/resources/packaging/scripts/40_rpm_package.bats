@@ -116,7 +116,7 @@ setup() {
 
     assert_file_not_exist "/etc/elasticsearch"
     assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
-    assert_file_not_exist  "/etc/elasticsearch/jvm.options"
+    assert_file_not_exist "/etc/elasticsearch/jvm.options"
     assert_file_not_exist "/etc/elasticsearch/logging.yml"
 
     assert_file_not_exist "/etc/init.d/elasticsearch"
@@ -124,7 +124,6 @@ setup() {
 
     assert_file_not_exist "/etc/sysconfig/elasticsearch"
 }
-
 
 @test "[RPM] reinstall package" {
     rpm -i elasticsearch-$(cat version).rpm
@@ -134,12 +133,46 @@ setup() {
     rpm -qe 'elasticsearch'
 }
 
-@test "[RPM] verify package reinstallation" {
-    verify_package_installation
+@test "[RPM] reremove package" {
+    echo "# ping" >> "/etc/elasticsearch/elasticsearch.yml"
+    echo "# ping" >> "/etc/elasticsearch/jvm.options"
+    echo "# ping" >> "/etc/elasticsearch/logging.yml"
+    echo "# ping" >> "/etc/elasticsearch/scripts/script"
+    rpm -e 'elasticsearch'
 }
 
-@test "[RPM] reremove package" {
-    rpm -e 'elasticsearch'
+@test "[RPM] verify preservation" {
+    # The removal must disable the service
+    # see prerm file
+    if is_systemd; then
+        run systemctl is-enabled elasticsearch.service
+        [ "$status" -eq 1 ]
+    fi
+
+    # Those directories are deleted when removing the package
+    # see postrm file
+    assert_file_not_exist "/var/log/elasticsearch"
+    assert_file_not_exist "/usr/share/elasticsearch/plugins"
+    assert_file_not_exist "/var/run/elasticsearch"
+
+    assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
+    assert_file_exist "/etc/elasticsearch/elasticsearch.yml.rpmsave"
+    assert_file_not_exist "/etc/elasticsearch/jvm.options"
+    assert_file_exist "/etc/elasticsearch/jvm.options.rpmsave"
+    assert_file_not_exist "/etc/elasticsearch/logging.yml"
+    assert_file_exist "/etc/elasticsearch/logging.yml.rpmsave"
+    assert_file_exist "/etc/elasticsearch/scripts.rpmsave"
+    assert_file_exist "/etc/elasticsearch/scripts.rpmsave/script"
+
+    assert_file_not_exist "/etc/init.d/elasticsearch"
+    assert_file_not_exist "/usr/lib/systemd/system/elasticsearch.service"
+
+    assert_file_not_exist "/etc/sysconfig/elasticsearch"
+}
+
+@test "[RPM] finalize package removal" {
+    # cleanup
+    rm -rf /etc/elasticsearch
 }
 
 @test "[RPM] package has been removed again" {

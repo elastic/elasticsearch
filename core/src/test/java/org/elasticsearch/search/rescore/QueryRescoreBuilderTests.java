@@ -54,8 +54,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Collections;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -137,7 +135,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
                 builder.prettyPrint();
             }
             rescoreBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+            XContentBuilder shuffled = shuffleXContent(builder);
 
 
             XContentParser parser = XContentHelper.createParser(shuffled.bytes());
@@ -314,7 +312,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      * create random shape that is put under test
      */
     public static QueryRescorerBuilder randomRescoreBuilder() {
-        QueryBuilder<MatchAllQueryBuilder> queryBuilder = new MatchAllQueryBuilder().boost(randomFloat())
+        QueryBuilder queryBuilder = new MatchAllQueryBuilder().boost(randomFloat())
                 .queryName(randomAsciiOfLength(20));
         org.elasticsearch.search.rescore.QueryRescorerBuilder rescorer = new
                 org.elasticsearch.search.rescore.QueryRescorerBuilder(queryBuilder);

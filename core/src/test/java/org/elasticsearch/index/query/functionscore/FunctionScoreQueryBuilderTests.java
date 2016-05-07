@@ -240,7 +240,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testIllegalArguments() {
-        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((QueryBuilder<?>) null));
+        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((QueryBuilder) null));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((ScoreFunctionBuilder<?>) null));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((FilterFunctionBuilder[]) null));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(null, randomFunction(123)));
@@ -301,7 +301,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             "    }\n" +
             "}";
 
-        QueryBuilder<?> queryBuilder = parseQuery(functionScoreQuery);
+        QueryBuilder queryBuilder = parseQuery(functionScoreQuery);
         /*
          * given that we copy part of the decay functions as bytes, we test that fromXContent and toXContent both work no matter what the
          * initial format was
@@ -343,7 +343,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             assertThat(functionScoreQueryBuilder.maxBoost(), equalTo(10f));
 
             if (i < XContentType.values().length) {
-                queryBuilder = parseQuery(((AbstractQueryBuilder<?>) queryBuilder).buildAsBytes(XContentType.values()[i]));
+                queryBuilder = parseQuery(((AbstractQueryBuilder) queryBuilder).buildAsBytes(XContentType.values()[i]));
             }
         }
     }
@@ -369,7 +369,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             "    }\n" +
             "}";
 
-        QueryBuilder<?> queryBuilder = parseQuery(functionScoreQuery);
+        QueryBuilder queryBuilder = parseQuery(functionScoreQuery);
         /*
          * given that we copy part of the decay functions as bytes, we test that fromXContent and toXContent both work no matter what the
          * initial format was
@@ -395,7 +395,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             assertThat(functionScoreQueryBuilder.maxBoost(), equalTo(10f));
 
             if (i < XContentType.values().length) {
-                queryBuilder = parseQuery(((AbstractQueryBuilder<?>) queryBuilder).buildAsBytes(XContentType.values()[i]));
+                queryBuilder = parseQuery(((AbstractQueryBuilder) queryBuilder).buildAsBytes(XContentType.values()[i]));
             }
         }
     }
@@ -476,7 +476,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             .endArray()
             .endObject()
             .endObject().string();
-        QueryBuilder<?> query = parseQuery(queryString);
+        QueryBuilder query = parseQuery(queryString);
         assertThat(query, instanceOf(FunctionScoreQueryBuilder.class));
         FunctionScoreQueryBuilder functionScoreQueryBuilder = (FunctionScoreQueryBuilder) query;
         assertThat(functionScoreQueryBuilder.filterFunctionBuilders()[0].getScoreFunction(),
@@ -618,9 +618,9 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testRewriteWithFunction() throws IOException {
-        QueryBuilder<?> firstFunction = new WrapperQueryBuilder(new TermQueryBuilder("tq", "1").toString());
+        QueryBuilder firstFunction = new WrapperQueryBuilder(new TermQueryBuilder("tq", "1").toString());
         TermQueryBuilder secondFunction = new TermQueryBuilder("tq", "2");
-        QueryBuilder<?> queryBuilder = randomBoolean() ? new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString())
+        QueryBuilder queryBuilder = randomBoolean() ? new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString())
                 : new TermQueryBuilder("foo", "bar");
         FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder,
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {

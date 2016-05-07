@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -40,8 +41,10 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     public static final String NAME = "_score";
     public static final ParseField ORDER_FIELD = new ParseField("order");
-    private static final SortField SORT_SCORE = new SortField(null, SortField.Type.SCORE);
-    private static final SortField SORT_SCORE_REVERSE = new SortField(null, SortField.Type.SCORE, true);
+    private static final SortFieldAndFormat SORT_SCORE = new SortFieldAndFormat(
+            new SortField(null, SortField.Type.SCORE), DocValueFormat.RAW);
+    private static final SortFieldAndFormat SORT_SCORE_REVERSE = new SortFieldAndFormat(
+            new SortField(null, SortField.Type.SCORE, true), DocValueFormat.RAW);
 
     /**
      * Build a ScoreSortBuilder default to descending sort order.
@@ -106,7 +109,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     }
 
     @Override
-    public SortField build(QueryShardContext context) {
+    public SortFieldAndFormat build(QueryShardContext context) {
         if (order == SortOrder.DESC) {
             return SORT_SCORE;
         } else {

@@ -74,7 +74,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     @Override
     protected Map<String, DisMaxQueryBuilder> getAlternateVersions() {
         Map<String, DisMaxQueryBuilder> alternateVersions = new HashMap<>();
-        QueryBuilder<?> innerQuery = createTestQueryBuilder().innerQueries().get(0);
+        QueryBuilder innerQuery = createTestQueryBuilder().innerQueries().get(0);
         DisMaxQueryBuilder expectedQuery = new DisMaxQueryBuilder();
         expectedQuery.add(innerQuery);
         String contentString = "{\n" +
@@ -101,7 +101,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
      */
     public void testInnerQueryReturnsNull() throws IOException {
         String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : { \"filter\" : { } } }";
-        QueryBuilder<?> innerQueryBuilder = parseQuery(queryString);
+        QueryBuilder innerQueryBuilder = parseQuery(queryString);
         DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder().add(innerQueryBuilder);
         assertNull(disMaxBuilder.toQuery(createShardContext()));
     }

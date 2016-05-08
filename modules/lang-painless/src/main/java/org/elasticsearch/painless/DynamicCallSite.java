@@ -44,7 +44,7 @@ public final class DynamicCallSite {
     static final int STORE = 2;
     
     static class InliningCacheCallSite extends MutableCallSite {
-        private static final int MAX_DEPTH = 5;
+        static final int MAX_DEPTH = 5;
         
         final Lookup lookup;
         final String name;
@@ -88,17 +88,16 @@ public final class DynamicCallSite {
     
     public static Object fallback(InliningCacheCallSite callSite, Object[] args) throws Throwable {
         MethodType type = callSite.type();
-        if (callSite.depth >= InliningCacheCallSite.MAX_DEPTH) {
-            // revert to a vtable call
-            MethodHandle target = lookup(callSite.flavor, type.parameterType(0), callSite.name);
-            callSite.setTarget(target);
-            return target.invokeWithArguments(args);
-        }
-        
         Object receiver = args[0];
         Class<?> receiverClass = receiver.getClass();
         MethodHandle target = lookup(callSite.flavor, receiverClass, callSite.name);
         target = target.asType(type);
+        
+        if (callSite.depth >= InliningCacheCallSite.MAX_DEPTH) {
+            // revert to a vtable call
+            callSite.setTarget(target);
+            return target.invokeWithArguments(args);
+        }
         
         MethodHandle test = CHECK_CLASS.bindTo(receiverClass);
         test = test.asType(test.type().changeParameterType(0, type.parameterType(0)));

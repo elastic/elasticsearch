@@ -89,18 +89,6 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
     }
 
     /**
-     * Used only for testing.
-     */
-    private Definition definition = null;
-
-    /**
-     * Used only for testing.
-     */
-    void setDefinition(final Definition definition) {
-        this.definition = definition;
-    }
-
-    /**
      * Constructor.
      * @param settings The settings to initialize the engine with.
      */
@@ -189,7 +177,7 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
         return AccessController.doPrivileged(new PrivilegedAction<Executable>() {
             @Override
             public Executable run() {
-                return Compiler.compile(loader, "unknown", script, definition, compilerSettings);
+                return Compiler.compile(loader, "unknown", script, compilerSettings);
             }
         }, COMPILATION_CONTEXT);
     }

@@ -452,37 +452,23 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
     public void testEmptyIndex() {
         createIndex("test1", Settings.EMPTY, "type", "value", "type=date");
         FieldStatsResponse response = client().prepareFieldStats()
-                .setFields("value")
-                .setLevel("indices")
-                .get();
+            .setFields("*")
+            .setLevel("indices")
+            .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMaxDoc(), equalTo(0L));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getDocCount(), equalTo(0L));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getSumDocFreq(), equalTo(0L));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getSumTotalTermFreq(), equalTo(0L));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").isSearchable(), equalTo(true));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").isAggregatable(), equalTo(true));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(null));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMaxValue(), equalTo(null));
-
-        response = client().prepareFieldStats()
-                .setFields("value")
-                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "1998-01-01T00:00:00.000Z"))
-                .setLevel("indices")
-                .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").size(), equalTo(0));
     }
 
-    public void testMetaFieldsSearchable() {
-        createIndex("test1", Settings.EMPTY, "type", "value", "type=date");
+    public void testMetaFieldsNotIndexed() {
+        createIndex("test", Settings.EMPTY);
+        client().prepareIndex("test", "type").setSource().get();
+        client().admin().indices().prepareRefresh().get();
+
         FieldStatsResponse response = client().prepareFieldStats()
-            .setFields("_id", "_index")
+            .setFields("_id", "_type")
             .get();
-        assertThat(response.getAllFieldStats().size(), equalTo(2));
-        assertThat(response.getAllFieldStats().get("_id").isSearchable(), equalTo(true));
-        assertThat(response.getAllFieldStats().get("_index").isSearchable(), equalTo(true));
-        assertThat(response.getAllFieldStats().get("_id").isAggregatable(), equalTo(false));
-        assertThat(response.getAllFieldStats().get("_index").isAggregatable(), equalTo(true));
+        assertThat(response.getAllFieldStats().size(), equalTo(1));
+        assertThat(response.getAllFieldStats().get("_type").isSearchable(), equalTo(true));
+        // assertThat(response.getAllFieldStats().get("_type").isAggregatable(), equalTo(true));
     }
 }

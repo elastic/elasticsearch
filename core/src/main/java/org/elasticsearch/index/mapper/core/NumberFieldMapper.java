@@ -262,7 +262,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                                     boolean isSearchable, boolean isAggregatable) throws IOException {
                 long size = XPointValues.size(reader, fieldName);
                 if (size == 0) {
-                    return new FieldStats.Double(reader.maxDoc(), isSearchable, isAggregatable);
+                    return null;
                 }
                 int docCount = XPointValues.getDocCount(reader, fieldName);
                 byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
@@ -353,7 +353,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                                     boolean isSearchable, boolean isAggregatable) throws IOException {
                 long size = XPointValues.size(reader, fieldName);
                 if (size == 0) {
-                    return new FieldStats.Double(reader.maxDoc(), isSearchable, isAggregatable);
+                    return null;
                 }
                 int docCount = XPointValues.getDocCount(reader, fieldName);
                 byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
@@ -588,7 +588,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                                   boolean isSearchable, boolean isAggregatable) throws IOException {
                 long size = XPointValues.size(reader, fieldName);
                 if (size == 0) {
-                    return new FieldStats.Long(reader.maxDoc(), isSearchable, isAggregatable);
+                    return null;
                 }
                 int docCount = XPointValues.getDocCount(reader, fieldName);
                 byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
@@ -691,7 +691,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                                   boolean isSearchable, boolean isAggregatable) throws IOException {
                 long size = XPointValues.size(reader, fieldName);
                 if (size == 0) {
-                    return new FieldStats.Long(reader.maxDoc(), isSearchable, isAggregatable);
+                    return null;
                 }
                 int docCount = XPointValues.getDocCount(reader, fieldName);
                 byte[] min = XPointValues.getMinPackedValue(reader, fieldName);

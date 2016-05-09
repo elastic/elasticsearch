@@ -88,6 +88,9 @@ public class Stash implements ToXContent {
      */
     public Object unstashValue(String value) throws IOException {
         if (value.startsWith("$body.")) {
+            if (response == null) {
+                return null;
+            }
             return response.evaluate(value.substring("$body".length()), this);
         }
         Object stashedValue = stash.get(value.substring(1));

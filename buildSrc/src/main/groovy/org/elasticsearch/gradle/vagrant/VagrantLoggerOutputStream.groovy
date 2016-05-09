@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle.vagrant
 
 import com.carrotsearch.gradle.junit4.LoggingOutputStream
+import org.gradle.api.logging.Logger
 import org.gradle.logging.ProgressLogger
 import org.gradle.logging.ProgressLoggerFactory
 
@@ -46,31 +47,31 @@ import org.gradle.logging.ProgressLoggerFactory
 public class VagrantLoggerOutputStream extends LoggingOutputStream {
     private static final String HEADING_PREFIX = '==> '
 
-    ProgressLoggerFactory progressLoggerFactory
-
-
-    private ProgressLogger progressLogger
-    String squashedPrefix
-    String lastLine = ''
-    boolean inProgressReport = false
-    String heading = ''
+    private final ProgressLogger progressLogger
+    private boolean isStarted = false
+    private String squashedPrefix
+    private String lastLine = ''
+    private boolean inProgressReport = false
+    private String heading = ''
 
     VagrantLoggerOutputStream(Map args) {
         progressLogger = args.factory.newOperation(VagrantLoggerOutputStream)
         progressLogger.setDescription("Vagrant output for `$args.command`")
-        progressLogger.started()
-        progressLogger.progress("Starting `$args.command`...")
         squashedPrefix = args.squashedPrefix
     }
 
-    void flush() {
+    @Override
+    public void flush() {
+        if (isStarted == false) {
+            progressLogger.started()
+            isStarted = true
+        }
         if (end == start) return
         line(new String(buffer, start, end - start))
         start = end
     }
 
     void line(String line) {
-        // debugPrintLine(line) // Uncomment me to log every incoming line
         if (line.startsWith('\r\u001b')) {
             /* We don't want to try to be a full terminal emulator but we want to
               keep the escape sequences from leaking and catch _some_ of the
@@ -97,28 +98,6 @@ public class VagrantLoggerOutputStream extends LoggingOutputStream {
         } else {
             return
         }
-        // debugLogLine(line) // Uncomment me to log every line we add to the logger
         progressLogger.progress(line)
-    }
-
-    void debugPrintLine(line) {
-        System.out.print '----------> '
-        for (int i = start; i < end; i++) {
-            switch (buffer[i] as char) {
-                case ' '..'~':
-                    System.out.print buffer[i] as char
-                    break
-                default:
-                    System.out.print '%'
-                    System.out.print Integer.toHexString(buffer[i])
-            }
-        }
-        System.out.print '\n'
-    }
-
-    void debugLogLine(line) {
-        System.out.print '>>>>>>>>>>> '
-        System.out.print line
-        System.out.print '\n'
     }
 }

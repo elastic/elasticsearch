@@ -91,14 +91,10 @@ dependencies {
 
 
 /*****************************************************************************
- *                    Bootstrap repositories and IDE setup                   *
+ *                         Bootstrap repositories                            *
  *****************************************************************************/
 // this will only happen when buildSrc is built on its own during build init
 if (project == rootProject) {
-
-  // TODO: move common IDE configuration to a common file to include
-  apply plugin: 'idea'
-  apply plugin: 'eclipse'
 
   repositories {
     mavenCentral()
@@ -107,30 +103,6 @@ if (project == rootProject) {
       url "https://oss.sonatype.org/content/repositories/snapshots/"
     }
   }
-
-  idea {
-    module {
-      inheritOutputDirs = false
-      outputDir = file('build-idea/classes/main')
-      testOutputDir = file('build-idea/classes/test')
-    }
-  }
-
-  eclipse {
-    classpath {
-      defaultOutputDir = file('build-eclipse')
-    }
-  }
-
-  task copyEclipseSettings(type: Copy) {
-    from project.file('src/main/resources/eclipse.settings')
-    into '.settings'
-  }
-  // otherwise .settings is not nuked entirely
-  tasks.cleanEclipse {
-    delete '.settings'
-  }
-  tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }
 
 /*****************************************************************************

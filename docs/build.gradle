@@ -31,7 +31,7 @@ task listSnippets(type: SnippetsTask) {
 
 task listAutoSenseCandidates(type: SnippetsTask) {
   group 'Docs'
-  description 'List snippets that probably should be marked // AUTOSENSE'
+  description 'List snippets that probably should be marked // CONSOLE'
   perSnippet {
     if (
              it.autoSense    // Already marked, nothing to do

@@ -66,7 +66,7 @@ PUT hockey/player/_bulk?refresh
 {"index":{"_id":11}}
 {"first":"joe","last":"colborne","goals":[3,18,13],"assists":[6,20,24],"gp":[26,67,82]}
 ----------------------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TESTSETUP
 
 [float]
@@ -92,7 +92,7 @@ GET hockey/_search
   }
 }
 ----------------------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Alternatively, you could do the same thing using a script field instead of a function score:
 
@@ -113,7 +113,7 @@ GET hockey/_search
   }
 }
 ----------------------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The following example uses a Painless script to sort the players by their combined first and last names. The names are accessed using
 `input.doc['first'].value` and `input.doc['last'].value`.
@@ -137,7 +137,7 @@ GET hockey/_search
   }
 }
 ----------------------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [float]
 === Updating Fields with Painless
@@ -161,7 +161,7 @@ GET hockey/_search
   }
 }
 ----------------------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 To change player 1's last name to `hockey`, simply set `input.ctx._source.last` to the new value:
 
@@ -178,7 +178,7 @@ POST hockey/player/1/_update
   }
 }
 ----------------------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 You can also add fields to a document. For example, this script adds a new field that contains
 the player's nickname,  _hockey_.
@@ -197,7 +197,7 @@ POST hockey/player/1/_update
   }
 }
 ----------------------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [float]
 === Writing Type-Safe Scripts to Improve Performance
@@ -229,7 +229,7 @@ GET hockey/_search
   }
 }
 ----------------------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [[painless-api]]
 [float]

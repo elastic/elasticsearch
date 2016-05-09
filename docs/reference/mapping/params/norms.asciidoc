@@ -30,7 +30,7 @@ PUT my_index/_mapping/my_type
   }
 }
 ------------
-// AUTOSENSE
+// CONSOLE
 // TEST[s/^/PUT my_index\n/]
 
 NOTE: Norms will not be removed instantly, but will be removed as old segments

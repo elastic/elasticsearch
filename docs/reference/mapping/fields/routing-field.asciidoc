@@ -21,7 +21,7 @@ PUT my_index/my_type/1?routing=user1 <1>
 
 GET my_index/my_type/1?routing=user1 <2>
 ------------------------------
-// AUTOSENSE
+// CONSOLE
 // TESTSETUP
 
 <1> This document uses `user1` as its routing value, instead of its ID.
@@ -47,7 +47,7 @@ GET my_index/_search
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Querying on the `_routing` field (also see the <<query-dsl-ids-query,`ids` query>>)
 <2> Accessing the `_routing` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
@@ -70,7 +70,7 @@ GET my_index/_search?routing=user1,user2 <1>
   }
 }
 ------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> This search request will only be executed on the shards associated with the `user1` and `user2` routing values.
 
@@ -103,7 +103,7 @@ PUT my_index2/my_type/1 <2>
   "text": "No routing value provided"
 }
 ------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[catch:request]
 <1> Routing is required for `my_type` documents.
 <2> This index request throws a `routing_missing_exception`.

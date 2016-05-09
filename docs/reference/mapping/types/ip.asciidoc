@@ -33,7 +33,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 
 [[ip-params]]

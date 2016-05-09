@@ -174,7 +174,7 @@ PUT kuromoji_sample
 
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=東京スカイツリー
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The above `analyze` request returns the following:
 
@@ -226,7 +226,7 @@ PUT kuromoji_sample
 
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=飲み
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [source,text]
 --------------------------------------------------
@@ -285,7 +285,7 @@ PUT kuromoji_sample
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=寿司がおいしいね
 
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [source,text]
 --------------------------------------------------
@@ -359,7 +359,7 @@ POST kuromoji_sample/_analyze?analyzer=katakana_analyzer&text=寿司 <1>
 POST kuromoji_sample/_analyze?analyzer=romaji_analyzer&text=寿司 <2>
 
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Returns `スシ`.
 <2> Returns `sushi`.
@@ -410,7 +410,7 @@ POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=コピー <1>
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=サーバー <2>
 
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Returns `コピー`.
 <2> Return `サーバ`.
@@ -456,7 +456,7 @@ PUT kuromoji_sample
 
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=ストップは消える
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The above request returns:
 
@@ -503,7 +503,7 @@ PUT kuromoji_sample
 POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=一〇〇〇
 
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [source,text]
 --------------------------------------------------

@@ -35,7 +35,7 @@ GET my_index/type_*/_search
 }
 
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Querying on the `_type` field
 <2> Accessing the `_type` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)

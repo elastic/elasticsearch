@@ -15,7 +15,7 @@ GET _tasks <1>
 GET _tasks?nodes=nodeId1,nodeId2 <2>
 GET _tasks?nodes=nodeId1,nodeId2&actions=cluster:* <3>
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Retrieves all tasks currently running on all nodes in the cluster.
 <2> Retrieves all tasks running on nodes `nodeId1` and `nodeId2`.  See <<cluster-nodes>> for more info about how to select individual nodes.
@@ -66,7 +66,7 @@ tasks using the following two commands:
 GET _tasks/taskId:1
 GET _tasks?parent_task_id=parentTaskId:1
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The task API can be also used to wait for completion of a particular task. The following call will
 block for 10 seconds or until the task with id `oTUltX4IQMOUUVeiohTt8A:12345` is completed.
@@ -75,7 +75,7 @@ block for 10 seconds or until the task with id `oTUltX4IQMOUUVeiohTt8A:12345` is
 --------------------------------------------------
 GET _tasks/oTUltX4IQMOUUVeiohTt8A:12345?wait_for_completion=true&timeout=10s
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Tasks can be also listed using _cat version of the list tasks command, which accepts the same arguments
 as the standard list tasks command.
@@ -84,7 +84,7 @@ as the standard list tasks command.
 --------------------------------------------------
 GET _cat/tasks
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [float]
 === Task Cancellation
@@ -95,7 +95,7 @@ If a long-running task supports cancellation, it can be cancelled by the followi
 --------------------------------------------------
 POST _tasks/taskId:1/_cancel
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The task cancellation command supports the same task selection parameters as the list tasks command, so multiple tasks
 can be cancelled at the same time. For example, the following command will cancel all reindex tasks running on the
@@ -105,7 +105,7 @@ nodes `nodeId1` and `nodeId2`.
 --------------------------------------------------
 POST _tasks/_cancel?node_id=nodeId1,nodeId2&actions=*reindex
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 
 [float]
@@ -118,4 +118,4 @@ The following command will change the grouping to parent tasks:
 --------------------------------------------------
 GET _tasks?group_by=parents
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE

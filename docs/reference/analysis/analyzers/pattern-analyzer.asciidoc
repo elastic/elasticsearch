@@ -52,7 +52,7 @@ GET _cluster/health?wait_for_status=yellow
 GET test/_analyze?analyzer=whitespace&text=foo,bar baz
 # "foo,bar", "baz"
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [float]
 ===== Non-word character tokenizer
@@ -81,7 +81,7 @@ GET test/_analyze?analyzer=nonword&text=foo,bar baz
 GET test/_analyze?analyzer=nonword&text=type_1-type_4
 # "type_1","type_4"
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 
 [float]
@@ -108,7 +108,7 @@ GET _cluster/health?wait_for_status=yellow
 GET test/_analyze?analyzer=camel&text=MooseX::FTPClass2_beta
 # "moose","x","ftp","class","2","beta"
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The regex above is easier to understand as:
 

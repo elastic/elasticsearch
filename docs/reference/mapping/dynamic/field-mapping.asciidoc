@@ -68,7 +68,7 @@ PUT my_index/my_type/1
 
 GET my_index/_mapping <1>
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `create_date` field has been added as a <<date,`date`>>
     field with the <<mapping-date-format,`format`>>: +
     `"yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"`.
@@ -93,7 +93,7 @@ PUT my_index/my_type/1 <1>
   "create": "2015/09/02"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `create_date` field has been added as a <<text,`text`>> field.
 
@@ -118,7 +118,7 @@ PUT my_index/my_type/1
   "create_date": "09/25/2015"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 
 [[numeric-detection]]
@@ -147,7 +147,7 @@ PUT my_index/my_type/1
   "my_integer": "1" <2>
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `my_float` field is added as a <<number,`double`>> field.
 <2> The `my_integer` field is added as a <<number,`long`>> field.
 

@@ -157,7 +157,7 @@ PUT _cluster/settings
   }
 }
 ----------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[catch:/cannot set discovery.zen.minimum_master_nodes to more than the current master nodes/]
 
 TIP: An advantage of splitting the master and data roles between dedicated

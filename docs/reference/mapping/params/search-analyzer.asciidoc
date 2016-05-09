@@ -68,7 +68,7 @@ GET my_index/_search
 }
 
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Analysis settings to define the custom `autocomplete` analyzer.
 <2> The `text` field uses the `autocomplete` analyzer at index time, but the `standard` analyzer at search time.

@@ -28,7 +28,7 @@ PUT my_index
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [[keyword-params]]
 ==== Parameters for keyword fields

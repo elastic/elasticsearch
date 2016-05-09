@@ -232,7 +232,7 @@ class BuildPlugin implements Plugin<Project> {
      */
     static void configureConfigurations(Project project) {
         // we are not shipping these jars, we act like dumb consumers of these things
-        if (project.path.startsWith(':test:fixtures')) {
+        if (project.path.startsWith(':test:fixtures') || project.path == ':build-tools') {
             return
         }
         // fail on any conflicting dependency versions

@@ -3,10 +3,52 @@
 A set of Elastic's commercial plugins:
 
 - License
-- Shield
+- Security
 - Watcher
-- Marvel
+- Monitoring
 
 = Setup
 You must checkout x-plugins and elasticsearch in the same directory as siblings. This
 elasticsearch checkout will be used when building x-plugins.
+
+= Build
+
+- Run unit tests:
++
+[source, txt]
+-----
+gradle clean test
+-----
+
+- Run all tests:
++
+[source, txt]
+-----
+gradle clean check
+-----
+
+- Run integration tests:
++
+[source, txt]
+-----
+gradle clean integTest
+-----
+
+- Package X-Pack (wihtout running tests)
++
+[source, txt]
+-----
+gradle clean assemble
+-----
+
+- Install X-Pack (wihtout running tests)
++
+[source, txt]
+-----
+gradle clean install
+-----
+
+- If you don't work on the UI side of x-plugins, you can force gradle to skip building kibana by adding
+  `xpack.kibana.build=false` to your `~/.gradle/gradle.properties`. Alternatively you add `-Pxpack.kibana.build=false`
+  on the command line if you only want to do this on individual builds (or `-Pxpack.kibana.build=true` if you need to
+  override having added this to your `gradle.properties`).

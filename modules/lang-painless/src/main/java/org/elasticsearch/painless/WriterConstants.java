@@ -45,7 +45,6 @@ class WriterConstants {
     final static Type DEFINITION_TYPE = Type.getType(Definition.class);
 
     final static Type OBJECT_TYPE = Type.getType(Object.class);
-    final static Method OBJECT_GETCLASS = getAsmMethod(Class.class, "getClass");
 
     final static Type MAP_TYPE  = Type.getType(Map.class);
     final static Method MAP_GET = getAsmMethod(Object.class, "get", Object.class);
@@ -56,7 +55,7 @@ class WriterConstants {
     /** dynamic callsite bootstrap signature */
     final static MethodType DEF_BOOTSTRAP_TYPE = MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, 
                                                                        String.class, MethodType.class, int.class);
-    final static Handle DEF_BOOTSTRAP_HANDLE = new Handle(Opcodes.H_INVOKESTATIC, "org/elasticsearch/painless/DynamicCallSite", 
+    final static Handle DEF_BOOTSTRAP_HANDLE = new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(DynamicCallSite.class),
                                                           "bootstrap", WriterConstants.DEF_BOOTSTRAP_TYPE.toMethodDescriptorString());
 
     final static Method DEF_ARRAY_STORE = getAsmMethod(

@@ -710,12 +710,19 @@ class WriterExternal {
         final List<ExpressionContext> arguments = source.arguments().expression();
         
         StringBuilder signature = new StringBuilder();
-        signature.append("(Ljava/lang/Object;");
+        signature.append('(');
+        // first parameter is the receiver, we never know its type: always Object
+        signature.append(WriterConstants.OBJECT_TYPE.getDescriptor());
+
+        // TODO: remove our explicit conversions and feed more type information for args/return value,
+        // it can avoid some unnecessary boxing etc.
         for (int i = 0; i < arguments.size(); i++) {
-            signature.append("Ljava/lang/Object;");
+            signature.append(WriterConstants.OBJECT_TYPE.getDescriptor());
             writer.visit(arguments.get(i));
         }
-        signature.append(")Ljava/lang/Object;");
+        signature.append(')');
+        // return value
+        signature.append(WriterConstants.OBJECT_TYPE.getDescriptor());
         execute.visitInvokeDynamicInsn((String)sourceenmd.target, signature.toString(), 
                                        WriterConstants.DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.METHOD_CALL });
     }

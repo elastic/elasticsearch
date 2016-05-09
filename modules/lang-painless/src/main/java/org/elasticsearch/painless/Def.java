@@ -58,7 +58,7 @@ public class Def {
      * {@code x.method(args...)}
      * <p>
      * This method traverses {@code recieverClass}'s class hierarchy (including interfaces) 
-     * until it finds a matching whitelisted method. If one not is found, it throws an exception. 
+     * until it finds a matching whitelisted method. If one is not found, it throws an exception. 
      * Otherwise it returns a handle to the matching method.
      * <p>
      * @param receiverClass Class of the object to invoke the method on.

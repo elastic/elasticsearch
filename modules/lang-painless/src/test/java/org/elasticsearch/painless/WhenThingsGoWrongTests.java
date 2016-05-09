@@ -24,126 +24,124 @@ import java.util.Collections;
 
 public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testNullPointer() {
-        try {
+        expectThrows(NullPointerException.class, () -> {
             exec("int x = (int) ((Map) input).get(\"missing\"); return x;");
-            fail("should have hit npe");
-        } catch (NullPointerException expected) {}
+        });
     }
 
     public void testInvalidShift() {
-        try {
+        expectThrows(ClassCastException.class, () -> {
             exec("float x = 15F; x <<= 2; return x;");
-            fail("should have hit cce");
-        } catch (ClassCastException expected) {}
+        });
 
-        try {
+        expectThrows(ClassCastException.class, () -> {
             exec("double x = 15F; x <<= 2; return x;");
-            fail("should have hit cce");
-        } catch (ClassCastException expected) {}
+        });
     }
 
     public void testBogusParameter() {
-        try {
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
             exec("return 5;", null, Collections.singletonMap("bogusParameterKey", "bogusParameterValue"));
-            fail("should have hit IAE");
-        } catch (IllegalArgumentException expected) {
-            assertTrue(expected.getMessage().contains("Unrecognized compile-time parameter"));
-        }
+        });
+        assertTrue(expected.getMessage().contains("Unrecognized compile-time parameter"));
     }
 
     public void testInfiniteLoops() {
-        try {
+        PainlessError expected = expectThrows(PainlessError.class, () -> {
             exec("boolean x = true; while (x) {}");
-            fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
 
-        try {
+        expected = expectThrows(PainlessError.class, () -> {
             exec("while (true) {int y = 5}");
-            fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
 
-        try {
+        expected = expectThrows(PainlessError.class, () -> {
             exec("while (true) { boolean x = true; while (x) {} }");
-            fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
 
-        try {
+        expected = expectThrows(PainlessError.class, () -> {
             exec("while (true) { boolean x = false; while (x) {} }");
             fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
 
-        try {
+        expected = expectThrows(PainlessError.class, () -> {
             exec("boolean x = true; for (;x;) {}");
             fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
 
-        try {
+        expected = expectThrows(PainlessError.class, () -> {
             exec("for (;;) {int x = 5}");
             fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
 
-        try {
+        expected = expectThrows(PainlessError.class, () -> {
             exec("def x = true; do {int y = 5;} while (x)");
             fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
 
-        try {
+        RuntimeException parseException = expectThrows(RuntimeException.class, () -> {
             exec("try { int x } catch (PainlessError error) {}");
             fail("should have hit ParseException");
-        } catch (RuntimeException expected) {
-            assertTrue(expected.getMessage().contains(
-                "Invalid type [PainlessError]."));
-        }
-
+        });
+        assertTrue(parseException.getMessage().contains("Invalid type [PainlessError]."));
     }
 
     public void testLoopLimits() {
+        // right below limit: ok
         exec("for (int x = 0; x < 9999; ++x) {}");
 
-        try {
+        PainlessError expected = expectThrows(PainlessError.class, () -> {
             exec("for (int x = 0; x < 10000; ++x) {}");
-            fail("should have hit PainlessError");
-        } catch (PainlessError expected) {
-            assertTrue(expected.getMessage().contains(
-                "The maximum number of statements that can be executed in a loop has been reached."));
-        }
+        });
+        assertTrue(expected.getMessage().contains(
+                   "The maximum number of statements that can be executed in a loop has been reached."));
     }
 
     public void testSourceLimits() {
-        char[] chars = new char[Compiler.MAXIMUM_SOURCE_LENGTH + 1];
-        Arrays.fill(chars, '0');
+        final char[] tooManyChars = new char[Compiler.MAXIMUM_SOURCE_LENGTH + 1];
+        Arrays.fill(tooManyChars, '0');
 
-        try {
-            exec(new String(chars));
-            fail("should have hit IllegalArgumentException");
-        } catch (IllegalArgumentException expected) {
-            assertTrue(expected.getMessage().contains("Scripts may be no longer than"));
-        }
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+            exec(new String(tooManyChars));
+        });
+        assertTrue(expected.getMessage().contains("Scripts may be no longer than"));
 
-        chars = new char[Compiler.MAXIMUM_SOURCE_LENGTH];
-        Arrays.fill(chars, '0');
-
-        assertEquals(0, exec(new String(chars)));
+        final char[] exactlyAtLimit = new char[Compiler.MAXIMUM_SOURCE_LENGTH];
+        Arrays.fill(exactlyAtLimit, '0');
+        // ok
+        assertEquals(0, exec(new String(exactlyAtLimit)));
+    }
+    
+    public void testIllegalDynamicMethod() {
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+            exec("def x = 'test'; return x.getClass().toString()");
+        });
+        assertTrue(expected.getMessage().contains("Unable to find dynamic method"));
+    }
+    
+    public void testDynamicNPE() {
+        expectThrows(NullPointerException.class, () -> {
+            exec("def x = null; return x.toString()");
+        });
+    }
+    
+    public void testDynamicWrongArgs() {
+        expectThrows(ClassCastException.class, () -> {
+            exec("def x = new ArrayList(); return x.get('bogus');");
+        });
     }
 }

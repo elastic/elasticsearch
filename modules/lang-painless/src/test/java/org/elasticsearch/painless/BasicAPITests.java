@@ -73,4 +73,10 @@ public class BasicAPITests extends ScriptTestCase {
         assertEquals(true, exec("def x = new ArrayList(); return x.empty;"));
         assertEquals(true, exec("def x = new HashMap(); return x.empty;"));
     }
+    
+    /** Test list method invocation */
+    public void testListGet() {
+        assertEquals(5, exec("def x = new ArrayList(); x.add(5); return x.get(0);"));
+        assertEquals(5, exec("def x = new ArrayList(); x.add(5); def index = 0; return x.get(index);"));
+    }
 }

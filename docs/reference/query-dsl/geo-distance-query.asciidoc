@@ -2,10 +2,35 @@
 === Geo Distance Query
 
 Filters documents that include only hits that exists within a specific
-distance from a geo point. Assuming the following indexed json:
+distance from a geo point. Assuming the following mapping:
 
 [source,js]
 --------------------------------------------------
+PUT /my_locations
+{
+  "mappings": {
+        "location": {
+            "properties": {
+                "pin": {
+                    "properties": {
+                        "location": {
+                            "type": "geo_point"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+... and indexed document:
+
+
+[source,js]
+--------------------------------------------------
+PUT /my_locations/location/1
 {
     "pin" : {
         "location" : {
@@ -15,13 +40,18 @@ distance from a geo point. Assuming the following indexed json:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
 
 Then the following simple query can be executed with a `geo_distance`
 filter:
 
 [source,js]
 --------------------------------------------------
+GET /my_locations/location/_search
 {
+  "query": {
     "bool" : {
         "must" : {
             "match_all" : {}
@@ -36,8 +66,11 @@ filter:
             }
         }
     }
+  }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 ==== Accepted Formats
@@ -50,7 +83,9 @@ representation of the geo point, the filter can accept it as well:
 
 [source,js]
 --------------------------------------------------
+GET /my_locations/location/_search
 {
+  "query": {
     "bool" : {
         "must" : {
             "match_all" : {}
@@ -65,8 +100,11 @@ representation of the geo point, the filter can accept it as well:
             }
         }
     }
+  }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 ===== Lat Lon As Array
@@ -76,7 +114,9 @@ conform with http://geojson.org/[GeoJSON].
 
 [source,js]
 --------------------------------------------------
+GET /my_locations/location/_search
 {
+  "query": {
     "bool" : {
         "must" : {
             "match_all" : {}
@@ -88,8 +128,12 @@ conform with http://geojson.org/[GeoJSON].
             }
         }
     }
+  }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
 
 [float]
 ===== Lat Lon As String
@@ -98,7 +142,9 @@ Format in `lat,lon`.
 
 [source,js]
 --------------------------------------------------
+GET /my_locations/location/_search
 {
+  "query": {
     "bool" : {
         "must" : {
             "match_all" : {}
@@ -110,15 +156,20 @@ Format in `lat,lon`.
             }
         }
     }
+  }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 ===== Geohash
 
 [source,js]
 --------------------------------------------------
+GET /my_locations/location/_search
 {
+  "query": {
     "bool" : {
         "must" : {
             "match_all" : {}
@@ -130,8 +181,11 @@ Format in `lat,lon`.
             }
         }
     }
+  }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [float]
 ==== Options

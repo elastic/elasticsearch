@@ -6,7 +6,9 @@ Matches the union of its span clauses. The span or query maps to Lucene
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
+  "query": {
     "span_or" : {
         "clauses" : [
             { "span_term" : { "field" : "value1" } },
@@ -14,7 +16,9 @@ Matches the union of its span clauses. The span or query maps to Lucene
             { "span_term" : { "field" : "value3" } }
         ]
     }
+  }
 }
 --------------------------------------------------
+// CONSOLE
 
 The `clauses` element is a list of one or more other span type queries.

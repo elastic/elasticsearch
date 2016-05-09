@@ -6,15 +6,25 @@ of `1.0`.
 
 [source,js]
 --------------------------------------------------
-{ "match_all": {} }
+GET /_search
+{ "query": {
+    "match_all": {}
+  }
+}
 --------------------------------------------------
+// AUTOSENSE
 
 The `_score` can be changed with the `boost` parameter:
 
 [source,js]
 --------------------------------------------------
-{ "match_all": { "boost" : 1.2 }}
+GET /_search
+{ "query": {
+    "match_all": { "boost" : 1.2 }
+  }
+}
 --------------------------------------------------
+// AUTOSENSE
 
 [[query-dsl-match-none-query]]
 [float]
@@ -24,5 +34,10 @@ This is the inverse of the `match_all` query, which matches no documents.
 
 [source,js]
 --------------------------------------------------
-{ "match_none": {} }
+GET /_search
+{ "query": {
+    "match_none": {} 
+  }
+}
 --------------------------------------------------
+// AUTOSENSE

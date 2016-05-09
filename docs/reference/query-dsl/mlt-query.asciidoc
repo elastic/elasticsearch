@@ -15,15 +15,19 @@ fields, limiting the number of selected terms to 12.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
+  "query": {
     "more_like_this" : {
         "fields" : ["title", "description"],
         "like" : "Once upon a time",
         "min_term_freq" : 1,
         "max_query_terms" : 12
     }
+  }
 }
 --------------------------------------------------
+// AUTOSENSE
 
 A more complicated use case consists of mixing texts with documents already
 existing in the index. In this case, the syntax to specify a document is
@@ -31,7 +35,9 @@ similar to the one used in the <<docs-multi-get,Multi GET API>>.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
+  "query": {
     "more_like_this" : {
         "fields" : ["title", "description"],
         "like" : [
@@ -50,8 +56,10 @@ similar to the one used in the <<docs-multi-get,Multi GET API>>.
         "min_term_freq" : 1,
         "max_query_terms" : 12
     }
+  }
 }
 --------------------------------------------------
+// AUTOSENSE
 
 Finally, users can mix some texts, a chosen set of documents but also provide
 documents not necessarily present in the index. To provide documents not
@@ -59,7 +67,9 @@ present in the index, the syntax is similar to <<docs-termvectors-artificial-doc
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
+  "query": {
     "more_like_this" : {
         "fields" : ["name.first", "name.last"],
         "like" : [
@@ -83,8 +93,10 @@ present in the index, the syntax is similar to <<docs-termvectors-artificial-doc
         "min_term_freq" : 1,
         "max_query_terms" : 12
     }
+  }
 }
 --------------------------------------------------
+// AUTOSENSE
 
 ==== How it Works
 
@@ -111,7 +123,8 @@ default, but there will be no speed up on analysis for these fields.
 
 [source,js]
 --------------------------------------------------
-curl -s -XPUT 'http://localhost:9200/imdb/' -d '{
+PUT /imdb
+{
   "mappings": {
     "movies": {
       "properties": {
@@ -137,6 +150,7 @@ curl -s -XPUT 'http://localhost:9200/imdb/' -d '{
   }
 }
 --------------------------------------------------
+// AUTOSENSE
 
 ==== Parameters
 

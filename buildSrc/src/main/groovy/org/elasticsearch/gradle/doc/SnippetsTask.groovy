@@ -112,8 +112,8 @@ public class SnippetsTask extends DefaultTask {
                     lastLanguageLine = lineNumber
                     return
                 }
-                if (line ==~ /\/\/ AUTOSENSE\s*/
-                        || line ==~ /\/\/ CONSOLE\s*/) {
+                if (line ==~ /\/\/\s*AUTOSENSE\s*/
+                        || line ==~ /\/\/\s*CONSOLE\s*/) {
                     if (snippet == null) {
                         throw new InvalidUserDataException("AUTOSENSE not " +
                             "paired with a snippet at $file:$lineNumber")
@@ -121,7 +121,7 @@ public class SnippetsTask extends DefaultTask {
                     snippet.autoSense = true
                     return
                 }
-                matcher = line =~ /\/\/ TEST(\[(.+)\])?\s*/
+                matcher = line =~ /\/\/\s*TEST(\[(.+)\])?\s*/
                 if (matcher.matches()) {
                     if (snippet == null) {
                         throw new InvalidUserDataException("TEST not " +
@@ -160,7 +160,7 @@ public class SnippetsTask extends DefaultTask {
                     }
                     return
                 }
-                matcher = line =~ /\/\/ TESTRESPONSE(\[(.+)\])?\s*/
+                matcher = line =~ /\/\/\s*TESTRESPONSE(\[(.+)\])?\s*/
                 if (matcher.matches()) {
                     if (snippet == null) {
                         throw new InvalidUserDataException("TESTRESPONSE not " +
@@ -178,7 +178,7 @@ public class SnippetsTask extends DefaultTask {
                     }
                     return
                 }
-                if (line ==~ /\/\/ TESTSETUP\s*/) {
+                if (line ==~ /\/\/\s*TESTSETUP\s*/) {
                     snippet.testSetup = true
                     return
                 }

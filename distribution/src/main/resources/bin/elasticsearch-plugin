@@ -77,23 +77,6 @@ if [ ! -x "$JAVA" ]; then
     exit 1
 fi
 
-# real getopt cannot be used because we need to hand options over to the PluginManager
-while [ $# -gt 0 ]; do
-  case $1 in
-    -D*=*)
-      properties="$properties \"$1\""
-      ;;
-    -D*)
-      var=$1
-      shift
-      properties="$properties \"$var\"=\"$1\""
-      ;;
-    *)
-      args="$args \"$1\""
-  esac
-  shift
-done
-
 # check if properties already has a config file or config dir
 if [ -e "$CONF_DIR" ]; then
   case "$properties" in
@@ -110,4 +93,4 @@ fi
 HOSTNAME=`hostname | cut -d. -f1`
 export HOSTNAME
 
-eval "\"$JAVA\"" "$ES_JAVA_OPTS" -Delasticsearch -Des.path.home="\"$ES_HOME\"" $properties -cp "\"$ES_HOME/lib/*\"" org.elasticsearch.plugins.PluginCli $args
+eval "\"$JAVA\"" "$ES_JAVA_OPTS" -Delasticsearch -Des.path.home="\"$ES_HOME\"" $properties -cp "\"$ES_HOME/lib/*\"" org.elasticsearch.plugins.PluginCli "$@"

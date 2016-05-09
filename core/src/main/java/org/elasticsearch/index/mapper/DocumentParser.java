@@ -853,7 +853,14 @@ final class DocumentParser {
         int pathsAdded = 0;
             ObjectMapper parent = mapper;
             for (int i = 0; i < paths.length-1; i++) {
-                mapper = context.docMapper().objectMappers().get(context.path().pathAsText(paths[i]));
+            String currentPath = context.path().pathAsText(paths[i]);
+            FieldMapper existingFieldMapper = context.docMapper().mappers().getMapper(currentPath);
+            if (existingFieldMapper != null) {
+                throw new MapperParsingException(
+                        "Could not dynamically add mapping for field [{}]. Existing mapping for [{}] must be of type object but found [{}].",
+                        null, String.join(".", paths), currentPath, existingFieldMapper.fieldType.typeName());
+            }
+            mapper = context.docMapper().objectMappers().get(currentPath);
                 if (mapper == null) {
                     // One mapping is missing, check if we are allowed to create a dynamic one.
                     ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context);

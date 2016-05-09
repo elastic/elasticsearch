@@ -27,11 +27,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.instanceOf;
 
 // TODO: make this a real unit test
 public class DocumentParserTests extends ESSingleNodeTestCase {
@@ -511,6 +513,15 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endArray().endObject().bytes();
         ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
         assertEquals(4, doc.rootDoc().getFields("foo.bar.baz").length);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertNotNull(fooMapper);
+        assertThat(fooMapper, instanceOf(ObjectMapper.class));
+        Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
+        assertNotNull(barMapper);
+        assertThat(barMapper, instanceOf(ObjectMapper.class));
+        Mapper bazMapper = ((ObjectMapper) barMapper).getMapper("baz");
+        assertNotNull(bazMapper);
+        assertThat(bazMapper, instanceOf(NumberFieldMapper.class));
     }
 
     public void testDynamicDottedFieldNameLongArrayWithParentTemplate() throws Exception {
@@ -529,6 +540,59 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endArray().endObject().bytes();
         ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
         assertEquals(4, doc.rootDoc().getFields("foo.bar.baz").length);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertNotNull(fooMapper);
+        assertThat(fooMapper, instanceOf(ObjectMapper.class));
+        Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
+        assertNotNull(barMapper);
+        assertThat(barMapper, instanceOf(ObjectMapper.class));
+        Mapper bazMapper = ((ObjectMapper) barMapper).getMapper("baz");
+        assertNotNull(bazMapper);
+        assertThat(bazMapper, instanceOf(NumberFieldMapper.class));
+    }
+
+    public void testDynamicDottedFieldNameLongArrayWithExistingParent() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties") .startObject("foo")
+            .field("type", "object")
+            .endObject().endObject().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject().startArray("foo.bar.baz")
+                .value(0)
+                .value(1)
+            .endArray().endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertEquals(4, doc.rootDoc().getFields("foo.bar.baz").length);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertNotNull(fooMapper);
+        assertThat(fooMapper, instanceOf(ObjectMapper.class));
+        Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
+        assertNotNull(barMapper);
+        assertThat(barMapper, instanceOf(ObjectMapper.class));
+        Mapper bazMapper = ((ObjectMapper) barMapper).getMapper("baz");
+        assertNotNull(bazMapper);
+        assertThat(bazMapper, instanceOf(NumberFieldMapper.class));
+    }
+
+    public void testDynamicDottedFieldNameLongArrayWithExistingParentWrongType() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties") .startObject("foo")
+            .field("type", "long")
+            .endObject().endObject().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject().startArray("foo.bar.baz")
+                .value(0)
+                .value(1)
+            .endArray().endObject().bytes();
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> mapper.parse("test", "type", "1", bytes));
+        assertEquals("Could not dynamically add mapping for field [foo.bar.baz]. "
+                + "Existing mapping for [foo] must be of type object but found [long].", exception.getMessage());
     }
 
     public void testDynamicFalseDottedFieldNameLongArray() throws Exception {
@@ -573,6 +637,15 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endObject().bytes();
         ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
         assertEquals(2, doc.rootDoc().getFields("foo.bar.baz").length);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertNotNull(fooMapper);
+        assertThat(fooMapper, instanceOf(ObjectMapper.class));
+        Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
+        assertNotNull(barMapper);
+        assertThat(barMapper, instanceOf(ObjectMapper.class));
+        Mapper bazMapper = ((ObjectMapper) barMapper).getMapper("baz");
+        assertNotNull(bazMapper);
+        assertThat(bazMapper, instanceOf(NumberFieldMapper.class));
     }
 
     public void testDynamicDottedFieldNameLongWithParentTemplate() throws Exception {
@@ -589,6 +662,55 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endObject().bytes();
         ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
         assertEquals(2, doc.rootDoc().getFields("foo.bar.baz").length);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertNotNull(fooMapper);
+        assertThat(fooMapper, instanceOf(ObjectMapper.class));
+        Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
+        assertNotNull(barMapper);
+        assertThat(barMapper, instanceOf(ObjectMapper.class));
+        Mapper bazMapper = ((ObjectMapper) barMapper).getMapper("baz");
+        assertNotNull(bazMapper);
+        assertThat(bazMapper, instanceOf(NumberFieldMapper.class));
+    }
+
+    public void testDynamicDottedFieldNameLongWithExistingParent() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties") .startObject("foo")
+            .field("type", "object")
+            .endObject().endObject().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject().field("foo.bar.baz", 0)
+            .endObject().bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertEquals(2, doc.rootDoc().getFields("foo.bar.baz").length);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertNotNull(fooMapper);
+        assertThat(fooMapper, instanceOf(ObjectMapper.class));
+        Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
+        assertNotNull(barMapper);
+        assertThat(barMapper, instanceOf(ObjectMapper.class));
+        Mapper bazMapper = ((ObjectMapper) barMapper).getMapper("baz");
+        assertNotNull(bazMapper);
+        assertThat(bazMapper, instanceOf(NumberFieldMapper.class));
+    }
+
+    public void testDynamicDottedFieldNameLongWithExistingParentWrongType() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties") .startObject("foo")
+            .field("type", "long")
+            .endObject().endObject().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+                .startObject().field("foo.bar.baz", 0)
+            .endObject().bytes();
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> mapper.parse("test", "type", "1", bytes));
+        assertEquals("Could not dynamically add mapping for field [foo.bar.baz]. "
+                + "Existing mapping for [foo] must be of type object but found [long].", exception.getMessage());
     }
 
     public void testDynamicFalseDottedFieldNameLong() throws Exception {
@@ -630,6 +752,18 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endObject().endObject().bytes();
         ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
         assertEquals(2, doc.rootDoc().getFields("foo.bar.baz.a").length);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertNotNull(fooMapper);
+        assertThat(fooMapper, instanceOf(ObjectMapper.class));
+        Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
+        assertNotNull(barMapper);
+        assertThat(barMapper, instanceOf(ObjectMapper.class));
+        Mapper bazMapper = ((ObjectMapper) barMapper).getMapper("baz");
+        assertNotNull(bazMapper);
+        assertThat(bazMapper, instanceOf(ObjectMapper.class));
+        Mapper aMapper = ((ObjectMapper) bazMapper).getMapper("a");
+        assertNotNull(aMapper);
+        assertThat(aMapper, instanceOf(NumberFieldMapper.class));
     }
 
     public void testDynamicDottedFieldNameObjectWithParentTemplate() throws Exception {
@@ -647,6 +781,57 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endObject().endObject().bytes();
         ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
         assertEquals(2, doc.rootDoc().getFields("foo.bar.baz.a").length);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertNotNull(fooMapper);
+        assertThat(fooMapper, instanceOf(ObjectMapper.class));
+        Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
+        assertNotNull(barMapper);
+        assertThat(barMapper, instanceOf(ObjectMapper.class));
+        Mapper bazMapper = ((ObjectMapper) barMapper).getMapper("baz");
+        assertNotNull(bazMapper);
+        assertThat(bazMapper, instanceOf(ObjectMapper.class));
+        Mapper aMapper = ((ObjectMapper) bazMapper).getMapper("a");
+        assertNotNull(aMapper);
+        assertThat(aMapper, instanceOf(NumberFieldMapper.class));
+    }
+
+    public void testDynamicDottedFieldNameObjectWithExistingParent() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties").startObject("foo")
+                .field("type", "object").endObject().endObject().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder().startObject().startObject("foo.bar.baz").field("a", 0).endObject().endObject()
+                .bytes();
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        assertEquals(2, doc.rootDoc().getFields("foo.bar.baz.a").length);
+        Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
+        assertNotNull(fooMapper);
+        assertThat(fooMapper, instanceOf(ObjectMapper.class));
+        Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
+        assertNotNull(barMapper);
+        assertThat(barMapper, instanceOf(ObjectMapper.class));
+        Mapper bazMapper = ((ObjectMapper) barMapper).getMapper("baz");
+        assertNotNull(bazMapper);
+        assertThat(bazMapper, instanceOf(ObjectMapper.class));
+        Mapper aMapper = ((ObjectMapper) bazMapper).getMapper("a");
+        assertNotNull(aMapper);
+        assertThat(aMapper, instanceOf(NumberFieldMapper.class));
+    }
+
+    public void testDynamicDottedFieldNameObjectWithExistingParentWrongType() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties") .startObject("foo")
+            .field("type", "long")
+            .endObject().endObject().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder().startObject().startObject("foo.bar.baz").field("a", 0).endObject().endObject()
+                .bytes();
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> mapper.parse("test", "type", "1", bytes));
+        assertEquals("Could not dynamically add mapping for field [foo.bar.baz]. "
+                + "Existing mapping for [foo] must be of type object but found [long].", exception.getMessage());
     }
 
     public void testDynamicFalseDottedFieldNameObject() throws Exception {

@@ -45,7 +45,9 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
 public class NettyTransportServiceHandshakeTests extends ESTestCase {
+
     private static ThreadPool threadPool;
+    private static final long timeout = Long.MAX_VALUE;
 
     @BeforeClass
     public static void startThreadPool() {
@@ -116,7 +118,7 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
                                 emptyMap(),
                                 emptySet(),
                                 Version.CURRENT.minimumCompatibilityVersion()),
-                        100);
+                        timeout);
         assertNotNull(connectedNode);
 
         // the name and version should be updated
@@ -138,7 +140,7 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
                             emptyMap(),
                             emptySet(),
                             Version.CURRENT.minimumCompatibilityVersion()),
-                    100);
+                    timeout);
             fail("expected handshake to fail from mismatched cluster names");
         } catch (ConnectTransportException e) {
             assertThat(e.getMessage(), containsString("handshake failed, mismatched cluster name [Cluster [b]]"));
@@ -161,7 +163,7 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
                             emptyMap(),
                             emptySet(),
                             Version.CURRENT.minimumCompatibilityVersion()),
-                    100);
+                    timeout);
             fail("expected handshake to fail from incompatible versions");
         } catch (ConnectTransportException e) {
             assertThat(e.getMessage(), containsString("handshake failed, incompatible version"));
@@ -187,7 +189,7 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
                         emptyMap(),
                         emptySet(),
                         Version.CURRENT.minimumCompatibilityVersion()),
-                100,
+                timeout,
                 false);
         assertNotNull(connectedNode);
         assertEquals(connectedNode.getName(), "TS_B");
@@ -203,4 +205,5 @@ public class NettyTransportServiceHandshakeTests extends ESTestCase {
             this.discoveryNode = discoveryNode;
         }
     }
+
 }

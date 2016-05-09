@@ -110,7 +110,8 @@ public class SnippetsTask extends DefaultTask {
                     lastLanguageLine = lineNumber
                     return
                 }
-                if (line ==~ /\/\/ AUTOSENSE\s*/) {
+                if (line ==~ /\/\/ AUTOSENSE\s*/
+                        || line ==~ /\/\/ CONSOLE\s*/) {
                     if (snippet == null) {
                         throw new InvalidUserDataException("AUTOSENSE not " +
                             "paired with a snippet at $file:$lineNumber")

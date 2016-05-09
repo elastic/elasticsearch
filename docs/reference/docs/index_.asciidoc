@@ -14,7 +14,7 @@ PUT twitter/tweet/1
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The result of the above index operation is:
 

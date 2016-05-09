@@ -107,7 +107,7 @@ public class Def {
     /** pointer to List.set(int,Object) */
     private static final MethodHandle LIST_SET;
     static {
-        Lookup lookup = MethodHandles.lookup();
+        Lookup lookup = MethodHandles.publicLookup();
         try {
             // TODO: maybe specialize handles for different array types. this may be slower, but simple :)
             ARRAY_LENGTH = lookup.findStatic(Array.class, "getLength",

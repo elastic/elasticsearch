@@ -24,23 +24,18 @@ and give the most flexibility.
 [cols="<,<,<",options="header",]
 |=======================================================================
 |Language
-    |Sandboxed
     |Required plugin
 
 |<<modules-scripting-painless, `painless`>>
-    |yes
     |built-in
 
 |<<modules-scripting-groovy, `groovy`>>
-    |<<modules-scripting-security, no>>
     |built-in
 
 |{plugins}/lang-javascript.html[`javascript`]
-    |<<modules-scripting-security, no>>
     |{plugins}/lang-javascript.html[`lang-javascript`]
 
 |{plugins}/lang-python.html[`python`]
-    |<<modules-scripting-security, no>>
     |{plugins}/lang-python.html[`lang-python`]
 
 |=======================================================================
@@ -54,34 +49,22 @@ certain tasks.
 [cols="<,<,<,<",options="header",]
 |=======================================================================
 |Language
-    |Sandboxed
     |Required plugin
     |Purpose
 
 |<<modules-scripting-expression, `expression`>>
-    |yes
     |built-in
     |fast custom ranking and sorting
 
 |<<search-template, `mustache`>>
-    |yes
     |built-in
     |templates
 
 |<<modules-scripting-native, `java`>>
-    |n/a
     |you write it!
     |expert API
 
 |=======================================================================
-
-[WARNING]
-.Scripts and security
-=================================================
-
-Languages that are sandboxed are designed with security in mind. However, non-
-sandboxed languages can be a security issue, please read
-<<modules-scripting-security, Scripting and security>> for more details.
 
 =================================================
 

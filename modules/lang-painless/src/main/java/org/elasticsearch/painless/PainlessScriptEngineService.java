@@ -117,15 +117,6 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
     }
 
     /**
-     * Whether or not the engine is secure.
-     * @return Always true as the engine should be secure at runtime.
-     */
-    @Override
-    public boolean isSandboxed() {
-        return true;
-    }
-
-    /**
      * Compiles a Painless script with the specified parameters.
      * @param script The code to be compiled.
      * @param params The params used to modify the compiler settings on a per script basis.

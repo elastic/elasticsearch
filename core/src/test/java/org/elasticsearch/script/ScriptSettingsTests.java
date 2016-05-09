@@ -111,11 +111,6 @@ public class ScriptSettingsTests extends ESTestCase {
         }
 
         @Override
-        public boolean isSandboxed() {
-            return false;
-        }
-
-        @Override
         public Object compile(String script, Map<String, String> params) {
             return null;
         }

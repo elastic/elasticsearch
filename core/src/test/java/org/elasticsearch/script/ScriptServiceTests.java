@@ -41,11 +41,14 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,6 +60,8 @@ public class ScriptServiceTests extends ESTestCase {
 
     private ResourceWatcherService resourceWatcherService;
     private ScriptEngineService scriptEngineService;
+    private ScriptEngineService dangerousScriptEngineService;
+    private Set<ScriptEngineService> services;
     private Map<String, ScriptEngineService> scriptEnginesByLangMap;
     private ScriptEngineRegistry scriptEngineRegistry;
     private ScriptContextRegistry scriptContextRegistry;
@@ -70,8 +75,8 @@ public class ScriptServiceTests extends ESTestCase {
 
     static {
         DEFAULT_SCRIPT_MODES.put(ScriptType.FILE, ScriptMode.ON);
-        DEFAULT_SCRIPT_MODES.put(ScriptType.STORED, ScriptMode.SANDBOX);
-        DEFAULT_SCRIPT_MODES.put(ScriptType.INLINE, ScriptMode.SANDBOX);
+        DEFAULT_SCRIPT_MODES.put(ScriptType.STORED, ScriptMode.OFF);
+        DEFAULT_SCRIPT_MODES.put(ScriptType.INLINE, ScriptMode.OFF);
     }
 
     @Before
@@ -83,6 +88,10 @@ public class ScriptServiceTests extends ESTestCase {
                 .build();
         resourceWatcherService = new ResourceWatcherService(baseSettings, null);
         scriptEngineService = new TestEngineService();
+        dangerousScriptEngineService = new TestDangerousEngineService();
+        services = new HashSet<>(2);
+        services.add(scriptEngineService);
+        services.add(dangerousScriptEngineService);
         scriptEnginesByLangMap = ScriptModesTests.buildScriptEnginesByLangMap(Collections.singleton(scriptEngineService));
         //randomly register custom script contexts
         int randomInt = randomIntBetween(0, 3);
@@ -100,7 +109,10 @@ public class ScriptServiceTests extends ESTestCase {
             String context = plugin + "_" + operation;
             contexts.put(context, new ScriptContext.Plugin(plugin, operation));
         }
-        scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(TestEngineService.class, TestEngineService.TYPES)));
+        List<ScriptEngineRegistry.ScriptEngineRegistration> registries = new ArrayList<>(2);
+        registries.add(new ScriptEngineRegistry.ScriptEngineRegistration(TestEngineService.class, TestEngineService.TYPES, ScriptMode.ON));
+        registries.add(new ScriptEngineRegistry.ScriptEngineRegistration(TestDangerousEngineService.class, TestDangerousEngineService.TYPES));
+        scriptEngineRegistry = new ScriptEngineRegistry(registries);
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
@@ -112,7 +124,7 @@ public class ScriptServiceTests extends ESTestCase {
     private void buildScriptService(Settings additionalSettings) throws IOException {
         Settings finalSettings = Settings.builder().put(baseSettings).put(additionalSettings).build();
         Environment environment = new Environment(finalSettings);
-        scriptService = new ScriptService(finalSettings, environment, Collections.singleton(scriptEngineService), resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
+        scriptService = new ScriptService(finalSettings, environment, services, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
             String getScriptFromClusterState(ClusterState state, String scriptLang, String id) {
                 //mock the script that gets retrieved from an index
@@ -208,20 +220,14 @@ public class ScriptServiceTests extends ESTestCase {
         if (rarely()) {
             builder.put("script.file", randomFrom(ScriptModesTests.ENABLE_VALUES));
         }
-        if (rarely()) {
-            builder.put("script.stored", "sandbox");
-        }
-        if (rarely()) {
-            builder.put("script.inline", "sandbox");
-        }
         buildScriptService(builder.build());
-        createFileScripts("groovy", "mustache", "test");
+        createFileScripts("groovy", "mustache", "dtest");
 
         for (ScriptContext scriptContext : scriptContexts) {
-            //custom engine is sandboxed, all scripts are enabled by default
-            assertCompileAccepted("test", "script", ScriptType.INLINE, scriptContext);
-            assertCompileAccepted("test", "script", ScriptType.STORED, scriptContext);
-            assertCompileAccepted("test", "file_script", ScriptType.FILE, scriptContext);
+            // only file scripts are accepted by default
+            assertCompileRejected("dtest", "script", ScriptType.INLINE, scriptContext);
+            assertCompileRejected("dtest", "script", ScriptType.STORED, scriptContext);
+            assertCompileAccepted("dtest", "file_script", ScriptType.FILE, scriptContext);
         }
     }
 
@@ -266,9 +272,6 @@ public class ScriptServiceTests extends ESTestCase {
                 case OFF:
                     builder.put("script" + "." + entry.getKey().getScriptType(), "false");
                     break;
-                case SANDBOX:
-                    builder.put("script" + "." + entry.getKey().getScriptType(), "sandbox");
-                    break;
             }
         }
         for (Map.Entry<ScriptContext, ScriptMode> entry : scriptContextSettings.entrySet()) {
@@ -276,12 +279,8 @@ public class ScriptServiceTests extends ESTestCase {
                 case ON:
                     builder.put("script" + "." + entry.getKey().getKey(), "true");
                     break;
-
                 case OFF:
                     builder.put("script" + "." + entry.getKey().getKey(), "false");
-                    break;
-                case SANDBOX:
-                    builder.put("script" + "." + entry.getKey().getKey(), "sandbox");
                     break;
             }
         }
@@ -298,14 +297,11 @@ public class ScriptServiceTests extends ESTestCase {
                 case OFF:
                     builder.put("script.engine" + "." + lang + "." + part2, "false");
                     break;
-                case SANDBOX:
-                    builder.put("script.engine" + "." + lang + "." + part2, "sandbox");
-                    break;
             }
         }
 
         buildScriptService(builder.build());
-        createFileScripts("groovy", "expression", "mustache", "test");
+        createFileScripts("groovy", "expression", "mustache", "dtest");
 
         for (ScriptType scriptType : ScriptType.values()) {
             //make sure file scripts have a different name than inline ones.
@@ -313,7 +309,7 @@ public class ScriptServiceTests extends ESTestCase {
             String script = scriptType == ScriptType.FILE ? "file_script" : "script";
             for (ScriptContext scriptContext : this.scriptContexts) {
                 //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
-                ScriptMode scriptMode = engineSettings.get(scriptEngineService.getTypes().get(0) + "." + scriptType + "." + scriptContext.getKey());
+                ScriptMode scriptMode = engineSettings.get(dangerousScriptEngineService.getTypes().get(0) + "." + scriptType + "." + scriptContext.getKey());
                 if (scriptMode == null) {
                     scriptMode = scriptContextSettings.get(scriptContext);
                 }
@@ -324,20 +320,13 @@ public class ScriptServiceTests extends ESTestCase {
                     scriptMode = DEFAULT_SCRIPT_MODES.get(scriptType);
                 }
 
-                for (String lang : scriptEngineService.getTypes()) {
+                for (String lang : dangerousScriptEngineService.getTypes()) {
                     switch (scriptMode) {
                         case ON:
                             assertCompileAccepted(lang, script, scriptType, scriptContext);
                             break;
                         case OFF:
                             assertCompileRejected(lang, script, scriptType, scriptContext);
-                            break;
-                        case SANDBOX:
-                            if (scriptEngineService.isSandboxed()) {
-                                assertCompileAccepted(lang, script, scriptType, scriptContext);
-                            } else {
-                                assertCompileRejected(lang, script, scriptType, scriptContext);
-                            }
                             break;
                     }
                 }
@@ -401,6 +390,7 @@ public class ScriptServiceTests extends ESTestCase {
     public void testCompilationStatsOnCacheHit() throws IOException {
         Settings.Builder builder = Settings.builder();
         builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
+        builder.put("script.inline", "true");
         buildScriptService(builder.build());
         ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
         scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap(), state);
@@ -426,6 +416,7 @@ public class ScriptServiceTests extends ESTestCase {
     public void testCacheEvictionCountedInCacheEvictionsStats() throws IOException {
         Settings.Builder builder = Settings.builder();
         builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
+        builder.put("script.inline", "true");
         buildScriptService(builder.build());
         ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
         scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap(), state);
@@ -437,6 +428,7 @@ public class ScriptServiceTests extends ESTestCase {
     public void testDefaultLanguage() throws IOException {
         Settings.Builder builder = Settings.builder();
         builder.put("script.default_lang", "test");
+        builder.put("script.inline", "true");
         buildScriptService(builder.build());
         CompiledScript script = scriptService.compile(new Script("1 + 1", ScriptType.INLINE, null, null),
                 randomFrom(scriptContexts), Collections.emptyMap(), emptyClusterState());
@@ -552,8 +544,45 @@ public class ScriptServiceTests extends ESTestCase {
         }
 
         @Override
-        public boolean isSandboxed() {
-            return true;
+        public Object compile(String script, Map<String, String> params) {
+            return "compiled_" + script;
+        }
+
+        @Override
+        public ExecutableScript executable(final CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
+            return null;
+        }
+
+        @Override
+        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+            return null;
+        }
+
+        @Override
+        public void close() {
+
+        }
+
+        @Override
+        public void scriptRemoved(CompiledScript script) {
+            // Nothing to do here
+        }
+    }
+
+    public static class TestDangerousEngineService implements ScriptEngineService {
+
+        public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("dtest"));
+
+        public static final List<String> EXTENSIONS = Collections.unmodifiableList(Arrays.asList("dtest"));
+
+        @Override
+        public List<String> getTypes() {
+            return TYPES;
+        }
+
+        @Override
+        public List<String> getExtensions() {
+            return EXTENSIONS;
         }
 
         @Override

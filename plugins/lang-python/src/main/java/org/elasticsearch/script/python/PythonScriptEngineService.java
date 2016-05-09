@@ -106,11 +106,6 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public boolean isSandboxed() {
-        return false;
-    }
-
-    @Override
     public Object compile(String script, Map<String, String> params) {
         // classloader created here
         SecurityManager sm = System.getSecurityManager();

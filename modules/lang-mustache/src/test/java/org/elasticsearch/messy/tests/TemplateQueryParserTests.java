@@ -94,6 +94,7 @@ public class TemplateQueryParserTests extends ESTestCase {
                 .put(Environment.PATH_CONF_SETTING.getKey(), this.getDataPath("config"))
                 .put("node.name", getClass().getName())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put("script.inline", "true")
                 .build();
         final Client proxy = (Client) Proxy.newProxyInstance(
                 Client.class.getClassLoader(),

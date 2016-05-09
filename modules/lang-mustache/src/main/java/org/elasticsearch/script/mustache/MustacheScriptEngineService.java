@@ -122,11 +122,6 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
     }
 
     @Override
-    public boolean isSandboxed() {
-        return true;
-    }
-
-    @Override
     public ExecutableScript executable(CompiledScript compiledScript,
             @Nullable Map<String, Object> vars) {
         return new MustacheExecutableScript(compiledScript, vars);

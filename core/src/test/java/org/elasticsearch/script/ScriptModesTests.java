@@ -99,6 +99,7 @@ public class ScriptModesTests extends ESTestCase {
             assertThat(scriptModes, notNullValue());
             //2 is the number of engines (native excluded), custom is counted twice though as it's associated with two different names
             int numberOfSettings = 2 * ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
+            numberOfSettings += 6; // for top-level inline/store/file settings
             assertThat(scriptModes.scriptModes.size(), equalTo(numberOfSettings));
             if (assertAllSettingsWereChecked) {
                 assertThat(checkedSettings.size(), equalTo(numberOfSettings));
@@ -109,7 +110,7 @@ public class ScriptModesTests extends ESTestCase {
     public void testDefaultSettings() {
         this.scriptModes = new ScriptModes(scriptSettings, Settings.EMPTY);
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.STORED, ScriptType.INLINE);
+        assertScriptModesAllOps(ScriptMode.OFF, ALL_LANGS, ScriptType.STORED, ScriptType.INLINE);
     }
 
     public void testMissingSetting() {
@@ -148,10 +149,10 @@ public class ScriptModesTests extends ESTestCase {
             assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
         }
         if (randomScriptTypesSet.contains(ScriptType.STORED) == false) {
-            assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.STORED);
+            assertScriptModesAllOps(ScriptMode.OFF, ALL_LANGS, ScriptType.STORED);
         }
         if (randomScriptTypesSet.contains(ScriptType.INLINE) == false) {
-            assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INLINE);
+            assertScriptModesAllOps(ScriptMode.OFF, ALL_LANGS, ScriptType.INLINE);
         }
     }
 
@@ -179,19 +180,19 @@ public class ScriptModesTests extends ESTestCase {
 
         ScriptContext[] complementOf = complementOf(randomScriptContexts);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, complementOf);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.STORED, ScriptType.INLINE}, complementOf);
+        assertScriptModes(ScriptMode.OFF, ALL_LANGS, new ScriptType[]{ScriptType.STORED, ScriptType.INLINE}, complementOf);
     }
 
     public void testConflictingScriptTypeAndOpGenericSettings() {
         ScriptContext scriptContext = randomFrom(scriptContexts);
         Settings.Builder builder = Settings.builder().put("script" + "." + scriptContext.getKey(), randomFrom(DISABLE_VALUES))
-                .put("script.stored", randomFrom(ENABLE_VALUES)).put("script.inline", "sandbox");
+                .put("script.stored", randomFrom(ENABLE_VALUES)).put("script.inline", "true");
         //operations generic settings have precedence over script type generic settings
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
         assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, scriptContext);
         ScriptContext[] complementOf = complementOf(scriptContext);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE, ScriptType.STORED}, complementOf);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INLINE}, complementOf);
+        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.INLINE}, complementOf);
     }
 
     private void assertScriptModesAllOps(ScriptMode expectedScriptMode, Set<String> langs, ScriptType... scriptTypes) {
@@ -208,8 +209,10 @@ public class ScriptModesTests extends ESTestCase {
         assert scriptContexts.length > 0;
         for (String lang : langs) {
             for (ScriptType scriptType : scriptTypes) {
+                checkedSettings.add("script.engine." + lang + "." + scriptType);
                 for (ScriptContext scriptContext : scriptContexts) {
-                    assertThat(lang + "." + scriptType + "." + scriptContext.getKey() + " doesn't have the expected value", scriptModes.getScriptMode(lang, scriptType, scriptContext), equalTo(expectedScriptMode));
+                    assertThat(lang + "." + scriptType + "." + scriptContext.getKey() + " doesn't have the expected value",
+                            scriptModes.getScriptMode(lang, scriptType, scriptContext), equalTo(expectedScriptMode));
                     checkedSettings.add(lang + "." + scriptType + "." + scriptContext);
                 }
             }
@@ -249,11 +252,6 @@ public class ScriptModesTests extends ESTestCase {
         @Override
         public List<String> getExtensions() {
             return Collections.singletonList(TYPES.get(0));
-        }
-
-        @Override
-        public boolean isSandboxed() {
-            return false;
         }
 
         @Override

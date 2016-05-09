@@ -1,9 +1,9 @@
 [[modules-scripting-groovy]]
 === Groovy Scripting Language
 
-Groovy is the default scripting language available in Elasticsearch.  Although
-limited by the <<java-security-manager,Java Security Manager>>, it is not a
-sandboxed language and only `file` scripts may be used by default.
+Groovy is the default scripting language available in Elasticsearch. Although
+limited by the <<java-security-manager,Java Security Manager>>, only `file`
+scripts may be used by default.
 
 Enabling `inline` or `stored` Groovy scripting is a security risk and should
 only be considered if your Elasticsearch cluster is protected from the outside

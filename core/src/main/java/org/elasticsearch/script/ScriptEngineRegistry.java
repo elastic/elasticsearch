@@ -29,11 +29,13 @@ public class ScriptEngineRegistry {
 
     private final Map<Class<? extends ScriptEngineService>, List<String>> registeredScriptEngineServices;
     private final Map<String, Class<? extends ScriptEngineService>> registeredLanguages;
+    private final Map<String, ScriptMode> defaultInlineScriptModes;
 
     public ScriptEngineRegistry(Iterable<ScriptEngineRegistration> registrations) {
         Objects.requireNonNull(registrations);
         Map<Class<? extends ScriptEngineService>, List<String>> registeredScriptEngineServices = new HashMap<>();
         Map<String, Class<? extends ScriptEngineService>> registeredLanguages = new HashMap<>();
+        Map<String, ScriptMode> inlineScriptModes = new HashMap<>();
         for (ScriptEngineRegistration registration : registrations) {
             List<String> languages =
                 registeredScriptEngineServices.putIfAbsent(registration.getScriptEngineService(), Collections.unmodifiableList(registration.getScriptEngineLanguages()));
@@ -47,11 +49,13 @@ public class ScriptEngineRegistry {
                 if (scriptEngineServiceClazz != null) {
                     throw new IllegalArgumentException("scripting language [" + language + "] already registered for script engine service [" + scriptEngineServiceClazz.getCanonicalName() + "]");
                 }
+                inlineScriptModes.put(language, registration.getDefaultInlineScriptMode());
             }
         }
 
         this.registeredScriptEngineServices = Collections.unmodifiableMap(registeredScriptEngineServices);
         this.registeredLanguages = Collections.unmodifiableMap(registeredLanguages);
+        this.defaultInlineScriptModes = Collections.unmodifiableMap(inlineScriptModes);
     }
 
     Iterable<Class<? extends ScriptEngineService>> getRegisteredScriptEngineServices() {
@@ -67,11 +71,22 @@ public class ScriptEngineRegistry {
         return registeredLanguages;
     }
 
+    Map<String, ScriptMode> getDefaultInlineScriptModes() {
+        return this.defaultInlineScriptModes;
+    }
+
     public static class ScriptEngineRegistration {
         private final Class<? extends ScriptEngineService> scriptEngineService;
         private final List<String> scriptEngineLanguages;
+        private final ScriptMode defaultInlineScriptMode;
 
         public ScriptEngineRegistration(Class<? extends ScriptEngineService> scriptEngineService, List<String> scriptEngineLanguages) {
+            // Default to "off/disabled" if not specified
+            this(scriptEngineService, scriptEngineLanguages, ScriptMode.OFF);
+        }
+
+        public ScriptEngineRegistration(Class<? extends ScriptEngineService> scriptEngineService, List<String> scriptEngineLanguages,
+                                        ScriptMode defaultInlineScriptMode) {
             Objects.requireNonNull(scriptEngineService);
             Objects.requireNonNull(scriptEngineLanguages);
             if (scriptEngineLanguages.isEmpty()) {
@@ -79,6 +94,7 @@ public class ScriptEngineRegistry {
             }
             this.scriptEngineService = scriptEngineService;
             this.scriptEngineLanguages = scriptEngineLanguages;
+            this.defaultInlineScriptMode = defaultInlineScriptMode;
         }
 
         Class<? extends ScriptEngineService> getScriptEngineService() {
@@ -87,6 +103,10 @@ public class ScriptEngineRegistry {
 
         List<String> getScriptEngineLanguages() {
             return scriptEngineLanguages;
+        }
+
+        ScriptMode getDefaultInlineScriptMode() {
+            return defaultInlineScriptMode;
         }
     }
 

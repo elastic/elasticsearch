@@ -35,8 +35,6 @@ public interface ScriptEngineService extends Closeable {
 
     List<String> getExtensions();
 
-    boolean isSandboxed();
-
     Object compile(String script, Map<String, String> params);
 
     ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars);

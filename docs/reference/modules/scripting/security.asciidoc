@@ -53,22 +53,20 @@ Each of these settings takes one of these values:
 [horizontal]
 `false`::   Scripting is enabled.
 `true`::    Scripting is disabled.
-`sandbox`:: Scripting is enabled only for sandboxed languages.
 
 The default values are the following:
 
 [source,yaml]
 -----------------------------------
-script.inline: sandbox
-script.stored: sandbox
+script.inline: false
+script.stored: false
 script.file:   true
 -----------------------------------
 
 NOTE: Global scripting settings affect the `mustache` scripting language.
-<<search-template,Search templates>> internally use the `mustache` language,
-and will still be enabled by default as the `mustache` engine is sandboxed,
-but they will be enabled/disabled according to fine-grained settings
-specified in `elasticsearch.yml`.
+<<search-template,Search templates>> internally use the `mustache` language, and
+will be disabled by default, but they can be enabled/disabled according to
+fine-grained settings specified in `elasticsearch.yml`.
 
 [[security-script-context]]
 [float]
@@ -88,9 +86,9 @@ of using the generic `plugin` category. Those operations can be referred to
 in the following form: `${pluginName}_${operation}`.
 
 The following example disables scripting for `update` and `plugin` operations,
-regardless of the script source or language. Scripts can still be executed
-from sandboxed languages as part of `aggregations`, `search` and plugins
-execution though, as the above defaults still get applied.
+regardless of the script source or language. Scripts can be executed from
+languages as part of `aggregations`, `search` and plugins execution though,
+assuming they are enabled in the scripting settings.
 
 [source,yaml]
 -----------------------------------
@@ -114,6 +112,13 @@ Fine-grained settings have the form:
 script.engine.{lang}.{source}.{context}: true|false
 ------------------------
 
+And
+
+[source,yaml]
+------------------------
+script.engine.{lang}.{inline|file|stored}: true|false
+------------------------
+
 For example:
 
 [source,yaml]
@@ -122,14 +127,16 @@ script.inline: false <1>
 script.stored: false <1>
 script.file:   false <1>
 
-script.engine.groovy.stored.search:   true <2>
-script.engine.groovy.stored.aggs:     true <2>
+script.engine.groovy.inline:          true <2>
+script.engine.groovy.stored.search:   true <3>
+script.engine.groovy.stored.aggs:     true <3>
 
-script.engine.mustache.stored.search: true <3>
+script.engine.mustache.stored.search: true <4>
 -----------------------------------
 <1> Disable all scripting from any source.
-<2> Allow stored Groovy scripts to be used for search and aggregations.
-<3> Allow stored Mustache templates to be used for search.
+<2> Allow inline Groovy scripts for all operations
+<3> Allow stored Groovy scripts to be used for search and aggregations.
+<4> Allow stored Mustache templates to be used for search.
 
 [[java-security-manager]]
 [float]

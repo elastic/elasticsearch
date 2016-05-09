@@ -171,11 +171,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public boolean isSandboxed() {
-        return false;
-    }
-
-    @Override
     public Object compile(String script, Map<String, String> params) {
         try {
             // we reuse classloader, so do a security check just in case.

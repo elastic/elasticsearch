@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
@@ -478,8 +479,6 @@ public class ScriptService extends AbstractComponent implements Closeable {
                 return true;
             case OFF:
                 return false;
-            case SANDBOX:
-                return scriptEngineService.isSandboxed();
             default:
                 throw new IllegalArgumentException("script mode [" + mode + "] not supported");
         }
@@ -607,8 +606,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
      */
     public enum ScriptType {
 
-        INLINE(0, "inline", "inline", ScriptMode.SANDBOX),
-        STORED(1, "id", "stored", ScriptMode.SANDBOX),
+        INLINE(0, "inline", "inline", ScriptMode.OFF),
+        STORED(1, "id", "stored", ScriptMode.OFF),
         FILE(2, "file", "file", ScriptMode.ON);
 
         private final int val;

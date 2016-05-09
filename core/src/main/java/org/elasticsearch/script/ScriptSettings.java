@@ -23,6 +23,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -96,7 +97,18 @@ public class ScriptSettings {
                     // native scripts are always enabled, and their settings can not be changed
                     continue;
                 }
-                for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+                ScriptMode defaultNonFileScriptMode = scriptEngineRegistry.getDefaultInlineScriptModes().get(language);
+                for (final ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+                    // This will be easier once ScriptMode is transitioned to booleans
+                    if (scriptType.getDefaultScriptMode() == ScriptMode.ON) {
+                        defaultNonFileScriptMode = ScriptMode.ON;
+                    }
+                    final ScriptMode defaultScriptMode = defaultNonFileScriptMode;
+                    // Like "script.engine.groovy.inline"
+                    final Setting<ScriptMode> langGlobalSetting = new Setting<>(ScriptModes.getGlobalKey(language, scriptType),
+                            defaultScriptMode.toString(), ScriptMode::parse, Property.NodeScope);
+                    scriptModeSettings.add(langGlobalSetting);
+
                     for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
                         Function<Settings, String> defaultSetting = settings -> {
                             // fallback logic for script mode settings
@@ -116,6 +128,11 @@ public class ScriptSettings {
                                 return languageSettings.keySet().iterator().next();
                             }
 
+                            // the next fallback is settings configured for this engine and script type
+                            if (langGlobalSetting.exists(settings)) {
+                                return langGlobalSetting.get(settings).getMode();
+                            }
+
                             // the next fallback is global operation-based settings (e.g., "script.aggs: false")
                             Setting<ScriptMode> setting = scriptContextSettingMap.get(scriptContext);
                             if (setting.exists(settings)) {
@@ -129,7 +146,7 @@ public class ScriptSettings {
                             }
 
                             // the final fallback is the default for the type
-                            return scriptType.getDefaultScriptMode().toString();
+                            return defaultScriptMode.toString();
                         };
                         Setting<ScriptMode> setting =
                             new Setting<>(

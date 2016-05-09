@@ -28,6 +28,7 @@ import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.SearchScript;
@@ -369,7 +370,7 @@ public class AvgIT extends AbstractNumericTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractFieldScriptEngine.class, ExtractFieldScriptEngine.TYPES));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractFieldScriptEngine.class, ExtractFieldScriptEngine.TYPES, ScriptMode.ON));
         }
 
     }
@@ -395,11 +396,6 @@ public class AvgIT extends AbstractNumericTestCase {
         @Override
         public List<String> getExtensions() {
             return TYPES;
-        }
-
-        @Override
-        public boolean isSandboxed() {
-            return true;
         }
 
         @Override
@@ -501,7 +497,7 @@ public class AvgIT extends AbstractNumericTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.TYPES));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.TYPES, ScriptMode.ON));
         }
 
     }
@@ -527,11 +523,6 @@ public class AvgIT extends AbstractNumericTestCase {
         @Override
         public List<String> getExtensions() {
             return TYPES;
-        }
-
-        @Override
-        public boolean isSandboxed() {
-            return true;
         }
 
         @Override

@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -44,7 +45,10 @@ public class ScriptContextTests extends ESTestCase {
             .put("script.engine." + MockScriptEngine.NAME + ".inline." + PLUGIN_NAME + "_custom_exp_disabled_op", "false")
             .build();
         Set<ScriptEngineService> engines = new HashSet<>(Collections.singletonList(new MockScriptEngine()));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
+        ScriptEngineRegistry scriptEngineRegistry =
+                new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
+                                                                                                                     MockScriptEngine.TYPES,
+                                                                                                                     ScriptMode.ON)));
         List<ScriptContext.Plugin> customContexts = Arrays.asList(
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"),
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"),

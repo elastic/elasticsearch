@@ -178,9 +178,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // This needs to tie into the ESIntegTestCase#indexSettings() method
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put("node.name", nodeName())
-
-            .put("script.inline", "true")
-            .put("script.stored", "true")
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("http.enabled", false)
             .put(Node.NODE_LOCAL_SETTING.getKey(), true)

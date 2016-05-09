@@ -1,0 +1,36 @@
+[[ingest-script]]
+=== Ingest Script Processor Plugin
+
+The ingest script plugin lets Elasticsearch create fields using scripting. This is allow for creation of scripted fields during index time
+instead of query time. The syntax reflects the same syntax which is used when using the <<java-docs-update-api-script, Update API>>.
+
+[[ingest-script-options]]
+.Script options
+[options="header"]
+|======
+| Name                   | Required  | Default | Description
+| `field`                | yes       | -       | The field to set
+| `lang`                 | no        | -       | The scripting language
+| `file`                 | no        | -       | The script file to refer to
+| `id`                   | no        | -       | The script id to load a script from the cluster state
+| `inline`               | no        | -       | An inline script to be executed
+|======
+
+NOTE: You have to specify one of `inline`, `file` or `id` in order to specify a script
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "...",
+  "processors" : [
+    {
+      "script" : {
+        "field" : "bytes_total",
+        "lang" : "painless",
+        "inline": "return input.ctx._source.bytes_in + input.ctx._source.bytes_out"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+

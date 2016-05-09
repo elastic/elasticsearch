@@ -30,7 +30,7 @@ PUT my-index/my-type/my-id?pipeline=my_pipeline_id
   "foo": "bar"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[catch:request]
 
 See <<ingest-apis,Ingest APIs>> for more information about creating, adding, and deleting pipelines.

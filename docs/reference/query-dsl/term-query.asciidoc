@@ -13,7 +13,7 @@ POST _search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Finds documents which contain the exact term `Kimchy` in the inverted index
     of the `user` field.
 
@@ -45,7 +45,7 @@ GET _search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `urgent` query clause has a boost of `2.0`, meaning it is twice as important
     as the query clause for `normal`.
@@ -107,7 +107,7 @@ PUT my_index/my_type/1
   "exact_value": "Quick Foxes!"  <4>
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `full_text` field is of type `text` and will be analyzed.
 <2> The `exact_value` field is of type `keyword` and will NOT be analyzed.
@@ -154,7 +154,7 @@ GET my_index/my_type/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[continued]
 
 <1> This query matches because the `exact_value` field contains the exact

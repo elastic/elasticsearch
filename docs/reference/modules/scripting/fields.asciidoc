@@ -79,7 +79,7 @@ GET my_index/_search
   }
 }
 -------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 
 [float]
@@ -113,7 +113,7 @@ GET my_index/_search
   }
 }
 -------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Doc-values can only return "simple" field values like numbers, dates, geo-
 points, terms, etc, or arrays of these values if the field is multi-valued.
@@ -211,7 +211,7 @@ GET my_index/_search
   }
 }
 -------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `title` field is not stored and so cannot be used with the `_fields[]` syntax.
 <2> The `title` field can still be accessed from the `_source`.
 

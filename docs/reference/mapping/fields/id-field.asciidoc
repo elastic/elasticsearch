@@ -38,7 +38,7 @@ GET my_index/_search
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Querying on the `_id` field (also see the <<query-dsl-ids-query,`ids` query>>)
 <2> Accessing the `_id` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)

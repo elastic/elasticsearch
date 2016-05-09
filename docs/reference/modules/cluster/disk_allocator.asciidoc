@@ -65,7 +65,7 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 NOTE: Prior to 2.0.0, when using multiple data paths, the disk threshold
 decider only factored in the usage across all data paths (if you had two

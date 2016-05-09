@@ -167,7 +167,7 @@ PUT _snapshot/my_backup4
     }
 }
 ----
-// AUTOSENSE
+// CONSOLE
 
 Example using Java:
 

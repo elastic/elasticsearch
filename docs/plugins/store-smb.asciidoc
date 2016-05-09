@@ -77,4 +77,4 @@ PUT my_index
    }
 }
 ----
-// AUTOSENSE
+// CONSOLE

@@ -37,7 +37,7 @@ GET my_index/_search
 }
 
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Querying on the `_field_names` field (also see the <<query-dsl-exists-query,`exists`>> query)
 <2> Accessing the `_field_names` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)

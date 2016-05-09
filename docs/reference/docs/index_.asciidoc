@@ -98,7 +98,7 @@ PUT twitter/tweet/1?version=2
     "message" : "elasticsearch now has versioning support, double cool!"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[catch: conflict]
 
 *NOTE:* versioning is completely real time, and is not affected by the
@@ -173,7 +173,7 @@ PUT twitter/tweet/1?op_type=create
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Another option to specify `create` is to use the following uri:
 
@@ -186,7 +186,7 @@ PUT twitter/tweet/1/_create
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [float]
 === Automatic ID Generation
@@ -205,7 +205,7 @@ POST twitter/tweet/
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The result of the above index operation is:
 
@@ -244,7 +244,7 @@ POST twitter/tweet?routing=kimchy
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 In the example above, the "tweet" document is routed to a shard based on
 the `routing` parameter provided: "kimchy".
@@ -282,7 +282,7 @@ PUT blogs/blog_tag/1122?parent=1111
     "tag" : "something"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 When indexing a child document, the routing value is automatically set
 to be the same as its parent, unless the routing value is explicitly
@@ -306,7 +306,7 @@ PUT twitter/tweet/1?timestamp=2009-11-15T14:12:12
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 If the `timestamp` value is not provided externally or in the `_source`,
 the `timestamp` will be automatically set to the date the document was
@@ -337,7 +337,7 @@ PUT twitter/tweet/1?ttl=86400000ms
     "message": "Trying out elasticsearch, so far so good?"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [source,js]
 --------------------------------------------------
@@ -347,7 +347,7 @@ PUT twitter/tweet/1?ttl=1d
     "message": "Trying out elasticsearch, so far so good?"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 More information can be found on the
 <<mapping-ttl-field,_ttl mapping page>>.
@@ -430,4 +430,4 @@ PUT twitter/tweet/1?timeout=5m
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE

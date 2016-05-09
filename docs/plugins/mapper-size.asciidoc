@@ -50,7 +50,7 @@ PUT my_index
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 The value of the `_size` field is accessible in queries, aggregations, scripts,
 and when sorting:
@@ -99,7 +99,7 @@ GET my_index/_search
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Querying on the `_size` field
 <2> Aggregating on the `_size` field

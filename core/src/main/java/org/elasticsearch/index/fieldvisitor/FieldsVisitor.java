@@ -23,8 +23,6 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
@@ -84,47 +82,15 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public void postProcess(MapperService mapperService) {
-        if (uid != null) {
-            DocumentMapper documentMapper = mapperService.documentMapper(uid.type());
-            if (documentMapper != null) {
-                // we can derive the exact type for the mapping
-                postProcess(documentMapper);
-                return;
-            }
-        }
-        // can't derive exact mapping type
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
             MappedFieldType fieldType = mapperService.fullName(entry.getKey());
             if (fieldType == null) {
-                continue;
+                throw new IllegalStateException("Field [" + entry.getKey()
+                    + "] exists in the index but not in mappings");
             }
             List<Object> fieldValues = entry.getValue();
             for (int i = 0; i < fieldValues.size(); i++) {
                 fieldValues.set(i, fieldType.valueForSearch(fieldValues.get(i)));
-            }
-        }
-    }
-
-    public void postProcess(DocumentMapper documentMapper) {
-        for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
-            String indexName = entry.getKey();
-            FieldMapper fieldMapper = documentMapper.mappers().getMapper(indexName);
-            if (fieldMapper == null) {
-                // it's possible index name doesn't match field name (legacy feature)
-                for (FieldMapper mapper : documentMapper.mappers()) {
-                    if (mapper.fieldType().name().equals(indexName)) {
-                        fieldMapper = mapper;
-                        break;
-                    }
-                }
-                if (fieldMapper == null) {
-                    // no index name or full name found, so skip
-                    continue;
-                }
-            }
-            List<Object> fieldValues = entry.getValue();
-            for (int i = 0; i < fieldValues.size(); i++) {
-                fieldValues.set(i, fieldMapper.fieldType().valueForSearch(fieldValues.get(i)));
             }
         }
     }

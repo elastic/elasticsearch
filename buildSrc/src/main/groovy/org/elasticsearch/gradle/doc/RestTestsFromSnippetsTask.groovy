@@ -95,7 +95,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 response(snippet)
                 return
             }
-            if (snippet.test || snippet.autoSense) {
+            if (snippet.test || snippet.console) {
                 test(snippet)
                 return
             }

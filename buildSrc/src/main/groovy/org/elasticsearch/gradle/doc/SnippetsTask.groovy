@@ -115,10 +115,10 @@ public class SnippetsTask extends DefaultTask {
                 if (line ==~ /\/\/\s*AUTOSENSE\s*/
                         || line ==~ /\/\/\s*CONSOLE\s*/) {
                     if (snippet == null) {
-                        throw new InvalidUserDataException("AUTOSENSE not " +
+                        throw new InvalidUserDataException("CONSOLE not " +
                             "paired with a snippet at $file:$lineNumber")
                     }
-                    snippet.autoSense = true
+                    snippet.console = true
                     return
                 }
                 matcher = line =~ /\/\/\s*TEST(\[(.+)\])?\s*/
@@ -217,7 +217,7 @@ public class SnippetsTask extends DefaultTask {
         int end = NOT_FINISHED
         String contents
 
-        boolean autoSense = false
+        boolean console = false
         boolean test = false
         boolean testResponse = false
         boolean testSetup = false
@@ -233,8 +233,8 @@ public class SnippetsTask extends DefaultTask {
             if (language != null) {
                 result += "($language)"
             }
-            if (autoSense) {
-                result += '// AUTOSENSE'
+            if (console) {
+                result += '// CONSOLE'
             }
             if (test) {
                 result += '// TEST'

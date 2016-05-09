@@ -55,11 +55,6 @@ public class SleepScriptEngine implements ScriptEngineService {
     }
 
     @Override
-    public boolean isSandboxed() {
-        return true;
-    }
-
-    @Override
     public Object compile(String script, Map<String, String> params) {
         return script;
     }

@@ -50,7 +50,7 @@ public class RestXPackInfoAction extends XPackRestHandler {
                 // we treat HEAD requests as simple pings to ensure that X-Pack is installed
                 // we still execute the action as we want this request to be authorized
                 if (request.method() == RestRequest.Method.HEAD) {
-                    return new BytesRestResponse(OK);
+                    return new BytesRestResponse(OK, builder);
                 }
 
                 builder.startObject();

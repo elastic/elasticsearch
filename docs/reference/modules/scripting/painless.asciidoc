@@ -199,38 +199,6 @@ POST hockey/player/1/_update
 ----------------------------------------------------------------
 // AUTOSENSE
 
-[float]
-=== Writing Type-Safe Scripts to Improve Performance
-
-If you explicitly specify types, the compiler doesn't have to perform type lookups at runtime, which can significantly
-improve performance. For example, the following script performs the same first name, last name sort we showed before,
-but it's fully type-safe.
-
-[source,js]
-----------------------------------------------------------------
-GET hockey/_search
-{
-  "query": {
-    "match_all": {}
-  },
-  "script_fields": {
-    "full_name_dynamic": {
-      "script": {
-        "lang": "painless",
-        "inline": "def first = input.doc['first'].value; def last = input.doc['last'].value; return first + ' ' + last;"
-      }
-    },
-    "full_name_static": {
-      "script": {
-        "lang": "painless",
-        "inline": "String first = (String)((List)((Map)input.get('doc')).get('first')).get(0); String last = (String)((List)((Map)input.get('doc')).get('last')).get(0); return first + ' ' + last;"
-      }
-    }
-  }
-}
-----------------------------------------------------------------
-// AUTOSENSE
-
 [[painless-api]]
 [float]
 == Painless API

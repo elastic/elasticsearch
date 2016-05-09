@@ -464,8 +464,7 @@ final class DocumentParser {
             context.path().remove();
         } else {
 
-            // TODO: why Strings.splitStringToArray instead of String.split?
-            final String[] paths = Strings.splitStringToArray(currentFieldName, '.');
+            final String[] paths = currentFieldName.split("\\.");
             currentFieldName = paths[paths.length - 1];
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, mapper);
             ObjectMapper parentMapper = parentMapperTuple.v2();
@@ -509,8 +508,7 @@ final class DocumentParser {
             }
         } else {
 
-            // TODO: why Strings.splitStringToArray instead of String.split?
-            final String[] paths = Strings.splitStringToArray(arrayFieldName, '.');
+            final String[] paths = arrayFieldName.split("\\.");
             arrayFieldName = paths[paths.length - 1];
             lastFieldName = arrayFieldName;
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
@@ -574,8 +572,7 @@ final class DocumentParser {
             parseObjectOrField(context, mapper);
         } else {
 
-            // TODO: why Strings.splitStringToArray instead of String.split?
-            final String[] paths = Strings.splitStringToArray(currentFieldName, '.');
+            final String[] paths = currentFieldName.split("\\.");
             currentFieldName = paths[paths.length - 1];
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
             parentMapper = parentMapperTuple.v2();

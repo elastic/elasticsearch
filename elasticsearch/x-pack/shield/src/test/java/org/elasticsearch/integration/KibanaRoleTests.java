@@ -167,4 +167,7 @@ public class KibanaRoleTests extends ShieldIntegTestCase {
                 .setIndices(index).get();
         assertThat(response.getIndices(), arrayContaining(index));
     }
+
+    // TODO: When we have an XPackIntegTestCase, this should test that we can send MonitoringBulkActions
+
 }

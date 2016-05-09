@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.marvel.action.MonitoringBulkAction;
 import org.elasticsearch.shield.user.KibanaUser;
 import org.elasticsearch.shield.user.User;
 import org.elasticsearch.test.ESTestCase;
@@ -34,6 +35,7 @@ public class KibanaRoleTests extends ESTestCase {
         assertThat(KibanaRole.INSTANCE.cluster().check(ClusterHealthAction.NAME, request, user), is(true));
         assertThat(KibanaRole.INSTANCE.cluster().check(ClusterStateAction.NAME, request, user), is(true));
         assertThat(KibanaRole.INSTANCE.cluster().check(ClusterStatsAction.NAME, request, user), is(true));
+        assertThat(KibanaRole.INSTANCE.cluster().check(MonitoringBulkAction.NAME, request, user), is(true));
         assertThat(KibanaRole.INSTANCE.cluster().check(PutIndexTemplateAction.NAME, request, user), is(false));
         assertThat(KibanaRole.INSTANCE.cluster().check(ClusterRerouteAction.NAME, request, user), is(false));
         assertThat(KibanaRole.INSTANCE.cluster().check(ClusterUpdateSettingsAction.NAME, request, user), is(false));

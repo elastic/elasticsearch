@@ -67,7 +67,7 @@ public class MonitoringBulkDocTests extends ESTestCase {
             doc.setSource(new BytesArray("{\"key\" : \"value\"}"));
         }
         if (rarely()) {
-            doc.setIndex(randomAsciiOfLength(5));
+            doc.setIndex(MonitoringIndex.DATA);
             doc.setId(randomAsciiOfLength(2));
         }
         return doc;

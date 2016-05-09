@@ -17,10 +17,14 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.precommit.PrecommitTasks;
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.gradle.api.JavaVersion
 
 group = 'org.elasticsearch.client'
 apply plugin: 'elasticsearch.build'
+
+targetCompatibility = JavaVersion.VERSION_1_7
+sourceCompatibility = JavaVersion.VERSION_1_7
 
 dependencies {
   // TODO once we got rid of the client in the test framework we should use a version variable here
@@ -47,8 +51,9 @@ dependencies {
   testCompile "org.bouncycastle:bcprov-jdk15on:1.54"
 }
 
-compileJava.options.compilerArgs << '-Xlint:-cast,-rawtypes,-try,-unchecked'
-compileTestJava.options.compilerArgs << '-Xlint:-rawtypes'
+//TODO compiling from 1.8 with target 1.7 and source 1.7 is best effort, not enough to ensure we are java 7 compatible
+compileJava.options.compilerArgs << '-target' << '1.7' << '-source' << '1.7' << '-Xlint:all,-path,-serial,-options'
+compileTestJava.options.compilerArgs << '-target' << '1.7' << '-source' << '1.7'
 
 forbiddenApisMain {
   //client does not depend on core, so only jdk signatures should be checked

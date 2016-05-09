@@ -29,6 +29,7 @@ import org.elasticsearch.client.ConnectionPool;
 import org.elasticsearch.client.RestClient;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -37,8 +38,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
-import java.util.stream.Stream;
 
 /**
  * Connection pool implementation that sniffs nodes from elasticsearch at regular intervals.
@@ -97,25 +96,25 @@ public class SniffingConnectionPool extends ConnectionPool {
 
         @Override
         public void run() {
-            sniff(node -> true);
+            sniff(null);
         }
 
         void sniffOnFailure(HttpHost failedHost) {
             //sync sniff straightaway on failure
             failure = true;
-            sniff(host -> host.equals(failedHost) == false);
+            sniff(failedHost);
         }
 
-        void sniff(Predicate<HttpHost> hostFilter) {
+        void sniff(HttpHost excludeHost) {
             if (running.compareAndSet(false, true)) {
                 try {
-                    Iterator<Connection> connectionIterator = nextConnection().iterator();
+                    Iterator<Connection> connectionIterator = nextConnection();
                     if (connectionIterator.hasNext()) {
-                        sniff(connectionIterator, hostFilter);
+                        sniff(connectionIterator, excludeHost);
                     } else {
                         Connection connection = lastResortConnection();
                         logger.info("no healthy nodes available, trying " + connection.getHost());
-                        sniff(Stream.of(connection).iterator(), hostFilter);
+                        sniff(Collections.singleton(connection).iterator(), excludeHost);
                     }
                 } catch (Throwable t) {
                     logger.error("error while sniffing nodes", t);
@@ -139,15 +138,16 @@ public class SniffingConnectionPool extends ConnectionPool {
             }
         }
 
-        void sniff(Iterator<Connection> connectionIterator, Predicate<HttpHost> hostFilter) throws IOException {
+        void sniff(Iterator<Connection> connectionIterator, HttpHost excludeHost) throws IOException {
             IOException lastSeenException = null;
             while (connectionIterator.hasNext()) {
                 Connection connection = connectionIterator.next();
                 try {
                     List<HttpHost> sniffedNodes = sniffer.sniffNodes(connection.getHost());
-                    HttpHost[] filteredNodes = sniffedNodes.stream().filter(hostFilter).toArray(HttpHost[]::new);
-                    logger.debug("adding " + filteredNodes.length + " nodes out of " + sniffedNodes.size() + " sniffed nodes");
-                    connections = createConnections(filteredNodes);
+                    if (excludeHost != null) {
+                        sniffedNodes.remove(excludeHost);
+                    }
+                    connections = createConnections(sniffedNodes.toArray(new HttpHost[sniffedNodes.size()]));
                     onSuccess(connection);
                     return;
                 } catch (IOException e) {

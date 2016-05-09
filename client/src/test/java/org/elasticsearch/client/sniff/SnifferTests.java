@@ -115,7 +115,7 @@ public class SnifferTests extends LuceneTestCase {
         }
     }
 
-    private static MockWebServer buildMockWebServer(SniffResponse sniffResponse, int sniffTimeout) throws UnsupportedEncodingException {
+    private static MockWebServer buildMockWebServer(final SniffResponse sniffResponse, final int sniffTimeout) throws UnsupportedEncodingException {
         MockWebServer server = new MockWebServer();
         final Dispatcher dispatcher = new Dispatcher() {
             @Override
@@ -244,7 +244,7 @@ public class SnifferTests extends LuceneTestCase {
         }
 
         static SniffResponse buildFailure() {
-            return new SniffResponse("", Collections.emptyList(), true);
+            return new SniffResponse("", Collections.<HttpHost>emptyList(), true);
         }
 
         static SniffResponse buildResponse(String nodesInfoBody, List<HttpHost> hosts) {

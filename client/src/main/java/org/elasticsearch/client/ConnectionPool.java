@@ -27,10 +27,11 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Stream;
 
 /**
  * Pool of connections to the different hosts that belong to an elasticsearch cluster.
@@ -66,7 +67,7 @@ public abstract class ConnectionPool implements Closeable {
      * It may happen that the stream is empty, in which case it means that there aren't healthy connections to use.
      * Then {@link #lastResortConnection()} should be called to retrieve a non healthy connection and try it.
      */
-    public final Stream<Connection> nextConnection() {
+    public final Iterator<Connection> nextConnection() {
         List<Connection> connections = getConnections();
         if (connections.isEmpty()) {
             throw new IllegalStateException("no connections available in the connection pool");
@@ -75,7 +76,14 @@ public abstract class ConnectionPool implements Closeable {
         List<Connection> sortedConnections = new ArrayList<>(connections);
         //TODO is it possible to make this O(1)? (rotate is O(n))
         Collections.rotate(sortedConnections, sortedConnections.size() - lastConnectionIndex.getAndIncrement());
-        return sortedConnections.stream().filter(connection -> connection.isAlive() || connection.shouldBeRetried());
+        Iterator<Connection> connectionIterator = sortedConnections.iterator();
+        while (connectionIterator.hasNext()) {
+            Connection connection = connectionIterator.next();
+            if (connection.isAlive() == false && connection.shouldBeRetried() == false) {
+                connectionIterator.remove();
+            }
+        }
+        return connectionIterator;
     }
 
     /**
@@ -96,10 +104,18 @@ public abstract class ConnectionPool implements Closeable {
      * only in case {@link #nextConnection()} returns an empty stream.
      */
     public final Connection lastResortConnection() {
-        Connection Connection = getConnections().stream()
-                .sorted((o1, o2) -> Long.compare(o1.getDeadUntil(), o2.getDeadUntil())).findFirst().get();
-        Connection.markResurrected();
-        return Connection;
+        List<Connection> connections = getConnections();
+        if (connections.isEmpty()) {
+            throw new IllegalStateException("no connections available in the connection pool");
+        }
+        List<Connection> sortedConnections = new ArrayList<>(connections);
+        Collections.sort(sortedConnections, new Comparator<Connection>() {
+            @Override
+            public int compare(Connection o1, Connection o2) {
+                return Long.compare(o1.getDeadUntil(), o2.getDeadUntil());
+            }
+        });
+        return sortedConnections.get(0);
     }
 
     /**

@@ -39,11 +39,11 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 
 public final class RestClient implements Closeable {
 
@@ -63,11 +63,11 @@ public final class RestClient implements Closeable {
             throws IOException {
         URI uri = buildUri(endpoint, params);
         HttpRequestBase request = createHttpRequest(method, uri, entity);
-        Iterator<Connection> connectionIterator = connectionPool.nextConnection().iterator();
+        Iterator<Connection> connectionIterator = connectionPool.nextConnection();
         if (connectionIterator.hasNext() == false) {
             Connection connection = connectionPool.lastResortConnection();
             logger.info("no healthy nodes available, trying " + connection.getHost());
-            return performRequest(request, Stream.of(connection).iterator());
+            return performRequest(request, Collections.singleton(connection).iterator());
         }
         return performRequest(request, connectionIterator);
     }

@@ -77,7 +77,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         public Builder(MappedFieldType existing) {
             super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
-            indexName = Defaults.NAME;
         }
 
         @Override

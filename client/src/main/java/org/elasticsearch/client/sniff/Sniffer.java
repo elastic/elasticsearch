@@ -40,7 +40,6 @@ import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Calls nodes info api and returns a list of http hosts extracted from it.
@@ -57,12 +56,6 @@ final class Sniffer {
     private final JsonFactory jsonFactory;
 
     Sniffer(CloseableHttpClient client, RequestConfig sniffRequestConfig, int sniffRequestTimeout, String scheme) {
-        Objects.requireNonNull(client, "client cannot be null");
-        Objects.requireNonNull(sniffRequestConfig, "sniffRequestConfig cannot be null");
-        if (sniffRequestTimeout <=0) {
-            throw new IllegalArgumentException("sniffRequestTimeout must be greater than 0");
-        }
-        Objects.requireNonNull(scheme, "scheme cannot be null");
         this.client = client;
         this.sniffRequestConfig = sniffRequestConfig;
         this.sniffRequestTimeout = sniffRequestTimeout;

@@ -25,8 +25,9 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.lucene.util.LuceneTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.logging.LogManager;
-import java.util.stream.Stream;
 
 public class RestClientTests extends LuceneTestCase {
 
@@ -38,13 +39,8 @@ public class RestClientTests extends LuceneTestCase {
         CloseableHttpClient httpClient = HttpClientBuilder.create().build();
         ConnectionPool connectionPool = new ConnectionPool() {
             @Override
-            public Stream<Connection> nextConnection() {
-                return null;
-            }
-
-            @Override
-            public Connection lastResortConnection() {
-                return null;
+            protected List<Connection> getConnections() {
+                return Collections.emptyList();
             }
 
             @Override

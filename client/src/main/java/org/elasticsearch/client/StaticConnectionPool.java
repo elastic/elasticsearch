@@ -27,7 +27,7 @@ import java.util.List;
 /**
  * Static implementation of {@link ConnectionPool}. Its underlying list of connections is immutable.
  */
-public class StaticConnectionPool extends AbstractStaticConnectionPool {
+public class StaticConnectionPool extends ConnectionPool {
 
     private final List<Connection> connections;
 

@@ -24,7 +24,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.elasticsearch.client.AbstractStaticConnectionPool;
+import org.elasticsearch.client.ConnectionPool;
 import org.elasticsearch.client.Connection;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ import java.util.stream.Stream;
  * Connection pool implementation that sniffs nodes from elasticsearch at regular intervals.
  * Can optionally sniff nodes on each failure as well.
  */
-public class SniffingConnectionPool extends AbstractStaticConnectionPool {
+public class SniffingConnectionPool extends ConnectionPool {
 
     private static final Log logger = LogFactory.getLog(SniffingConnectionPool.class);
 

@@ -178,7 +178,7 @@ public class LegacyShortFieldMapper extends LegacyNumberFieldMapper {
             int maxDoc = reader.maxDoc();
             Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
             if (terms == null) {
-                return new FieldStats.Long(maxDoc, isSearchable(), isAggregatable());
+                return null;
             }
             long minValue = LegacyNumericUtils.getMinInt(terms);
             long maxValue = LegacyNumericUtils.getMaxInt(terms);

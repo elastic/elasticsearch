@@ -170,7 +170,7 @@ public class LegacyFloatFieldMapper extends LegacyNumberFieldMapper {
             int maxDoc = reader.maxDoc();
             Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
             if (terms == null) {
-                return new FieldStats.Double(maxDoc, isSearchable(), isAggregatable());
+                return null;
             }
             float minValue = NumericUtils.sortableIntToFloat(LegacyNumericUtils.getMinInt(terms));
             float maxValue = NumericUtils.sortableIntToFloat(LegacyNumericUtils.getMaxInt(terms));

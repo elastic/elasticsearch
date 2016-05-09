@@ -232,7 +232,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
             String field = name();
             long size = XPointValues.size(reader, field);
             if (size == 0) {
-                return new FieldStats.Ip(reader.maxDoc(), isSearchable(), isAggregatable());
+                return null;
             }
             int docCount = XPointValues.getDocCount(reader, field);
             byte[] min = XPointValues.getMinPackedValue(reader, field);

@@ -117,11 +117,13 @@ public class TransportFieldStatsTransportAction extends
                     if (existing != null) {
                         if (existing.getType() != entry.getValue().getType()) {
                             if (conflicts.containsKey(entry.getKey()) == false) {
+                                FieldStats[] fields = new FieldStats[] {entry.getValue(), existing};
+                                Arrays.sort(fields, (o1, o2) -> Byte.compare(o1.getType(), o2.getType()));
                                 conflicts.put(entry.getKey(),
                                     "Field [" + entry.getKey() + "] of type [" +
-                                        FieldStats.typeName(entry.getValue().getType()) +
+                                        FieldStats.typeName(fields[0].getType()) +
                                         "] conflicts with existing field of type [" +
-                                        FieldStats.typeName(existing.getType()) +
+                                        FieldStats.typeName(fields[1].getType()) +
                                         "] in other index.");
                             }
                         } else {

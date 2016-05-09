@@ -164,5 +164,5 @@ setup:
   - match: { indices._all.fields.number.min_value_as_string: "123" }
   - match: { indices._all.fields.number.max_value: 456 }
   - match: { indices._all.fields.number.max_value_as_string: "456" }
-  - match: { conflicts.bar: "Field [bar] of type [text] conflicts with existing field of type [whole-number] in other index." }
+  - match: { conflicts.bar: "Field [bar] of type [whole-number] conflicts with existing field of type [text] in other index." }
   - is_false: indices._all.fields.bar

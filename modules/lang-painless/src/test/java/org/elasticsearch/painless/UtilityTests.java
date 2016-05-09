@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.runtime.Utility;
 import org.elasticsearch.test.ESTestCase;
 
 /**

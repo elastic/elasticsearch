@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.compiler;
 
 /**
  * Settings to use when compiling a script.

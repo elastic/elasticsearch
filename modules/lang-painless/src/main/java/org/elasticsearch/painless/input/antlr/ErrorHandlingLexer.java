@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.input.antlr;
 
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.LexerNoViableAltException;

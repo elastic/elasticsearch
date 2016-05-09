@@ -19,13 +19,13 @@
 
 package org.elasticsearch.painless.tree.analyzer;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Pair;
-import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Definition.Transform;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.compiler.Definition;
+import org.elasticsearch.painless.compiler.Definition.Cast;
+import org.elasticsearch.painless.compiler.Definition.Method;
+import org.elasticsearch.painless.compiler.Definition.Pair;
+import org.elasticsearch.painless.compiler.Definition.Sort;
+import org.elasticsearch.painless.compiler.Definition.Transform;
+import org.elasticsearch.painless.compiler.Definition.Type;
 
 import java.lang.reflect.InvocationTargetException;
 

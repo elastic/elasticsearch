@@ -19,12 +19,11 @@
 
 package org.elasticsearch.painless.tree.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.compiler.CompilerSettings;
+import org.elasticsearch.painless.compiler.Definition;
+import org.elasticsearch.painless.compiler.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Caster;
-import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.elasticsearch.painless.tree.writer.Shared;
+import org.elasticsearch.painless.tree.utility.Variables;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.painless.tree.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.elasticsearch.painless.tree.writer.Shared;
+import org.elasticsearch.painless.compiler.CompilerSettings;
+import org.elasticsearch.painless.compiler.Definition;
+import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.tree.writer.Utility;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
@@ -99,13 +99,13 @@ public class SWhile extends AStatement {
         condition.write(settings, definition, adapter);
 
         if (block != null) {
-            Shared.writeLoopCounter(adapter, loopCounterSlot, Math.max(1, block.statementCount));
+            Utility.writeLoopCounter(adapter, loopCounterSlot, Math.max(1, block.statementCount));
 
             block.continu = begin;
             block.brake = end;
             block.write(settings, definition, adapter);
         } else {
-            Shared.writeLoopCounter(adapter, loopCounterSlot, 1);
+            Utility.writeLoopCounter(adapter, loopCounterSlot, 1);
         }
 
         if (block == null || !block.allEscape) {

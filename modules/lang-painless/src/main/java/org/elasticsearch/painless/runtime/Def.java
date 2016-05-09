@@ -17,15 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.runtime;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Field;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Definition.Transform;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.compiler.Definition;
+import org.elasticsearch.painless.compiler.Definition.Cast;
+import org.elasticsearch.painless.compiler.Definition.Field;
+import org.elasticsearch.painless.compiler.Definition.Method;
+import org.elasticsearch.painless.compiler.Definition.Struct;
+import org.elasticsearch.painless.compiler.Definition.Transform;
+import org.elasticsearch.painless.compiler.Definition.Type;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Array;

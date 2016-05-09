@@ -19,10 +19,10 @@
 
 package org.elasticsearch.painless.tree.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.elasticsearch.painless.tree.writer.Shared;
+import org.elasticsearch.painless.compiler.CompilerSettings;
+import org.elasticsearch.painless.compiler.Definition;
+import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.tree.writer.Utility;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
@@ -136,7 +136,7 @@ public class SFor extends AStatement {
             AExpression initializer = (AExpression)this.initializer;
 
             initializer.write(settings, definition, adapter);
-            Shared.writePop(adapter, initializer.expected.sort.size);
+            Utility.writePop(adapter, initializer.expected.sort.size);
         }
 
         adapter.mark(start);
@@ -157,10 +157,10 @@ public class SFor extends AStatement {
                 ++statementCount;
             }
 
-            Shared.writeLoopCounter(adapter, loopCounterSlot, statementCount);
+            Utility.writeLoopCounter(adapter, loopCounterSlot, statementCount);
             block.write(settings, definition, adapter);
         } else {
-            Shared.writeLoopCounter(adapter, loopCounterSlot, 1);
+            Utility.writeLoopCounter(adapter, loopCounterSlot, 1);
         }
 
         if (afterthought != null) {

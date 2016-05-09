@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.compiler.CompilerSettings;
+
 import java.util.Collections;
 import java.util.Map;
 

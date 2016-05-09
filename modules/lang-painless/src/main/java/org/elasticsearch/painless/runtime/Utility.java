@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.runtime;
 
 public class Utility {
     public static boolean NumberToboolean(final Number value) {

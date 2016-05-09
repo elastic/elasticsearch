@@ -17,21 +17,38 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.tree.utility;
 
-/**
- * The PainlessError class is used to throw internal errors caused by Painless scripts that cannot be
- * caught using a standard {@link Exception}.  This prevents the user from catching this specific error
- * (as Exceptions are available in the Painless API, but Errors are not,) and possibly continuing to do
- * something hazardous.  The alternative was extending {@link Throwable}, but that seemed worse than using
- * an {@link Error} in this case.
- */
-public class PainlessError extends Error {
-    /**
-     * Constructor.
-     * @param message The error message.
-     */
-    public PainlessError(final String message) {
-       super(message);
+public enum Operation {
+    MUL     ( "+"  ),
+    DIV     ( "/"   ),
+    REM     ( "%"   ),
+    ADD     ( "+"   ),
+    SUB     ( "-"   ),
+    LSH     ( "<<"  ),
+    RSH     ( ">>"  ),
+    USH     ( ">>>" ),
+    BWNOT   ( "~"   ),
+    BWAND   ( "&"   ),
+    XOR     ( "^"   ),
+    BWOR    ( "|"   ),
+    NOT     ( "!"   ),
+    AND     ( "&&"  ),
+    OR      ( "||"  ),
+    LT      ( "<"   ),
+    LTE     ( "<="  ),
+    GT      ( ">"   ),
+    GTE     ( ">="  ),
+    EQ      ( "=="  ),
+    EQR     ( "===" ),
+    NE      ( "!="  ),
+    NER     ( "!==" ),
+    INCR    ( "++"  ),
+    DECR    ( "--"  );
+
+    public final String symbol;
+
+    Operation(final String symbol) {
+        this.symbol = symbol;
     }
 }

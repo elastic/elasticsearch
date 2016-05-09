@@ -17,38 +17,36 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.tree.analyzer;
+package org.elasticsearch.painless.runtime;
 
-public enum Operation {
-    MUL     ( "+"  ),
-    DIV     ( "/"   ),
-    REM     ( "%"   ),
-    ADD     ( "+"   ),
-    SUB     ( "-"   ),
-    LSH     ( "<<"  ),
-    RSH     ( ">>"  ),
-    USH     ( ">>>" ),
-    BWNOT   ( "~"   ),
-    BWAND   ( "&"   ),
-    XOR     ( "^"   ),
-    BWOR    ( "|"   ),
-    NOT     ( "!"   ),
-    AND     ( "&&"  ),
-    OR      ( "||"  ),
-    LT      ( "<"   ),
-    LTE     ( "<="  ),
-    GT      ( ">"   ),
-    GTE     ( ">="  ),
-    EQ      ( "=="  ),
-    EQR     ( "===" ),
-    NE      ( "!="  ),
-    NER     ( "!==" ),
-    INCR    ( "++"  ),
-    DECR    ( "--"  );
+import org.elasticsearch.painless.compiler.Definition;
 
-    public final String symbol;
+import java.util.Map;
 
-    Operation(final String symbol) {
-        this.symbol = symbol;
+public abstract class Executable {
+    protected final Definition definition;
+
+    private final String name;
+    private final String source;
+
+    public Executable(final Definition definition, final String name, final String source) {
+        this.definition = definition;
+
+        this.name = name;
+        this.source = source;
     }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public Definition getDefinition() {
+        return definition;
+    }
+
+    public abstract Object execute(Map<String, Object> input);
 }

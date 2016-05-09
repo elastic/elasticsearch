@@ -22,8 +22,8 @@ package org.elasticsearch.painless.input.antlr;
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
-import org.elasticsearch.painless.tree.analyzer.Operation;
-import org.elasticsearch.painless.tree.analyzer.Variables.Special;
+import org.elasticsearch.painless.tree.utility.Operation;
+import org.elasticsearch.painless.tree.utility.Variables.Special;
 import org.elasticsearch.painless.input.antlr.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.input.antlr.PainlessParser.ArgumentsContext;
 import org.elasticsearch.painless.input.antlr.PainlessParser.AssignmentContext;
@@ -121,8 +121,8 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
         return new Walker(source, special).source;
     }
 
-    private Special special;
-    private SSource source;
+    private final Special special;
+    private final SSource source;
 
     private Walker(final String source, final Special special) {
         this.special = special;
@@ -131,8 +131,13 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
 
     private SourceContext buildAntlrTree(final String source) {
         final ANTLRInputStream stream = new ANTLRInputStream(source);
-        final PainlessLexer lexer = new PainlessLexer(stream);
+        final PainlessLexer lexer = new ErrorHandlingLexer(stream);
         final PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
+        final ParserErrorStrategy strategy = new ParserErrorStrategy();
+
+        lexer.removeErrorListeners();
+        parser.removeErrorListeners();
+        parser.setErrorHandler(strategy);
 
         return parser.source();
     }

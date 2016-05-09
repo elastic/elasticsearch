@@ -17,34 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.runtime;
 
-import java.util.Map;
-
-public abstract class Executable {
-    protected final Definition definition;
-
-    private final String name;
-    private final String source;
-
-    public Executable(final Definition definition, final String name, final String source) {
-        this.definition = definition;
-
-        this.name = name;
-        this.source = source;
+/**
+ * The PainlessError class is used to throw internal errors caused by Painless scripts that cannot be
+ * caught using a standard {@link Exception}.  This prevents the user from catching this specific error
+ * (as Exceptions are available in the Painless API, but Errors are not,) and possibly continuing to do
+ * something hazardous.  The alternative was extending {@link Throwable}, but that seemed worse than using
+ * an {@link Error} in this case.
+ */
+public class PainlessError extends Error {
+    /**
+     * Constructor.
+     * @param message The error message.
+     */
+    public PainlessError(final String message) {
+       super(message);
     }
-
-    public String getName() {
-        return name;
-    }
-
-    public String getSource() {
-        return source;
-    }
-
-    public Definition getDefinition() {
-        return definition;
-    }
-
-    public abstract Object execute(Map<String, Object> input);
 }

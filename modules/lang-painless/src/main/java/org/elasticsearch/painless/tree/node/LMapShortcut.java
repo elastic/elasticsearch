@@ -19,12 +19,12 @@
 
 package org.elasticsearch.painless.tree.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.elasticsearch.painless.tree.writer.Shared;
+import org.elasticsearch.painless.compiler.CompilerSettings;
+import org.elasticsearch.painless.compiler.Definition;
+import org.elasticsearch.painless.compiler.Definition.Method;
+import org.elasticsearch.painless.compiler.Definition.Sort;
+import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.tree.writer.Utility;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class LMapShortcut extends ALink {
@@ -95,6 +95,6 @@ public class LMapShortcut extends ALink {
             adapter.invokeVirtual(setter.owner.type, setter.method);
         }
 
-        Shared.writePop(adapter, setter.rtn.sort.size);
+        Utility.writePop(adapter, setter.rtn.sort.size);
     }
 }

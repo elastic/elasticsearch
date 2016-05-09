@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.painless.compiler.CompilerSettings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;

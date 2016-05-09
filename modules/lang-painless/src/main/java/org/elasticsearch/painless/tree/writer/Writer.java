@@ -19,11 +19,11 @@
 
 package org.elasticsearch.painless.tree.writer;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Executable;
-import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.elasticsearch.painless.tree.analyzer.Variables.Variable;
+import org.elasticsearch.painless.compiler.CompilerSettings;
+import org.elasticsearch.painless.compiler.Definition;
+import org.elasticsearch.painless.runtime.Executable;
+import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.tree.utility.Variables.Variable;
 import org.elasticsearch.painless.tree.node.SSource;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;

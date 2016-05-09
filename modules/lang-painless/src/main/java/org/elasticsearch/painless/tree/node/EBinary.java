@@ -19,15 +19,14 @@
 
 package org.elasticsearch.painless.tree.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Utility;
+import org.elasticsearch.painless.compiler.CompilerSettings;
+import org.elasticsearch.painless.compiler.Definition;
+import org.elasticsearch.painless.compiler.Definition.Sort;
+import org.elasticsearch.painless.compiler.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Caster;
-import org.elasticsearch.painless.tree.analyzer.Operation;
-import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.elasticsearch.painless.tree.writer.Shared;
+import org.elasticsearch.painless.tree.utility.Operation;
+import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.tree.writer.Utility;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 public class EBinary extends AExpression {
@@ -103,10 +102,10 @@ public class EBinary extends AExpression {
                     Math.multiplyExact((long)left.constant, (long)right.constant);
             } else if (sort == Sort.FLOAT) {
                 constant = overflow ? (float)left.constant * (float)right.constant :
-                    Utility.multiplyWithoutOverflow((float)left.constant, (float)right.constant);
+                    org.elasticsearch.painless.runtime.Utility.multiplyWithoutOverflow((float)left.constant, (float)right.constant);
             } else if (sort == Sort.DOUBLE) {
                 constant = overflow ? (double)left.constant * (double)right.constant :
-                    Utility.multiplyWithoutOverflow((double)left.constant, (double)right.constant);
+                    org.elasticsearch.painless.runtime.Utility.multiplyWithoutOverflow((double)left.constant, (double)right.constant);
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -139,16 +138,16 @@ public class EBinary extends AExpression {
 
             if (sort == Sort.INT) {
                 constant = overflow ? (int)left.constant / (int)right.constant :
-                    Utility.divideWithoutOverflow((int)left.constant, (int)right.constant);
+                    org.elasticsearch.painless.runtime.Utility.divideWithoutOverflow((int)left.constant, (int)right.constant);
             } else if (sort == Sort.LONG) {
                 constant = overflow ? (long)left.constant / (long)right.constant :
-                    Utility.divideWithoutOverflow((long)left.constant, (long)right.constant);
+                    org.elasticsearch.painless.runtime.Utility.divideWithoutOverflow((long)left.constant, (long)right.constant);
             } else if (sort == Sort.FLOAT) {
                 constant = overflow ? (float)left.constant / (float)right.constant :
-                    Utility.divideWithoutOverflow((float)left.constant, (float)right.constant);
+                    org.elasticsearch.painless.runtime.Utility.divideWithoutOverflow((float)left.constant, (float)right.constant);
             } else if (sort == Sort.DOUBLE) {
                 constant = overflow ? (double)left.constant / (double)right.constant :
-                    Utility.divideWithoutOverflow((double)left.constant, (double)right.constant);
+                    org.elasticsearch.painless.runtime.Utility.divideWithoutOverflow((double)left.constant, (double)right.constant);
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -185,10 +184,10 @@ public class EBinary extends AExpression {
                 constant = (long)left.constant % (long)right.constant;
             } else if (sort == Sort.FLOAT) {
                 constant = overflow ? (float)left.constant % (float)right.constant :
-                    Utility.remainderWithoutOverflow((float)left.constant, (float)right.constant);
+                    org.elasticsearch.painless.runtime.Utility.remainderWithoutOverflow((float)left.constant, (float)right.constant);
             } else if (sort == Sort.DOUBLE) {
                 constant = overflow ? (double)left.constant % (double)right.constant :
-                    Utility.remainderWithoutOverflow((double)left.constant, (double)right.constant);
+                    org.elasticsearch.painless.runtime.Utility.remainderWithoutOverflow((double)left.constant, (double)right.constant);
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -242,10 +241,10 @@ public class EBinary extends AExpression {
                     Math.addExact((long)left.constant, (long)right.constant);
             } else if (sort == Sort.FLOAT) {
                 constant = overflow ? (float)left.constant + (float)right.constant :
-                    Utility.addWithoutOverflow((float)left.constant, (float)right.constant);
+                    org.elasticsearch.painless.runtime.Utility.addWithoutOverflow((float)left.constant, (float)right.constant);
             } else if (sort == Sort.DOUBLE) {
                 constant = overflow ? (double)left.constant + (double)right.constant :
-                    Utility.addWithoutOverflow((double)left.constant, (double)right.constant);
+                    org.elasticsearch.painless.runtime.Utility.addWithoutOverflow((double)left.constant, (double)right.constant);
             } else if (sort == Sort.STRING) {
                 constant = "" + left.constant + right.constant;
             } else {
@@ -286,10 +285,10 @@ public class EBinary extends AExpression {
                     Math.subtractExact((long)left.constant, (long)right.constant);
             } else if (sort == Sort.FLOAT) {
                 constant = overflow ? (float)left.constant - (float)right.constant :
-                    Utility.subtractWithoutOverflow((float)left.constant, (float)right.constant);
+                    org.elasticsearch.painless.runtime.Utility.subtractWithoutOverflow((float)left.constant, (float)right.constant);
             } else if (sort == Sort.DOUBLE) {
                 constant = overflow ? (double)left.constant - (double)right.constant :
-                    Utility.subtractWithoutOverflow((double)left.constant, (double)right.constant);
+                    org.elasticsearch.painless.runtime.Utility.subtractWithoutOverflow((double)left.constant, (double)right.constant);
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -506,31 +505,31 @@ public class EBinary extends AExpression {
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         if (actual.sort == Sort.STRING && operation == Operation.ADD) {
             if (!cat) {
-                Shared.writeNewStrings(adapter);
+                Utility.writeNewStrings(adapter);
             }
 
             left.write(settings, definition, adapter);
 
             if (!(left instanceof EBinary) || ((EBinary)left).operation != Operation.ADD || left.actual.sort != Sort.STRING) {
-                Shared.writeAppendStrings(adapter, left.actual.sort);
+                Utility.writeAppendStrings(adapter, left.actual.sort);
             }
 
             right.write(settings, definition, adapter);
 
             if (!(right instanceof EBinary) || ((EBinary)right).operation != Operation.ADD || right.actual.sort != Sort.STRING) {
-                Shared.writeAppendStrings(adapter, right.actual.sort);
+                Utility.writeAppendStrings(adapter, right.actual.sort);
             }
 
             if (!cat) {
-                Shared.writeToStrings(adapter);
+                Utility.writeToStrings(adapter);
             }
         } else {
             left.write(settings, definition, adapter);
             right.write(settings, definition, adapter);
 
-            Shared.writeBinaryInstruction(settings, definition, adapter, location, actual, operation);
+            Utility.writeBinaryInstruction(settings, definition, adapter, location, actual, operation);
         }
 
-        Shared.writeBranch(adapter, tru, fals);
+        Utility.writeBranch(adapter, tru, fals);
     }
 }

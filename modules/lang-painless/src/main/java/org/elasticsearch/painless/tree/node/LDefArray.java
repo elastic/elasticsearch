@@ -19,9 +19,9 @@
 
 package org.elasticsearch.painless.tree.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.tree.analyzer.Variables;
+import org.elasticsearch.painless.compiler.CompilerSettings;
+import org.elasticsearch.painless.compiler.Definition;
+import org.elasticsearch.painless.tree.utility.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import static org.elasticsearch.painless.tree.writer.Constants.CLASS_TYPE;

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.painless.tree.writer;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Executable;
-import org.elasticsearch.painless.PainlessError;
+import org.elasticsearch.painless.compiler.Definition;
+import org.elasticsearch.painless.runtime.Executable;
+import org.elasticsearch.painless.runtime.PainlessError;
 import org.elasticsearch.script.ScoreAccessor;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;

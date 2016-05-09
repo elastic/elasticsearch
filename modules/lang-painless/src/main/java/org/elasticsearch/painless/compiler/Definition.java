@@ -17,10 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.compiler;
 
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.painless.runtime.Executable;
+import org.elasticsearch.painless.runtime.Def;
+import org.elasticsearch.painless.runtime.Utility;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;

@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.tree.analyzer;
+package org.elasticsearch.painless.tree.utility;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.compiler.CompilerSettings;
+import org.elasticsearch.painless.compiler.Definition;
+import org.elasticsearch.painless.compiler.Definition.Type;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -38,7 +38,7 @@ public final class Variables {
         public final String location;
         public final String name;
         public final Type type;
-        public int slot = -1;
+        public final int slot;
         public boolean read = false;
 
         private Variable(final String location, final String name, final Type type, final int slot) {

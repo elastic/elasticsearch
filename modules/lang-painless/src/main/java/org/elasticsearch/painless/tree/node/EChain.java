@@ -19,15 +19,15 @@
 
 package org.elasticsearch.painless.tree.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.compiler.CompilerSettings;
+import org.elasticsearch.painless.compiler.Definition;
+import org.elasticsearch.painless.compiler.Definition.Cast;
+import org.elasticsearch.painless.compiler.Definition.Sort;
+import org.elasticsearch.painless.compiler.Definition.Type;
 import org.elasticsearch.painless.tree.analyzer.Caster;
-import org.elasticsearch.painless.tree.analyzer.Operation;
-import org.elasticsearch.painless.tree.analyzer.Variables;
-import org.elasticsearch.painless.tree.writer.Shared;
+import org.elasticsearch.painless.tree.utility.Operation;
+import org.elasticsearch.painless.tree.utility.Variables;
+import org.elasticsearch.painless.tree.writer.Utility;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.List;
@@ -219,7 +219,7 @@ public class EChain extends AExpression {
     @Override
     protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         if (cat) {
-            Shared.writeNewStrings(adapter);
+            Utility.writeNewStrings(adapter);
         }
 
         final ALink last = links.get(links.size() - 1);
@@ -229,43 +229,43 @@ public class EChain extends AExpression {
 
             if (link == last && link.store) {
                 if (cat) {
-                    Shared.writeDup(adapter, link.size, 1);
+                    Utility.writeDup(adapter, link.size, 1);
                     link.load(settings, definition, adapter);
-                    Shared.writeAppendStrings(adapter, link.after.sort);
+                    Utility.writeAppendStrings(adapter, link.after.sort);
 
                     expression.write(settings, definition, adapter);
 
                     if (!(expression instanceof EBinary) ||
                         ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
-                        Shared.writeAppendStrings(adapter, expression.actual.sort);
+                        Utility.writeAppendStrings(adapter, expression.actual.sort);
                     }
 
-                    Shared.writeToStrings(adapter);
-                    Shared.writeCast(adapter, back);
+                    Utility.writeToStrings(adapter);
+                    Utility.writeCast(adapter, back);
 
                     if (link.load) {
-                        Shared.writeDup(adapter, link.after.sort.size, link.size);
+                        Utility.writeDup(adapter, link.after.sort.size, link.size);
                     }
 
                     link.store(settings, definition, adapter);
                 } else if (operation != null) {
-                    Shared.writeDup(adapter, link.size, 0);
+                    Utility.writeDup(adapter, link.size, 0);
                     link.load(settings, definition, adapter);
 
                     if (link.load && post) {
-                        Shared.writeDup(adapter, link.after.sort.size, link.size);
+                        Utility.writeDup(adapter, link.after.sort.size, link.size);
                     }
 
-                    Shared.writeCast(adapter, there);
+                    Utility.writeCast(adapter, there);
                     expression.write(settings, definition, adapter);
-                    Shared.writeBinaryInstruction(settings, definition, adapter, location, promote, operation);
+                    Utility.writeBinaryInstruction(settings, definition, adapter, location, promote, operation);
 
-                    if (!exact || !Shared.writeExactInstruction(definition, adapter, promote.sort, link.after.sort)) {
-                        Shared.writeCast(adapter, back);
+                    if (!exact || !Utility.writeExactInstruction(definition, adapter, promote.sort, link.after.sort)) {
+                        Utility.writeCast(adapter, back);
                     }
 
                     if (link.load && !post) {
-                        Shared.writeDup(adapter, link.after.sort.size, link.size);
+                        Utility.writeDup(adapter, link.after.sort.size, link.size);
                     }
 
                     link.store(settings, definition, adapter);
@@ -273,7 +273,7 @@ public class EChain extends AExpression {
                     expression.write(settings, definition, adapter);
 
                     if (link.load) {
-                        Shared.writeDup(adapter, link.after.sort.size, link.size);
+                        Utility.writeDup(adapter, link.after.sort.size, link.size);
                     }
 
                     link.store(settings, definition, adapter);
@@ -283,6 +283,6 @@ public class EChain extends AExpression {
             }
         }
 
-        Shared.writeBranch(adapter, tru, fals);
+        Utility.writeBranch(adapter, tru, fals);
     }
 }

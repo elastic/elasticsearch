@@ -853,9 +853,7 @@ final class DocumentParser {
     private static Tuple<Integer, ObjectMapper> getDynamicParentMapper(ParseContext context, final String[] paths,
             ObjectMapper currentParent) {
         ObjectMapper mapper = currentParent == null ? context.root() : currentParent;
-        ObjectMapper[] mappers = new ObjectMapper[paths.length-1];
         int pathsAdded = 0;
-        if (paths.length > 1) {
             ObjectMapper parent = mapper;
             for (int i = 0; i < paths.length-1; i++) {
                 mapper = context.docMapper().objectMappers().get(context.path().pathAsText(paths[i]));
@@ -886,10 +884,8 @@ final class DocumentParser {
                 }
                 context.path().add(paths[i]);
                 pathsAdded++;
-                mappers[i] = mapper;
                 parent = mapper;
             }
-        }
         return new Tuple<Integer, ObjectMapper>(pathsAdded, mapper);
     }
 

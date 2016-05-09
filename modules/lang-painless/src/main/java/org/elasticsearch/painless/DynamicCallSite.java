@@ -38,12 +38,19 @@ import java.lang.invoke.MutableCallSite;
  * Based on the cascaded inlining cache from the JSR 292 cookbook 
  * (https://code.google.com/archive/p/jsr292-cookbook/, BSD license)
  */
+// NOTE: this class must be public, because generated painless classes are in a different package,
+// and it needs to be accessible by that code.
 public final class DynamicCallSite {
+    // NOTE: these must be primitive types, see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
+    /** static bootstrap parameter indicating a dynamic method call, e.g. foo.bar(...) */
     static final int METHOD_CALL = 0;
+    /** static bootstrap parameter indicating a dynamic load (getter), e.g. baz = foo.bar */
     static final int LOAD = 1;
+    /** static bootstrap parameter indicating a dynamic store (setter), e.g. foo.bar = baz */
     static final int STORE = 2;
     
     static class InliningCacheCallSite extends MutableCallSite {
+        /** maximum number of types before we go megamorphic */
         static final int MAX_DEPTH = 5;
         
         final Lookup lookup;
@@ -59,6 +66,14 @@ public final class DynamicCallSite {
         }
     }
     
+    /** 
+     * invokeDynamic bootstrap method
+     * <p>
+     * In addition to ordinary parameters, we also take a static parameter {@code flavor} which
+     * tells us what type of dynamic call it is (and which part of whitelist to look at).
+     * <p>
+     * see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
+     */
     public static CallSite bootstrap(Lookup lookup, String name, MethodType type, int flavor) {
         InliningCacheCallSite callSite = new InliningCacheCallSite(lookup, name, type, flavor);
         
@@ -70,22 +85,33 @@ public final class DynamicCallSite {
         return callSite;
     }
     
+    /** 
+     * guard method for inline caching: checks the receiver's class is the same
+     * as the cached class
+     */
     public static boolean checkClass(Class<?> clazz, Object receiver) {
         return receiver.getClass() == clazz;
     }
     
+    /**
+     * Does a slow lookup against the whitelist.
+     */
     private static MethodHandle lookup(int flavor, Class<?> clazz, String name) {
         switch(flavor) {
             case METHOD_CALL: 
-                return Def.methodHandle(clazz, name, Definition.INSTANCE);
+                return Def.lookupMethod(clazz, name, Definition.INSTANCE);
             case LOAD: 
-                return Def.loadHandle(clazz, name, Definition.INSTANCE);
+                return Def.lookupGetter(clazz, name, Definition.INSTANCE);
             case STORE:
-                return Def.storeHandle(clazz, name, Definition.INSTANCE);
+                return Def.lookupSetter(clazz, name, Definition.INSTANCE);
             default: throw new AssertionError();
         }
     }
     
+    /**
+     * Called when a new type is encountered (or, when we have encountered more than {@code MAX_DEPTH}
+     * types at this call site and given up on caching). 
+     */
     public static Object fallback(InliningCacheCallSite callSite, Object[] args) throws Throwable {
         MethodType type = callSite.type();
         Object receiver = args[0];

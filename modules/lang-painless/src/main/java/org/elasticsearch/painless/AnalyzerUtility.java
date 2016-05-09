@@ -22,7 +22,6 @@ package org.elasticsearch.painless;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Metadata.ExtNodeMetadata;
 import org.elasticsearch.painless.PainlessParser.ExpressionContext;
 import org.elasticsearch.painless.PainlessParser.IdentifierContext;
 import org.elasticsearch.painless.PainlessParser.PrecedenceContext;
@@ -109,15 +108,13 @@ class AnalyzerUtility {
         return source;
     }
 
-    private final Metadata metadata;
     private final Definition definition;
 
     private final Deque<Integer> scopes = new ArrayDeque<>();
     private final Deque<Variable> variables = new ArrayDeque<>();
 
     AnalyzerUtility(final Metadata metadata) {
-        this.metadata = metadata;
-        definition = metadata.definition;
+        this.definition = metadata.definition;
     }
 
     void incrementScope() {

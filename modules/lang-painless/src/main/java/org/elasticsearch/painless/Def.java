@@ -30,46 +30,86 @@ import java.lang.reflect.Array;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Support for dynamic type (def).
+ * <p>
+ * Dynamic types can invoke methods, load/store fields, and be passed as parameters to operators without 
+ * compile-time type information. 
+ * <p>
+ * Dynamic methods, loads, and stores involve locating the appropriate field or method depending
+ * on the receiver's class. For these, we emit an {@code invokedynamic} instruction that, for each new 
+ * type encountered will query a corresponding {@code lookupXXX} method to retrieve the appropriate method.
+ * In most cases, the {@code lookupXXX} methods here will only be called once for a given call site, because 
+ * caching ({@link DynamicCallSite}) generally works: usually all objects at any call site will be consistently 
+ * the same type (or just a few types).  In extreme cases, if there is type explosion, they may be called every 
+ * single time, but simplicity is still more valuable than performance in this code.
+ * <p>
+ * Dynamic array loads and stores and operator functions (e.g. {@code +}) are called directly
+ * with {@code invokestatic}. Because these features cannot be overloaded in painless, they are hardcoded 
+ * decision trees based on the only types that are possible. This keeps overhead low, and seems to be as fast
+ * on average as the more adaptive methodhandle caching. 
+ */
 public class Def {
 
-    /** Looks up handle for a method call from whitelist */
-    static MethodHandle methodHandle(Class<?> ownerClass, String name, Definition definition) {
-        for (Class<?> clazz = ownerClass; clazz != null; clazz = clazz.getSuperclass()) {
+    /** 
+     * Looks up handle for a dynamic method call.
+     * <p>
+     * A dynamic method call for variable {@code x} of type {@code def} looks like:
+     * {@code x.method(args...)}
+     * <p>
+     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces) 
+     * until it finds a matching whitelisted method. If one not is found, it throws an exception. 
+     * Otherwise it returns a handle to the matching method.
+     * <p>
+     * @param receiverClass Class of the object to invoke the method on.
+     * @param name Name of the method.
+     * @param definition Whitelist to check.
+     * @return pointer to matching method to invoke. never returns null.
+     * @throws IllegalArgumentException if no matching whitelisted method was found.
+     */
+    static MethodHandle lookupMethod(Class<?> receiverClass, String name, Definition definition) {
+        // check whitelist for matching method
+        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
             RuntimeClass struct = definition.runtimeMap.get(clazz);
 
             if (struct != null) {
                 Method method = struct.methods.get(name);
-
                 if (method != null) {
                     return method.handle;
                 }
             }
 
-            for (final Class<?> iface : clazz.getInterfaces()) {
+            for (Class<?> iface : clazz.getInterfaces()) {
                 struct = definition.runtimeMap.get(iface);
 
                 if (struct != null) {
                     Method method = struct.methods.get(name);
-
                     if (method != null) {
                         return method.handle;
                     }
                 }
             }
         }
-      
+
+        // no matching methods in whitelist found
         throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] " +
-                                           "for class [" + ownerClass.getCanonicalName() + "].");
+                                           "for class [" + receiverClass.getCanonicalName() + "].");
     }
-    
+
+    /** pointer to Array.getLength(Object) */
     private static final MethodHandle ARRAY_LENGTH;
+    /** pointer to Map.get(Object) */
     private static final MethodHandle MAP_GET;
+    /** pointer to Map.put(Object,Object) */
     private static final MethodHandle MAP_PUT;
+    /** pointer to List.get(int) */
     private static final MethodHandle LIST_GET;
+    /** pointer to List.set(int,Object) */
     private static final MethodHandle LIST_SET;
     static {
         Lookup lookup = MethodHandles.lookup();
         try {
+            // TODO: maybe specialize handles for different array types. this may be slower, but simple :)
             ARRAY_LENGTH = lookup.findStatic(Array.class, "getLength",
                                              MethodType.methodType(int.class, Object.class));
             MAP_GET      = lookup.findVirtual(Map.class, "get",
@@ -85,10 +125,35 @@ public class Def {
         }
     }
     
-    /** Looks up handle for a field load from whitelist */
-    static MethodHandle loadHandle(Class<?> ownerClass, String name, Definition definition) {
+    /** 
+     * Looks up handle for a dynamic field getter (field load)
+     * <p>
+     * A dynamic field load for variable {@code x} of type {@code def} looks like:
+     * {@code y = x.field}
+     * <p>
+     * The following field loads are allowed:
+     * <ul>
+     *   <li>Whitelisted {@code field} from receiver's class or any superclasses.
+     *   <li>Whitelisted method named {@code getField()} from receiver's class/superclasses/interfaces.
+     *   <li>Whitelisted method named {@code isField()} from receiver's class/superclasses/interfaces.
+     *   <li>The {@code length} field of an array.
+     *   <li>The value corresponding to a map key named {@code field} when the receiver is a Map.
+     *   <li>The value in a list at element {@code field} (integer) when the receiver is a List.
+     * </ul>
+     * <p>
+     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces) 
+     * until it finds a matching whitelisted getter. If one is not found, it throws an exception. 
+     * Otherwise it returns a handle to the matching getter.
+     * <p>
+     * @param receiverClass Class of the object to retrieve the field from.
+     * @param name Name of the field.
+     * @param definition Whitelist to check.
+     * @return pointer to matching field. never returns null.
+     * @throws IllegalArgumentException if no matching whitelisted field was found.
+     */
+    static MethodHandle lookupGetter(Class<?> receiverClass, String name, Definition definition) {
         // first try whitelist
-        for (Class<?> clazz = ownerClass; clazz != null; clazz = clazz.getSuperclass()) {
+        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
             RuntimeClass struct = definition.runtimeMap.get(clazz);
 
             if (struct != null) {
@@ -110,11 +175,17 @@ public class Def {
             }
         }
         // special case: arrays, maps, and lists
-        if (ownerClass.isArray() && "length".equals(name)) {
+        if (receiverClass.isArray() && "length".equals(name)) {
+            // arrays expose .length as a read-only getter
             return ARRAY_LENGTH;
-        } else if (Map.class.isAssignableFrom(ownerClass)) {
+        } else if (Map.class.isAssignableFrom(receiverClass)) {
+            // maps allow access like mymap.key
+            // wire 'key' as a parameter, its a constant in painless
             return MethodHandles.insertArguments(MAP_GET, 1, name);
-        } else if (List.class.isAssignableFrom(ownerClass)) {
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            // lists allow access like mylist.0
+            // wire '0' (index) as a parameter, its a constant. this also avoids
+            // parsing the same integer millions of times!
             try {
                 int index = Integer.parseInt(name);
                 return MethodHandles.insertArguments(LIST_GET, 1, index);            
@@ -124,13 +195,36 @@ public class Def {
         }
         
         throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
-                                           "for class [" + ownerClass.getCanonicalName() + "].");
+                                           "for class [" + receiverClass.getCanonicalName() + "].");
     }
     
-    /** Looks up handle for a field store from whitelist */
-    static MethodHandle storeHandle(Class<?> ownerClass, String name, Definition definition) {
+    /** 
+     * Looks up handle for a dynamic field setter (field store)
+     * <p>
+     * A dynamic field store for variable {@code x} of type {@code def} looks like:
+     * {@code x.field = y}
+     * <p>
+     * The following field stores are allowed:
+     * <ul>
+     *   <li>Whitelisted {@code field} from receiver's class or any superclasses.
+     *   <li>Whitelisted method named {@code setField()} from receiver's class/superclasses/interfaces.
+     *   <li>The value corresponding to a map key named {@code field} when the receiver is a Map.
+     *   <li>The value in a list at element {@code field} (integer) when the receiver is a List.
+     * </ul>
+     * <p>
+     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces) 
+     * until it finds a matching whitelisted setter. If one is not found, it throws an exception. 
+     * Otherwise it returns a handle to the matching setter.
+     * <p>
+     * @param receiverClass Class of the object to retrieve the field from.
+     * @param name Name of the field.
+     * @param definition Whitelist to check.
+     * @return pointer to matching field. never returns null.
+     * @throws IllegalArgumentException if no matching whitelisted field was found.
+     */
+    static MethodHandle lookupSetter(Class<?> receiverClass, String name, Definition definition) {
         // first try whitelist
-        for (Class<?> clazz = ownerClass; clazz != null; clazz = clazz.getSuperclass()) {
+        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
             RuntimeClass struct = definition.runtimeMap.get(clazz);
 
             if (struct != null) {
@@ -152,9 +246,14 @@ public class Def {
             }
         }
         // special case: maps, and lists
-        if (Map.class.isAssignableFrom(ownerClass)) {
+        if (Map.class.isAssignableFrom(receiverClass)) {
+            // maps allow access like mymap.key
+            // wire 'key' as a parameter, its a constant in painless
             return MethodHandles.insertArguments(MAP_PUT, 1, name);
-        } else if (List.class.isAssignableFrom(ownerClass)) {
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            // lists allow access like mylist.0
+            // wire '0' (index) as a parameter, its a constant. this also avoids
+            // parsing the same integer millions of times!
             try {
                 int index = Integer.parseInt(name);
                 return MethodHandles.insertArguments(LIST_SET, 1, index);            
@@ -164,9 +263,17 @@ public class Def {
         }
         
         throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
-                                           "for class [" + ownerClass.getCanonicalName() + "].");
+                                           "for class [" + receiverClass.getCanonicalName() + "].");
     }
-    
+
+    // NOTE: below methods are not cached, instead invoked directly because they are performant.
+
+    /**
+     * Performs an actual array store.
+     * @param array array object
+     * @param index map key, array index (integer), or list index (integer)
+     * @param value value to store in the array.
+     */
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public static void arrayStore(final Object array, Object index, Object value) {
         if (array instanceof Map) {
@@ -186,6 +293,11 @@ public class Def {
         }
     }
     
+    /**
+     * Performs an actual array load.
+     * @param array array object
+     * @param index map key, array index (integer), or list index (integer)
+     */
     @SuppressWarnings("rawtypes")
     public static Object arrayLoad(final Object array, Object index) {
         if (array instanceof Map) {

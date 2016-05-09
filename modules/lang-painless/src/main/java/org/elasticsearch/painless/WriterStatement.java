@@ -26,7 +26,6 @@ import org.elasticsearch.painless.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.PainlessParser.BlockContext;
 import org.elasticsearch.painless.PainlessParser.DeclContext;
 import org.elasticsearch.painless.PainlessParser.DeclarationContext;
-import org.elasticsearch.painless.PainlessParser.DecltypeContext;
 import org.elasticsearch.painless.PainlessParser.DeclvarContext;
 import org.elasticsearch.painless.PainlessParser.DoContext;
 import org.elasticsearch.painless.PainlessParser.EmptyscopeContext;

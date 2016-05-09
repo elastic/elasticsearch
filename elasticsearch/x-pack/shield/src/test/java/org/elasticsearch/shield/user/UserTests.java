@@ -10,6 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.XPackClient;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -58,13 +59,23 @@ public class UserTests extends ESTestCase {
         assertThat(readFromRunAs.runAs(), is(nullValue()));
     }
 
-    public void testSystemReadAndWrite() throws Exception {
+    public void testSystemUserReadAndWrite() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
 
         User.writeTo(SystemUser.INSTANCE, output);
         User readFrom = User.readFrom(ByteBufferStreamInput.wrap(output.bytes()));
 
         assertThat(readFrom, is(sameInstance(SystemUser.INSTANCE)));
+        assertThat(readFrom.runAs(), is(nullValue()));
+    }
+
+    public void testXPackUserReadAndWrite() throws Exception {
+        BytesStreamOutput output = new BytesStreamOutput();
+
+        User.writeTo(XPackUser.INSTANCE, output);
+        User readFrom = User.readFrom(ByteBufferStreamInput.wrap(output.bytes()));
+
+        assertThat(readFrom, is(sameInstance(XPackUser.INSTANCE)));
         assertThat(readFrom.runAs(), is(nullValue()));
     }
 
@@ -102,10 +113,10 @@ public class UserTests extends ESTestCase {
 
     public void testReservedUserSerialization() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
-        User.writeTo(XPackUser.INSTANCE, output);
+        User.writeTo(ElasticUser.INSTANCE, output);
         User readFrom = User.readFrom(ByteBufferStreamInput.wrap(output.bytes()));
 
-        assertThat(readFrom, is(sameInstance(XPackUser.INSTANCE)));
+        assertThat(readFrom, is(sameInstance(ElasticUser.INSTANCE)));
 
         output = new BytesStreamOutput();
         User.writeTo(KibanaUser.INSTANCE, output);

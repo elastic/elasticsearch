@@ -18,7 +18,7 @@ import org.elasticsearch.shield.support.Exceptions;
 import org.elasticsearch.shield.user.AnonymousUser;
 import org.elasticsearch.shield.user.KibanaUser;
 import org.elasticsearch.shield.user.User;
-import org.elasticsearch.shield.user.XPackUser;
+import org.elasticsearch.shield.user.ElasticUser;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -86,7 +86,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     public static boolean isReserved(String username) {
         assert username != null;
         switch (username) {
-            case XPackUser.NAME:
+            case ElasticUser.NAME:
             case KibanaUser.NAME:
                 return true;
             default:
@@ -97,8 +97,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     public static User getUser(String username) {
         assert username != null;
         switch (username) {
-            case XPackUser.NAME:
-                return XPackUser.INSTANCE;
+            case ElasticUser.NAME:
+                return ElasticUser.INSTANCE;
             case KibanaUser.NAME:
                 return KibanaUser.INSTANCE;
             default:
@@ -111,9 +111,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public static Collection<User> users() {
         if (AnonymousUser.enabled()) {
-            return Arrays.asList(XPackUser.INSTANCE, KibanaUser.INSTANCE, AnonymousUser.INSTANCE);
+            return Arrays.asList(ElasticUser.INSTANCE, KibanaUser.INSTANCE, AnonymousUser.INSTANCE);
         }
-        return Arrays.asList(XPackUser.INSTANCE, KibanaUser.INSTANCE);
+        return Arrays.asList(ElasticUser.INSTANCE, KibanaUser.INSTANCE);
     }
 
     private char[] getPasswordHash(final String username) {

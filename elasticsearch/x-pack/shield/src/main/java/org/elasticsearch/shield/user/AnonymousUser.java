@@ -25,7 +25,7 @@ import static org.elasticsearch.shield.Security.setting;
  */
 public class AnonymousUser extends ReservedUser {
 
-    public static final String DEFAULT_ANONYMOUS_USERNAME = "_es_anonymous_user";
+    public static final String DEFAULT_ANONYMOUS_USERNAME = "_anonymous";
     public static final Setting<String> USERNAME_SETTING =
             new Setting<>(setting("authc.anonymous.username"), DEFAULT_ANONYMOUS_USERNAME, s -> s, Property.NodeScope);
     public static final Setting<List<String>> ROLES_SETTING =

@@ -16,8 +16,8 @@ import java.util.function.Predicate;
  */
 public class SystemUser extends User {
 
-    public static final String NAME = "__es_system_user";
-    public static final String ROLE_NAME = "__es_system_role";
+    public static final String NAME = "_system";
+    public static final String ROLE_NAME = "_system";
 
     public static final User INSTANCE = new SystemUser();
 
@@ -39,6 +39,10 @@ public class SystemUser extends User {
 
     public static boolean is(User user) {
         return INSTANCE.equals(user);
+    }
+
+    public static boolean is(String principal) {
+        return NAME.equals(principal);
     }
 
     public static boolean isAuthorized(String action) {

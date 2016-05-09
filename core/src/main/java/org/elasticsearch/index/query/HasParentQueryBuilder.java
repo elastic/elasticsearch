@@ -60,17 +60,17 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     private static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
-    private final QueryBuilder<?> query;
+    private final QueryBuilder query;
     private final String type;
     private final boolean score;
     private InnerHitBuilder innerHit;
     private boolean ignoreUnmapped = false;
 
-    public HasParentQueryBuilder(String type, QueryBuilder<?> query, boolean score) {
+    public HasParentQueryBuilder(String type, QueryBuilder query, boolean score) {
         this(type, query, score, null);
     }
 
-    private HasParentQueryBuilder(String type, QueryBuilder<?> query, boolean score, InnerHitBuilder innerHit) {
+    private HasParentQueryBuilder(String type, QueryBuilder query, boolean score, InnerHitBuilder innerHit) {
         this.type = requireValue(type, "[" + NAME + "] requires 'type' field");
         this.query = requireValue(query, "[" + NAME + "] requires 'query' field");
         this.score = score;
@@ -101,7 +101,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     /**
      * Returns the query to execute.
      */
-    public QueryBuilder<?> query() {
+    public QueryBuilder query() {
         return query;
     }
 
@@ -238,7 +238,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
 
         String currentFieldName = null;
         XContentParser.Token token;
-        QueryBuilder<?> iqb = null;
+        QueryBuilder iqb = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -306,8 +306,8 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder<?> rewrite = query.rewrite(queryShardContext);
+    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        QueryBuilder rewrite = query.rewrite(queryShardContext);
         if (rewrite != query) {
             return new HasParentQueryBuilder(type, rewrite, score, innerHit);
         }

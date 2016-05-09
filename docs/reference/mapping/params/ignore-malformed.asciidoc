@@ -43,7 +43,7 @@ PUT my_index/my_type/2
   "number_two": "foo" <2>
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[catch:request]
 <1> This document will have the `text` field indexed, but not the `number_one` field.
 <2> This document will be rejected because `number_two` does not allow malformed values.
@@ -81,7 +81,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `number_one` field inherits the index-level setting.
 <2> The `number_two` field overrides the index-level setting to turn off `ignore_malformed`.

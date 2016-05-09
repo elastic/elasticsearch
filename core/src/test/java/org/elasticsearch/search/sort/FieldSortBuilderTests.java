@@ -25,6 +25,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -110,7 +111,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     }
 
     @Override
-    protected void sortFieldAssertions(FieldSortBuilder builder, SortField sortField) throws IOException {
+    protected void sortFieldAssertions(FieldSortBuilder builder, SortField sortField, DocValueFormat format) throws IOException {
         SortField.Type expectedType;
         if (builder.getFieldName().equals(FieldSortBuilder.DOC_FIELD_NAME)) {
             expectedType = SortField.Type.DOC;
@@ -122,6 +123,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         if (expectedType == SortField.Type.CUSTOM) {
             assertEquals(builder.getFieldName(), sortField.getField());
         }
+        assertEquals(DocValueFormat.RAW, format);
     }
 
     public void testReverseOptionFails() throws IOException {

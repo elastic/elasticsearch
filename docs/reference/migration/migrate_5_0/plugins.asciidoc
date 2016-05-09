@@ -101,3 +101,9 @@ Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE 
 Mapper attachments has been deprecated. Users should use now the {plugins}/ingest-attachment.html[`ingest-attachment`]
 plugin.
 
+==== Passing of Java System Properties
+
+Previously, Java system properties could be passed to the plugin
+command by passing `-D` style arguments directly to the plugin script.
+This is no longer permitted and such system properties must be passed
+via ES_JAVA_OPTS.

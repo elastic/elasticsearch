@@ -24,7 +24,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -92,7 +91,7 @@ public class InnerHitBuilderTests extends ESTestCase {
             InnerHitBuilder innerHit = randomInnerHits(true, false);
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             innerHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+            XContentBuilder shuffled = shuffleXContent(builder);
             if (randomBoolean()) {
                 shuffled.prettyPrint();
             }
@@ -221,7 +220,12 @@ public class InnerHitBuilderTests extends ESTestCase {
         innerHits.setTrackScores(randomBoolean());
         innerHits.setFieldNames(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
         innerHits.setFieldDataFields(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
-        innerHits.setScriptFields(new HashSet<>(randomListStuff(16, InnerHitBuilderTests::randomScript)));
+        // Random script fields deduped on their field name.
+        Map<String, SearchSourceBuilder.ScriptField> scriptFields = new HashMap<>();
+        for (SearchSourceBuilder.ScriptField field: randomListStuff(16, InnerHitBuilderTests::randomScript)) {
+            scriptFields.put(field.fieldName(), field);
+        }
+        innerHits.setScriptFields(new HashSet<>(scriptFields.values()));
         FetchSourceContext randomFetchSourceContext;
         if (randomBoolean()) {
             randomFetchSourceContext = new FetchSourceContext(randomBoolean());
@@ -246,7 +250,7 @@ public class InnerHitBuilderTests extends ESTestCase {
         }
 
         if (includeQueryTypeOrPath) {
-            QueryBuilder<?> query = new MatchQueryBuilder(randomAsciiOfLengthBetween(1, 16), randomAsciiOfLengthBetween(1, 16));
+            QueryBuilder query = new MatchQueryBuilder(randomAsciiOfLengthBetween(1, 16), randomAsciiOfLengthBetween(1, 16));
             if (randomBoolean()) {
                 return new InnerHitBuilder(innerHits, randomAsciiOfLength(8), query);
             } else {

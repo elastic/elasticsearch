@@ -23,7 +23,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Matches on the `title` field will have twice the weight as those on the
     `content` field, which has the default `boost` of `1.0`.
@@ -45,7 +45,7 @@ POST _search
     }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 is equivalent to:
 
@@ -63,7 +63,7 @@ POST _search
     }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 
 The boost is also applied when it is copied with the

@@ -36,7 +36,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -152,7 +151,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
-                    builder.nullValue(InetAddresses.forString(propNode.toString()));
+                    builder.nullValue(propNode.toString());
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
                     builder.ignoreMalformed(TypeParsers.nodeBooleanValue("ignore_malformed", propNode, parserContext));
@@ -400,7 +399,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
             String field = name();
             long size = XPointValues.size(reader, field);
             if (size == 0) {
-                return new FieldStats.Date(reader.maxDoc(), isSearchable(), isAggregatable(), dateTimeFormatter());
+                return null;
             }
             int docCount = XPointValues.getDocCount(reader, field);
             byte[] min = XPointValues.getMinPackedValue(reader, field);
@@ -561,7 +560,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
                 dateAsString = dateAsObject.toString();
             }
         } else {
-            dateAsString = context.parser().text();
+            dateAsString = context.parser().textOrNull();
         }
 
         if (dateAsString == null) {
@@ -615,6 +614,11 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field("ignore_malformed", ignoreMalformed.value());
         }
+
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", fieldType().nullValueAsString());
+        }
+
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
         } else if (includeDefaults) {

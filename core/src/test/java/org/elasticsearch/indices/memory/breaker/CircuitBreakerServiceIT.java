@@ -101,7 +101,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     /** Returns true if any of the nodes used a noop breaker */
     private boolean noopBreakerUsed() {
         NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().setBreaker(true).get();
-        for (NodeStats nodeStats : stats) {
+        for (NodeStats nodeStats : stats.getNodes()) {
             if (nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getLimit() == NoopCircuitBreaker.LIMIT) {
                 return true;
             }
@@ -230,7 +230,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
         // We need the request limit beforehand, just from a single node because the limit should always be the same
         long beforeReqLimit = client.admin().cluster().prepareNodesStats().setBreaker(true).get()
-                .getNodes()[0].getBreaker().getStats(CircuitBreaker.REQUEST).getLimit();
+                .getNodes().get(0).getBreaker().getStats(CircuitBreaker.REQUEST).getLimit();
 
         Settings resetSettings = Settings.builder()
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b")

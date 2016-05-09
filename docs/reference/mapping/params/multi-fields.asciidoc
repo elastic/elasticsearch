@@ -55,7 +55,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `city.raw` field is a `keyword` version of the `city` field.
 <2> The `city` field can be used for full text search.
 <3> The `city.raw` field can be used for sorting and aggregations
@@ -115,7 +115,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `text` field uses the `standard` analyzer.
 <2> The `text.english` field uses the `english` analyzer.

@@ -75,7 +75,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     public static final CombineFunction DEFAULT_BOOST_MODE = CombineFunction.MULTIPLY;
     public static final FiltersFunctionScoreQuery.ScoreMode DEFAULT_SCORE_MODE = FiltersFunctionScoreQuery.ScoreMode.MULTIPLY;
 
-    private final QueryBuilder<?> query;
+    private final QueryBuilder query;
 
     private float maxBoost = FunctionScoreQuery.DEFAULT_MAX_BOOST;
 
@@ -92,7 +92,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      *
      * @param query the query that needs to be custom scored
      */
-    public FunctionScoreQueryBuilder(QueryBuilder<?> query) {
+    public FunctionScoreQueryBuilder(QueryBuilder query) {
         this(query, new FilterFunctionBuilder[0]);
     }
 
@@ -120,7 +120,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * @param query the query to custom score
      * @param scoreFunctionBuilder score function that is executed
      */
-    public FunctionScoreQueryBuilder(QueryBuilder<?> query, ScoreFunctionBuilder<?> scoreFunctionBuilder) {
+    public FunctionScoreQueryBuilder(QueryBuilder query, ScoreFunctionBuilder<?> scoreFunctionBuilder) {
         this(query, new FilterFunctionBuilder[]{new FilterFunctionBuilder(scoreFunctionBuilder)});
     }
 
@@ -130,7 +130,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * @param query the query that defines which documents the function_score query will be executed on.
      * @param filterFunctionBuilders the filters and functions
      */
-    public FunctionScoreQueryBuilder(QueryBuilder<?> query, FilterFunctionBuilder[] filterFunctionBuilders) {
+    public FunctionScoreQueryBuilder(QueryBuilder query, FilterFunctionBuilder[] filterFunctionBuilders) {
         if (query == null) {
             throw new IllegalArgumentException("function_score: query must not be null");
         }
@@ -172,7 +172,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     /**
      * Returns the query that defines which documents the function_score query will be executed on.
      */
-    public QueryBuilder<?> query() {
+    public QueryBuilder query() {
         return this.query;
     }
 
@@ -334,14 +334,14 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * that match the given filter.
      */
     public static class FilterFunctionBuilder implements ToXContent, Writeable {
-        private final QueryBuilder<?> filter;
+        private final QueryBuilder filter;
         private final ScoreFunctionBuilder<?> scoreFunction;
 
         public FilterFunctionBuilder(ScoreFunctionBuilder<?> scoreFunctionBuilder) {
             this(new MatchAllQueryBuilder(), scoreFunctionBuilder);
         }
 
-        public FilterFunctionBuilder(QueryBuilder<?> filter, ScoreFunctionBuilder<?> scoreFunction) {
+        public FilterFunctionBuilder(QueryBuilder filter, ScoreFunctionBuilder<?> scoreFunction) {
             if (filter == null) {
                 throw new IllegalArgumentException("function_score: filter must not be null");
             }
@@ -366,7 +366,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             out.writeNamedWriteable(scoreFunction);
         }
 
-        public QueryBuilder<?> getFilter() {
+        public QueryBuilder getFilter() {
             return filter;
         }
 
@@ -403,7 +403,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         }
 
         public FilterFunctionBuilder rewrite(QueryRewriteContext context) throws IOException {
-            QueryBuilder<?> rewrite = filter.rewrite(context);
+            QueryBuilder rewrite = filter.rewrite(context);
             if (rewrite != filter) {
                 return new FilterFunctionBuilder(rewrite, scoreFunction);
             }
@@ -412,8 +412,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryBuilder<?> queryBuilder = this.query.rewrite(queryRewriteContext);
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder queryBuilder = this.query.rewrite(queryRewriteContext);
         FilterFunctionBuilder[] rewrittenBuilders = new FilterFunctionBuilder[this.filterFunctionBuilders.length];
         boolean rewritten = false;
         for (int i = 0; i < rewrittenBuilders.length; i++) {
@@ -442,7 +442,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                                                          QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        QueryBuilder<?> query = null;
+        QueryBuilder query = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
 
@@ -571,7 +571,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         XContentParser.Token token;
         XContentParser parser = parseContext.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            QueryBuilder<?> filter = null;
+            QueryBuilder filter = null;
             ScoreFunctionBuilder<?> scoreFunction = null;
             Float functionWeight = null;
             if (token != XContentParser.Token.START_OBJECT) {

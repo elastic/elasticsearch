@@ -58,7 +58,7 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
     }
 
     protected static class IndexBySearchResponseMatcher
-            extends AbstractBulkIndexByScrollResponseMatcher<ReindexResponse, IndexBySearchResponseMatcher> {
+            extends AbstractBulkIndexByScrollResponseMatcher<BulkIndexByScrollResponse, IndexBySearchResponseMatcher> {
         private Matcher<Long> createdMatcher = equalTo(0L);
 
         public IndexBySearchResponseMatcher created(Matcher<Long> updatedMatcher) {
@@ -71,7 +71,7 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
         }
 
         @Override
-        protected boolean matchesSafely(ReindexResponse item) {
+        protected boolean matchesSafely(BulkIndexByScrollResponse item) {
             return super.matchesSafely(item) && createdMatcher.matches(item.getCreated());
         }
 

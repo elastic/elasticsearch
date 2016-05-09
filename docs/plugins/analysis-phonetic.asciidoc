@@ -81,7 +81,7 @@ PUT phonetic_sample
 
 POST phonetic_sample/_analyze?analyzer=my_analyzer&text=Joe Bloggs <1>
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Returns: `J`, `joe`, `BLKS`, `bloggs`
 

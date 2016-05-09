@@ -108,7 +108,7 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         QueryBuilder positive = randomBoolean() ? new MatchAllQueryBuilder() : new WrapperQueryBuilder(new TermQueryBuilder("pos", "bar").toString());
         QueryBuilder negative = randomBoolean() ? new MatchAllQueryBuilder() : new WrapperQueryBuilder(new TermQueryBuilder("neg", "bar").toString());
         BoostingQueryBuilder qb = new BoostingQueryBuilder(positive, negative);
-        QueryBuilder<?> rewrite = qb.rewrite(createShardContext());
+        QueryBuilder rewrite = qb.rewrite(createShardContext());
         if (positive instanceof MatchAllQueryBuilder && negative instanceof MatchAllQueryBuilder) {
             assertSame(rewrite, qb);
         } else {

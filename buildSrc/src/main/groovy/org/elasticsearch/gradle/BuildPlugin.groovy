@@ -33,6 +33,9 @@ import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.artifacts.maven.MavenPom
+import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
+import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.internal.jvm.Jvm
@@ -54,7 +57,7 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomized-testing')
         // these plugins add lots of info to our jars
-        configureJarManifest(project) // jar config must be added before info broker
+        configureJars(project) // jar config must be added before info broker
         project.pluginManager.apply('nebula.info-broker')
         project.pluginManager.apply('nebula.info-basic')
         project.pluginManager.apply('nebula.info-java')
@@ -68,6 +71,7 @@ class BuildPlugin implements Plugin<Project> {
         configureConfigurations(project)
         project.ext.versions = VersionProperties.versions
         configureCompile(project)
+        configurePomGeneration(project)
 
         configureTest(project)
         configurePrecommit(project)
@@ -228,7 +232,7 @@ class BuildPlugin implements Plugin<Project> {
      */
     static void configureConfigurations(Project project) {
         // we are not shipping these jars, we act like dumb consumers of these things
-        if (project.path.startsWith(':test:fixtures')) {
+        if (project.path.startsWith(':test:fixtures') || project.path == ':build-tools') {
             return
         }
         // fail on any conflicting dependency versions
@@ -266,44 +270,7 @@ class BuildPlugin implements Plugin<Project> {
 
         // add exclusions to the pom directly, for each of the transitive deps of this project's deps
         project.modifyPom { MavenPom pom ->
-            pom.withXml { XmlProvider xml ->
-                // first find if we have dependencies at all, and grab the node
-                NodeList depsNodes = xml.asNode().get('dependencies')
-                if (depsNodes.isEmpty()) {
-                    return
-                }
-
-                // check each dependency for any transitive deps
-                for (Node depNode : depsNodes.get(0).children()) {
-                    String groupId = depNode.get('groupId').get(0).text()
-                    String artifactId = depNode.get('artifactId').get(0).text()
-                    String version = depNode.get('version').get(0).text()
-
-                    // collect the transitive deps now that we know what this dependency is
-                    String depConfig = transitiveDepConfigName(groupId, artifactId, version)
-                    Configuration configuration = project.configurations.findByName(depConfig)
-                    if (configuration == null) {
-                        continue // we did not make this dep non-transitive
-                    }
-                    Set<ResolvedArtifact> artifacts = configuration.resolvedConfiguration.resolvedArtifacts
-                    if (artifacts.size() <= 1) {
-                        // this dep has no transitive deps (or the only artifact is itself)
-                        continue
-                    }
-
-                    // we now know we have something to exclude, so add the exclusion elements
-                    Node exclusions = depNode.appendNode('exclusions')
-                    for (ResolvedArtifact transitiveArtifact : artifacts) {
-                        ModuleVersionIdentifier transitiveDep = transitiveArtifact.moduleVersion.id
-                        if (transitiveDep.group == groupId && transitiveDep.name == artifactId) {
-                            continue; // don't exclude the dependency itself!
-                        }
-                        Node exclusion = exclusions.appendNode('exclusion')
-                        exclusion.appendNode('groupId', transitiveDep.group)
-                        exclusion.appendNode('artifactId', transitiveDep.name)
-                    }
-                }
-            }
+            pom.withXml(removeTransitiveDependencies(project))
         }
     }
 
@@ -328,6 +295,70 @@ class BuildPlugin implements Plugin<Project> {
             repos.maven {
                 name 'lucene-snapshots'
                 url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+            }
+        }
+    }
+
+    /** Returns a closure which can be used with a MavenPom for removing transitive dependencies. */
+    private static Closure removeTransitiveDependencies(Project project) {
+        // TODO: remove this when enforcing gradle 2.13+, it now properly handles exclusions
+        return { XmlProvider xml ->
+            // first find if we have dependencies at all, and grab the node
+            NodeList depsNodes = xml.asNode().get('dependencies')
+            if (depsNodes.isEmpty()) {
+                return
+            }
+
+            // check each dependency for any transitive deps
+            for (Node depNode : depsNodes.get(0).children()) {
+                String groupId = depNode.get('groupId').get(0).text()
+                String artifactId = depNode.get('artifactId').get(0).text()
+                String version = depNode.get('version').get(0).text()
+
+                // collect the transitive deps now that we know what this dependency is
+                String depConfig = transitiveDepConfigName(groupId, artifactId, version)
+                Configuration configuration = project.configurations.findByName(depConfig)
+                if (configuration == null) {
+                    continue // we did not make this dep non-transitive
+                }
+                Set<ResolvedArtifact> artifacts = configuration.resolvedConfiguration.resolvedArtifacts
+                if (artifacts.size() <= 1) {
+                    // this dep has no transitive deps (or the only artifact is itself)
+                    continue
+                }
+
+                // we now know we have something to exclude, so add the exclusion elements
+                Node exclusions = depNode.appendNode('exclusions')
+                for (ResolvedArtifact transitiveArtifact : artifacts) {
+                    ModuleVersionIdentifier transitiveDep = transitiveArtifact.moduleVersion.id
+                    if (transitiveDep.group == groupId && transitiveDep.name == artifactId) {
+                        continue; // don't exclude the dependency itself!
+                    }
+                    Node exclusion = exclusions.appendNode('exclusion')
+                    exclusion.appendNode('groupId', transitiveDep.group)
+                    exclusion.appendNode('artifactId', transitiveDep.name)
+                }
+            }
+        }
+    }
+
+    /**Configuration generation of maven poms. */
+    private static void configurePomGeneration(Project project) {
+        project.plugins.withType(MavenPublishPlugin.class).whenPluginAdded {
+            project.publishing {
+                publications {
+                    all { MavenPublication publication -> // we only deal with maven
+                        // add exclusions to the pom directly, for each of the transitive deps of this project's deps
+                        publication.pom.withXml(removeTransitiveDependencies(project))
+                    }
+                }
+            }
+
+            project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom t ->
+                // place the pom next to the jar it is for
+                t.destination = new File(project.buildDir, "distributions/${project.archivesBaseName}-${project.version}.pom")
+                // build poms with assemble
+                project.assemble.dependsOn(t)
             }
         }
     }
@@ -364,9 +395,12 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    /** Adds additional manifest info to jars */
-    static void configureJarManifest(Project project) {
+    /** Adds additional manifest info to jars, and adds source and javadoc jars */
+    static void configureJars(Project project) {
         project.tasks.withType(Jar) { Jar jarTask ->
+            // we put all our distributable files under distributions
+            jarTask.destinationDir = new File(project.buildDir, 'distributions')
+            // fixup the jar manifest
             jarTask.doFirst {
                 boolean isSnapshot = VersionProperties.elasticsearch.endsWith("-SNAPSHOT");
                 String version = VersionProperties.elasticsearch;

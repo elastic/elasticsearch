@@ -69,7 +69,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(NodesHotThreadsResponse response) throws Exception {
                 StringBuilder sb = new StringBuilder();
-                for (NodeHotThreads node : response) {
+                for (NodeHotThreads node : response.getNodes()) {
                     sb.append("::: ").append(node.getNode().toString()).append("\n");
                     Strings.spaceify(3, node.getHotThreads(), sb);
                     sb.append('\n');

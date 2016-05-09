@@ -26,6 +26,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.DocValueFormat;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
@@ -98,7 +99,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
     }
 
     @Override
-    protected void sortFieldAssertions(ScoreSortBuilder builder, SortField sortField) {
+    protected void sortFieldAssertions(ScoreSortBuilder builder, SortField sortField, DocValueFormat format) {
         assertEquals(SortField.Type.SCORE, sortField.getType());
         assertEquals(builder.order() == SortOrder.DESC ? false : true, sortField.getReverse());
     }

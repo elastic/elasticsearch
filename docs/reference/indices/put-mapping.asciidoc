@@ -37,7 +37,7 @@ PUT twitter/_mapping/tweet <3>
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> <<indices-create-index,Creates an index>> called `twitter` with the `message` field in the `tweet` <<mapping-type,mapping type>>.
 <2> Uses the PUT mapping API to add a new mapping type called `user`.
 <3> Uses the PUT mapping API to add a new field called `user_name` to the `tweet` mapping type.
@@ -115,7 +115,7 @@ PUT my_index/_mapping/user
   }
 }
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Create an index with a `first` field under the `name` <<object>> field, and a `user_id` field.
 <2> Add a `last` field under the `name` object field.
 <3> Update the `ignore_above` setting from its default of 0.
@@ -174,7 +174,7 @@ PUT my_index/_mapping/type_one <2>
   }
 }
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[catch:request]
 <1> Create an index with two types, both of which contain a `text` field which have the same mapping.
 <2> Trying to update the `search_analyzer` just for `type_one` throws an exception like `"Merge failed with failures..."`.
@@ -194,6 +194,6 @@ PUT my_index/_mapping/type_one?update_all_types <1>
   }
 }
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[continued]
 <1> Adding the `update_all_types` parameter updates the `text` field in `type_one` and `type_two`.

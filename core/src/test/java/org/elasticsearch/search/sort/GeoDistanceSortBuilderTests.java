@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
@@ -177,7 +178,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     }
 
     @Override
-    protected void sortFieldAssertions(GeoDistanceSortBuilder builder, SortField sortField) throws IOException {
+    protected void sortFieldAssertions(GeoDistanceSortBuilder builder, SortField sortField, DocValueFormat format) throws IOException {
         assertEquals(SortField.Type.CUSTOM, sortField.getType());
         assertEquals(builder.order() == SortOrder.ASC ? false : true, sortField.getReverse());
         assertEquals(builder.fieldName(), sortField.getField());

@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBuilder> implements SpanQueryBuilder<SpanFirstQueryBuilder>{
+public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBuilder> implements SpanQueryBuilder {
 
     public static final String NAME = "span_first";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
@@ -40,7 +40,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
     private static final ParseField MATCH_FIELD = new ParseField("match");
     private static final ParseField END_FIELD = new ParseField("end");
 
-    private final SpanQueryBuilder<?> matchBuilder;
+    private final SpanQueryBuilder matchBuilder;
 
     private final int end;
 
@@ -51,7 +51,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
      * @param end maximum end position of the match, needs to be positive
      * @throws IllegalArgumentException for negative <code>end</code> positions
      */
-    public SpanFirstQueryBuilder(SpanQueryBuilder<?> matchBuilder, int end) {
+    public SpanFirstQueryBuilder(SpanQueryBuilder matchBuilder, int end) {
         if (matchBuilder == null) {
             throw new IllegalArgumentException("inner span query cannot be null");
         }
@@ -67,7 +67,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
      */
     public SpanFirstQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        matchBuilder = (SpanQueryBuilder<?>) in.readNamedWriteable(QueryBuilder.class);
+        matchBuilder = (SpanQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
         end = in.readInt();
     }
 
@@ -80,7 +80,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
     /**
      * @return the inner {@link SpanQueryBuilder} defined in this query
      */
-    public SpanQueryBuilder<?> innerQuery() {
+    public SpanQueryBuilder innerQuery() {
         return this.matchBuilder;
     }
 

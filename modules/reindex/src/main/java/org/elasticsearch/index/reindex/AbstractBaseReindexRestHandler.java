@@ -37,11 +37,12 @@ import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public abstract class AbstractBaseReindexRestHandler<
                 Request extends AbstractBulkByScrollRequest<Request>,
-                Response extends BulkIndexByScrollResponse,
-                TA extends TransportAction<Request, Response>
+                TA extends TransportAction<Request, BulkIndexByScrollResponse>
             > extends BaseRestHandler {
 
     /**
@@ -87,14 +88,20 @@ public abstract class AbstractBaseReindexRestHandler<
         this.action = action;
     }
 
-    protected void execute(RestRequest request, Request internalRequest, RestChannel channel) throws IOException {
+    protected void execute(RestRequest request, Request internalRequest, RestChannel channel,
+                           boolean includeCreated, boolean includeUpdated, boolean includeDeleted) throws IOException {
         Float requestsPerSecond = parseRequestsPerSecond(request);
         if (requestsPerSecond != null) {
             internalRequest.setRequestsPerSecond(requestsPerSecond);
         }
 
         if (request.paramAsBoolean("wait_for_completion", true)) {
-            action.execute(internalRequest, new BulkIndexByScrollResponseContentListener<Response>(channel));
+            Map<String, String> params = new HashMap<>();
+            params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
+            params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
+            params.put(BulkByScrollTask.Status.INCLUDE_DELETED, Boolean.toString(includeDeleted));
+
+            action.execute(internalRequest, new BulkIndexByScrollResponseContentListener<>(channel, params));
             return;
         }
         /*

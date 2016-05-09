@@ -291,7 +291,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                         "    \"boost\" : 1.0\n" +
                         "  }\n" +
                         "}";
-        QueryBuilder<?> inShortcutParsed = parseQuery(json, ParseFieldMatcher.EMPTY);
+        QueryBuilder inShortcutParsed = parseQuery(json, ParseFieldMatcher.EMPTY);
         assertThat(inShortcutParsed, equalTo(parsed));
 
         try {

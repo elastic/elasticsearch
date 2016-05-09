@@ -80,7 +80,7 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
      * @param filters
      *            the filters to use with this aggregation
      */
-    public FiltersAggregatorBuilder(String name, QueryBuilder<?>... filters) {
+    public FiltersAggregatorBuilder(String name, QueryBuilder... filters) {
         super(name, InternalFilters.TYPE);
         List<KeyedFilter> keyedFilters = new ArrayList<>(filters.length);
         for (int i = 0; i < filters.length; i++) {
@@ -204,7 +204,7 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
         XContentParser parser = context.parser();
 
         List<FiltersAggregator.KeyedFilter> keyedFilters = null;
-        List<QueryBuilder<?>> nonKeyedFilters = null;
+        List<QueryBuilder> nonKeyedFilters = null;
 
         XContentParser.Token token = null;
         String currentFieldName = null;
@@ -235,7 +235,7 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
                         if (token == XContentParser.Token.FIELD_NAME) {
                             key = parser.currentName();
                         } else {
-                            QueryBuilder<?> filter = context.parseInnerQueryBuilder();
+                            QueryBuilder filter = context.parseInnerQueryBuilder();
                             keyedFilters.add(new FiltersAggregator.KeyedFilter(key, filter == null ? matchAllQuery() : filter));
                         }
                     }
@@ -247,7 +247,7 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
                 if (context.getParseFieldMatcher().match(currentFieldName, FILTERS_FIELD)) {
                     nonKeyedFilters = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        QueryBuilder<?> filter = context.parseInnerQueryBuilder();
+                        QueryBuilder filter = context.parseInnerQueryBuilder();
                         nonKeyedFilters.add(filter == null ? QueryBuilders.matchAllQuery() : filter);
                     }
                 } else {
@@ -270,7 +270,7 @@ public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregato
                     keyedFilters.toArray(new FiltersAggregator.KeyedFilter[keyedFilters.size()]));
         } else {
             factory = new FiltersAggregatorBuilder(aggregationName,
-                    nonKeyedFilters.toArray(new QueryBuilder<?>[nonKeyedFilters.size()]));
+                    nonKeyedFilters.toArray(new QueryBuilder[nonKeyedFilters.size()]));
         }
         if (otherBucket != null) {
             factory.otherBucket(otherBucket);

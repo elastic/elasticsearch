@@ -252,7 +252,7 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
             int maxDoc = reader.maxDoc();
             Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
             if (terms == null) {
-                return new FieldStats.Ip(maxDoc, isSearchable(), isAggregatable());
+                return null;
             }
             long minValue = LegacyNumericUtils.getMinLong(terms);
             long maxValue = LegacyNumericUtils.getMaxLong(terms);

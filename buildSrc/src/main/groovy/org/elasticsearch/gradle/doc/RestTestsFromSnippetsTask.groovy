@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle
+package org.elasticsearch.gradle.doc
 
-import org.elasticsearch.gradle.SnippetsTask.Snippet
+import org.elasticsearch.gradle.doc.SnippetsTask.Snippet
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.OutputDirectory
@@ -95,7 +95,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 response(snippet)
                 return
             }
-            if (snippet.test || snippet.autoSense) {
+            if (snippet.test || snippet.console) {
                 test(snippet)
                 return
             }
@@ -176,10 +176,8 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 String body = matcher.group("body")
                 String catchPart = last ? snippet.catchPart : null
                 if (pathAndQuery.startsWith('/')) {
-                    // Why not do some light linting while we're here?
-                    throw new InvalidUserDataException(
-                        "Path shouldn't start with a '/': $snippet\n"
-                        + snippet.contents)
+                    // Leading '/'s break the generated paths
+                    pathAndQuery = pathAndQuery.substring(1)
                 }
                 emitDo(method, pathAndQuery, body, catchPart)
             }

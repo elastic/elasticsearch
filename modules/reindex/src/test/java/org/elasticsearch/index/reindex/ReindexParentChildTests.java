@@ -32,9 +32,9 @@ import static org.hamcrest.Matchers.equalTo;
  * Index-by-search tests for parent/child.
  */
 public class ReindexParentChildTests extends ReindexTestCase {
-    QueryBuilder<?> findsCountry;
-    QueryBuilder<?> findsCity;
-    QueryBuilder<?> findsNeighborhood;
+    QueryBuilder findsCountry;
+    QueryBuilder findsCity;
+    QueryBuilder findsNeighborhood;
 
     public void testParentChild() throws Exception {
         createParentChildIndex("source");

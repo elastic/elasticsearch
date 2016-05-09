@@ -108,6 +108,24 @@ public class BulkByScrollTask extends CancellableTask {
     public static class Status implements Task.Status {
         public static final String NAME = "bulk-by-scroll";
 
+        /**
+         * XContent param name to indicate if "created" count must be included
+         * in the response.
+         */
+        public static final String INCLUDE_CREATED = "include_created";
+
+        /**
+         * XContent param name to indicate if "updated" count must be included
+         * in the response.
+         */
+        public static final String INCLUDE_UPDATED = "include_updated";
+
+        /**
+         * XContent param name to indicate if "deleted" count must be included
+         * in the response.
+         */
+        public static final String INCLUDE_DELETED = "include_deleted";
+
         private final long total;
         private final long updated;
         private final long created;
@@ -171,18 +189,20 @@ public class BulkByScrollTask extends CancellableTask {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            innerXContent(builder, params, true, true);
+            innerXContent(builder, params);
             return builder.endObject();
         }
 
-        public XContentBuilder innerXContent(XContentBuilder builder, Params params, boolean includeCreated, boolean includeDeleted)
+        public XContentBuilder innerXContent(XContentBuilder builder, Params params)
                 throws IOException {
             builder.field("total", total);
-            builder.field("updated", updated);
-            if (includeCreated) {
+            if (params.paramAsBoolean(INCLUDE_UPDATED, true)) {
+                builder.field("updated", updated);
+            }
+            if (params.paramAsBoolean(INCLUDE_CREATED, true)) {
                 builder.field("created", created);
             }
-            if (includeDeleted) {
+            if (params.paramAsBoolean(INCLUDE_DELETED, true)) {
                 builder.field("deleted", deleted);
             }
             builder.field("batches", batches);
@@ -202,18 +222,14 @@ public class BulkByScrollTask extends CancellableTask {
         public String toString() {
             StringBuilder builder = new StringBuilder();
             builder.append("BulkIndexByScrollResponse[");
-            innerToString(builder, true, true);
+            innerToString(builder);
             return builder.append(']').toString();
         }
 
-        public void innerToString(StringBuilder builder, boolean includeCreated, boolean includeDeleted) {
+        public void innerToString(StringBuilder builder) {
             builder.append("updated=").append(updated);
-            if (includeCreated) {
-                builder.append(",created=").append(created);
-            }
-            if (includeDeleted) {
-                builder.append(",deleted=").append(deleted);
-            }
+            builder.append(",created=").append(created);
+            builder.append(",deleted=").append(deleted);
             builder.append(",batches=").append(batches);
             builder.append(",versionConflicts=").append(versionConflicts);
             builder.append(",noops=").append(noops);

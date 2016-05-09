@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -65,9 +66,9 @@ public class RestAliasesExistAction extends BaseRestHandler {
             public void onResponse(AliasesExistResponse response) {
                 try {
                     if (response.isExists()) {
-                        channel.sendResponse(new BytesRestResponse(OK));
+                        channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
                     } else {
-                        channel.sendResponse(new BytesRestResponse(NOT_FOUND));
+                        channel.sendResponse(new BytesRestResponse(NOT_FOUND, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
                     }
                 } catch (Throwable e) {
                     onFailure(e);
@@ -77,7 +78,8 @@ public class RestAliasesExistAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new BytesRestResponse(ExceptionsHelper.status(e)));
+                    channel.sendResponse(
+                        new BytesRestResponse(ExceptionsHelper.status(e), BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
                 } catch (Exception e1) {
                     logger.error("Failed to send failure response", e1);
                 }

@@ -28,7 +28,7 @@ PUT my_index
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `title` and `content` fields will be included in the `_all` field.
 <2> The `date` field will not be included in the `_all` field.
@@ -69,7 +69,7 @@ PUT my_index
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> All fields in `my_type` are excluded from `_all`.
 <2> The `author.first_name` and `author.last_name` fields are included in `_all`.

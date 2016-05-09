@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -46,7 +47,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  *
@@ -68,22 +68,17 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
                                        NodeService nodeService, IndicesService indicesService,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClusterStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, ClusterStatsRequest::new, ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT);
+              indexNameExpressionResolver, ClusterStatsRequest::new, ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT,
+              ClusterStatsNodeResponse.class);
         this.nodeService = nodeService;
         this.indicesService = indicesService;
     }
 
     @Override
-    protected ClusterStatsResponse newResponse(ClusterStatsRequest clusterStatsRequest, AtomicReferenceArray responses) {
-        final List<ClusterStatsNodeResponse> nodeStats = new ArrayList<>(responses.length());
-        for (int i = 0; i < responses.length(); i++) {
-            Object resp = responses.get(i);
-            if (resp instanceof ClusterStatsNodeResponse) {
-                nodeStats.add((ClusterStatsNodeResponse) resp);
-            }
-        }
-        return new ClusterStatsResponse(System.currentTimeMillis(), clusterName,
-                clusterService.state().metaData().clusterUUID(), nodeStats.toArray(new ClusterStatsNodeResponse[nodeStats.size()]));
+    protected ClusterStatsResponse newResponse(ClusterStatsRequest request,
+                                               List<ClusterStatsNodeResponse> responses, List<FailedNodeException> failures) {
+        return new ClusterStatsResponse(System.currentTimeMillis(), clusterName, clusterService.state().metaData().clusterUUID(),
+                                        responses, failures);
     }
 
     @Override

@@ -88,7 +88,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
     /**
      * Perform a reindex with EXTERNAL versioning which has "refresh" semantics.
      */
-    private ReindexResponse reindexExternal() {
+    private BulkIndexByScrollResponse reindexExternal() {
         ReindexRequestBuilder reindex =  reindex().source("source").destination("dest").abortOnVersionConflict(false);
         reindex.destination().setVersionType(EXTERNAL);
         return reindex.get();
@@ -97,7 +97,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
     /**
      * Perform a reindex with INTERNAL versioning which has "overwrite" semantics.
      */
-    private ReindexResponse reindexInternal() {
+    private BulkIndexByScrollResponse reindexInternal() {
         ReindexRequestBuilder reindex =  reindex().source("source").destination("dest").abortOnVersionConflict(false);
         reindex.destination().setVersionType(INTERNAL);
         return reindex.get();
@@ -106,7 +106,7 @@ public class ReindexVersioningTests extends ReindexTestCase {
     /**
      * Perform a reindex with CREATE OpType which has "create" semantics.
      */
-    private ReindexResponse reindexCreate() {
+    private BulkIndexByScrollResponse reindexCreate() {
         ReindexRequestBuilder reindex =  reindex().source("source").destination("dest").abortOnVersionConflict(false);
         reindex.destination().setOpType(CREATE);
         return reindex.get();

@@ -50,11 +50,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -88,7 +86,6 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         testNodes = new TestNode[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
             testNodes[i] = new TestNode("node" + i, threadPool, settings);
-            ;
         }
     }
 
@@ -113,27 +110,22 @@ public abstract class TaskManagerTestCase extends ESTestCase {
 
     static class NodesResponse extends BaseNodesResponse<NodeResponse> {
 
-        private int failureCount;
-
-        protected NodesResponse(ClusterName clusterName, NodeResponse[] nodes, int failureCount) {
-            super(clusterName, nodes);
-            this.failureCount = failureCount;
+        protected NodesResponse(ClusterName clusterName, List<NodeResponse> nodes, List<FailedNodeException> failures) {
+            super(clusterName, nodes, failures);
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            failureCount = in.readVInt();
+        protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
+            return in.readStreamableList(NodeResponse::new);
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeVInt(failureCount);
+        protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
+            out.writeStreamableList(nodes);
         }
 
         public int failureCount() {
-            return failureCount;
+            return failures().size();
         }
     }
 
@@ -148,24 +140,12 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                                 Supplier<NodeRequest> nodeRequest) {
             super(settings, actionName, clusterName, threadPool, clusterService, transportService,
                     new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
-                    request, nodeRequest, ThreadPool.Names.GENERIC);
+                    request, nodeRequest, ThreadPool.Names.GENERIC, NodeResponse.class);
         }
 
         @Override
-        protected NodesResponse newResponse(NodesRequest request, AtomicReferenceArray responses) {
-            final List<NodeResponse> nodesList = new ArrayList<>();
-            int failureCount = 0;
-            for (int i = 0; i < responses.length(); i++) {
-                Object resp = responses.get(i);
-                if (resp instanceof NodeResponse) { // will also filter out null response for unallocated ones
-                    nodesList.add((NodeResponse) resp);
-                } else if (resp instanceof FailedNodeException) {
-                    failureCount++;
-                } else {
-                    logger.warn("unknown response type [{}], expected NodeLocalGatewayMetaState or FailedNodeException", resp);
-                }
-            }
-            return new NodesResponse(clusterName, nodesList.toArray(new NodeResponse[nodesList.size()]), failureCount);
+        protected NodesResponse newResponse(NodesRequest request, List<NodeResponse> responses, List<FailedNodeException> failures) {
+            return new NodesResponse(clusterName, responses, failures);
         }
 
         @Override

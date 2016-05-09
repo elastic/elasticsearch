@@ -105,6 +105,11 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
+    public boolean isPrettyPrint() {
+        return this.prettyPrint;
+    }
+
+    @Override
     public void usePrintLineFeedAtEnd() {
         writeLineFeedAtEnd = true;
     }

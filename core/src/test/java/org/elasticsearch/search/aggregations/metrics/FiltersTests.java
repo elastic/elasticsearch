@@ -42,7 +42,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregatorBuild
             }
             factory = new FiltersAggregatorBuilder(randomAsciiOfLengthBetween(1, 20), filters);
         } else {
-            QueryBuilder<?>[] filters = new QueryBuilder<?>[size];
+            QueryBuilder[] filters = new QueryBuilder[size];
             for (int i = 0; i < size; i++) {
                 filters[i] = QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20));
             }

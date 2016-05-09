@@ -75,4 +75,35 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 () -> ft.rangeQuery("1", "3", true, true));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
+
+    public void testConversions() {
+        assertEquals((byte) 3, NumberType.BYTE.parse(3d));
+        assertEquals((short) 3, NumberType.SHORT.parse(3d));
+        assertEquals(3, NumberType.INTEGER.parse(3d));
+        assertEquals(3L, NumberType.LONG.parse(3d));
+        assertEquals(3f, NumberType.FLOAT.parse(3d));
+        assertEquals(3d, NumberType.DOUBLE.parse(3d));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> NumberType.BYTE.parse(3.5));
+        assertEquals("Value [3.5] has a decimal part", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.SHORT.parse(3.5));
+        assertEquals("Value [3.5] has a decimal part", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.INTEGER.parse(3.5));
+        assertEquals("Value [3.5] has a decimal part", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.LONG.parse(3.5));
+        assertEquals("Value [3.5] has a decimal part", e.getMessage());
+        assertEquals(3.5f, NumberType.FLOAT.parse(3.5));
+        assertEquals(3.5d, NumberType.DOUBLE.parse(3.5));
+
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.BYTE.parse(128));
+        assertEquals("Value [128] is out of range for a byte", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.SHORT.parse(65536));
+        assertEquals("Value [65536] is out of range for a short", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.INTEGER.parse(2147483648L));
+        assertEquals("Value [2147483648] is out of range for an integer", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.LONG.parse(10000000000000000000d));
+        assertEquals("Value [1.0E19] is out of range for a long", e.getMessage());
+        assertEquals(1.1f, NumberType.FLOAT.parse(1.1)); // accuracy loss is expected
+        assertEquals(1.1d, NumberType.DOUBLE.parse(1.1));
+    }
 }

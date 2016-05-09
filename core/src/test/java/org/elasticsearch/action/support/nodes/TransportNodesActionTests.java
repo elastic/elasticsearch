@@ -20,6 +20,7 @@
 package org.elasticsearch.action.support.nodes;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeActionTests;
@@ -28,6 +29,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.test.ESTestCase;
@@ -39,6 +42,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -53,6 +57,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.mockito.Mockito.mock;
 
 public class TransportNodesActionTests extends ESTestCase {
 
@@ -90,6 +95,42 @@ public class TransportNodesActionTests extends ESTestCase {
         action.new AsyncAction(null, request, new PlainActionFuture<>()).start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
         assertEquals(clusterService.state().nodes().resolveNodesIds(finalNodesIds).length, capturedRequests.size());
+    }
+
+    public void testNewResponseNullArray() {
+        expectThrows(NullPointerException.class, () -> action.newResponse(new TestNodesRequest(), null));
+    }
+
+    public void testNewResponse() {
+        TestNodesRequest request = new TestNodesRequest();
+        List<TestNodeResponse> expectedNodeResponses = mockList(TestNodeResponse.class, randomIntBetween(0, 2));
+        expectedNodeResponses.add(new TestNodeResponse());
+        List<BaseNodeResponse> nodeResponses = new ArrayList<>(expectedNodeResponses);
+        // This should be ignored:
+        nodeResponses.add(new OtherNodeResponse());
+        List<FailedNodeException> failures = mockList(FailedNodeException.class, randomIntBetween(0, 2));
+
+        List<Object> allResponses = new ArrayList<>(expectedNodeResponses);
+        allResponses.addAll(failures);
+
+        Collections.shuffle(allResponses, random());
+
+        AtomicReferenceArray<?> atomicArray = new AtomicReferenceArray<>(allResponses.toArray());
+
+        TestNodesResponse response = action.newResponse(request, atomicArray);
+
+        assertSame(request, response.request);
+        // note: I shuffled the overall list, so it's not possible to guarantee that it's in the right order
+        assertTrue(expectedNodeResponses.containsAll(response.getNodes()));
+        assertTrue(failures.containsAll(response.failures()));
+    }
+
+    private <T> List<T> mockList(Class<T> clazz, int size) {
+        List<T> failures = new ArrayList<>(size);
+        for (int i = 0; i < size; ++i) {
+            failures.add(mock(clazz));
+        }
+        return failures;
     }
 
     private enum NodeSelector {
@@ -165,26 +206,20 @@ public class TransportNodesActionTests extends ESTestCase {
         return new DiscoveryNode(node, node, DummyTransportAddress.INSTANCE, attributes, roles, Version.CURRENT);
     }
 
-    private static class TestTransportNodesAction extends TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest,
-                TestNodeResponse> {
+    private static class TestTransportNodesAction
+        extends TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> {
 
         TestTransportNodesAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService
                 transportService, ActionFilters actionFilters, Supplier<TestNodesRequest> request,
                                  Supplier<TestNodeRequest> nodeRequest, String nodeExecutor) {
             super(settings, "indices:admin/test", CLUSTER_NAME, threadPool, clusterService, transportService, actionFilters,
-                    null, request, nodeRequest, nodeExecutor);
+                    null, request, nodeRequest, nodeExecutor, TestNodeResponse.class);
         }
 
         @Override
-        protected TestNodesResponse newResponse(TestNodesRequest request, AtomicReferenceArray nodesResponses) {
-            final List<TestNodeResponse> nodeResponses = new ArrayList<>();
-            for (int i = 0; i < nodesResponses.length(); i++) {
-                Object resp = nodesResponses.get(i);
-                if (resp instanceof TestNodeResponse) {
-                    nodeResponses.add((TestNodeResponse) resp);
-                }
-            }
-            return new TestNodesResponse(nodeResponses);
+        protected TestNodesResponse newResponse(TestNodesRequest request,
+                                                List<TestNodeResponse> responses, List<FailedNodeException> failures) {
+            return new TestNodesResponse(request, responses, failures);
         }
 
         @Override
@@ -216,16 +251,28 @@ public class TransportNodesActionTests extends ESTestCase {
 
     private static class TestNodesResponse extends BaseNodesResponse<TestNodeResponse> {
 
-        private final List<TestNodeResponse> nodeResponses;
+        private final TestNodesRequest request;
 
-        TestNodesResponse(List<TestNodeResponse> nodeResponses) {
-            this.nodeResponses = nodeResponses;
+        TestNodesResponse(TestNodesRequest request, List<TestNodeResponse> nodeResponses, List<FailedNodeException> failures) {
+            super(CLUSTER_NAME, nodeResponses, failures);
+            this.request = request;
+        }
+
+        @Override
+        protected List<TestNodeResponse> readNodesFrom(StreamInput in) throws IOException {
+            return in.readStreamableList(TestNodeResponse::new);
+        }
+
+        @Override
+        protected void writeNodesTo(StreamOutput out, List<TestNodeResponse> nodes) throws IOException {
+            out.writeStreamableList(nodes);
         }
     }
 
-    private static class TestNodeRequest extends BaseNodeRequest {
-    }
+    private static class TestNodeRequest extends BaseNodeRequest { }
 
-    private static class TestNodeResponse extends BaseNodeResponse {
-    }
+    private static class TestNodeResponse extends BaseNodeResponse { }
+
+    private static class OtherNodeResponse extends BaseNodeResponse { }
+
 }

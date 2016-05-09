@@ -232,7 +232,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
             String field = name();
             long size = XPointValues.size(reader, field);
             if (size == 0) {
-                return new FieldStats.Ip(reader.maxDoc(), isSearchable(), isAggregatable());
+                return null;
             }
             int docCount = XPointValues.getDocCount(reader, field);
             byte[] min = XPointValues.getMinPackedValue(reader, field);
@@ -339,7 +339,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
         if (context.externalValueSet()) {
             addressAsObject = context.externalValue();
         } else {
-            addressAsObject = context.parser().text();
+            addressAsObject = context.parser().textOrNull();
         }
 
         if (addressAsObject == null) {
@@ -394,6 +394,14 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
+
+        if (includeDefaults || fieldType().nullValue() != null) {
+            Object nullValue = fieldType().nullValue();
+            if (nullValue != null) {
+                nullValue = InetAddresses.toAddrString((InetAddress) nullValue);
+            }
+            builder.field("null_value", nullValue);
+        }
 
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field("ignore_malformed", ignoreMalformed.value());

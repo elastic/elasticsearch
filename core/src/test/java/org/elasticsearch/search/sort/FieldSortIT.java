@@ -29,7 +29,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.Uid;
@@ -76,7 +75,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FieldSortIT extends ESIntegTestCase {
@@ -1214,13 +1212,13 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(3)));
-        assertThat(((Text) searchResponse.getHits().getAt(0).sortValues()[0]).string(), equalTo("!4"));
+        assertThat(searchResponse.getHits().getAt(0).sortValues()[0], equalTo("!4"));
 
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo(Integer.toString(1)));
-        assertThat(((Text) searchResponse.getHits().getAt(1).sortValues()[0]).string(), equalTo("01"));
+        assertThat(searchResponse.getHits().getAt(1).sortValues()[0], equalTo("01"));
 
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(2)));
-        assertThat(((Text) searchResponse.getHits().getAt(2).sortValues()[0]).string(), equalTo("07"));
+        assertThat(searchResponse.getHits().getAt(2).sortValues()[0], equalTo("07"));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -1232,13 +1230,13 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(2)));
-        assertThat(((Text) searchResponse.getHits().getAt(0).sortValues()[0]).string(), equalTo("20"));
+        assertThat(searchResponse.getHits().getAt(0).sortValues()[0], equalTo("20"));
 
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo(Integer.toString(1)));
-        assertThat(((Text) searchResponse.getHits().getAt(1).sortValues()[0]).string(), equalTo("10"));
+        assertThat(searchResponse.getHits().getAt(1).sortValues()[0], equalTo("10"));
 
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
-        assertThat(((Text) searchResponse.getHits().getAt(2).sortValues()[0]).string(), equalTo("03"));
+        assertThat(searchResponse.getHits().getAt(2).sortValues()[0], equalTo("03"));
     }
 
     public void testSortOnRareField() throws IOException {
@@ -1262,7 +1260,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(1)));
-        assertThat(((Text) searchResponse.getHits().getAt(0).sortValues()[0]).string(), equalTo("10"));
+        assertThat(searchResponse.getHits().getAt(0).sortValues()[0], equalTo("10"));
 
         client().prepareIndex("test", "type1", Integer.toString(2)).setSource(jsonBuilder().startObject()
                 .array("string_values", "11", "15", "20", "07")
@@ -1283,10 +1281,10 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(2)));
-        assertThat(((Text) searchResponse.getHits().getAt(0).sortValues()[0]).string(), equalTo("20"));
+        assertThat(searchResponse.getHits().getAt(0).sortValues()[0], equalTo("20"));
 
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo(Integer.toString(1)));
-        assertThat(((Text) searchResponse.getHits().getAt(1).sortValues()[0]).string(), equalTo("10"));
+        assertThat(searchResponse.getHits().getAt(1).sortValues()[0], equalTo("10"));
 
 
         client().prepareIndex("test", "type1", Integer.toString(3)).setSource(jsonBuilder().startObject()
@@ -1308,13 +1306,13 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(2)));
-        assertThat(((Text) searchResponse.getHits().getAt(0).sortValues()[0]).string(), equalTo("20"));
+        assertThat(searchResponse.getHits().getAt(0).sortValues()[0], equalTo("20"));
 
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo(Integer.toString(1)));
-        assertThat(((Text) searchResponse.getHits().getAt(1).sortValues()[0]).string(), equalTo("10"));
+        assertThat(searchResponse.getHits().getAt(1).sortValues()[0], equalTo("10"));
 
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
-        assertThat(((Text) searchResponse.getHits().getAt(2).sortValues()[0]).string(), equalTo("03"));
+        assertThat(searchResponse.getHits().getAt(2).sortValues()[0], equalTo("03"));
 
         for (int i = 0; i < 15; i++) {
             client().prepareIndex("test", "type1", Integer.toString(300 + i)).setSource(jsonBuilder().startObject()
@@ -1332,13 +1330,13 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().hits().length, equalTo(3));
 
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(2)));
-        assertThat(((Text) searchResponse.getHits().getAt(0).sortValues()[0]).string(), equalTo("20"));
+        assertThat(searchResponse.getHits().getAt(0).sortValues()[0], equalTo("20"));
 
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo(Integer.toString(1)));
-        assertThat(((Text) searchResponse.getHits().getAt(1).sortValues()[0]).string(), equalTo("10"));
+        assertThat(searchResponse.getHits().getAt(1).sortValues()[0], equalTo("10"));
 
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
-        assertThat(((Text) searchResponse.getHits().getAt(2).sortValues()[0]).string(), equalTo("03"));
+        assertThat(searchResponse.getHits().getAt(2).sortValues()[0], equalTo("03"));
     }
 
     public void testSortMetaField() throws Exception {
@@ -1448,10 +1446,7 @@ public class FieldSortIT extends ESIntegTestCase {
         SearchHit[] hits = searchResponse.getHits().hits();
         for (int i = 0; i < hits.length; ++i) {
             assertThat(hits[i].getSortValues().length, is(1));
-            Object o = hits[i].getSortValues()[0];
-            assertThat(o, notNullValue());
-            Text text = (Text) o;
-            assertThat(text.string(), is("bar"));
+            assertThat(hits[i].getSortValues()[0], is("bar"));
         }
 
 
@@ -1464,10 +1459,7 @@ public class FieldSortIT extends ESIntegTestCase {
         hits = searchResponse.getHits().hits();
         for (int i = 0; i < hits.length; ++i) {
             assertThat(hits[i].getSortValues().length, is(1));
-            Object o = hits[i].getSortValues()[0];
-            assertThat(o, notNullValue());
-            Text text = (Text) o;
-            assertThat(text.string(), is("bar bar"));
+            assertThat(hits[i].getSortValues()[0], is("bar bar"));
         }
     }
 
@@ -1506,4 +1498,34 @@ public class FieldSortIT extends ESIntegTestCase {
         }
     }
 
+    public void testCustomFormat() throws Exception {
+        // Use an ip field, which uses different internal/external
+        // representations of values, to make sure values are both correctly
+        // rendered and parsed (search_after)
+        assertAcked(prepareCreate("test")
+                .addMapping("type", "ip", "type=ip"));
+        indexRandom(true,
+                client().prepareIndex("test", "type", "1").setSource("ip", "192.168.1.7"),
+                client().prepareIndex("test", "type", "2").setSource("ip", "2001:db8::ff00:42:8329"));
+
+        SearchResponse response = client().prepareSearch("test")
+                .addSort(SortBuilders.fieldSort("ip"))
+                .get();
+        assertSearchResponse(response);
+        assertEquals(2, response.getHits().totalHits());
+        assertArrayEquals(new String[] {"192.168.1.7"},
+                response.getHits().getAt(0).getSortValues());
+        assertArrayEquals(new String[] {"2001:db8::ff00:42:8329"},
+                response.getHits().getAt(1).getSortValues());
+
+        response = client().prepareSearch("test")
+                .addSort(SortBuilders.fieldSort("ip"))
+                .searchAfter(new Object[] {"192.168.1.7"})
+                .get();
+        assertSearchResponse(response);
+        assertEquals(2, response.getHits().totalHits());
+        assertEquals(1, response.getHits().hits().length);
+        assertArrayEquals(new String[] {"2001:db8::ff00:42:8329"},
+                response.getHits().getAt(0).getSortValues());
+    }
 }

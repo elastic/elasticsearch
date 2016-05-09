@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle
+package org.elasticsearch.gradle.doc
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.InvalidUserDataException
@@ -55,6 +55,8 @@ public class SnippetsTask extends DefaultTask {
     ConfigurableFileTree docs = project.fileTree(project.projectDir) {
         // No snippets in the build file
         exclude 'build.gradle'
+        // That is where the snippets go, not where they come from!
+        exclude 'build'
     }
 
     @TaskAction
@@ -110,15 +112,20 @@ public class SnippetsTask extends DefaultTask {
                     lastLanguageLine = lineNumber
                     return
                 }
-                if (line ==~ /\/\/ AUTOSENSE\s*/) {
+                if (line ==~ /\/\/\s*AUTOSENSE\s*/) {
+                    throw new InvalidUserDataException("AUTOSENSE has been " +
+                            "replaced by CONSOLE. Use that instead at " +
+                            "$file:$lineNumber")
+                }
+                if (line ==~ /\/\/\s*CONSOLE\s*/) {
                     if (snippet == null) {
-                        throw new InvalidUserDataException("AUTOSENSE not " +
+                        throw new InvalidUserDataException("CONSOLE not " +
                             "paired with a snippet at $file:$lineNumber")
                     }
-                    snippet.autoSense = true
+                    snippet.console = true
                     return
                 }
-                matcher = line =~ /\/\/ TEST(\[(.+)\])?\s*/
+                matcher = line =~ /\/\/\s*TEST(\[(.+)\])?\s*/
                 if (matcher.matches()) {
                     if (snippet == null) {
                         throw new InvalidUserDataException("TEST not " +
@@ -157,7 +164,7 @@ public class SnippetsTask extends DefaultTask {
                     }
                     return
                 }
-                matcher = line =~ /\/\/ TESTRESPONSE(\[(.+)\])?\s*/
+                matcher = line =~ /\/\/\s*TESTRESPONSE(\[(.+)\])?\s*/
                 if (matcher.matches()) {
                     if (snippet == null) {
                         throw new InvalidUserDataException("TESTRESPONSE not " +
@@ -165,7 +172,9 @@ public class SnippetsTask extends DefaultTask {
                     }
                     snippet.testResponse = true
                     if (matcher.group(2) != null) {
-                        substitutions = []
+                        if (substitutions == null) {
+                            substitutions = []
+                        }
                         String loc = "$file:$lineNumber"
                         parse(loc, matcher.group(2), /$SUBSTITUTION ?/) {
                             substitutions.add([it.group(1), it.group(2)])
@@ -173,7 +182,7 @@ public class SnippetsTask extends DefaultTask {
                     }
                     return
                 }
-                if (line ==~ /\/\/ TESTSETUP\s*/) {
+                if (line ==~ /\/\/\s*TESTSETUP\s*/) {
                     snippet.testSetup = true
                     return
                 }
@@ -212,7 +221,7 @@ public class SnippetsTask extends DefaultTask {
         int end = NOT_FINISHED
         String contents
 
-        boolean autoSense = false
+        boolean console = false
         boolean test = false
         boolean testResponse = false
         boolean testSetup = false
@@ -228,8 +237,8 @@ public class SnippetsTask extends DefaultTask {
             if (language != null) {
                 result += "($language)"
             }
-            if (autoSense) {
-                result += '// AUTOSENSE'
+            if (console) {
+                result += '// CONSOLE'
             }
             if (test) {
                 result += '// TEST'

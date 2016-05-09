@@ -737,6 +737,29 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Read a {@link List} of {@link Streamable} objects, using the {@code constructor} to instantiate each instance.
+     * <p>
+     * This is expected to take the form:
+     * <code>
+     * List&lt;MyStreamableClass&gt; list = in.readStreamList(MyStreamableClass::new);
+     * </code>
+     *
+     * @param constructor Streamable instance creator
+     * @return Never {@code null}.
+     * @throws IOException if any step fails
+     */
+    public <T extends Streamable> List<T> readStreamableList(Supplier<T> constructor) throws IOException {
+        int count = readVInt();
+        List<T> builder = new ArrayList<>(count);
+        for (int i=0; i<count; i++) {
+            T instance = constructor.get();
+            instance.readFrom(this);
+            builder.add(instance);
+        }
+        return builder;
+    }
+
+    /**
      * Reads a list of objects
      */
     public <T> List<T> readList(StreamInputReader<T> reader) throws IOException {
@@ -762,4 +785,5 @@ public abstract class StreamInput extends InputStream {
     public static StreamInput wrap(byte[] bytes, int offset, int length) {
         return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length));
     }
+
 }

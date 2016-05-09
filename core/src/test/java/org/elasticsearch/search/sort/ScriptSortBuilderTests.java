@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
@@ -124,7 +125,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     @Override
-    protected void sortFieldAssertions(ScriptSortBuilder builder, SortField sortField) throws IOException {
+    protected void sortFieldAssertions(ScriptSortBuilder builder, SortField sortField, DocValueFormat format) throws IOException {
         assertEquals(SortField.Type.CUSTOM, sortField.getType());
         assertEquals(builder.order() == SortOrder.ASC ? false : true, sortField.getReverse());
     }

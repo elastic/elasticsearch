@@ -45,7 +45,7 @@ PUT _all/_settings
   }
 }
 ------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[s/^/PUT test\n/]
 
 With delayed allocation enabled, the above scenario changes to look like this:
@@ -83,7 +83,7 @@ can be viewed with the <<cluster-health,cluster health API>>:
 ------------------------------
 GET _cluster/health <1>
 ------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> This request will return a `delayed_unassigned_shards` value.
 
 ==== Removing a node permanently
@@ -101,7 +101,7 @@ PUT _all/_settings
   }
 }
 ------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[s/^/PUT test\n/]
 
 You can reset the timeout as soon as the missing shards have started to recover.

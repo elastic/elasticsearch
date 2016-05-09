@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.Sort;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -41,6 +40,7 @@ import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
@@ -131,7 +131,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
     private boolean trackScores;
 
     private List<String> fieldNames;
-    private QueryBuilder<?> query = new MatchAllQueryBuilder();
+    private QueryBuilder query = new MatchAllQueryBuilder();
     private List<SortBuilder<?>> sorts;
     private List<String> fieldDataFields;
     private Set<ScriptField> scriptFields;
@@ -411,7 +411,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         return this;
     }
 
-    QueryBuilder<?> getQuery() {
+    QueryBuilder getQuery() {
         return query;
     }
 
@@ -512,7 +512,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             innerHitsContext.fetchSourceContext(fetchSourceContext);
         }
         if (sorts != null) {
-            Optional<Sort> optionalSort = SortBuilder.buildSort(sorts, context);
+            Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(sorts, context);
             if (optionalSort.isPresent()) {
                 innerHitsContext.sort(optionalSort.get());
             }
@@ -632,7 +632,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         return PARSER.parse(context.parser(), new InnerHitBuilder(), context);
     }
 
-    public static void extractInnerHits(QueryBuilder<?> query, Map<String, InnerHitBuilder> innerHitBuilders) {
+    public static void extractInnerHits(QueryBuilder query, Map<String, InnerHitBuilder> innerHitBuilders) {
         if (query instanceof AbstractQueryBuilder) {
             ((AbstractQueryBuilder) query).extractInnerHitBuilders(innerHitBuilders);
         } else {

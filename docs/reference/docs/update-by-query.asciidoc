@@ -12,7 +12,7 @@ mapping change. Here is the API:
 --------------------------------------------------
 POST twitter/_update_by_query?conflicts=proceed
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:big_twitter]
 
 That will return something like this:
@@ -64,7 +64,7 @@ will only update `tweet`s from the `twitter` index:
 --------------------------------------------------
 POST twitter/tweet/_update_by_query?conflicts=proceed
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:twitter]
 
 You can also limit `_update_by_query` using the
@@ -82,7 +82,7 @@ POST twitter/_update_by_query?conflicts=proceed
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:twitter]
 
 <1> The query must be passed as a value to the `query` key, in the same
@@ -109,7 +109,7 @@ POST twitter/_update_by_query
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:twitter]
 
 Just as in <<docs-update,Update API>> you can set `ctx.op = "noop"` if
@@ -133,7 +133,7 @@ types at once, just like the search API:
 --------------------------------------------------
 POST twitter,blog/tweet,post/_update_by_query
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[s/^/PUT twitter\nPUT blog\n/]
 
 If you provide `routing` then the routing is copied to the scroll query,
@@ -143,7 +143,7 @@ limiting the process to the shards that match that routing value:
 --------------------------------------------------
 POST twitter/_update_by_query?routing=1
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:twitter]
 
 By default `_update_by_query` uses scroll batches of 100. You can change the
@@ -153,7 +153,7 @@ batch size with the `scroll_size` URL parameter:
 --------------------------------------------------
 POST twitter/_update_by_query?scroll_size=1000
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:twitter]
 
 `_update_by_query` can also use the <<ingest>> feature by
@@ -173,7 +173,7 @@ PUT _ingest/pipeline/set-foo
 }
 POST twitter/_update_by_query?pipeline=set-foo
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:twitter]
 
 [float]
@@ -268,7 +268,7 @@ While Update By Query is running you can fetch their status using the
 --------------------------------------------------
 GET _tasks/?pretty&detailed=true&action=*byquery
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The responses looks like:
 
@@ -327,7 +327,7 @@ Any Update By Query can be canceled using the <<tasks,Task Cancel API>>:
 --------------------------------------------------
 POST _tasks/taskid:1/_cancel
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The `task_id` can be found using the tasks API above.
 
@@ -346,7 +346,7 @@ using the `_rethrottle` API:
 --------------------------------------------------
 POST _update_by_query/taskid:1/_rethrottle?requests_per_second=unlimited
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The `task_id` can be found using the tasks API above.
 
@@ -396,7 +396,7 @@ PUT test/_mapping/test   <2>
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> This means that new fields won't be indexed, just stored in `_source`.
 
@@ -416,7 +416,7 @@ POST test/_search?filter_path=hits.total
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[continued]
 
 [source,js]
@@ -443,7 +443,7 @@ POST test/_search?filter_path=hits.total
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[continued]
 
 [source,js]

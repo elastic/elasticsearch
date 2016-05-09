@@ -21,7 +21,7 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 NOTE: Shards will only be relocated if it is possible to do so without
 breaking another routing constraint, such as never allocating a primary and
@@ -66,5 +66,5 @@ PUT _cluster/settings
   }
 }
 ------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[skip:indexes don't assign]

@@ -82,7 +82,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
                 return;
             }
         } else {
-            QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+            QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
             if (queryBuilder != null) {
                 validateQueryRequest.query(queryBuilder);
             }

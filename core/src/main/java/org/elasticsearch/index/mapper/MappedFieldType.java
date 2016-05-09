@@ -404,7 +404,7 @@ public abstract class MappedFieldType extends FieldType {
         int maxDoc = reader.maxDoc();
         Terms terms = MultiFields.getTerms(reader, name());
         if (terms == null) {
-            return new FieldStats.Text(maxDoc, isSearchable(), isAggregatable());
+            return null;
         }
         FieldStats stats = new FieldStats.Text(maxDoc, terms.getDocCount(),
             terms.getSumDocFreq(), terms.getSumTotalTermFreq(),

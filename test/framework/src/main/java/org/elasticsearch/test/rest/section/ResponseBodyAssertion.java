@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 import org.elasticsearch.common.Nullable;
@@ -69,7 +70,7 @@ public class ResponseBodyAssertion extends Assertion {
             actual = new TreeMap<>(actual);
             expected = new TreeMap<>(expected);
             for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {
-                compare(expectedEntry.getKey(), expectedEntry.getValue(), actual.remove(expectedEntry.getKey()));
+                compare(expectedEntry.getKey(), actual.remove(expectedEntry.getKey()), expectedEntry.getValue());
             }
             for (Map.Entry<String, Object> unmatchedEntry : actual.entrySet()) {
                 field(unmatchedEntry.getKey(), "unexpected but found [" + unmatchedEntry.getValue() + "]");
@@ -80,6 +81,7 @@ public class ResponseBodyAssertion extends Assertion {
             int i = 0;
             while (i < actual.size() && i < expected.size()) {
                 compare(i, actual.get(i), expected.get(i));
+                i++;
             }
             if (actual.size() == expected.size()) {
                 return;
@@ -92,7 +94,7 @@ public class ResponseBodyAssertion extends Assertion {
             message.append("received [").append(actual.size() - i).append("] more entries than expected\n");
         }
 
-        private void compare(Object field, Object expected, @Nullable Object actual) {
+        private void compare(Object field, @Nullable Object actual, Object expected) {
             if (expected instanceof Map) {
                 if (actual == null) {
                     field(field, "expected map but not found");
@@ -108,10 +110,11 @@ public class ResponseBodyAssertion extends Assertion {
                 Map<String, Object> actualMap = (Map<String, Object>) actual;
                 if (expectedMap.isEmpty() && actualMap.isEmpty()) {
                     field(field, "same [empty map]");
+                    return;
                 }
                 field(field, null);
                 indent += 1;
-                compareMaps(expectedMap, actualMap);
+                compareMaps(actualMap, expectedMap);
                 indent -= 1;
                 return;
             }
@@ -134,7 +137,7 @@ public class ResponseBodyAssertion extends Assertion {
                 }
                 field(field, null);
                 indent += 1;
-                compareLists(expectedList, actualList);
+                compareLists(actualList, expectedList);
                 indent -= 1;
                 return;
             }
@@ -142,7 +145,7 @@ public class ResponseBodyAssertion extends Assertion {
                 field(field, "expected [" + expected + "] but not found");
                 return;
             }
-            if (expected.equals(actual)) {
+            if (Objects.equals(expected, actual)) {
                 field(field, "same [" + expected + "]");
                 return;
             }

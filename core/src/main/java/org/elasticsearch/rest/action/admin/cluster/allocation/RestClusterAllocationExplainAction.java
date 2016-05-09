@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplai
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -67,7 +68,8 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
                 req = ClusterAllocationExplainRequest.parse(parser);
             } catch (IOException e) {
                 logger.debug("failed to parse allocation explain request", e);
-                channel.sendResponse(new BytesRestResponse(ExceptionsHelper.status(e)));
+                channel.sendResponse(
+                    new BytesRestResponse(ExceptionsHelper.status(e), BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
                 return;
             }
         }
@@ -83,7 +85,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
             });
         } catch (Exception e) {
             logger.error("failed to explain allocation", e);
-            channel.sendResponse(new BytesRestResponse(ExceptionsHelper.status(e)));
+            channel.sendResponse(new BytesRestResponse(ExceptionsHelper.status(e), BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         }
     }
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -125,10 +126,10 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> implement
                     channel.sendResponse(restResponse);
                 }
             } catch (IOException e) {
-                channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR));
+                channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             }
         } else {
-            channel.sendResponse(new BytesRestResponse(FORBIDDEN));
+            channel.sendResponse(new BytesRestResponse(FORBIDDEN, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         }
     }
 

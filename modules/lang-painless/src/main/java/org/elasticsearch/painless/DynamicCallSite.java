@@ -89,7 +89,7 @@ public final class DynamicCallSite {
      * guard method for inline caching: checks the receiver's class is the same
      * as the cached class
      */
-    public static boolean checkClass(Class<?> clazz, Object receiver) {
+    static boolean checkClass(Class<?> clazz, Object receiver) {
         return receiver.getClass() == clazz;
     }
     
@@ -112,7 +112,7 @@ public final class DynamicCallSite {
      * Called when a new type is encountered (or, when we have encountered more than {@code MAX_DEPTH}
      * types at this call site and given up on caching). 
      */
-    public static Object fallback(InliningCacheCallSite callSite, Object[] args) throws Throwable {
+    static Object fallback(InliningCacheCallSite callSite, Object[] args) throws Throwable {
         MethodType type = callSite.type();
         Object receiver = args[0];
         Class<?> receiverClass = receiver.getClass();

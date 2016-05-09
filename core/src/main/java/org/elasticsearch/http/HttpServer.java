@@ -106,9 +106,10 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> implement
         }
         RestChannel responseChannel = channel;
         try {
-            inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(request.content().length(), "<http_request>");
+            int contentLength = request.content().length();
+            inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
             // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService);
+            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
             restController.dispatchRequest(request, responseChannel, threadContext);
         } catch (Throwable t) {
             restController.sendErrorResponse(request, responseChannel, t);
@@ -135,11 +136,13 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> implement
     private static final class ResourceHandlingHttpChannel implements RestChannel {
         private final RestChannel delegate;
         private final CircuitBreakerService circuitBreakerService;
+        private final int contentLength;
         private final AtomicBoolean closed = new AtomicBoolean();
 
-        public ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService) {
+        public ResourceHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
             this.delegate = delegate;
             this.circuitBreakerService = circuitBreakerService;
+            this.contentLength = contentLength;
         }
 
         @Override
@@ -183,7 +186,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> implement
             if (closed.compareAndSet(false, true) == false) {
                 throw new IllegalStateException("Channel is already closed");
             }
-            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-request().content().length());
+            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
         }
 
     }

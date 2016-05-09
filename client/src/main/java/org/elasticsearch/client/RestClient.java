@@ -98,7 +98,7 @@ public final class RestClient implements Closeable {
             try {
                 response = client.execute(connection.getHost(), request);
             } catch(IOException e) {
-                RequestLogger.log(logger, "request failed", request.getRequestLine(), connection.getHost(), e);
+                RequestLogger.log(logger, "request failed", request, connection.getHost(), e);
                 connectionPool.onFailure(connection);
                 lastSeenException = addSuppressedException(lastSeenException, e);
                 continue;
@@ -108,11 +108,11 @@ public final class RestClient implements Closeable {
             int statusCode = response.getStatusLine().getStatusCode();
             //TODO make ignore status code configurable. rest-spec and tests support that parameter (ignore_missing)
             if (statusCode < 300 || (request.getMethod().equals(HttpHead.METHOD_NAME) && statusCode == 404) ) {
-                RequestLogger.log(logger, "request succeeded", request.getRequestLine(), connection.getHost(), response.getStatusLine());
+                RequestLogger.log(logger, "request succeeded", request, connection.getHost(), response);
                 connectionPool.onSuccess(connection);
                 return new ElasticsearchResponse(request.getRequestLine(), connection.getHost(), response);
             } else {
-                RequestLogger.log(logger, "request failed", request.getRequestLine(), connection.getHost(), response.getStatusLine());
+                RequestLogger.log(logger, "request failed", request, connection.getHost(), response);
                 String responseBody = null;
                 if (response.getEntity() != null) {
                     responseBody = EntityUtils.toString(response.getEntity());

@@ -77,7 +77,7 @@ final class Sniffer {
         try (CloseableHttpResponse response = client.execute(host, httpGet)) {
             StatusLine statusLine = response.getStatusLine();
             if (statusLine.getStatusCode() >= 300) {
-                RequestLogger.log(logger, "sniff failed", httpGet.getRequestLine(), host, statusLine);
+                RequestLogger.log(logger, "sniff failed", httpGet, host, response);
                 String responseBody = null;
                 if (response.getEntity() != null) {
                     responseBody = EntityUtils.toString(response.getEntity());
@@ -85,11 +85,11 @@ final class Sniffer {
                 throw new ElasticsearchResponseException(httpGet.getRequestLine(), host, response.getStatusLine(), responseBody);
             } else {
                 List<HttpHost> nodes = readHosts(response.getEntity());
-                RequestLogger.log(logger, "sniff succeeded", httpGet.getRequestLine(), host, statusLine);
+                RequestLogger.log(logger, "sniff succeeded", httpGet, host, response);
                 return nodes;
             }
         } catch(IOException e) {
-            RequestLogger.log(logger, "sniff failed", httpGet.getRequestLine(), host, e);
+            RequestLogger.log(logger, "sniff failed", httpGet, host, e);
             throw e;
         }
     }

@@ -58,6 +58,19 @@ public class EChain extends AExpression {
 
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        analyzeLinks(settings, definition, variables);
+        analyzePrePost();
+
+        if (operation != null) {
+            analyzeCompound(settings, definition, variables);
+        } else if (expression != null) {
+            analyzeWrite(settings, definition, variables);
+        } else {
+            analyzeRead();
+        }
+    }
+
+    protected void analyzeLinks(final CompilerSettings settings, final Definition definition, final Variables variables) {
         ALink previous = null;
         int index = 0;
 
@@ -94,7 +107,9 @@ public class EChain extends AExpression {
         if (links.get(0).statik) {
             links.remove(0);
         }
+    }
 
+    protected void analyzePrePost() {
         final ALink last = links.get(links.size() - 1);
 
         if (pre && post) {
@@ -134,86 +149,96 @@ public class EChain extends AExpression {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
         }
+    }
 
-        if (operation != null) {
-            expression.analyze(settings, definition, variables);
+    protected void analyzeCompound(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        final ALink last = links.get(links.size() - 1);
 
-            if (operation == Operation.MUL) {
-                promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
-                exact = true;
-            } else if (operation == Operation.DIV) {
-                promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
-                exact = true;
-            } else if (operation == Operation.REM) {
-                promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
-                exact = true;
-            } else if (operation == Operation.ADD) {
-                promote = Caster.promoteAdd(definition, last.after, expression.actual);
-                exact = true;
-            } else if (operation == Operation.SUB) {
-                promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
-                exact = true;
-            } else if (operation == Operation.LSH) {
-                promote = Caster.promoteNumeric(definition, last.after, false, true);
-            } else if (operation == Operation.RSH) {
-                promote = Caster.promoteNumeric(definition, last.after, false, true);
-            } else if (operation == Operation.USH) {
-                promote = Caster.promoteNumeric(definition, last.after, false, true);
-            } else if (operation == Operation.BWAND) {
-                promote = Caster.promoteXor(definition, last.after, expression.actual);
-            } else if (operation == Operation.XOR) {
-                promote = Caster.promoteXor(definition, last.after, expression.actual);
-            } else if (operation == Operation.BWOR) {
-                promote = Caster.promoteXor(definition, last.after, expression.actual);
-            } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
-            }
+        expression.analyze(settings, definition, variables);
 
-            if (promote == null) {
-                throw new ClassCastException("Cannot apply compound assignment " +
-                    "[" + operation.symbol + "=] to types [" + last.after + "] and [" + expression.actual + "].");
-            }
-
-            cat = operation == Operation.ADD && promote.sort == Sort.STRING;
-
-            if (cat) {
-                if (expression instanceof EBinary && ((EBinary)expression).operation == Operation.ADD &&
-                    expression.actual.sort == Sort.STRING) {
-                    ((EBinary)expression).cat = true;
-                }
-
-                expression.expected = expression.actual;
-            } else if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
-                expression.expected = definition.intType;
-                expression.explicit = true;
-            } else {
-                expression.expected = promote;
-            }
-
-            expression = expression.cast(settings, definition, variables);
-
-            exact &= !settings.getNumericOverflow() && expression.typesafe;
-            there = Caster.getLegalCast(definition, location, last.after, promote, expression.typesafe);
-            back = Caster.getLegalCast(definition, location, promote, last.after, true);
-
-            statement = true;
-            actual = read ? last.after : definition.voidType;
-            typesafe = actual.sort != Sort.DEF && expression.typesafe;
-        } else if (expression != null) {
-            expression.expected = last.after;
-            expression.analyze(settings, definition, variables);
-            expression = expression.cast(settings, definition, variables);
-            last.typesafe = expression.typesafe;
-
-            statement = true;
-            actual = read ? last.after : definition.voidType;
-            typesafe = actual.sort != Sort.DEF && expression.typesafe;
+        if (operation == Operation.MUL) {
+            promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
+            exact = true;
+        } else if (operation == Operation.DIV) {
+            promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
+            exact = true;
+        } else if (operation == Operation.REM) {
+            promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
+            exact = true;
+        } else if (operation == Operation.ADD) {
+            promote = Caster.promoteAdd(definition, last.after, expression.actual);
+            exact = true;
+        } else if (operation == Operation.SUB) {
+            promote = Caster.promoteNumeric(definition, last.after, expression.actual, true, true);
+            exact = true;
+        } else if (operation == Operation.LSH) {
+            promote = Caster.promoteNumeric(definition, last.after, false, true);
+        } else if (operation == Operation.RSH) {
+            promote = Caster.promoteNumeric(definition, last.after, false, true);
+        } else if (operation == Operation.USH) {
+            promote = Caster.promoteNumeric(definition, last.after, false, true);
+        } else if (operation == Operation.BWAND) {
+            promote = Caster.promoteXor(definition, last.after, expression.actual);
+        } else if (operation == Operation.XOR) {
+            promote = Caster.promoteXor(definition, last.after, expression.actual);
+        } else if (operation == Operation.BWOR) {
+            promote = Caster.promoteXor(definition, last.after, expression.actual);
         } else {
-            constant = last.constant;
-            statement = last.statement;
-            actual = last.after;
-            typesafe = actual.sort != Sort.DEF;
+            throw new IllegalStateException(error("Illegal tree structure."));
         }
+
+        if (promote == null) {
+            throw new ClassCastException("Cannot apply compound assignment " +
+                "[" + operation.symbol + "=] to types [" + last.after + "] and [" + expression.actual + "].");
+        }
+
+        cat = operation == Operation.ADD && promote.sort == Sort.STRING;
+
+        if (cat) {
+            if (expression instanceof EBinary && ((EBinary)expression).operation == Operation.ADD &&
+                expression.actual.sort == Sort.STRING) {
+                ((EBinary)expression).cat = true;
+            }
+
+            expression.expected = expression.actual;
+        } else if (operation == Operation.LSH || operation == Operation.RSH || operation == Operation.USH) {
+            expression.expected = definition.intType;
+            expression.explicit = true;
+        } else {
+            expression.expected = promote;
+        }
+
+        expression = expression.cast(settings, definition, variables);
+
+        exact &= !settings.getNumericOverflow() && expression.typesafe;
+        there = Caster.getLegalCast(definition, location, last.after, promote, expression.typesafe);
+        back = Caster.getLegalCast(definition, location, promote, last.after, true);
+
+        statement = true;
+        actual = read ? last.after : definition.voidType;
+        typesafe = actual.sort != Sort.DEF && expression.typesafe;
+    }
+
+    protected void analyzeWrite(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        final ALink last = links.get(links.size() - 1);
+
+        expression.expected = last.after;
+        expression.analyze(settings, definition, variables);
+        expression = expression.cast(settings, definition, variables);
+        last.typesafe = expression.typesafe;
+
+        statement = true;
+        actual = read ? last.after : definition.voidType;
+        typesafe = actual.sort != Sort.DEF && expression.typesafe;
+    }
+
+    protected void analyzeRead() {
+        final ALink last = links.get(links.size() - 1);
+
+        constant = last.constant;
+        statement = last.statement;
+        actual = last.after;
+        typesafe = actual.sort != Sort.DEF;
     }
 
     @Override

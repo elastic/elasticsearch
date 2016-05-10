@@ -51,6 +51,8 @@ class ListPluginsCommand extends Command {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(env.pluginsFile())) {
             for (Path plugin : stream) {
                 terminal.println(plugin.getFileName().toString());
+                PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin.toAbsolutePath()));
+                terminal.println(Terminal.Verbosity.VERBOSE, info.toString());
             }
         }
     }

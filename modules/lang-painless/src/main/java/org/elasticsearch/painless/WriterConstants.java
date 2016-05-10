@@ -60,10 +60,14 @@ class WriterConstants {
     final static Handle DEF_BOOTSTRAP_HANDLE = new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(DynamicCallSite.class),
                                                           "bootstrap", WriterConstants.DEF_BOOTSTRAP_TYPE.toMethodDescriptorString());
 
-    final static Method DEF_ARRAY_STORE = getAsmMethod(
-        void.class, "arrayStore", Object.class, Object.class, Object.class);
-    final static Method DEF_ARRAY_LOAD = getAsmMethod(
-        Object.class, "arrayLoad", Object.class, Object.class);
+    final static String DEF_DYNAMIC_LOAD_FIELD_DESC = MethodType.methodType(Object.class, Object.class)
+        .toMethodDescriptorString();
+    final static String DEF_DYNAMIC_STORE_FIELD_DESC = MethodType.methodType(void.class, Object.class, Object.class)
+        .toMethodDescriptorString();
+    final static String DEF_DYNAMIC_ARRAY_LOAD_DESC = MethodType.methodType(Object.class, Object.class, Object.class)
+        .toMethodDescriptorString();
+    final static String DEF_DYNAMIC_ARRAY_STORE_DESC = MethodType.methodType(void.class, Object.class, Object.class, Object.class)
+        .toMethodDescriptorString();
 
     final static Method DEF_NOT_CALL = getAsmMethod(Object.class, "not", Object.class);
     final static Method DEF_NEG_CALL = getAsmMethod(Object.class, "neg", Object.class);

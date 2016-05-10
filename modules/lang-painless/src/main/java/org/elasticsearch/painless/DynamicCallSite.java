@@ -48,6 +48,10 @@ public final class DynamicCallSite {
     static final int LOAD = 1;
     /** static bootstrap parameter indicating a dynamic store (setter), e.g. foo.bar = baz */
     static final int STORE = 2;
+    /** static bootstrap parameter indicating a dynamic array load, e.g. baz = foo[bar] */
+    static final int ARRAY_LOAD = 3;
+    /** static bootstrap parameter indicating a dynamic array store, e.g. foo[bar] = baz */
+    static final int ARRAY_STORE = 4;
     
     static class InliningCacheCallSite extends MutableCallSite {
         /** maximum number of types before we go megamorphic */
@@ -104,6 +108,10 @@ public final class DynamicCallSite {
                 return Def.lookupGetter(clazz, name, Definition.INSTANCE);
             case STORE:
                 return Def.lookupSetter(clazz, name, Definition.INSTANCE);
+            case ARRAY_LOAD: 
+                return Def.lookupArrayLoad(clazz);
+            case ARRAY_STORE:
+                return Def.lookupArrayStore(clazz);
             default: throw new AssertionError();
         }
     }

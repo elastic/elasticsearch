@@ -17,7 +17,7 @@ associated with it.
 $ curl -XPUT 'http://localhost:9200/twitter/' -d '{
     "settings" : {
         "index" : {
-            "number_of_shards" : 3 <1>
+            "number_of_shards" : 3, <1>
             "number_of_replicas" : 2 <2>
         }
     }

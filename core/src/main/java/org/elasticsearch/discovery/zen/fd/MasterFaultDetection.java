@@ -171,7 +171,7 @@ public class MasterFaultDetection extends FaultDetection {
         synchronized (masterNodeMutex) {
             if (this.masterNode == null ||
                 node.getId().equals(this.masterNode.getId()) == false ||
-                node.getEphemeralId().equals(this.masterNode.getEphemeralId())) {
+                node.getEphemeralId().equals(this.masterNode.getEphemeralId()) == false) {
                 return;
             }
             if (connectOnNetworkDisconnect) {

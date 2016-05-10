@@ -75,7 +75,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
 
     public void testIdMatch() {
         Settings settings = Settings.builder()
-                .put("xxx._id", "pid1")
+                .put("xxx._id", "nid1")
                 .build();
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);
 
@@ -90,7 +90,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
 
     public void testIdOrNameMatch() {
         Settings settings = shuffleSettings(Settings.builder()
-                .put("xxx._id", "pid1,blah")
+                .put("xxx._id", "nid1,blah")
                 .put("xxx.name", "blah,name2")
                 .build());
         DiscoveryNodeFilters filters = DiscoveryNodeFilters.buildFromSettings(OR, "xxx.", settings);

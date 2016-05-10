@@ -138,9 +138,9 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         // apply marker interface NeedsScore if we use the score!
         final String interfaces[];
         if (metadata.scoreValueUsed) {
-          interfaces = new String[] { WriterConstants.NEEDS_SCORE_TYPE.getInternalName() };
+            interfaces = new String[] { WriterConstants.NEEDS_SCORE_TYPE.getInternalName() };
         } else {
-          interfaces = null;
+            interfaces = null;
         }
         writer.visit(version, access, name, null, base, interfaces);
         writer.visitSource(source, null);

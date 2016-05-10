@@ -19,9 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.compiler.Compiler;
-import org.elasticsearch.painless.runtime.PainlessError;
-
 import java.util.Arrays;
 import java.util.Collections;
 

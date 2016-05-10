@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.compiler.Definition;
 import org.junit.Before;
 
 public class FieldTests extends ScriptTestCase {

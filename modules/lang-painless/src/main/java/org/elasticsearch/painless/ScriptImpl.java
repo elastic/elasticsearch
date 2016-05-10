@@ -20,7 +20,6 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.painless.runtime.Executable;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScoreAccessor;

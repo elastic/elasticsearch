@@ -49,7 +49,7 @@
         <include name="@{grammar}ParserVisitor.java" />
         <include name="@{grammar}ParserBaseVisitor.java" />
       </patternset>
-      <property name="output.path" location="src/main/java/org/elasticsearch/painless/input/antlr"/>
+      <property name="output.path" location="src/main/java/org/elasticsearch/painless/antlr"/>
       <!-- delete parser and lexer so files will be generated -->
       <delete dir="${output.path}">
         <patternset refid="grammar.@{grammar}.patternset"/>
@@ -63,7 +63,7 @@
       <local name="grammar.path"/>
       <local name="output.path"/>
       <property name="grammar.path" location="src/main/antlr"/>
-      <property name="output.path" location="src/main/java/org/elasticsearch/painless/input/antlr"/>
+      <property name="output.path" location="src/main/java/org/elasticsearch/painless/antlr"/>
       <!-- invoke ANTLR4 -->
       <java classname="org.antlr.v4.Tool" fork="true" failonerror="true" classpathref="regenerate.classpath" taskname="antlr">
         <sysproperty key="file.encoding" value="UTF-8"/>
@@ -71,7 +71,7 @@
         <sysproperty key="user.country" value="US"/>
         <sysproperty key="user.variant" value=""/>
         <arg value="-package"/>
-        <arg value="org.elasticsearch.painless.input.antlr"/>
+        <arg value="org.elasticsearch.painless.antlr"/>
         <arg value="-o"/>
         <arg path="${output.path}"/>
         <arg path="${grammar.path}/@{grammar}Lexer.g4"/>
@@ -85,7 +85,7 @@
       <local name="grammar.path"/>
       <local name="output.path"/>
       <property name="grammar.path" location="src/main/antlr"/>
-      <property name="output.path" location="src/main/java/org/elasticsearch/painless/input/antlr"/>
+      <property name="output.path" location="src/main/java/org/elasticsearch/painless/antlr"/>
       <!-- invoke ANTLR4 -->
       <java classname="org.antlr.v4.Tool" fork="true" failonerror="true" classpathref="regenerate.classpath" taskname="antlr">
         <sysproperty key="file.encoding" value="UTF-8"/>
@@ -93,7 +93,7 @@
         <sysproperty key="user.country" value="US"/>
         <sysproperty key="user.variant" value=""/>
         <arg value="-package"/>
-        <arg value="org.elasticsearch.painless.input.antlr"/>
+        <arg value="org.elasticsearch.painless.antlr"/>
         <arg value="-no-listener"/>
         <arg value="-visitor"/>
         <!-- <arg value="-Xlog"/> -->
@@ -110,7 +110,7 @@
       <local name="grammar.path"/>
       <local name="output.path"/>
       <property name="grammar.path" location="src/main/antlr"/>
-      <property name="output.path" location="src/main/java/org/elasticsearch/painless/input/antlr"/>
+      <property name="output.path" location="src/main/java/org/elasticsearch/painless/antlr"/>
       <patternset id="grammar.@{grammar}.patternset">
         <include name="@{grammar}Lexer.java" />
         <include name="@{grammar}Parser.java" />

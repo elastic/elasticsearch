@@ -590,11 +590,12 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
         public static IndexShardRoutingTable readFromThin(StreamInput in, Index index) throws IOException {
             int iShardId = in.readVInt();
-            Builder builder = new Builder(new ShardId(index, iShardId));
+            ShardId shardId = new ShardId(index, iShardId);
+            Builder builder = new Builder(shardId);
 
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
-                ShardRouting shard = ShardRouting.readShardRoutingEntry(in, index, iShardId);
+                ShardRouting shard = new ShardRouting(shardId, in);
                 builder.addShard(shard);
             }
 

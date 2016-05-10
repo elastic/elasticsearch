@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -503,8 +504,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         // check that at unknown node fails
         PlainActionFuture<TransportResponse.Empty> listener = new PlainActionFuture<>();
         proxy.performOn(
-            TestShardRouting.newShardRouting(shardId.getIndex(), shardId.id(), "NOT THERE", false,
-                randomFrom(ShardRoutingState.values())),
+            TestShardRouting.newShardRouting(shardId, "NOT THERE", false, randomFrom(ShardRoutingState.values())),
             new Request(), listener);
         assertTrue(listener.isDone());
         assertListenerThrows("non existent node should throw a NoNodeAvailableException", listener, NoNodeAvailableException.class);
@@ -592,7 +592,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         };
         primaryPhase.messageReceived(new Request(shardId), createTransportChannel(new PlainActionFuture<>()), null);
     }
-
 
     public void testCounterOnPrimary() throws Exception {
         final String index = "test";

@@ -98,7 +98,6 @@ public class EUnary extends AExpression {
         }
 
         actual = promote;
-        typesafe = child.typesafe;
     }
 
     protected void analyzerAdd(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -130,7 +129,6 @@ public class EUnary extends AExpression {
         }
 
         actual = promote;
-        typesafe = child.typesafe;
     }
 
     protected void analyzerSub(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -164,7 +162,6 @@ public class EUnary extends AExpression {
         }
 
         actual = promote;
-        typesafe = child.typesafe;
     }
 
     @Override

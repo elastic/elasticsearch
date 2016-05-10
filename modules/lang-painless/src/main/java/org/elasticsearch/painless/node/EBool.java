@@ -60,7 +60,6 @@ public class EBool extends AExpression {
         }
 
         actual = definition.booleanType;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     @Override

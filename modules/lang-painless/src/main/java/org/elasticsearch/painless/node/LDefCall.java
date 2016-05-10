@@ -23,7 +23,6 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.DynamicCallSite;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterConstants;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.List;
@@ -68,7 +67,7 @@ public class LDefCall extends ALink {
 
         signature.append('(');
         // first parameter is the receiver, we never know its type: always Object
-        signature.append(definition.defobjType.type.getDescriptor());
+        signature.append(definition.defType.type.getDescriptor());
 
         // TODO: remove our explicit conversions and feed more type information for return value,
         // it can avoid some unnecessary boxing etc.
@@ -79,7 +78,8 @@ public class LDefCall extends ALink {
 
         signature.append(')');
         // return value
-        signature.append(definition.defobjType.type.getDescriptor());
+        signature.append(definition.defType.type.getDescriptor());
+
         adapter.visitInvokeDynamicInsn(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.METHOD_CALL });
     }
 

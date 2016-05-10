@@ -58,13 +58,13 @@ public class LDefArray extends ALink {
     @Override
     protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.visitInvokeDynamicInsn(
-            "arrayLoad", DEF_DYNAMIC_ARRAY_LOAD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.LOAD });
+            "arrayLoad", DEF_DYNAMIC_ARRAY_LOAD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.ARRAY_LOAD });
 
     }
 
     @Override
     protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.visitInvokeDynamicInsn(
-            "arrayStore", DEF_DYNAMIC_ARRAY_STORE_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.STORE });
+            "arrayStore", DEF_DYNAMIC_ARRAY_STORE_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.ARRAY_STORE });
     }
 }

@@ -35,7 +35,6 @@ public abstract class AExpression extends ANode {
     protected Type expected = null;
     protected Type actual = null;
     protected boolean explicit = false;
-    protected boolean typesafe = true;
 
     protected Object constant = null;
     protected boolean isNull = false;
@@ -51,7 +50,7 @@ public abstract class AExpression extends ANode {
     protected abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
 
     protected AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        final Cast cast = AnalyzerCaster.getLegalCast(definition, location, actual, expected, explicit || !typesafe);
+        final Cast cast = AnalyzerCaster.getLegalCast(definition, location, actual, expected, explicit);
 
         if (cast == null) {
             if (constant == null || this instanceof EConstant) {
@@ -72,7 +71,6 @@ public abstract class AExpression extends ANode {
                 ecast.statement = statement;
                 ecast.actual = expected;
                 ecast.isNull = isNull;
-                ecast.typesafe = typesafe;
 
                 return ecast;
             } else {

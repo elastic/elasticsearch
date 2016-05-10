@@ -112,7 +112,6 @@ public class EBinary extends AExpression {
         }
 
         actual = promote;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeDiv(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -154,7 +153,6 @@ public class EBinary extends AExpression {
         }
 
         actual = promote;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeRem(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -194,7 +192,6 @@ public class EBinary extends AExpression {
         }
 
         actual = promote;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeAdd(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -253,7 +250,6 @@ public class EBinary extends AExpression {
         }
 
         actual = promote;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeSub(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -295,7 +291,6 @@ public class EBinary extends AExpression {
         }
 
         actual = promote;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeLSH(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -329,7 +324,6 @@ public class EBinary extends AExpression {
         }
 
         actual = promote;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeRSH(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -363,7 +357,6 @@ public class EBinary extends AExpression {
         }
 
         actual = promote;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeUSH(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -397,7 +390,6 @@ public class EBinary extends AExpression {
         }
 
         actual = promote;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeBWAnd(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -430,7 +422,6 @@ public class EBinary extends AExpression {
         }
 
         actual = promote;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeXor(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -465,7 +456,6 @@ public class EBinary extends AExpression {
         }
 
         actual = promote;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeBWOr(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -498,7 +488,6 @@ public class EBinary extends AExpression {
         }
 
         actual = promote;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     @Override

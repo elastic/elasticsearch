@@ -51,7 +51,6 @@ public class EExplicit extends AExpression {
         child.explicit = true;
         child.analyze(settings, definition, variables);
         child = child.cast(settings, definition, variables);
-        child.typesafe |= actual.sort == Sort.DEF;
     }
 
     @Override

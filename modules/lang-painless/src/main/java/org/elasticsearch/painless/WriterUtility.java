@@ -19,13 +19,10 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Transform;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Operation;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;

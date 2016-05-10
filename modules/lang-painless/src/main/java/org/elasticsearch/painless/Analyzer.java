@@ -20,11 +20,11 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.node.SSource;
-import org.elasticsearch.painless.Variables.Shortcut;
+import org.elasticsearch.painless.Variables.Special;
 
 public class Analyzer {
     public static Variables analyze(final CompilerSettings settings, final Definition definition,
-                                    final Shortcut shortcut, final SSource root) {
+                                    final Special shortcut, final SSource root) {
         final Variables variables = new Variables(settings, definition, shortcut);
         root.analyze(settings, definition, variables);
 

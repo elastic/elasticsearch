@@ -69,8 +69,6 @@ public class EConditional extends AExpression {
 
         left = left.cast(settings, definition, variables);
         right = right.cast(settings, definition, variables);
-
-        typesafe = left.typesafe && right.typesafe;
     }
 
     @Override

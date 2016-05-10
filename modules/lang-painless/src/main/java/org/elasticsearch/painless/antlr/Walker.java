@@ -23,7 +23,7 @@ import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Variables.Shortcut;
+import org.elasticsearch.painless.Variables.Special;
 import org.elasticsearch.painless.antlr.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentsContext;
 import org.elasticsearch.painless.antlr.PainlessParser.AssignmentContext;
@@ -117,15 +117,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Walker extends PainlessParserBaseVisitor<ANode> {
-    public static SSource buildPainlessTree(final String source, final Shortcut shortcut) {
-        return new Walker(source, shortcut).source;
+    public static SSource buildPainlessTree(final String source, final Special special) {
+        return new Walker(source, special).source;
     }
 
-    private final Shortcut shortcut;
+    private final Special special;
     private final SSource source;
 
-    private Walker(final String source, final Shortcut shortcut) {
-        this.shortcut = shortcut;
+    private Walker(final String source, final Special special) {
+        this.special = special;
         this.source = (SSource)visit(buildAntlrTree(source));
     }
 
@@ -171,7 +171,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
         final AExpression condition = (AExpression)visit(ctx.expression());
         final AStatement block = ctx.block() == null ? null : (AStatement)visit(ctx.block());
 
-        shortcut.loop = true;
+        special.usesLoop();
 
         return new SWhile(location(ctx), condition, block);
     }
@@ -181,7 +181,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
         final AStatement block = ctx.block() == null ? null : (AStatement)visit(ctx.block());
         final AExpression condition = (AExpression)visit(ctx.expression());
 
-        shortcut.loop = true;
+        special.usesLoop();
 
         return new SDo(location(ctx), block, condition);
     }
@@ -193,7 +193,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
         final AExpression afterthought = ctx.afterthought() == null ? null : (AExpression)visit(ctx.afterthought());
         final AStatement block = ctx.block() == null ? null : (AStatement)visit(ctx.block());
 
-        shortcut.loop = true;
+        special.usesLoop();
 
         return new SFor(location(ctx), intializer, condition, afterthought, block);
     }
@@ -694,11 +694,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
     private void visitExtvar(final ExtvarContext ctx, final List<ALink> links) {
         final String name = ctx.identifier().getText();
 
-        if ("score".equals(name)) {
-            shortcut.score = true;
-        } else if ("doc".equals(name)) {
-            shortcut.doc = true;
-        }
+        special.checkSpecial(name);
 
         links.add(new LVariable(location(ctx), name));
 

@@ -116,7 +116,6 @@ public class EComp extends AExpression {
         }
 
         actual = definition.booleanType;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeEqR(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -159,7 +158,6 @@ public class EComp extends AExpression {
         }
 
         actual = definition.booleanType;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeNE(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -206,7 +204,6 @@ public class EComp extends AExpression {
         }
 
         actual = definition.booleanType;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeNER(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -249,7 +246,6 @@ public class EComp extends AExpression {
         }
 
         actual = definition.booleanType;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeGTE(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -286,7 +282,6 @@ public class EComp extends AExpression {
         }
 
         actual = definition.booleanType;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeGT(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -323,7 +318,6 @@ public class EComp extends AExpression {
         }
 
         actual = definition.booleanType;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeLTE(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -360,7 +354,6 @@ public class EComp extends AExpression {
         }
 
         actual = definition.booleanType;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     protected void analyzeLT(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -397,7 +390,6 @@ public class EComp extends AExpression {
         }
 
         actual = definition.booleanType;
-        typesafe = left.typesafe && right.typesafe;
     }
 
     @Override

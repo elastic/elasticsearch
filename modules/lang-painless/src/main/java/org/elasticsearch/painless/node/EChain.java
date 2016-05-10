@@ -158,19 +158,14 @@ public class EChain extends AExpression {
 
         if (operation == Operation.MUL) {
             promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true, true);
-            exact = true;
         } else if (operation == Operation.DIV) {
             promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true, true);
-            exact = true;
         } else if (operation == Operation.REM) {
             promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true, true);
-            exact = true;
         } else if (operation == Operation.ADD) {
             promote = AnalyzerCaster.promoteAdd(definition, last.after, expression.actual);
-            exact = true;
         } else if (operation == Operation.SUB) {
             promote = AnalyzerCaster.promoteNumeric(definition, last.after, expression.actual, true, true);
-            exact = true;
         } else if (operation == Operation.LSH) {
             promote = AnalyzerCaster.promoteNumeric(definition, last.after, false, true);
         } else if (operation == Operation.RSH) {
@@ -210,13 +205,14 @@ public class EChain extends AExpression {
 
         expression = expression.cast(settings, definition, variables);
 
-        exact &= !settings.getNumericOverflow() && expression.typesafe;
-        there = AnalyzerCaster.getLegalCast(definition, location, last.after, promote, expression.typesafe);
+        exact = !settings.getNumericOverflow() &&
+            (operation == Operation.MUL || operation == Operation.DIV || operation == Operation.REM ||
+                operation == Operation.ADD || operation == Operation.SUB);
+        there = AnalyzerCaster.getLegalCast(definition, location, last.after, promote, false);
         back = AnalyzerCaster.getLegalCast(definition, location, promote, last.after, true);
 
         statement = true;
         actual = read ? last.after : definition.voidType;
-        typesafe = actual.sort != Sort.DEF && expression.typesafe;
     }
 
     protected void analyzeWrite(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -225,11 +221,9 @@ public class EChain extends AExpression {
         expression.expected = last.after;
         expression.analyze(settings, definition, variables);
         expression = expression.cast(settings, definition, variables);
-        last.typesafe = expression.typesafe;
 
         statement = true;
         actual = read ? last.after : definition.voidType;
-        typesafe = actual.sort != Sort.DEF && expression.typesafe;
     }
 
     protected void analyzeRead() {
@@ -238,7 +232,6 @@ public class EChain extends AExpression {
         constant = last.constant;
         statement = last.statement;
         actual = last.after;
-        typesafe = actual.sort != Sort.DEF;
     }
 
     @Override

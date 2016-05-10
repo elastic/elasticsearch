@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless;
 
+import java.lang.invoke.WrongMethodTypeException;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -140,7 +141,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     }
 
     public void testDynamicWrongArgs() {
-        expectThrows(ClassCastException.class, () -> {
+        expectThrows(WrongMethodTypeException.class, () -> {
             exec("def x = new ArrayList(); return x.get('bogus');");
         });
     }

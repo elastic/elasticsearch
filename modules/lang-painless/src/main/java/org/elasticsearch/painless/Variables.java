@@ -26,10 +26,25 @@ import java.util.Deque;
 import java.util.Iterator;
 
 public final class Variables {
-    public static final class Shortcut {
-        public boolean doc = false;
-        public boolean score = false;
-        public boolean loop = false;
+    public static final class Special {
+        private static final String THIS = "#this";
+        private static final String INPUT = "input";
+        private static final String LOOP = "#loop";
+        private static final String DOC = "doc";
+        private static final String SCORE = "_score";
+
+        private boolean doc = false;
+        private boolean score = false;
+        private boolean loop = false;
+
+        public void checkSpecial(final String name) {
+            doc = DOC.equals(name);
+            score = SCORE.equals(name);
+        }
+
+        public void usesLoop() {
+            loop = true;
+        }
     }
 
     public static final class Variable {
@@ -52,7 +67,7 @@ public final class Variables {
     private final Deque<Integer> scopes = new ArrayDeque<>();
     private final Deque<Variable> variables = new ArrayDeque<>();
 
-    public Variables(final CompilerSettings settings, final Definition definition, final Shortcut shortcut) {
+    public Variables(final CompilerSettings settings, final Definition definition, final Special special) {
         this.definition = definition;
 
         incrementScope();
@@ -60,15 +75,15 @@ public final class Variables {
         addVariable("[ #this ]", "Executable", "#this");
         addVariable("[ input ]", "Map<String,def>", "input");
 
-        if (shortcut.score) {
-            addVariable("[ score ]", "float", "score");
+        if (special.score) {
+            addVariable("[ _score ]", "float", "score");
         }
 
-        if (shortcut.doc) {
+        if (special.doc) {
             addVariable("[ doc ]", "Map<String,def>", "doc");
         }
 
-        if (shortcut.loop && settings.getMaxLoopCounter() > 0) {
+        if (special.loop && settings.getMaxLoopCounter() > 0) {
             addVariable("[ #loop ]", "int", "#loop");
         }
     }

@@ -21,7 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.painless.antlr.Walker;
-import org.elasticsearch.painless.Variables.Shortcut;
+import org.elasticsearch.painless.Variables.Special;
 import org.elasticsearch.painless.node.SSource;
 
 import java.net.MalformedURLException;
@@ -38,7 +38,7 @@ import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
  * one for analysis using the {@link Analyzer} and another to generate the actual byte code using ASM in
  * the {@link Writer}.
  */
-public final class Compiler {
+final class Compiler {
     /**
      * The maximum number of characters allowed in the script source.
      */
@@ -64,7 +64,7 @@ public final class Compiler {
     /**
      * A secure class loader used to define Painless scripts.
      */
-    static class Loader extends SecureClassLoader {
+    static final class Loader extends SecureClassLoader {
         /**
          * @param parent The parent ClassLoader.
          */
@@ -99,13 +99,12 @@ public final class Compiler {
         }
 
         final Definition definition = Definition.INSTANCE;
-        final Shortcut shortcut = new Shortcut();
-        final SSource root = Walker.buildPainlessTree(source, shortcut);
-        final Variables variables = Analyzer.analyze(settings, definition, shortcut, root);
+        final Special special = new Special();
+        final SSource root = Walker.buildPainlessTree(source, special);
+        final Variables variables = Analyzer.analyze(settings, definition, special, root);
         final byte[] bytes = Writer.write(settings, definition, source, variables, root);
-        final Executable executable = createExecutable(loader, definition, name, source, bytes);
 
-        return executable;
+        return createExecutable(loader, definition, name, source, bytes);
     }
 
     /**

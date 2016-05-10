@@ -1,5 +1,4 @@
-#!/bin/sh
-
+#!/bin/bash
 
 CDPATH=""
 SCRIPT="$0"

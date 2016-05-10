@@ -49,6 +49,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchParseContext;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -222,7 +223,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(source)) {
             QueryParseContext context = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
-            searchSourceBuilder.parseXContent(context, aggParsers, null);
+            searchSourceBuilder.parseXContent(new SearchParseContext(context, aggParsers, null));
             searchRequest.source(searchSourceBuilder);
             return searchRequest;
         }

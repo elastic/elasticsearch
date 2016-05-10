@@ -50,6 +50,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.script.Template;
+import org.elasticsearch.search.SearchParseContext;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
@@ -195,7 +196,8 @@ public class RestMultiSearchAction extends BaseRestHandler {
                 try (XContentParser requestParser = XContentFactory.xContent(slice).createParser(slice)) {
                     final QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry, requestParser,
                             parseFieldMatcher);
-                    searchRequest.source(SearchSourceBuilder.fromXContent(queryParseContext, aggParsers, suggesters));
+                    searchRequest
+                            .source(SearchSourceBuilder.fromXContent(new SearchParseContext(queryParseContext, aggParsers, suggesters)));
                 }
             }
             // move pointers

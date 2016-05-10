@@ -42,6 +42,7 @@ import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.SearchParseContext;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -128,7 +129,7 @@ public class RestSearchAction extends BaseRestHandler {
                     Template template = TemplateQueryBuilder.parse(parser, context.getParseFieldMatcher(), "params", "template");
                     searchRequest.template(template);
                 } else {
-                    searchRequest.source().parseXContent(context, aggParsers, suggesters);
+                    searchRequest.source().parseXContent(new SearchParseContext(context, aggParsers, suggesters));
                 }
             }
         }

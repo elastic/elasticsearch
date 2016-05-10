@@ -44,6 +44,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.SearchParseContext;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 
@@ -78,7 +79,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
             try (XContentParser innerParser = parser.contentType().xContent().createParser(builder.bytes())) {
-                search.source().parseXContent(context.queryParseContext(innerParser), context.aggParsers, context.suggesters);
+                search.source().parseXContent(new SearchParseContext(context.queryParseContext(innerParser), 
+                        context.aggParsers, context.suggesters));
             }
         };
 

@@ -41,6 +41,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.SearchParseContext;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
@@ -99,10 +100,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField PROFILE_FIELD = new ParseField("profile");
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
 
-    public static SearchSourceBuilder fromXContent(QueryParseContext context, AggregatorParsers aggParsers,
-            Suggesters suggesters) throws IOException {
+    public static SearchSourceBuilder fromXContent(SearchParseContext searchParseContext) throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.parseXContent(context, aggParsers, suggesters);
+        builder.parseXContent(searchParseContext);
         return builder;
     }
 
@@ -955,14 +955,19 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
 
     /**
-     * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
-     * different defaults than a regular SearchSourceBuilder would have and use
-     * {@link #fromXContent(QueryParseContext, AggregatorParsers, Suggesters)} if you have normal defaults.
+     * Parse some xContent into this SearchSourceBuilder, overwriting any values
+     * specified in the xContent. Use this if you need to set up different
+     * defaults than a regular SearchSourceBuilder would have and use
+     * {@link #fromXContent(SearchParseContext)} if you have normal defaults.
      */
-    public void parseXContent(QueryParseContext context, AggregatorParsers aggParsers, Suggesters suggesters)
+    public void parseXContent(SearchParseContext searchParseContext)
         throws IOException {
 
-        XContentParser parser = context.parser();
+        QueryParseContext queryParseContext = searchParseContext.getQueryParseContext();
+        AggregatorParsers aggParsers = searchParseContext.getAggregatorParsers();
+        Suggesters suggesters = searchParseContext.getSuggesters();
+
+        XContentParser parser = queryParseContext.parser();
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT && (token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
@@ -973,47 +978,47 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (context.getParseFieldMatcher().match(currentFieldName, FROM_FIELD)) {
+                if (queryParseContext.getParseFieldMatcher().match(currentFieldName, FROM_FIELD)) {
                     from = parser.intValue();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, SIZE_FIELD)) {
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, SIZE_FIELD)) {
                     size = parser.intValue();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, TIMEOUT_FIELD)) {
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, TIMEOUT_FIELD)) {
                     timeoutInMillis = parser.longValue();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, TERMINATE_AFTER_FIELD)) {
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, TERMINATE_AFTER_FIELD)) {
                     terminateAfter = parser.intValue();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, MIN_SCORE_FIELD)) {
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, MIN_SCORE_FIELD)) {
                     minScore = parser.floatValue();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, VERSION_FIELD)) {
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, VERSION_FIELD)) {
                     version = parser.booleanValue();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, EXPLAIN_FIELD)) {
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, EXPLAIN_FIELD)) {
                     explain = parser.booleanValue();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, TRACK_SCORES_FIELD)) {
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, TRACK_SCORES_FIELD)) {
                     trackScores = parser.booleanValue();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
-                    fetchSourceContext = FetchSourceContext.parse(context);
-                } else if (context.getParseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
+                    fetchSourceContext = FetchSourceContext.parse(queryParseContext);
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
                     field(parser.text());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
                     sort(parser.text());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, PROFILE_FIELD)) {
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, PROFILE_FIELD)) {
                     profile = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (context.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
-                    queryBuilder = context.parseInnerQueryBuilder();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, POST_FILTER_FIELD)) {
-                    postQueryBuilder = context.parseInnerQueryBuilder();
-                } else if (context.getParseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
-                    fetchSourceContext = FetchSourceContext.parse(context);
-                } else if (context.getParseFieldMatcher().match(currentFieldName, SCRIPT_FIELDS_FIELD)) {
+                if (queryParseContext.getParseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
+                    queryBuilder = queryParseContext.parseInnerQueryBuilder();
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, POST_FILTER_FIELD)) {
+                    postQueryBuilder = queryParseContext.parseInnerQueryBuilder();
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
+                    fetchSourceContext = FetchSourceContext.parse(queryParseContext);
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, SCRIPT_FIELDS_FIELD)) {
                     scriptFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        scriptFields.add(new ScriptField(context));
+                        scriptFields.add(new ScriptField(queryParseContext));
                     }
-                } else if (context.getParseFieldMatcher().match(currentFieldName, INDICES_BOOST_FIELD)) {
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, INDICES_BOOST_FIELD)) {
                     indexBoost = new ObjectFloatHashMap<String>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -1025,15 +1030,15 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                                     parser.getTokenLocation());
                         }
                     }
-                } else if (context.getParseFieldMatcher().match(currentFieldName, AGGREGATIONS_FIELD)) {
-                    aggregations = aggParsers.parseAggregators(context);
-                } else if (context.getParseFieldMatcher().match(currentFieldName, HIGHLIGHT_FIELD)) {
-                    highlightBuilder = HighlightBuilder.fromXContent(context);
-                } else if (context.getParseFieldMatcher().match(currentFieldName, SUGGEST_FIELD)) {
-                    suggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
-                } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
-                    sorts = new ArrayList<>(SortBuilder.fromXContent(context));
-                } else if (context.getParseFieldMatcher().match(currentFieldName, EXT_FIELD)) {
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, AGGREGATIONS_FIELD)) {
+                    aggregations = aggParsers.parseAggregators(queryParseContext);
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, HIGHLIGHT_FIELD)) {
+                    highlightBuilder = HighlightBuilder.fromXContent(queryParseContext);
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, SUGGEST_FIELD)) {
+                    suggestBuilder = SuggestBuilder.fromXContent(queryParseContext, suggesters);
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
+                    sorts = new ArrayList<>(SortBuilder.fromXContent(queryParseContext));
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, EXT_FIELD)) {
                     XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
                     ext = xContentBuilder.bytes();
                 } else {
@@ -1042,7 +1047,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
 
-                if (context.getParseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
+                if (queryParseContext.getParseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
                     fieldNames = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
@@ -1052,7 +1057,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                                     + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
                         }
                     }
-                } else if (context.getParseFieldMatcher().match(currentFieldName, FIELDDATA_FIELDS_FIELD)) {
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, FIELDDATA_FIELDS_FIELD)) {
                     fieldDataFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
@@ -1062,14 +1067,14 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                                     + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
                         }
                     }
-                } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
-                    sorts = new ArrayList<>(SortBuilder.fromXContent(context));
-                } else if (context.getParseFieldMatcher().match(currentFieldName, RESCORE_FIELD)) {
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
+                    sorts = new ArrayList<>(SortBuilder.fromXContent(queryParseContext));
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, RESCORE_FIELD)) {
                     rescoreBuilders = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        rescoreBuilders.add(RescoreBuilder.parseFromXContent(context));
+                        rescoreBuilders.add(RescoreBuilder.parseFromXContent(queryParseContext));
                     }
-                } else if (context.getParseFieldMatcher().match(currentFieldName, STATS_FIELD)) {
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, STATS_FIELD)) {
                     stats = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
@@ -1079,10 +1084,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                                     + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
                         }
                     }
-                } else if (context.getParseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
-                    fetchSourceContext = FetchSourceContext.parse(context);
-                } else if (context.getParseFieldMatcher().match(currentFieldName, SEARCH_AFTER)) {
-                    searchAfterBuilder = SearchAfterBuilder.fromXContent(parser, context.getParseFieldMatcher());
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
+                    fetchSourceContext = FetchSourceContext.parse(queryParseContext);
+                } else if (queryParseContext.getParseFieldMatcher().match(currentFieldName, SEARCH_AFTER)) {
+                    searchAfterBuilder = SearchAfterBuilder.fromXContent(parser, queryParseContext.getParseFieldMatcher());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());

@@ -33,7 +33,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -570,7 +569,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 try (XContentParser parser = XContentFactory.xContent(run).createParser(run)) {
                     QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry(), parser,
                             parseFieldMatcher);
-                    parseSource(context, SearchSourceBuilder.fromXContent(queryParseContext, aggParsers, suggesters));
+                    parseSource(context,
+                            SearchSourceBuilder.fromXContent(new SearchParseContext(queryParseContext, aggParsers, suggesters)));
                 }
             }
             parseSource(context, request.source());

@@ -96,12 +96,13 @@ passing the `format` parameter to the `range` query:
 --------------------------------------------------
 GET _search
 {
-    "query": 
-    "range" : {
-        "born" : {
-            "gte": "01/01/2012",
-            "lte": "2013",
-            "format": "dd/MM/yyyy||yyyy"
+    "query": {
+        "range" : {
+            "born" : {
+                "gte": "01/01/2012",
+                "lte": "2013",
+                "format": "dd/MM/yyyy||yyyy"
+            }
         }
     }
 }

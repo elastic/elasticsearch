@@ -6,14 +6,18 @@ Filters documents that have fields that match any of the provided terms
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "constant_score" : {
-        "filter" : {
-            "terms" : { "user" : ["kimchy", "elasticsearch"]}
+    "query": {
+        "constant_score" : {
+            "filter" : {
+                "terms" : { "user" : ["kimchy", "elasticsearch"]}
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The `terms` query is also aliased with `in` as the filter name for
 simpler usage deprecated[5.0.0,use `terms` instead].

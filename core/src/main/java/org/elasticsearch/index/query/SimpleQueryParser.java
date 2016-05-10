@@ -128,8 +128,10 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             try {
                 if (settings.analyzeWildcard()) {
                     Query analyzedQuery = newPossiblyAnalyzedQuery(entry.getKey(), text);
-                    analyzedQuery.setBoost(entry.getValue());
-                    bq.add(analyzedQuery, BooleanClause.Occur.SHOULD);
+                    if (analyzedQuery != null) {
+                        analyzedQuery.setBoost(entry.getValue());
+                        bq.add(analyzedQuery, BooleanClause.Occur.SHOULD);
+                    }
                 } else {
                     PrefixQuery prefix = new PrefixQuery(new Term(entry.getKey(), text));
                     prefix.setBoost(entry.getValue());

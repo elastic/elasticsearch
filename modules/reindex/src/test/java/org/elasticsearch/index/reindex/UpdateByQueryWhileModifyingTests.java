@@ -49,7 +49,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
             while (keepUpdating.get()) {
                 try {
                     BulkIndexByScrollResponse response = updateByQuery().source("test").refresh(true).abortOnVersionConflict(false).get();
-                    assertThat(response, updateByQueryResponseMatcher().updated(either(equalTo(0L)).or(equalTo(1L)))
+                    assertThat(response, matcher().updated(either(equalTo(0L)).or(equalTo(1L)))
                             .versionConflicts(either(equalTo(0L)).or(equalTo(1L))));
                 } catch (Throwable t) {
                     failure.set(t);

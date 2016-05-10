@@ -95,8 +95,6 @@ import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.aggregations.AggregationBinaryParseElement;
-import org.elasticsearch.search.aggregations.AggregationParseElement;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
@@ -375,7 +373,7 @@ public class SearchModule extends AbstractModule {
 
     /**
      * Register a {@link SignificanceHeuristic}.
-     * 
+     *
      * @param heuristicName the name(s) at which the heuristic is parsed and streamed. The {@link ParseField#getPreferredName()} is the name
      *        under which it is streamed. All names work for the parser.
      * @param reader reads the heuristic from a stream
@@ -557,11 +555,8 @@ public class SearchModule extends AbstractModule {
         registerPipelineAggregation(SerialDiffPipelineAggregatorBuilder::new, SerialDiffPipelineAggregatorBuilder::parse,
                 SerialDiffPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
 
-        AggregationParseElement aggParseElement = new AggregationParseElement(aggregatorParsers, queryParserRegistry);
-        AggregationBinaryParseElement aggBinaryParseElement = new AggregationBinaryParseElement(aggregatorParsers, queryParserRegistry);
-        AggregationPhase aggPhase = new AggregationPhase(aggParseElement, aggBinaryParseElement);
+        AggregationPhase aggPhase = new AggregationPhase();
         bind(AggregatorParsers.class).toInstance(aggregatorParsers);
-        bind(AggregationParseElement.class).toInstance(aggParseElement);
         bind(AggregationPhase.class).toInstance(aggPhase);
     }
 

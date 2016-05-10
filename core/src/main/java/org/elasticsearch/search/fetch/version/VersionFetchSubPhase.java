@@ -24,26 +24,16 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Map;
-
-import static java.util.Collections.singletonMap;
 
 /**
  *
  */
 public class VersionFetchSubPhase implements FetchSubPhase {
-    private static final Map<String, ? extends SearchParseElement> PARSE_ELEMENTS = singletonMap("version", new VersionParseElement());
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        return PARSE_ELEMENTS;
-    }
 
     @Override
     public boolean hitsExecutionNeeded(SearchContext context) {

@@ -19,7 +19,13 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregatorBuilder;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<PercentilesBucketPipelineAggregatorBuilder> {
 
@@ -37,5 +43,22 @@ public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<Percen
         return factory;
     }
 
+    public void testPercentsFromMixedArray() throws Exception {
+        String content = XContentFactory.jsonBuilder()
+            .startObject()
+                .field("buckets_path", "test")
+                .array("percents", 0, 20.0, 50, 75.99)
+            .endObject()
+            .string();
 
+        XContentParser parser = XContentFactory.xContent(content).createParser(content);
+        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+        parser.nextToken(); // skip object start
+
+        PercentilesBucketPipelineAggregatorBuilder builder = (PercentilesBucketPipelineAggregatorBuilder) aggParsers
+            .pipelineParser(PercentilesBucketPipelineAggregator.TYPE.name(), parseFieldMatcher)
+            .parse("test", parseContext);
+
+        assertThat(builder.percents(), equalTo(new double[]{0.0, 20.0, 50.0, 75.99}));
+    }
 }

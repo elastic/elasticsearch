@@ -319,6 +319,38 @@
                 <module>rpm</module>
             </modules>
         </profile>
+        <!--
+            This is a helper profile to automatically deactivate signing on known platforms with gpg-agent 2.1 on which
+            signing just cannot work out of the box with Maven. While it could be possible to support RPM signing
+            on these platforms in a backwards-compatible manner it requires hacks on so many levels that this is just
+            not feasible and we'd rather deactivate signing on those platforms.
+
+            Note that this relies that the build infrastructure sets the environment variable "OSDISTRO" correctly with facter.
+            This means that the build *can* fail if the property is not set. In that case, please check the output of
+            "facter os.distro.description" and create a new profile here.
+
+            For local builds on developer machines that are affected use either the "skipSign" profile or also set
+            the environment variable OSDISTRO to the respective value.
+
+            Ideally, we would just activate the "skipSign" profile or connect the all activation properties for skipSign
+            via a logical condition but this is not possible (see also https://issues.apache.org/jira/browse/MNG-4565).
+        -->
+        <profile>
+            <id>fedora23</id>
+            <activation>
+                <property>
+                    <name>env.OSDISTRO</name>
+                        <value>Fedora release 23 (Twenty Three)</value>
+                </property>
+            </activation>
+            <properties>
+                <!-- Clearing this property prevents the rpm plugin from trying to sign the rpm. -->
+                <gpg.key></gpg.key>
+                <!-- Clearing this property because once we've cleared the above one we can't sign the deb either. -->
+                <deb.sign>false</deb.sign>
+            </properties>
+        </profile>
+
         <profile>
             <!-- Activate me to skip signing the rpm. Signing the rpm requires a few dependencies and might not work
               properly on some distributions. Its known to work on Centos-6, and, ironically, Ubunutu 14.04. -->

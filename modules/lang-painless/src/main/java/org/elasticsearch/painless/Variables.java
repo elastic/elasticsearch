@@ -17,10 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.antlr;
+package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
 
 import java.util.ArrayDeque;

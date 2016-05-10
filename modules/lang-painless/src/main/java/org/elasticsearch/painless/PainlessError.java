@@ -26,6 +26,7 @@ package org.elasticsearch.painless;
  * something hazardous.  The alternative was extending {@link Throwable}, but that seemed worse than using
  * an {@link Error} in this case.
  */
+@SuppressWarnings("serial")
 public class PainlessError extends Error {
     /**
      * Constructor.

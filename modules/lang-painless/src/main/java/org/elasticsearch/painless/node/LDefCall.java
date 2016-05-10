@@ -21,14 +21,14 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.antlr.Variables;
+import org.elasticsearch.painless.DynamicCallSite;
+import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.WriterConstants;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.List;
 
-import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
-import static org.elasticsearch.painless.WriterConstants.DEFINITION_TYPE;
-import static org.elasticsearch.painless.WriterConstants.DEF_METHOD_CALL;
+import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 
 public class LDefCall extends ALink {
     protected final String name;
@@ -46,8 +46,8 @@ public class LDefCall extends ALink {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             final AExpression expression = arguments.get(argument);
 
-            expression.expected = definition.objectType;
             expression.analyze(settings, definition, variables);
+            expression.expected = expression.actual;
             arguments.set(argument, expression.cast(settings, definition, variables));
         }
 
@@ -64,31 +64,23 @@ public class LDefCall extends ALink {
 
     @Override
     protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        adapter.push(name);
-        adapter.loadThis();
-        adapter.getField(CLASS_TYPE, "definition", DEFINITION_TYPE);
+        final StringBuilder signature = new StringBuilder();
 
-        adapter.push(arguments.size());
-        adapter.newArray(definition.defType.type);
+        signature.append('(');
+        // first parameter is the receiver, we never know its type: always Object
+        signature.append(definition.defobjType.type.getDescriptor());
 
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            adapter.dup();
-            adapter.push(argument);
-            arguments.get(argument).write(settings, definition, adapter);
-            adapter.arrayStore(definition.defType.type);
+        // TODO: remove our explicit conversions and feed more type information for return value,
+        // it can avoid some unnecessary boxing etc.
+        for (final AExpression argument : arguments) {
+            signature.append(argument.actual.type.getDescriptor());
+            argument.write(settings, definition, adapter);
         }
 
-        adapter.push(arguments.size());
-        adapter.newArray(definition.booleanType.type);
-
-        for (int argument = 0; argument < arguments.size(); ++argument) {
-            adapter.dup();
-            adapter.push(argument);
-            adapter.push(arguments.get(argument).typesafe);
-            adapter.arrayStore(definition.booleanType.type);
-        }
-
-        adapter.invokeStatic(definition.defobjType.type, DEF_METHOD_CALL);
+        signature.append(')');
+        // return value
+        signature.append(definition.defobjType.type.getDescriptor());
+        adapter.visitInvokeDynamicInsn(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.METHOD_CALL });
     }
 
     @Override

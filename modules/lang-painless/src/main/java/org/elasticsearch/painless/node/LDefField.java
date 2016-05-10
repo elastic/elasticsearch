@@ -21,13 +21,13 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.antlr.Variables;
+import org.elasticsearch.painless.DynamicCallSite;
+import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
-import static org.elasticsearch.painless.WriterConstants.DEFINITION_TYPE;
-import static org.elasticsearch.painless.WriterConstants.DEF_FIELD_LOAD;
-import static org.elasticsearch.painless.WriterConstants.DEF_FIELD_STORE;
+import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
+import static org.elasticsearch.painless.WriterConstants.DEF_DYNAMIC_LOAD_FIELD_DESC;
+import static org.elasticsearch.painless.WriterConstants.DEF_DYNAMIC_STORE_FIELD_DESC;
 
 public class LDefField extends ALink {
     protected final String value;
@@ -53,18 +53,11 @@ public class LDefField extends ALink {
 
     @Override
     protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        adapter.push(value);
-        adapter.loadThis();
-        adapter.getField(CLASS_TYPE, "definition", DEFINITION_TYPE);
-        adapter.invokeStatic(definition.defobjType.type, DEF_FIELD_LOAD);
+        adapter.visitInvokeDynamicInsn(value, DEF_DYNAMIC_LOAD_FIELD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.LOAD });
     }
 
     @Override
     protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        adapter.push(value);
-        adapter.loadThis();
-        adapter.getField(CLASS_TYPE, "definition", DEFINITION_TYPE);
-        adapter.push(typesafe);
-        adapter.invokeStatic(definition.defobjType.type, DEF_FIELD_STORE);
+        adapter.visitInvokeDynamicInsn(value, DEF_DYNAMIC_STORE_FIELD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.STORE });
     }
 }

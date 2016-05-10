@@ -172,7 +172,7 @@ public class ShadowEngineTests extends ESTestCase {
         document.add(uidField);
         document.add(versionField);
         document.add(new LongPoint("point_field", 42)); // so that points report memory/disk usage
-        return new ParsedDocument(uidField, versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingsUpdate);
+        return new ParsedDocument(versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingsUpdate);
     }
 
     protected Store createStore(Path p) throws IOException {

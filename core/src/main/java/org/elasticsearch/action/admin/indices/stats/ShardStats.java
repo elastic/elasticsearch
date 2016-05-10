@@ -31,8 +31,6 @@ import org.elasticsearch.index.shard.ShardPath;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
-
 /**
  */
 public class ShardStats implements Streamable, ToXContent {
@@ -91,7 +89,7 @@ public class ShardStats implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        shardRouting = readShardRoutingEntry(in);
+        shardRouting = new ShardRouting(in);
         commonStats = CommonStats.readCommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);
         statePath = in.readString();

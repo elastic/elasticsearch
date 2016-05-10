@@ -172,7 +172,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     @Override
     public Mapper parse(ParseContext context) throws IOException {
         QueryShardContext queryShardContext = new QueryShardContext(this.queryShardContext);
-        DocumentMapper documentMapper = queryShardContext.getMapperService().documentMapper(context.type());
+        DocumentMapper documentMapper = queryShardContext.getMapperService().documentMapper(context.sourceToParse().type());
         for (FieldMapper fieldMapper : documentMapper.mappers()) {
             if (fieldMapper instanceof PercolatorFieldMapper) {
                 PercolatorFieldType fieldType = (PercolatorFieldType) fieldMapper.fieldType();

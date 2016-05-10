@@ -83,7 +83,6 @@ public class FetchPhase implements SearchPhase {
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
         Map<String, SearchParseElement> parseElements = new HashMap<>();
-        parseElements.put("fields", new FieldsParseElement());
         for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
             parseElements.putAll(fetchSubPhase.parseElements());
         }

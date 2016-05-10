@@ -47,7 +47,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
@@ -60,18 +59,13 @@ import org.elasticsearch.search.profile.Profiler;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
-import org.elasticsearch.search.sort.TrackScoresParseElement;
 import org.elasticsearch.search.suggest.SuggestPhase;
 
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Callable;
-
-import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -87,28 +81,6 @@ public class QueryPhase implements SearchPhase {
         this.aggregationPhase = aggregationPhase;
         this.suggestPhase = suggestPhase;
         this.rescorePhase = rescorePhase;
-    }
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        Map<String, SearchParseElement> parseElements = new HashMap<>();
-        parseElements.put("from", new FromParseElement());
-        parseElements.put("size", new SizeParseElement());
-        parseElements.put("indices_boost", new IndicesBoostParseElement());
-        parseElements.put("indicesBoost", new IndicesBoostParseElement());
-        parseElements.put("query", new QueryParseElement());
-        parseElements.put("post_filter", new PostFilterParseElement());
-        parseElements.put("postFilter", new PostFilterParseElement());
-        parseElements.put("trackScores", new TrackScoresParseElement());
-        parseElements.put("track_scores", new TrackScoresParseElement());
-        parseElements.put("min_score", new MinScoreParseElement());
-        parseElements.put("minScore", new MinScoreParseElement());
-        parseElements.put("timeout", new TimeoutParseElement());
-        parseElements.put("terminate_after", new TerminateAfterParseElement());
-        parseElements.putAll(aggregationPhase.parseElements());
-        parseElements.putAll(suggestPhase.parseElements());
-        parseElements.putAll(rescorePhase.parseElements());
-        return unmodifiableMap(parseElements);
     }
 
     @Override

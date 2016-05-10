@@ -19,13 +19,14 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Executable;
-import org.elasticsearch.painless.PainlessError;
 import org.elasticsearch.script.ScoreAccessor;
+import org.objectweb.asm.Handle;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
+import java.lang.invoke.CallSite;
+import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.Map;
 
@@ -43,22 +44,29 @@ public class WriterConstants {
 
     public final static Type DEFINITION_TYPE = Type.getType(Definition.class);
 
+    public final static Type OBJECT_TYPE = Type.getType(Object.class);
+
     public final static Type MAP_TYPE  = Type.getType(Map.class);
     public final static Method MAP_GET = getAsmMethod(Object.class, "get", Object.class);
 
     public final static Type SCORE_ACCESSOR_TYPE    = Type.getType(ScoreAccessor.class);
     public final static Method SCORE_ACCESSOR_FLOAT = getAsmMethod(float.class, "floatValue");
 
-    public final static Method DEF_METHOD_CALL = getAsmMethod(
-        Object.class, "methodCall", Object.class, String.class, Definition.class, Object[].class, boolean[].class);
-    public final static Method DEF_ARRAY_STORE = getAsmMethod(
-        void.class, "arrayStore", Object.class, Object.class, Object.class, Definition.class, boolean.class, boolean.class);
-    public final static Method DEF_ARRAY_LOAD = getAsmMethod(
-        Object.class, "arrayLoad", Object.class, Object.class, Definition.class, boolean.class);
-    public final static Method DEF_FIELD_STORE = getAsmMethod(
-        void.class, "fieldStore", Object.class, Object.class, String.class, Definition.class, boolean.class);
-    public final static Method DEF_FIELD_LOAD = getAsmMethod(
-        Object.class, "fieldLoad", Object.class, String.class, Definition.class);
+    /** dynamic callsite bootstrap signature */
+    public final static MethodType DEF_BOOTSTRAP_TYPE =
+        MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, int.class);
+    public final static Handle DEF_BOOTSTRAP_HANDLE =
+        new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(DynamicCallSite.class),
+            "bootstrap", DEF_BOOTSTRAP_TYPE.toMethodDescriptorString());
+
+    public final static String DEF_DYNAMIC_LOAD_FIELD_DESC =
+        MethodType.methodType(Object.class, Object.class).toMethodDescriptorString();
+    public final static String DEF_DYNAMIC_STORE_FIELD_DESC =
+        MethodType.methodType(void.class, Object.class, Object.class).toMethodDescriptorString();
+    public final static String DEF_DYNAMIC_ARRAY_LOAD_DESC =
+        MethodType.methodType(Object.class, Object.class, Object.class).toMethodDescriptorString();
+    public final static String DEF_DYNAMIC_ARRAY_STORE_DESC =
+        MethodType.methodType(void.class, Object.class, Object.class, Object.class).toMethodDescriptorString();
 
     public final static Method DEF_NOT_CALL = getAsmMethod(Object.class, "not", Object.class);
     public final static Method DEF_NEG_CALL = getAsmMethod(Object.class, "neg", Object.class);

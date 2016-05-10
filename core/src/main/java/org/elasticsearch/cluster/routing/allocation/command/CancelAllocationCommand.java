@@ -155,7 +155,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                         throw new IllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " +
                                 discoNode + ", shard is primary and initializing its state");
                     }
-                    it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null));
+                    shardRouting = it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null));
                     // now, go and find the shard that is initializing on the target node, and cancel it as well...
                     RoutingNodes.RoutingNodeIterator initializingNode = allocation.routingNodes().routingNodeIter(shardRouting.relocatingNodeId());
                     if (initializingNode != null) {

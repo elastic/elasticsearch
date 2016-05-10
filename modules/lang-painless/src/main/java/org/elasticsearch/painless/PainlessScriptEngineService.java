@@ -61,7 +61,7 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
     /**
      * Standard extension of the Painless language.
      */
-    public static final String EXTENSION = "pain";
+    public static final String EXTENSION = "painless";
 
     /**
      * Standard list of extensions for the Painless language.  (There is only one.)
@@ -87,18 +87,6 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
         COMPILATION_CONTEXT = new AccessControlContext(new ProtectionDomain[] {
             new ProtectionDomain(null, none)
         });
-    }
-
-    /**
-     * Used only for testing.
-     */
-    private Definition definition = null;
-
-    /**
-     * Used only for testing.
-     */
-    void setDefinition(final Definition definition) {
-        this.definition = definition;
     }
 
     /**
@@ -190,7 +178,7 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
         return AccessController.doPrivileged(new PrivilegedAction<Executable>() {
             @Override
             public Executable run() {
-                return Compiler.compile(loader, "unknown", script, definition, compilerSettings);
+                return Compiler.compile(loader, "unknown", script, compilerSettings);
             }
         }, COMPILATION_CONTEXT);
     }

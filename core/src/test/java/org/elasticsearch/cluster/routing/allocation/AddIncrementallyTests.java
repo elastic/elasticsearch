@@ -120,6 +120,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
 
         RoutingTable prev = routingTable;
+        logger.error(clusterState.prettyPrint());
         routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();

@@ -26,7 +26,7 @@ import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.antlr.Variables;
+import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.WriterUtility;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
@@ -59,7 +59,7 @@ public class EChain extends AExpression {
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         analyzeLinks(settings, definition, variables);
-        analyzePrePost();
+        analyzeIncrDecr();
 
         if (operation != null) {
             analyzeCompound(settings, definition, variables);
@@ -109,7 +109,7 @@ public class EChain extends AExpression {
         }
     }
 
-    protected void analyzePrePost() {
+    protected void analyzeIncrDecr() {
         final ALink last = links.get(links.size() - 1);
 
         if (pre && post) {

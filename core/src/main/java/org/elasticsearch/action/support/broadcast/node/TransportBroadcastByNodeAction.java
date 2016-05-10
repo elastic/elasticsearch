@@ -475,7 +475,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             int size = in.readVInt();
             shards = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                shards.add(ShardRouting.readShardRoutingEntry(in));
+                shards.add(new ShardRouting(in));
             }
             nodeId = in.readString();
         }

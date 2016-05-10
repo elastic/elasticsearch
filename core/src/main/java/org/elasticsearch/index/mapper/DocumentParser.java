@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
@@ -67,23 +68,16 @@ final class DocumentParser {
     final ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
         validateType(source);
 
-        source.type(docMapper.type());
         final Mapping mapping = docMapper.mapping();
-        final ParseContext.InternalParseContext context = new ParseContext.InternalParseContext(indexSettings.getSettings(), docMapperParser, docMapper, new ContentPath(0));
-        XContentParser parser = null;
-        try {
-            parser = parser(source);
-            context.reset(parser, new ParseContext.Document(), source);
+        final ParseContext.InternalParseContext context;
+        try (XContentParser parser = XContentHelper.createParser(source.source())) {
+            context = new ParseContext.InternalParseContext(indexSettings.getSettings(),
+                    docMapperParser, docMapper, source, parser);
             validateStart(parser);
             internalParseDocument(mapping, context, parser);
             validateEnd(source, parser);
         } catch (Throwable t) {
             throw wrapInMapperParsingException(source, t);
-        } finally {
-            // only close the parser when its not provided externally
-            if (internalParser(source, parser)) {
-                parser.close();
-            }
         }
         String remainingPath = context.path().pathAsText("");
         if (remainingPath.isEmpty() == false) {
@@ -120,17 +114,9 @@ final class DocumentParser {
             throw new IllegalArgumentException("It is forbidden to index into the default mapping [" + MapperService.DEFAULT_MAPPING + "]");
         }
 
-        if (source.type() != null && !source.type().equals(docMapper.type())) {
+        if (Objects.equals(source.type(), docMapper.type()) == false) {
             throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type [" + docMapper.type() + "]");
         }
-    }
-
-    private static XContentParser parser(SourceToParse source) throws IOException {
-        return source.parser() == null ? XContentHelper.createParser(source.source()) : source.parser();
-    }
-
-    private static boolean internalParser(SourceToParse source, XContentParser parser) {
-        return source.parser() == null && parser != null;
     }
 
     private static void validateStart(XContentParser parser) throws IOException {
@@ -143,13 +129,11 @@ final class DocumentParser {
 
     private static void validateEnd(SourceToParse source, XContentParser parser) throws IOException {
         XContentParser.Token token;// only check for end of tokens if we created the parser here
-        if (internalParser(source, parser)) {
-            // try to parse the next token, this should be null if the object is ended properly
-            // but will throw a JSON exception if the extra tokens is not valid JSON (this will be handled by the catch)
-            token = parser.nextToken();
-            if (token != null) {
-                throw new IllegalArgumentException("Malformed content, found extra data after parsing: " + token);
-            }
+        // try to parse the next token, this should be null if the object is ended properly
+        // but will throw a JSON exception if the extra tokens is not valid JSON (this will be handled by the catch)
+        token = parser.nextToken();
+        if (token != null) {
+            throw new IllegalArgumentException("Malformed content, found extra data after parsing: " + token);
         }
     }
 
@@ -175,15 +159,14 @@ final class DocumentParser {
 
     private static ParsedDocument parsedDocument(SourceToParse source, ParseContext.InternalParseContext context, Mapping update) {
         return new ParsedDocument(
-            context.uid(),
             context.version(),
-            context.id(),
-            context.type(),
+            context.sourceToParse().id(),
+            context.sourceToParse().type(),
             source.routing(),
             source.timestamp(),
             source.ttl(),
             context.docs(),
-            context.source(),
+            context.sourceToParse().source(),
             update
         ).parent(source.parent());
     }

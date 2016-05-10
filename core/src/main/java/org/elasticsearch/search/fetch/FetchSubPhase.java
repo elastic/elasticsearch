@@ -27,6 +27,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -101,7 +102,9 @@ public interface FetchSubPhase {
 
     }
 
-    Map<String, ? extends SearchParseElement> parseElements();
+    default Map<String, ? extends SearchParseElement> parseElements() {
+        return Collections.emptyMap();
+    }
 
     boolean hitExecutionNeeded(SearchContext context);
 

@@ -832,7 +832,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             try {
                 membership.sendValidateJoinRequestBlocking(node, state, joinTimeout);
             } catch (Throwable e) {
-                logger.warn("failed to validate incoming join request from node [{}]", node);
+                logger.warn("failed to validate incoming join request from node [{}]", e, node);
                 callback.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
                 return;
             }

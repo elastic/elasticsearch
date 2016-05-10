@@ -20,8 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.node.SSource;
-import org.elasticsearch.painless.antlr.Variables;
-import org.elasticsearch.painless.antlr.Variables.Shortcut;
+import org.elasticsearch.painless.Variables.Shortcut;
 
 public class Analyzer {
     public static Variables analyze(final CompilerSettings settings, final Definition definition,

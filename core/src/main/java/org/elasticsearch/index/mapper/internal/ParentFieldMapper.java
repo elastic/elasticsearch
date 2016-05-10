@@ -238,9 +238,9 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        boolean parent = context.docMapper().isParent(context.type());
+        boolean parent = context.docMapper().isParent(context.sourceToParse().type());
         if (parent) {
-            fields.add(new SortedDocValuesField(parentJoinField.fieldType().name(), new BytesRef(context.id())));
+            fields.add(new SortedDocValuesField(parentJoinField.fieldType().name(), new BytesRef(context.sourceToParse().id())));
         }
 
         if (!active()) {

@@ -23,7 +23,7 @@ import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.antlr.Variables.Shortcut;
+import org.elasticsearch.painless.Variables.Shortcut;
 import org.elasticsearch.painless.antlr.PainlessParser.AfterthoughtContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ArgumentsContext;
 import org.elasticsearch.painless.antlr.PainlessParser.AssignmentContext;

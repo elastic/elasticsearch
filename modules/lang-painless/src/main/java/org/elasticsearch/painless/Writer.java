@@ -19,8 +19,7 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.antlr.Variables;
-import org.elasticsearch.painless.antlr.Variables.Variable;
+import org.elasticsearch.painless.Variables.Variable;
 import org.elasticsearch.painless.node.SSource;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;

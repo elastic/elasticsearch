@@ -395,6 +395,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(simpleQueryStringQuery("the*").analyzeWildcard(true).field("body")).get();
         assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 0l);
+        assertHitCount(searchResponse, 0L);
     }
 }

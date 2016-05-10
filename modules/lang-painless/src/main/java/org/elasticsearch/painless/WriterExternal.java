@@ -49,8 +49,6 @@ import static org.elasticsearch.painless.PainlessParser.DIV;
 import static org.elasticsearch.painless.PainlessParser.MUL;
 import static org.elasticsearch.painless.PainlessParser.REM;
 import static org.elasticsearch.painless.PainlessParser.SUB;
-import static org.elasticsearch.painless.WriterConstants.DEF_ARRAY_LOAD;
-import static org.elasticsearch.painless.WriterConstants.DEF_ARRAY_STORE;
 import static org.elasticsearch.painless.WriterConstants.TOBYTEEXACT_INT;
 import static org.elasticsearch.painless.WriterConstants.TOBYTEEXACT_LONG;
 import static org.elasticsearch.painless.WriterConstants.TOBYTEWOOVERFLOW_DOUBLE;
@@ -468,10 +466,10 @@ class WriterExternal {
 
     private void writeLoadStoreField(final ParserRuleContext source, final boolean store, final String name) {
         if (store) {
-            execute.visitInvokeDynamicInsn(name, "(Ljava/lang/Object;Ljava/lang/Object;)V", 
+            execute.visitInvokeDynamicInsn(name, WriterConstants.DEF_DYNAMIC_STORE_FIELD_DESC, 
                                            WriterConstants.DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.STORE });
         } else {
-            execute.visitInvokeDynamicInsn(name, "(Ljava/lang/Object;)Ljava/lang/Object;", 
+            execute.visitInvokeDynamicInsn(name, WriterConstants.DEF_DYNAMIC_LOAD_FIELD_DESC, 
                                            WriterConstants.DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.LOAD });
         }
     }
@@ -483,9 +481,11 @@ class WriterExternal {
 
         if (type.sort == Sort.DEF) {
             if (store) {
-                execute.invokeStatic(definition.defobjType.type, DEF_ARRAY_STORE);
+                execute.visitInvokeDynamicInsn("arrayStore", WriterConstants.DEF_DYNAMIC_ARRAY_STORE_DESC, 
+                                           WriterConstants.DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.ARRAY_STORE });
             } else {
-                execute.invokeStatic(definition.defobjType.type, DEF_ARRAY_LOAD);
+                execute.visitInvokeDynamicInsn("arrayLoad", WriterConstants.DEF_DYNAMIC_ARRAY_LOAD_DESC, 
+                                           WriterConstants.DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.ARRAY_LOAD });
             }
         } else {
             if (store) {

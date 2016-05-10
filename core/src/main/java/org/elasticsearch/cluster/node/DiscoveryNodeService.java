@@ -36,28 +36,27 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Supplier;
 
 /**
  */
 public class DiscoveryNodeService extends AbstractComponent {
 
-    public static final Setting<Long> PROCESS_ID_SEED_SETTING =
-        Setting.longSetting("node.process_id.seed", 0L, Long.MIN_VALUE, Setting.Property.NodeScope);
+    public static final Setting<Long> EPHEMERAL_ID_SEED_SETTING =
+        Setting.longSetting("node.ephemeral_id.seed", 0L, Long.MIN_VALUE, Setting.Property.NodeScope);
 
     private final List<CustomAttributesProvider> customAttributesProviders = new CopyOnWriteArrayList<>();
     private final Version version;
-    private final String processId;
+    private final String ephemeralId;
 
     @Inject
     public DiscoveryNodeService(Settings settings, Version version) {
         super(settings);
         this.version = version;
-        this.processId = generateProcessId(settings);
+        this.ephemeralId = generateEphemeralId(settings);
     }
 
-    public String getProcessId() {
-        return processId;
+    public String getEphemeralId() {
+        return ephemeralId;
     }
 
     public DiscoveryNodeService addCustomAttributeProvider(CustomAttributesProvider customAttributesProvider) {
@@ -65,8 +64,8 @@ public class DiscoveryNodeService extends AbstractComponent {
         return this;
     }
 
-    public static String generateProcessId(Settings settings) {
-        Random random = Randomness.get(settings, PROCESS_ID_SEED_SETTING);
+    public static String generateEphemeralId(Settings settings) {
+        Random random = Randomness.get(settings, EPHEMERAL_ID_SEED_SETTING);
         return UUIDs.randomBase64UUID(random);
     }
 
@@ -97,7 +96,7 @@ public class DiscoveryNodeService extends AbstractComponent {
                 logger.warn("failed to build custom attributes from provider [{}]", e, provider);
             }
         }
-        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), processId, nodeId, publishAddress,
+        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), ephemeralId, nodeId, publishAddress,
             attributes, roles, version);
     }
 

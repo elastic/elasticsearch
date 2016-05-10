@@ -163,6 +163,31 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
+     * Determine if a given node exists with the given ephemeral id
+     *
+     * @param nodeId id of the node which existence should be verified
+     * @return <code>true</code> if the node exists. Otherwise <code>false</code>
+     */
+    public boolean nodeExists(String nodeId, String ephemeralId) {
+        DiscoveryNode node = nodes.get(nodeId);
+        if (node != null) {
+            return node.getEphemeralId().equals(ephemeralId);
+        }
+        return false;
+    }
+
+    /**
+     * Determine if a given node exists that exactly matches the provided DiscoveryNode
+     *
+     * @param node node which existence should be verified
+     * @return <code>true</code> if the node exists. Otherwise <code>false</code>
+     */
+    public boolean nodeExists(DiscoveryNode node) {
+        DiscoveryNode existing = nodes.get(node.getId());
+        return existing != null && existing.equals(node);
+    }
+
+    /**
      * Get the id of the master node
      *
      * @return id of the master
@@ -280,16 +305,16 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 } else if (nodeExists(nodeId)) {
                     resolvedNodesIds.add(nodeId);
                 } else {
-                    boolean matchedPersistentNodeId = false;
+                    boolean matchedEphemeralId = false;
                     for (DiscoveryNode node : this) {
-                        if (node.getNodeId().equals(nodeId)) {
-                            matchedPersistentNodeId = true;
+                        if (node.getEphemeralId().equals(nodeId)) {
+                            matchedEphemeralId = true;
                             resolvedNodesIds.add(node.getId());
                             break; // persistent node id is unique
                         }
                     }
-                    if (matchedPersistentNodeId == false) {
-                        // neither process nor persistent node id, try and search by name
+                    if (matchedEphemeralId == false) {
+                        // neither ephemeral nor persistent node id, try and search by name
                         for (DiscoveryNode node : this) {
                             if (Regex.simpleMatch(nodeId, node.getName())) {
                                 resolvedNodesIds.add(node.getId());
@@ -370,19 +395,20 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         List<DiscoveryNode> removed = new ArrayList<>();
         List<DiscoveryNode> added = new ArrayList<>();
         for (DiscoveryNode node : other) {
-            if (!this.nodeExists(node.getId())) {
+            if (!this.nodeExists(node)) {
                 removed.add(node);
             }
         }
         for (DiscoveryNode node : this) {
-            if (!other.nodeExists(node.getId())) {
+            if (!other.nodeExists(node)) {
                 added.add(node);
             }
         }
         DiscoveryNode previousMasterNode = null;
         DiscoveryNode newMasterNode = null;
         if (masterNodeId != null) {
-            if (other.masterNodeId == null || !other.masterNodeId.equals(masterNodeId)) {
+            DiscoveryNode otherMasterNode = other.getMasterNode();
+            if (otherMasterNode == null || otherMasterNode.equals(this.getMasterNode()) == false) {
                 previousMasterNode = other.getMasterNode();
                 newMasterNode = getMasterNode();
             }
@@ -584,9 +610,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public Builder put(DiscoveryNode node) {
-            assert nodes.get(node.getId()) == null : "node with process id " + node.getId() + " already exists";
+            assert nodes.get(node.getId()) == null : "node with id " + node.getId() + " already exists";
             assert nodeWithSameAddress(node) == null : "node with address " + node.getAddress() + " already exists";
-            assert nodeWithSamePersistentId(node) == null : "node with persistent id " + node.getNodeId() + " already exists";
+            assert nodeWithSameEphemeralId(node) == null : "node with ephemeral id " + node.getEphemeralId() + " already exists";
             nodes.put(node.getId(), node);
             return this;
         }
@@ -616,10 +642,10 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             return null;
         }
 
-        public DiscoveryNode nodeWithSamePersistentId(DiscoveryNode node) {
+        public DiscoveryNode nodeWithSameEphemeralId(DiscoveryNode node) {
             for (ObjectCursor<DiscoveryNode> cursor : nodes.values()) {
                 final DiscoveryNode existingNode = cursor.value;
-                if (node.getNodeId().equals(existingNode.getNodeId())) {
+                if (node.getEphemeralId().equals(existingNode.getEphemeralId())) {
                     return existingNode;
                 }
             }

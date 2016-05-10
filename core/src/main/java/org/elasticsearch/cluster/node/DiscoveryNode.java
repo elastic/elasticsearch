@@ -87,8 +87,8 @@ public class DiscoveryNode implements Writeable, ToXContent {
     }
 
     private final String nodeName;
-    private final String processId;
     private final String nodeId;
+    private final String ephemeralId;
     private final String hostName;
     private final String hostAddress;
     private final TransportAddress address;
@@ -105,15 +105,15 @@ public class DiscoveryNode implements Writeable, ToXContent {
      * and updated.
      * </p>
      *
-     * @param processAndNodeId the nodes unique process and node id
+     * @param id               the nodes unique (ephemeral and persistent) node id
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
      * @param version          the version of the node
      */
-    public DiscoveryNode(String processAndNodeId, TransportAddress address, Map<String, String> attributes, Set<Role> roles,
+    public DiscoveryNode(String id, TransportAddress address, Map<String, String> attributes, Set<Role> roles,
                          Version version) {
-        this(processAndNodeId, processAndNodeId, address, attributes, roles, version);
+        this(id, id, address, attributes, roles, version);
     }
 
     /**
@@ -125,16 +125,16 @@ public class DiscoveryNode implements Writeable, ToXContent {
      * and updated.
      * </p>
      *
-     * @param processId        the nodes unique process id
-     * @param nodeId the nodes unique persistent id
+     * @param nodeId           the nodes unique persistent id
+     * @param ephemeralId      the nodes unique ephemeral id
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
      * @param version          the version of the node
      */
-    public DiscoveryNode(String processId, String nodeId, TransportAddress address, Map<String, String> attributes,
+    public DiscoveryNode(String nodeId, String ephemeralId, TransportAddress address, Map<String, String> attributes,
                          Set<Role> roles, Version version) {
-        this("", processId, nodeId, address.getHost(), address.getAddress(), address, attributes, roles, version);
+        this("", nodeId, ephemeralId, address.getHost(), address.getAddress(), address, attributes, roles, version);
     }
 
     /**
@@ -147,16 +147,16 @@ public class DiscoveryNode implements Writeable, ToXContent {
      * </p>
      *
      * @param nodeName         the nodes name
-     * @param processId        the nodes unique process id
-     * @param nodeId the nodes unique persistent id
+     * @param nodeId           the nodes unique persistent id
+     * @param ephemeralId      the nodes unique ephemeral id
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
      * @param version          the version of the node
      */
-    public DiscoveryNode(String nodeName, String processId, String nodeId, TransportAddress address,
+    public DiscoveryNode(String nodeName, String nodeId, String ephemeralId, TransportAddress address,
                          Map<String, String> attributes, Set<Role> roles, Version version) {
-        this(nodeName, processId, nodeId, address.getHost(), address.getAddress(), address, attributes, roles, version);
+        this(nodeName, nodeId, ephemeralId, address.getHost(), address.getAddress(), address, attributes, roles, version);
     }
 
     /**
@@ -169,23 +169,23 @@ public class DiscoveryNode implements Writeable, ToXContent {
      * </p>
      *
      * @param nodeName         the nodes name
-     * @param processId        the nodes unique process id
-     * @param nodeId the nodes unique persistent id
+     * @param nodeId           the nodes unique persistent id
+     * @param ephemeralId      the nodes unique ephemeral id
      * @param hostAddress      the nodes host address
      * @param address          the nodes transport address
      * @param attributes       node attributes
      * @param roles            node roles
      * @param version          the version of the node
      */
-    public DiscoveryNode(String nodeName, String processId, String nodeId, String hostName, String hostAddress,
+    public DiscoveryNode(String nodeName, String nodeId, String ephemeralId, String hostName, String hostAddress,
                          TransportAddress address, Map<String, String> attributes, Set<Role> roles, Version version) {
         if (nodeName != null) {
             this.nodeName = nodeName.intern();
         } else {
             this.nodeName = "";
         }
-        this.processId = processId.intern();
         this.nodeId = nodeId.intern();
+        this.ephemeralId = ephemeralId.intern();
         this.hostName = hostName.intern();
         this.hostAddress = hostAddress.intern();
         this.address = address;
@@ -215,8 +215,8 @@ public class DiscoveryNode implements Writeable, ToXContent {
      */
     public DiscoveryNode(StreamInput in) throws IOException {
         this.nodeName = in.readString().intern();
-        this.processId = in.readString().intern();
         this.nodeId = in.readString().intern();
+        this.ephemeralId = in.readString().intern();
         this.hostName = in.readString().intern();
         this.hostAddress = in.readString().intern();
         this.address = TransportAddressSerializers.addressFromStream(in);
@@ -240,8 +240,8 @@ public class DiscoveryNode implements Writeable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeName);
-        out.writeString(processId);
         out.writeString(nodeId);
+        out.writeString(ephemeralId);
         out.writeString(hostName);
         out.writeString(hostAddress);
         addressToStream(out, address);
@@ -265,17 +265,17 @@ public class DiscoveryNode implements Writeable, ToXContent {
     }
 
     /**
-     * The unique process id of the node.
+     * The unique id of the node.
      */
     public String getId() {
-        return processId;
+        return nodeId;
     }
 
     /**
-     * The unique process id of the node.
+     * The unique ephemeral id of the node.
      */
-    public String getNodeId() {
-        return nodeId;
+    public String getEphemeralId() {
+        return ephemeralId;
     }
 
     /**
@@ -333,58 +333,51 @@ public class DiscoveryNode implements Writeable, ToXContent {
         return this.hostAddress;
     }
 
-    /**
-     * Checks whether this node has the same id as another node *and* has
-     * the same attributes, network address and so fourth. This is in contrast to {@link #equals(Object)}
-     * which only compares the process ids.
-     */
-    public boolean equalsIncludingMetaData(DiscoveryNode other) {
-        if (this.equals(other) == false) {
-            return false;
-        }
-
-        if (!nodeId.equals(other.nodeId)) {
-            return false;
-        }
-        if (!nodeName.equals(other.nodeName)) {
-            return false;
-        }
-        if (!hostName.equals(other.hostName)) {
-            return false;
-        }
-        if (!hostAddress.equals(other.hostAddress)) {
-            return false;
-        }
-        if (!address.equals(other.address)) {
-            return false;
-        }
-        if (!attributes.equals(other.attributes)) {
-            return false;
-        }
-        if (!version.equals(other.version)) {
-            return false;
-        }
-        return roles.equals(other.roles);
-    }
-
-
-    /**
-     * Checks for equality based on the value {@link #getId()} **alone**. This is done so that this class can be used
-     * efficiently as a key in a map
-     */
     @Override
-    public boolean equals(Object obj) {
-        if (!(obj instanceof DiscoveryNode)) {
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
 
-        DiscoveryNode other = (DiscoveryNode) obj;
-        return this.processId.equals(other.processId);
+        DiscoveryNode that = (DiscoveryNode) o;
+
+        if (!nodeId.equals(that.nodeId)) {
+            return false;
+        }
+        if (!ephemeralId.equals(that.ephemeralId)) {
+            return false;
+        }
+        if (!nodeName.equals(that.nodeName)) {
+            return false;
+        }
+        if (!hostName.equals(that.hostName)) {
+            return false;
+        }
+        if (!hostAddress.equals(that.hostAddress)) {
+            return false;
+        }
+        if (!address.equals(that.address)) {
+            return false;
+        }
+        if (!attributes.equals(that.attributes)) {
+            return false;
+        }
+        if (!version.equals(that.version)) {
+            return false;
+        }
+        return roles.equals(that.roles);
+
     }
 
     @Override
     public int hashCode() {
-        return processId.hashCode();
+        // we only need to hash the id because it's highly unlikely that two nodes
+        // in our system will have the same id but be different
+        // This is done so that this class can be used efficiently as a key in a map
+        return nodeId.hashCode();
     }
 
     @Override
@@ -393,7 +386,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
         if (nodeName.length() > 0) {
             sb.append('{').append(nodeName).append('}');
         }
-        sb.append('{').append(processId).append('}');
+        sb.append('{').append(ephemeralId).append('}');
         sb.append('{').append(nodeId).append('}');
         sb.append('{').append(hostName).append('}');
         sb.append('{').append(address).append('}');
@@ -407,7 +400,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getId());
         builder.field("name", getName());
-        builder.field("node_id", getNodeId());
+        builder.field("ephemeral_id", getEphemeralId());
         builder.field("transport_address", getAddress().toString());
 
         builder.startObject("attributes");

@@ -67,6 +67,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.shuffle;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -420,24 +421,29 @@ public class NodeJoinControllerTests extends ESTestCase {
         assertTrue("failed to publish a new state upon existing join", clusterService.state() != state);
     }
 
-    public void testRemoveExistingNodeWhenJoinWithSameAddressButDifferentProcessId() throws InterruptedException, ExecutionException {
+    public void testRemoveExistingNodeWhenJoinWithSameAddress() throws InterruptedException, ExecutionException {
         ClusterState state = clusterService.state();
-        final DiscoveryNode other_node = new DiscoveryNode("other_node", state.nodes().getLocalNode().getAddress(),
-            emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = state.nodes().getLocalNode();
+        String nodeId = randomFrom("other_node", localNode.getId());
+        // consider case where node id and ephemeral id are not both identical
+        String ephemeralId = nodeId.equals("other_node") ? randomFrom(localNode.getEphemeralId(), "other_id") : localNode.getEphemeralId();
+        final DiscoveryNode other_node = new DiscoveryNode(nodeId, ephemeralId, localNode.getAddress(),
+            localNode.getAttributes(), localNode.getRoles(), localNode.getVersion());
 
         joinNode(other_node);
         state = clusterService.state();
         assertThat(state.getNodes().getSize(), equalTo(1));
-        assertTrue(state.getNodes().get(other_node.getId()).equalsIncludingMetaData(other_node));
+        assertTrue(state.getNodes().get(other_node.getId()).equals(other_node));
     }
 
-    public void testRejectingJoinWithSamePersistentIdButDifferentAddress() throws InterruptedException, ExecutionException {
+    public void testRejectingJoinWithSameNodeIdButDifferentEphemeralIdAndAddress() throws InterruptedException, ExecutionException {
         ClusterState state = clusterService.state();
-        final DiscoveryNode other_node = new DiscoveryNode(UUIDs.randomBase64UUID(), state.nodes().getLocalNode().getId(),
+        final DiscoveryNode other_node = new DiscoveryNode(state.nodes().getLocalNode().getId(), UUIDs.randomBase64UUID(),
             LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
 
         ExecutionException e = expectThrows(ExecutionException.class, () -> joinNode(other_node));
-        assertThat(e.getMessage(), containsString("found existing node"));
+        assertThat(e.getMessage(), both(containsString("found existing node")).and(
+            containsString("with same node id but different ephemeral id")));
     }
 
     public void testNormalConcurrentJoins() throws InterruptedException {

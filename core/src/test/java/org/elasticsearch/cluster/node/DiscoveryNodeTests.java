@@ -58,33 +58,30 @@ public class DiscoveryNodeTests extends ESTestCase {
         logger.info("node2: {}", node2);
 
         assertFalse(node1.equals(node2));
-        assertFalse(node1.equalsIncludingMetaData(node2));
 
         DiscoveryNode sameIdDifferentMeta;
 
-        sameIdDifferentMeta = new DiscoveryNode(node2.getName(), node1.getId(), node1.getNodeId(), node2.getAddress(),
+        sameIdDifferentMeta = new DiscoveryNode(node2.getName(), node1.getId(), node1.getEphemeralId(), node2.getAddress(),
             node2.getAttributes(), node2.getRoles(), node2.getVersion());
-        assertTrue(node1.equals(sameIdDifferentMeta));
-        assertFalse(node1.equalsIncludingMetaData(sameIdDifferentMeta));
+        assertFalse(node1.equals(sameIdDifferentMeta));
 
-        sameIdDifferentMeta = new DiscoveryNode(node1.getName(), node1.getId(), node2.getNodeId(), node1.getAddress(),
+        sameIdDifferentMeta = new DiscoveryNode(node1.getName(), node1.getId(), node2.getEphemeralId(), node1.getAddress(),
             node1.getAttributes(), node1.getRoles(), node1.getVersion());
-        assertTrue(node1.equals(sameIdDifferentMeta));
-        assertFalse(node1.equalsIncludingMetaData(sameIdDifferentMeta));
+        assertFalse(node1.equals(sameIdDifferentMeta));
 
-        sameIdDifferentMeta = new DiscoveryNode(node2.getName(), node1.getId(), node1.getNodeId(), node1.getAddress(),
+        sameIdDifferentMeta = new DiscoveryNode(node2.getName(), node1.getId(), node1.getEphemeralId(), node1.getAddress(),
             node1.getAttributes(), (randomBoolean() ? node1 : node2).getRoles(), (randomBoolean() ? node1 : node2).getVersion());
-        assertTrue(node1.equals(sameIdDifferentMeta));
-        assertFalse(node1.equalsIncludingMetaData(sameIdDifferentMeta));
+        assertFalse(node1.equals(sameIdDifferentMeta));
 
-        sameIdDifferentMeta = new DiscoveryNode(node1.getName(), node1.getId(), node1.getNodeId(), node2.getAddress(),
+        sameIdDifferentMeta = new DiscoveryNode(node1.getName(), node1.getId(), node1.getEphemeralId(), node2.getAddress(),
             node1.getAttributes(), (randomBoolean() ? node1 : node2).getRoles(), (randomBoolean() ? node1 : node2).getVersion());
-        assertTrue(node1.equals(sameIdDifferentMeta));
-        assertFalse(node1.equalsIncludingMetaData(sameIdDifferentMeta));
+        assertFalse(node1.equals(sameIdDifferentMeta));
 
-        sameIdDifferentMeta = new DiscoveryNode(node1.getName(), node1.getId(), node1.getNodeId(), node1.getAddress(),
+        sameIdDifferentMeta = new DiscoveryNode(node1.getName(), node1.getId(), node1.getEphemeralId(), node1.getAddress(),
             node2.getAttributes(), (randomBoolean() ? node1 : node2).getRoles(), (randomBoolean() ? node1 : node2).getVersion());
-        assertTrue(node1.equals(sameIdDifferentMeta));
-        assertFalse(node1.equalsIncludingMetaData(sameIdDifferentMeta));
+        assertFalse(node1.equals(sameIdDifferentMeta));
+
+        assertTrue(node1.equals(new DiscoveryNode(node1.getName(), node1.getId(), node1.getEphemeralId(), node1.getAddress(),
+            node1.getAttributes(), node1.getRoles(), node1.getVersion())));
     }
 }

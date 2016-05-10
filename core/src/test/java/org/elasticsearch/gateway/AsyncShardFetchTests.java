@@ -44,11 +44,11 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  */
 public class AsyncShardFetchTests extends ESTestCase {
-    private final DiscoveryNode node1 = new DiscoveryNode("process1", "node1", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+    private final DiscoveryNode node1 = new DiscoveryNode("node1", "process1", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
             Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
     private final Response response1 = new Response(node1);
     private final Throwable failure1 = new Throwable("simulated failure 1");
-    private final DiscoveryNode node2 = new DiscoveryNode("process2", "node2", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+    private final DiscoveryNode node2 = new DiscoveryNode("node2", "process2", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
             Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT);
     private final Response response2 = new Response(node2);
     private final Throwable failure2 = new Throwable("simulate failure 2");

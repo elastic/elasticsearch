@@ -185,7 +185,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             // try and serialize the cluster state once (or per version), so we don't serialize it
             // per node when we send it over the wire, compress it while we are at it...
             // we don't send full version if node didn't exist in the previous version of cluster state
-            if (sendFullVersion || !previousState.nodes().nodeExists(node.getId())) {
+            if (sendFullVersion || !previousState.nodes().nodeExists(node.getId(), node.getEphemeralId())) {
                 sendFullClusterState(clusterState, serializedStates, node, publishTimeout, sendingController);
             } else {
                 sendClusterStateDiff(clusterState, serializedDiffs, serializedStates, node, publishTimeout, sendingController);
@@ -216,7 +216,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         Diff<ClusterState> diff = null;
         for (final DiscoveryNode node : nodesToPublishTo) {
             try {
-                if (sendFullVersion || !previousState.nodes().nodeExists(node.getId())) {
+                if (sendFullVersion || !previousState.nodes().nodeExists(node.getId(), node.getEphemeralId())) {
                     // will send a full reference
                     if (serializedStates.containsKey(node.getVersion()) == false) {
                         serializedStates.put(node.getVersion(), serializeFullClusterState(clusterState, node.getVersion()));

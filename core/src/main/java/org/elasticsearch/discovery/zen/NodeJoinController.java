@@ -385,36 +385,38 @@ public class NodeJoinController extends AbstractComponent {
                     Map.Entry<DiscoveryNode, List<MembershipAction.JoinCallback>> entry = iterator.next();
                     final DiscoveryNode node = entry.getKey();
                     iterator.remove();
-                    DiscoveryNode existingNodeWithSameProcessId = currentState.nodes().get(node.getId());
-                    if (existingNodeWithSameProcessId != null) {
+                    DiscoveryNode existingNodeWithSameId = currentState.nodes().get(node.getId());
+                    if (existingNodeWithSameId != null && existingNodeWithSameId.getEphemeralId().equals(node.getEphemeralId())) {
+                        assert existingNodeWithSameId.equals(node) : "node [" + existingNodeWithSameId + "] with " +
+                            "same ephemeral id but different metadata joined (existing node [" + existingNodeWithSameId + "])";
                         logger.debug("received a join request for an existing node [{}]", node);
-                        assert existingNodeWithSameProcessId.equalsIncludingMetaData(node);
                         joinCallbacksToRespondTo.addAll(entry.getValue());
                     } else {
                         DiscoveryNode nodeWithSameAddress = nodesBuilder.nodeWithSameAddress(node);
                         if (nodeWithSameAddress != null) {
-                            logger.warn("received join request from node [{}], but found existing node {} with same address, removing " +
+                            logger.warn("received join request from node [{}], but found existing node [{}] with same address, removing " +
                                 "existing node", node, nodeWithSameAddress);
                             nodesBuilder.remove(nodeWithSameAddress.getId());
                             nodesBuilder.put(node);
                             nodeAdded = true;
                             joinCallbacksToRespondTo.addAll(entry.getValue());
-                        } else {
-                            DiscoveryNode nodeWithSamePersistentId = nodesBuilder.nodeWithSamePersistentId(node);
-                            if (nodeWithSamePersistentId != null) {
-                                logger.warn("received join request from node [{}], but found existing node {} with same persistent node " +
-                                    "id, failing join request ", node);
-                                Throwable failure = new IllegalStateException("can't add node " + node + ", found existing node " +
-                                    nodeWithSamePersistentId + " with same persistent node id");
-                                for (MembershipAction.JoinCallback callback: entry.getValue()) {
-                                    joinCallbacksToFail.add(new Tuple<>(callback, failure));
-                                }
-                            } else {
-                                logger.trace("received join request for a new node [{}]", node);
-                                nodesBuilder.put(node);
-                                nodeAdded = true;
-                                joinCallbacksToRespondTo.addAll(entry.getValue());
+                        } else if (existingNodeWithSameId != null) {
+                            logger.warn("received join request from node [{}], but found existing node [{}] with same node id but " +
+                                "different ephemeral id, failing join request ", node, existingNodeWithSameId);
+                            // probably means that the data folder containing the persisted node id was copied to another node
+                            Throwable failure = new IllegalStateException("can't add node " + node + ", found existing node " +
+                                existingNodeWithSameId + " with same node id but different ephemeral id");
+                            for (MembershipAction.JoinCallback callback : entry.getValue()) {
+                                joinCallbacksToFail.add(new Tuple<>(callback, failure));
                             }
+                        } else {
+                            assert existingNodeWithSameId == null;
+                            assert nodesBuilder.nodeWithSameEphemeralId(node) == null : "received join request from node [" + node + "] " +
+                                "but found existing node with same ephemeral id";
+                            logger.trace("received join request for a new node [{}]", node);
+                            nodesBuilder.put(node);
+                            nodeAdded = true;
+                            joinCallbacksToRespondTo.addAll(entry.getValue());
                         }
 
                         assert entry.getValue().stream().allMatch(cb ->

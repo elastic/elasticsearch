@@ -236,7 +236,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         final int maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + treshold)));
 
         for (RoutingNode node : nodes) {
-//            logger.info(node.getNodeId() + ": " + node.shardsWithState(INITIALIZING, STARTED).size() + " shards ("+minAvgNumberOfShards+" to "+maxAvgNumberOfShards+")");
+//            logger.info(node.getEphemeralId() + ": " + node.shardsWithState(INITIALIZING, STARTED).size() + " shards ("+minAvgNumberOfShards+" to "+maxAvgNumberOfShards+")");
             assertThat(node.shardsWithState(STARTED).size(), Matchers.greaterThanOrEqualTo(minAvgNumberOfShards));
             assertThat(node.shardsWithState(STARTED).size(), Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
         }
@@ -251,7 +251,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
 
         for (ObjectCursor<String> index : nodes.getRoutingTable().indicesRouting().keys()) {
             for (RoutingNode node : nodes) {
-//              logger.info(node.getNodeId() +":"+index+ ": " + node.shardsWithState(index, INITIALIZING, STARTED).size() + " shards ("+minAvgNumberOfShards+" to "+maxAvgNumberOfShards+")");
+//              logger.info(node.getEphemeralId() +":"+index+ ": " + node.shardsWithState(index, INITIALIZING, STARTED).size() + " shards ("+minAvgNumberOfShards+" to "+maxAvgNumberOfShards+")");
                 assertThat(node.shardsWithState(index.value, STARTED).size(), Matchers.greaterThanOrEqualTo(minAvgNumberOfShards));
                 assertThat(node.shardsWithState(index.value, STARTED).size(), Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
             }
@@ -271,7 +271,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                 for (ShardRouting shard : node.shardsWithState(index.value, STARTED)) {
                     primaries += shard.primary() ? 1 : 0;
                 }
-//                logger.info(node.getNodeId() + ": " + primaries + " primaries ("+minAvgNumberOfShards+" to "+maxAvgNumberOfShards+")");
+//                logger.info(node.getEphemeralId() + ": " + primaries + " primaries ("+minAvgNumberOfShards+" to "+maxAvgNumberOfShards+")");
                 assertThat(primaries, Matchers.greaterThanOrEqualTo(minAvgNumberOfShards));
                 assertThat(primaries, Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
             }

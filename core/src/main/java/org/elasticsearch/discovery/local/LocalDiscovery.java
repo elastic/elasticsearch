@@ -309,7 +309,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 synchronized (this) {
                     // we do the marshaling intentionally, to check it works well...
                     // check if we published cluster state at least once and node was in the cluster when we published cluster state the last time
-                    if (discovery.lastProcessedClusterState != null && clusterChangedEvent.previousState().nodes().nodeExists(discovery.localNode().getId())) {
+                    if (discovery.lastProcessedClusterState != null && clusterChangedEvent.previousState().nodes().nodeExists(discovery.localNode().getId(), discovery.localNode().getEphemeralId())) {
                         // both conditions are true - which means we can try sending cluster state as diffs
                         if (clusterStateDiffBytes == null) {
                             Diff diff = clusterState.diff(clusterChangedEvent.previousState());

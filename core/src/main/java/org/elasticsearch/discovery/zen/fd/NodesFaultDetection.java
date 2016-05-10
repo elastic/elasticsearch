@@ -200,7 +200,7 @@ public class NodesFaultDetection extends FaultDetection {
             if (!running()) {
                 return;
             }
-            final PingRequest pingRequest = new PingRequest(node.getId(), clusterName, localNode, clusterStateVersion);
+            final PingRequest pingRequest = new PingRequest(node.getId(), node.getEphemeralId(), clusterName, localNode, clusterStateVersion);
             final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout).build();
             transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, new BaseTransportResponseHandler<PingResponse>() {
                         @Override
@@ -255,12 +255,11 @@ public class NodesFaultDetection extends FaultDetection {
         public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
-            if (!localNode.getId().equals(request.nodeId)) {
-                throw new IllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + localNode.getId() + "]");
+            if (localNode.getId().equals(request.nodeId()) == false || localNode.getEphemeralId().equals(request.ephemeralId()) == false) {
+                throw new IllegalStateException("Got pinged as node [" + request.nodeId() + "/" + request.ephemeralId() + "], but I am node [" + localNode + "]");
             }
 
-            // PingRequest will have clusterName set to null if it came from a node of version <1.4.0
-            if (request.clusterName != null && !request.clusterName.equals(clusterName)) {
+            if (clusterName.equals(request.clusterName) == false) {
                 // Don't introduce new exception for bwc reasons
                 throw new IllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster [" + clusterName + "]");
             }
@@ -276,6 +275,7 @@ public class NodesFaultDetection extends FaultDetection {
 
         // the (assumed) node id we are pinging
         private String nodeId;
+        private String ephemeralId;
 
         private ClusterName clusterName;
 
@@ -286,8 +286,9 @@ public class NodesFaultDetection extends FaultDetection {
         public PingRequest() {
         }
 
-        PingRequest(String nodeId, ClusterName clusterName, DiscoveryNode masterNode, long clusterStateVersion) {
+        PingRequest(String nodeId, String ephemeralId, ClusterName clusterName, DiscoveryNode masterNode, long clusterStateVersion) {
             this.nodeId = nodeId;
+            this.ephemeralId = ephemeralId;
             this.clusterName = clusterName;
             this.masterNode = masterNode;
             this.clusterStateVersion = clusterStateVersion;
@@ -295,6 +296,10 @@ public class NodesFaultDetection extends FaultDetection {
 
         public String nodeId() {
             return nodeId;
+        }
+
+        public String ephemeralId() {
+            return ephemeralId;
         }
 
         public ClusterName clusterName() {
@@ -313,6 +318,7 @@ public class NodesFaultDetection extends FaultDetection {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             nodeId = in.readString();
+            ephemeralId = in.readString();
             clusterName = ClusterName.readClusterName(in);
             masterNode = new DiscoveryNode(in);
             clusterStateVersion = in.readLong();
@@ -322,6 +328,7 @@ public class NodesFaultDetection extends FaultDetection {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
+            out.writeString(ephemeralId);
             clusterName.writeTo(out);
             masterNode.writeTo(out);
             out.writeLong(clusterStateVersion);

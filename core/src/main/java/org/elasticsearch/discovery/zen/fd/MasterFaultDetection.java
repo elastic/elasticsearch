@@ -169,7 +169,9 @@ public class MasterFaultDetection extends FaultDetection {
     @Override
     protected void handleTransportDisconnect(DiscoveryNode node) {
         synchronized (masterNodeMutex) {
-            if (!node.equals(this.masterNode)) {
+            if (this.masterNode == null ||
+                node.getId().equals(this.masterNode.getId()) == false ||
+                node.getEphemeralId().equals(this.masterNode.getEphemeralId())) {
                 return;
             }
             if (connectOnNetworkDisconnect) {
@@ -227,7 +229,9 @@ public class MasterFaultDetection extends FaultDetection {
                 threadPool.schedule(pingInterval, ThreadPool.Names.SAME, MasterPinger.this);
                 return;
             }
-            final MasterPingRequest request = new MasterPingRequest(clusterService.localNode().getId(), masterToPing.getId(), clusterName);
+            final DiscoveryNode localNode = clusterService.localNode();
+            final MasterPingRequest request = new MasterPingRequest(localNode.getId(), localNode.getEphemeralId(),
+                masterToPing.getId(), masterToPing.getEphemeralId(), clusterName);
             final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout).build();
             transportService.sendRequest(masterToPing, MASTER_PING_ACTION_NAME, request, options, new BaseTransportResponseHandler<MasterPingResponseResponse>() {
 
@@ -328,12 +332,13 @@ public class MasterFaultDetection extends FaultDetection {
             final DiscoveryNodes nodes = clusterService.state().nodes();
             // check if we are really the same master as the one we seemed to be think we are
             // this can happen if the master got "kill -9" and then another node started using the same port
-            if (!request.masterNodeId.equals(nodes.getLocalNodeId())) {
+            DiscoveryNode localNode = nodes.getLocalNode();
+            if (request.masterNodeId.equals(localNode.getId()) == false ||
+                request.masterEphemeralId.equals(localNode.getEphemeralId()) == false) {
                 throw new ThisIsNotTheMasterYouAreLookingForException();
             }
 
-            // ping from nodes of version < 1.4.0 will have the clustername set to null
-            if (request.clusterName != null && !request.clusterName.equals(clusterName)) {
+            if (clusterName.equals(request.clusterName) == false) {
                 logger.trace("master fault detection ping request is targeted for a different [{}] cluster then us [{}]", request.clusterName, clusterName);
                 throw new ThisIsNotTheMasterYouAreLookingForException("master fault detection ping request is targeted for a different [" + request.clusterName + "] cluster then us [" + clusterName + "]");
             }
@@ -346,7 +351,7 @@ public class MasterFaultDetection extends FaultDetection {
             // all processing is finished.
             //
 
-            if (!nodes.isLocalNodeElectedMaster() || !nodes.nodeExists(request.nodeId)) {
+            if (!nodes.isLocalNodeElectedMaster() || !nodes.nodeExists(request.nodeId, request.ephemeralId)) {
                 logger.trace("checking ping from [{}] under a cluster state thread", request.nodeId);
                 clusterService.submitStateUpdateTask("master ping (from: [" + request.nodeId + "])", new ClusterStateUpdateTask() {
 
@@ -354,7 +359,7 @@ public class MasterFaultDetection extends FaultDetection {
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         // if we are no longer master, fail...
                         DiscoveryNodes nodes = currentState.nodes();
-                        if (!nodes.nodeExists(request.nodeId)) {
+                        if (!nodes.nodeExists(request.nodeId, request.ephemeralId)) {
                             throw new NodeDoesNotExistOnMasterException();
                         }
                         return currentState;
@@ -397,16 +402,19 @@ public class MasterFaultDetection extends FaultDetection {
     public static class MasterPingRequest extends TransportRequest {
 
         private String nodeId;
-
+        private String ephemeralId;
         private String masterNodeId;
+        private String masterEphemeralId;
         private ClusterName clusterName;
 
         public MasterPingRequest() {
         }
 
-        private MasterPingRequest(String nodeId, String masterNodeId, ClusterName clusterName) {
+        private MasterPingRequest(String nodeId, String ephemeralId, String masterNodeId, String masterEphemeralId, ClusterName clusterName) {
             this.nodeId = nodeId;
+            this.ephemeralId = ephemeralId;
             this.masterNodeId = masterNodeId;
+            this.masterEphemeralId = masterEphemeralId;
             this.clusterName = clusterName;
         }
 
@@ -414,7 +422,9 @@ public class MasterFaultDetection extends FaultDetection {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             nodeId = in.readString();
+            ephemeralId = in.readString();
             masterNodeId = in.readString();
+            masterEphemeralId = in.readString();
             clusterName = ClusterName.readClusterName(in);
         }
 
@@ -422,7 +432,9 @@ public class MasterFaultDetection extends FaultDetection {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
+            out.writeString(ephemeralId);
             out.writeString(masterNodeId);
+            out.writeString(masterEphemeralId);
             clusterName.writeTo(out);
         }
     }

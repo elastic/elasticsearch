@@ -980,7 +980,10 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
         public void onNodeAck(DiscoveryNode node, @Nullable Throwable t) {
             if (!ackedTaskListener.mustAck(node)) {
                 //we always wait for the master ack anyway
-                if (!node.equals(nodes.getMasterNode())) {
+                DiscoveryNode masterNode = nodes.getMasterNode();
+                if (masterNode == null ||
+                    node.getId().equals(masterNode.getId()) == false ||
+                    node.getEphemeralId().equals(masterNode.getEphemeralId()) == false) {
                     return;
                 }
             }

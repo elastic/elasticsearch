@@ -336,7 +336,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Environment.PATH_SHARED_DATA_SETTING,
                     Environment.PIDFILE_SETTING,
                     NodeEnvironment.NODE_ID_SEED_SETTING,
-                    DiscoveryNodeService.PROCESS_ID_SEED_SETTING,
+                    DiscoveryNodeService.EPHEMERAL_ID_SEED_SETTING,
                     DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING,
                     DiscoveryModule.DISCOVERY_TYPE_SETTING,
                     DiscoveryModule.ZEN_MASTER_SERVICE_TYPE_SETTING,

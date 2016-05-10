@@ -508,7 +508,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             clusterService.submitStateUpdateTask("zen-disco-node_left(" + node + ")", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes()).remove(node.getId());
+                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder(currentState.nodes());
+                    if (currentState.nodes().nodeExists(node.getId(), node.getEphemeralId())) {
+                        builder.remove(node.getId());
+                    }
                     currentState = ClusterState.builder(currentState).nodes(builder).build();
                     // check if we have enough master nodes, if not, we need to move into joining the cluster again
                     if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
@@ -531,8 +534,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     logger.error("unexpected failure during [{}]", t, source);
                 }
             });
-        } else if (node.equals(nodes().getMasterNode())) {
-            handleMasterGone(node, null, "shut_down");
+        } else {
+            DiscoveryNode masterNode = nodes().getMasterNode();
+            if (masterNode == null ||
+                masterNode.getId().equals(node.getId()) == false ||
+                masterNode.getEphemeralId().equals(node.getEphemeralId()) == false) {
+                handleMasterGone(node, null, "shut_down");
+            }
         }
     }
 
@@ -548,7 +556,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         clusterService.submitStateUpdateTask("zen-disco-node_failed(" + node + "), reason " + reason, new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                if (currentState.nodes().get(node.getId()) == null) {
+                if (currentState.nodes().nodeExists(node.getId(), node.getEphemeralId()) == false) {
                     logger.debug("node [{}] already removed from cluster state. ignoring.", node);
                     return currentState;
                 }
@@ -641,7 +649,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                if (!masterNode.getId().equals(currentState.nodes().getMasterNodeId())) {
+                DiscoveryNode currentMasterNode = currentState.nodes().getMasterNode();
+                if (currentMasterNode == null ||
+                    currentMasterNode.getId().equals(masterNode.getId()) == false ||
+                    currentMasterNode.getEphemeralId().equals(masterNode.getId()) == false) {
                     // master got switched on us, no need to send anything
                     return currentState;
                 }

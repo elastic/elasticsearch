@@ -38,7 +38,6 @@ class WriterConstants {
 
     final static Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", Definition.class, String.class, String.class);
     final static Method EXECUTE     = getAsmMethod(Object.class, "execute", Map.class);
-    final static String SIGNATURE   = "(Ljava/util/Map<Ljava/lang/String;Ljava/lang/Object;>;)Ljava/lang/Object;";
 
     final static Type PAINLESS_ERROR_TYPE = Type.getType(PainlessError.class);
 

@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle
+package org.elasticsearch.gradle.doc
 
-import org.elasticsearch.gradle.SnippetsTask.Snippet
+import org.elasticsearch.gradle.doc.SnippetsTask.Snippet
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.OutputDirectory
@@ -95,7 +95,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 response(snippet)
                 return
             }
-            if (snippet.test || snippet.autoSense) {
+            if (snippet.test || snippet.console) {
                 test(snippet)
                 return
             }

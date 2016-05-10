@@ -50,7 +50,7 @@ PUT _ingest/pipeline/my-pipeline-id
   ]
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 NOTE: The put pipeline API also instructs all ingest nodes to reload their in-memory representation of pipelines, so that
       pipeline changes take effect immediately.
@@ -64,7 +64,7 @@ The get pipeline API returns pipelines based on ID. This API always returns a lo
 --------------------------------------------------
 GET _ingest/pipeline/my-pipeline-id
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[continued]
 
 Example response:
@@ -104,7 +104,7 @@ The delete pipeline API deletes pipelines by ID.
 --------------------------------------------------
 DELETE _ingest/pipeline/my-pipeline-id
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[continued]
 
 [[simulate-pipeline-api]]
@@ -189,7 +189,7 @@ POST _ingest/pipeline/_simulate
   ]
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Response:
 
@@ -288,7 +288,7 @@ POST _ingest/pipeline/_simulate?verbose
   ]
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Response:
 

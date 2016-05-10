@@ -40,7 +40,7 @@ GET _search <4>
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> This field will ignore any string longer than 20 characters.
 <2> This document is indexed successfully.
 <3> This document will be indexed, but without indexing the `message` field.

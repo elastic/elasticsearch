@@ -399,7 +399,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
             String field = name();
             long size = XPointValues.size(reader, field);
             if (size == 0) {
-                return new FieldStats.Date(reader.maxDoc(), isSearchable(), isAggregatable(), dateTimeFormatter());
+                return null;
             }
             int docCount = XPointValues.getDocCount(reader, field);
             byte[] min = XPointValues.getMinPackedValue(reader, field);

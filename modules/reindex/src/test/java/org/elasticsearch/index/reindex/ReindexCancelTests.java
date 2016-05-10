@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class ReindexCancelTests extends ReindexTestCase {
     public void testCancel() throws Exception {
-        ReindexResponse response = CancelTestUtils.testCancel(this, reindex().destination("dest", "test"), ReindexAction.NAME);
+        BulkIndexByScrollResponse response = CancelTestUtils.testCancel(this, reindex().destination("dest", "test"), ReindexAction.NAME);
 
         assertThat(response, reindexResponseMatcher().created(1).reasonCancelled(equalTo("by user request")));
         refresh("dest");

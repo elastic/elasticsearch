@@ -47,7 +47,7 @@ GET my_index/my_parent/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `my_parent` type is parent to the `my_child` type.
 <2> Index a parent document.
 <3> Index two child documents, specifying the parent document's ID.
@@ -86,7 +86,7 @@ GET my_index/_search
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[continued]
 
 <1> Querying on the `_parent` field (also see the <<query-dsl-has-parent-query,`has_parent` query>> and the <<query-dsl-has-child-query,`has_child` query>>)
@@ -138,7 +138,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The amount of heap used by global ordinals can be checked as follows:
 
@@ -150,4 +150,4 @@ GET _stats/fielddata?human&fields=_parent
 # Per-node per-index
 GET _nodes/stats/indices/fielddata?human&fields=_parent
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE

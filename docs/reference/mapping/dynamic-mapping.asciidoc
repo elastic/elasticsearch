@@ -12,7 +12,7 @@ type, and fields will spring to life automatically:
 PUT data/counters/1 <1>
 { "count": 5 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Creates the `data` index, the `counters` mapping type, and a field
     called `count` with datatype `long`.
 
@@ -51,7 +51,7 @@ PUT data/_settings <1>
   "index.mapper.dynamic":false
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[continued]
 
 <1> Disable automatic type creation for all indices.

@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.containsString;
 /**
  * Tests index-by-search with a script modifying the documents.
  */
-public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScriptTestCase<ReindexRequest, ReindexResponse> {
+public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScriptTestCase<ReindexRequest, BulkIndexByScrollResponse> {
     public void testSetIndex() throws Exception {
         Object dest = randomFrom(new Object[] {234, 234L, "pancake"});
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_index", dest));
@@ -133,7 +133,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScri
     }
 
     @Override
-    protected AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> action() {
+    protected AbstractAsyncBulkIndexByScrollAction<ReindexRequest> action() {
         return new TransportReindexAction.AsyncIndexBySearchAction(task, logger, null, null, null, threadPool, request(), listener());
     }
 }

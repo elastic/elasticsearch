@@ -491,7 +491,7 @@ GET _search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Next, we show how the computed score looks like for each of the three
 possible decay functions.

@@ -161,8 +161,10 @@ setup() {
     assert_file_exist "/etc/elasticsearch/jvm.options.rpmsave"
     assert_file_not_exist "/etc/elasticsearch/logging.yml"
     assert_file_exist "/etc/elasticsearch/logging.yml.rpmsave"
-    assert_file_exist "/etc/elasticsearch/scripts.rpmsave"
-    assert_file_exist "/etc/elasticsearch/scripts.rpmsave/script"
+    # older versions of rpm behave differently and preserve the
+    # directory but do not append the ".rpmsave" suffix
+    test -e "/etc/elasticsearch/scripts" || test -e "/etc/elasticsearch/scripts.rpmsave"
+    test -e "/etc/elasticsearch/scripts/script" || test -e "/etc/elasticsearch/scripts.rpmsave/script"
 
     assert_file_not_exist "/etc/init.d/elasticsearch"
     assert_file_not_exist "/usr/lib/systemd/system/elasticsearch.service"

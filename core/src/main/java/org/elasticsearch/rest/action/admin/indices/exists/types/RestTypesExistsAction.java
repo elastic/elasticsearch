@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -59,9 +60,9 @@ public class RestTypesExistsAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(TypesExistsResponse response) throws Exception {
                 if (response.isExists()) {
-                    return new BytesRestResponse(OK);
+                    return new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
                 } else {
-                    return new BytesRestResponse(NOT_FOUND);
+                    return new BytesRestResponse(NOT_FOUND, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
                 }
             }
         });

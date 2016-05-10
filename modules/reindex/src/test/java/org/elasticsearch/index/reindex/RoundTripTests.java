@@ -106,9 +106,9 @@ public class RoundTripTests extends ESTestCase {
     }
 
     public void testReindexResponse() throws IOException {
-        ReindexResponse response = new ReindexResponse(timeValueMillis(randomPositiveLong()), randomStatus(), randomIndexingFailures(),
-                randomSearchFailures(), randomBoolean());
-        ReindexResponse tripped = new ReindexResponse();
+        BulkIndexByScrollResponse response = new BulkIndexByScrollResponse(timeValueMillis(randomPositiveLong()), randomStatus(),
+                randomIndexingFailures(), randomSearchFailures(), randomBoolean());
+        BulkIndexByScrollResponse tripped = new BulkIndexByScrollResponse();
         roundTrip(response, tripped);
         assertResponseEquals(response, tripped);
     }

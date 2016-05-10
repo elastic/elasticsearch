@@ -33,7 +33,7 @@ PUT index_4
   }
 }
 ------------------------------
-// AUTOSENSE
+// CONSOLE
 
 In the above example:
 
@@ -52,5 +52,5 @@ PUT index_4/_settings
   "index.priority": 1
 }
 ------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[continued]

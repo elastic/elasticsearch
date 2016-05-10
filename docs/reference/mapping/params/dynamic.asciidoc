@@ -31,7 +31,7 @@ PUT my_index/my_type/2 <3>
 
 GET my_index/_mapping <4>
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> This document introduces the string field `username`, the object field
     `name`, and two string fields under the `name` object which can be
     referred to as `name.first` and `name.last`.
@@ -77,7 +77,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Dynamic mapping is disabled at the type level, so no new top-level fields will be added dynamically.
 <2> The `user` object inherits the type-level setting.
 <3> The `user.social_networks` object enables dynamic mapping, so new fields may be added to this inner object.

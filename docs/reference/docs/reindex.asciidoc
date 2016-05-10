@@ -18,7 +18,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:big_twitter]
 
 That will return something like this:
@@ -64,7 +64,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:twitter]
 
 Setting `version_type` to `external` will cause Elasticsearch to preserve the
@@ -85,7 +85,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:twitter]
 
 Settings `op_type` to `create` will cause `_reindex` to only create missing
@@ -105,7 +105,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:twitter]
 
 By default version conflicts abort the `_reindex` process but you can just
@@ -125,7 +125,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:twitter]
 
 You can limit the documents by adding a type to the `source` or by adding a
@@ -149,7 +149,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:twitter]
 
 `index` and `type` in `source` can both be lists, allowing you to copy from
@@ -173,7 +173,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[s/^/PUT twitter\nPUT blog\n/]
 
 It's also possible to limit the number of processed documents by setting
@@ -193,7 +193,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:twitter]
 
 If you want a particular set of documents from the twitter index you'll
@@ -215,7 +215,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:twitter]
 
 Like `_update_by_query`, `_reindex` supports a script that modifies the
@@ -238,7 +238,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[setup:twitter]
 
 Think of the possibilities! Just be careful! With great power.... You can
@@ -298,7 +298,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[s/^/PUT source\n/]
 
 By default `_reindex` uses scroll batches of 100. You can change the
@@ -318,7 +318,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[s/^/PUT source\n/]
 
 Reindex can also use the <<ingest>> feature by specifying a
@@ -337,7 +337,7 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[s/^/PUT source\n/]
 
 [float]
@@ -437,7 +437,7 @@ While Reindex is running you can fetch their status using the
 --------------------------------------------------
 GET _tasks/?pretty&detailed=true&actions=*reindex
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The responses looks like:
 
@@ -496,7 +496,7 @@ Any Reindex can be canceled using the <<tasks,Task Cancel API>>:
 --------------------------------------------------
 POST _tasks/taskid:1/_cancel
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The `task_id` can be found using the tasks API above.
 
@@ -515,7 +515,7 @@ the `_rethrottle` API:
 --------------------------------------------------
 POST _reindex/taskid:1/_rethrottle?requests_per_second=unlimited
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The `task_id` can be found using the tasks API above.
 
@@ -540,7 +540,7 @@ POST test/test/1?refresh&pretty
   "flag": "foo"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 But you don't like the name `flag` and want to replace it with `tag`.
 `_reindex` can create the other index for you:
@@ -560,7 +560,7 @@ POST _reindex?pretty
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[continued]
 
 Now you can get the new document:
@@ -569,7 +569,7 @@ Now you can get the new document:
 --------------------------------------------------
 GET test2/test/1?pretty
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[continued]
 
 and it'll look like:

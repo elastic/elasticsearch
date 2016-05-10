@@ -37,7 +37,7 @@ PUT _template/template_1
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Defines a template named template_1, with a template pattern of `te*`.
 The settings and mappings will be applied to any index name that matches

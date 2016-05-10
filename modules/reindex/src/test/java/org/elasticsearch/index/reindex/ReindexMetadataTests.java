@@ -26,7 +26,7 @@ import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
 /**
  * Index-by-search test for ttl, timestamp, and routing.
  */
-public class ReindexMetadataTests extends AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<ReindexRequest, ReindexResponse> {
+public class ReindexMetadataTests extends AbstractAsyncBulkIndexbyScrollActionMetadataTestCase<ReindexRequest, BulkIndexByScrollResponse> {
     public void testRoutingCopiedByDefault() throws Exception {
         IndexRequest index = new IndexRequest();
         action().copyMetadata(index, doc(RoutingFieldMapper.NAME, "foo"));

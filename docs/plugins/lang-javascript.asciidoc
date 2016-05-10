@@ -82,7 +82,7 @@ GET test/_search
   }
 }
 ----
-// AUTOSENSE
+// CONSOLE
 
 [[lang-javascript-stored]]
 [float]
@@ -131,7 +131,7 @@ GET test/_search
 }
 
 ----
-// AUTOSENSE
+// CONSOLE
 
 <1> We store the script under the id `my_script`.
 <2> The function score query retrieves the script with id `my_script`.
@@ -187,7 +187,7 @@ GET test/_search
 }
 
 ----
-// AUTOSENSE
+// CONSOLE
 
 <1> The function score query retrieves the script with filename `my_script.javascript`.
 

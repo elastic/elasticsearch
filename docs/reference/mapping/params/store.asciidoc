@@ -51,7 +51,7 @@ GET my_index/_search
   "fields": [ "title", "date" ] <2>
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `title` and `date` fields are stored.
 <2> This request will retrieve the values of the `title` and `date` fields.
 

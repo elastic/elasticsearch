@@ -41,7 +41,7 @@ GET my_index/_search
   }
 }
 -------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 
 [float]
@@ -191,7 +191,7 @@ POST _scripts/groovy/calculate-score
   "script": "log(_score * 2) + my_modifier"
 }
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 This same script can be retrieved with:
 
@@ -199,7 +199,7 @@ This same script can be retrieved with:
 -----------------------------------
 GET _scripts/groovy/calculate-score
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[continued]
 
 Stored scripts can be used by specifying the `lang` and `id` parameters as follows:
@@ -221,7 +221,7 @@ GET _search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[continued]
 
 And deleted with:
@@ -230,7 +230,7 @@ And deleted with:
 -----------------------------------
 DELETE _scripts/groovy/calculate-score
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[continued]
 
 NOTE: The size of stored scripts is limited to 65,535 bytes. This can be

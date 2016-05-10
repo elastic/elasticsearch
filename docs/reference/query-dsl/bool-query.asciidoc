@@ -69,7 +69,7 @@ POST _search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 ==== Scoring with `bool.filter`
 
@@ -96,7 +96,7 @@ GET _search
   }
 }
 ---------------------------------
-// AUTOSENSE
+// CONSOLE
 
 This `bool` query has a `match_all` query, which assigns a score of `1.0` to
 all documents.
@@ -119,7 +119,7 @@ GET _search
   }
 }
 ---------------------------------
-// AUTOSENSE
+// CONSOLE
 
 This `constant_score` query behaves in exactly the same way as the second example above.
 The `constant_score` query assigns a score of `1.0` to all documents matched
@@ -140,7 +140,7 @@ GET _search
   }
 }
 ---------------------------------
-// AUTOSENSE
+// CONSOLE
 
 ==== Using named queries to see which clauses matched
 

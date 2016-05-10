@@ -80,7 +80,7 @@ public class MonitoringLicensee extends AbstractLicenseeComponent<MonitoringLice
      * @return true
      */
     public boolean isAvailable() {
-        return status.getMode() != OperationMode.MISSING && status.getLicenseState() != LicenseState.DISABLED;
+        return status.getLicenseState() != LicenseState.DISABLED;
     }
 
     /**
@@ -118,6 +118,7 @@ public class MonitoringLicensee extends AbstractLicenseeComponent<MonitoringLice
      * @return {@code true} if the user is allowed to modify the retention. Otherwise {@code false}.
      */
     public boolean allowUpdateRetention() {
-        return status.getMode() != OperationMode.BASIC;
+        final OperationMode mode = status.getMode();
+        return mode != OperationMode.BASIC && mode != OperationMode.MISSING;
     }
 }

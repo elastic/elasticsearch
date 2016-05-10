@@ -39,7 +39,7 @@ public class MarvelLicenseeTests extends AbstractLicenseeTestCase {
     }
 
     public void testAcknowledgementMessagesToBasicFromNotBasicNotesLimits() {
-        OperationMode from = randomModeExcept(OperationMode.BASIC);
+        OperationMode from = randomFrom(OperationMode.STANDARD, OperationMode.GOLD, OperationMode.PLATINUM, OperationMode.TRIAL);
         OperationMode to = OperationMode.BASIC;
 
         String[] messages = ackLicenseChange(from, to, licensee);
@@ -65,11 +65,16 @@ public class MarvelLicenseeTests extends AbstractLicenseeTestCase {
     }
 
     public void testAllowUpdateRetentionIsTrueForNotBasic() {
-        assertEnabled(randomModeExcept(OperationMode.BASIC), MonitoringLicensee::allowUpdateRetention, true);
+        OperationMode mode = randomFrom(OperationMode.STANDARD, OperationMode.GOLD, OperationMode.PLATINUM, OperationMode.TRIAL);
+        assertEnabled(mode, MonitoringLicensee::allowUpdateRetention, true);
     }
 
     public void testAllowUpdateRetentionIsFalseForBasic() {
         assertEnabled(OperationMode.BASIC, MonitoringLicensee::allowUpdateRetention, false);
+    }
+
+    public void testAllowUpdateRetentionIsFalseForMissing() {
+        assertEnabled(OperationMode.MISSING, MonitoringLicensee::allowUpdateRetention, false);
     }
 
     /**

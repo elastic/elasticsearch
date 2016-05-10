@@ -135,7 +135,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
 
 
         // generate signed licenses
-        License license = generateSignedLicense(TimeValue.timeValueHours(1));
+        License license = generateSignedLicense("gold", TimeValue.timeValueHours(1));
         TestUtils.registerAndAckSignedLicenses(licensesService, license, LicensesStatus.VALID);
         assertBusy(new Runnable() {
             @Override

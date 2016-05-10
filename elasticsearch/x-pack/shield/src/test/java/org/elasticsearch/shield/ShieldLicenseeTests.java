@@ -89,7 +89,8 @@ public class ShieldLicenseeTests extends AbstractLicenseeTestCase {
     }
 
     public void testAcknowledgementMessagesFromBasicStandardTrialOrPlatinumToGoldNotesLimits() {
-        String[] messages = ackLicenseChange(randomModeExcept(OperationMode.GOLD), OperationMode.GOLD, this::buildLicensee);
+        OperationMode from = randomFrom(OperationMode.BASIC, OperationMode.PLATINUM, OperationMode.TRIAL, OperationMode.STANDARD);
+        String[] messages = ackLicenseChange(from, OperationMode.GOLD, this::buildLicensee);
 
         // leaving messages up to inspection
         assertThat(messages.length, equalTo(2));

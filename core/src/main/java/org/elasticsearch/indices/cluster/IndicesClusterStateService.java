@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -68,6 +69,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -473,7 +476,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
 
         DiscoveryNodes nodes = event.state().nodes();
-
         for (final ShardRouting shardRouting : routingNode) {
             final IndexService indexService = indicesService.indexService(shardRouting.index());
             if (indexService == null) {
@@ -611,7 +613,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
 
         indexShard.startRecovery(nodes.getLocalNode(), sourceNode, recoveryTargetService,
-            new RecoveryListener(shardRouting, indexService), repositoriesService);
+            new RecoveryListener(shardRouting, indexService), repositoriesService, (type, mapping) -> {
+                try {
+                    nodeServicesProvider.getClient().admin().indices().preparePutMapping()
+                        .setConcreteIndex(indexService.index()) // concrete index - no name clash, it uses uuid
+                        .setType(type)
+                        .setSource(mapping.source().string())
+                        .get();
+                } catch (IOException ex) {
+                    throw new ElasticsearchException("failed to stringify mapping source", ex);
+                }
+            }, indicesService);
     }
 
     /**

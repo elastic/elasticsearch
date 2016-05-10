@@ -34,6 +34,7 @@ import org.apache.lucene.store.BufferedChecksum;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -79,6 +80,8 @@ import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -682,7 +685,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return refCounter.refCount();
     }
 
-    private static final class StoreDirectory extends FilterDirectory {
+    static final class StoreDirectory extends FilterDirectory {
 
         private final ESLogger deletesLogger;
 
@@ -716,6 +719,37 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return "store(" + in.toString() + ")";
         }
 
+        @Override
+        public void copyFrom(Directory from, String srcFile, String destFile, IOContext context) throws IOException {
+            Directory fromUnwrapped = FilterDirectory.unwrap(from);
+            Directory toUnwrapped = FilterDirectory.unwrap(this);
+            // try to unwrap to FSDirectory - we might be able to just create hard-links of these files and save copying
+            // the entire file.
+            if (fromUnwrapped instanceof FSDirectory
+                && toUnwrapped instanceof FSDirectory) {
+                final Path fromPath = ((FSDirectory)fromUnwrapped).getDirectory();
+                final Path toPath = ((FSDirectory)toUnwrapped).getDirectory();
+                try {
+                    Files.createLink(toPath.resolve(destFile), fromPath.resolve(srcFile));
+                } catch (FileNotFoundException | NoSuchFileException | FileAlreadyExistsException ex) {
+                    throw ex; // in these cases we bubble up since it's a true error condition.
+                } catch (IOException
+                    | UnsupportedOperationException ex// if the FS doesn't support hard-links
+                    ) {
+                    // hard-links are not supported or the files are on different filesystems
+                    // we could go deeper and check if their filesstores are the same and opt
+                    // out earlier but for now we just fall back to normal file-copy
+                    try {
+                        super.copyFrom(from, srcFile, destFile, context);
+                    } catch (Exception e) {
+                        e.addSuppressed(ex);
+                        throw ex;
+                    }
+                }
+            } else {
+                super.copyFrom(from, srcFile, destFile, context);
+            }
+        }
     }
 
     /**

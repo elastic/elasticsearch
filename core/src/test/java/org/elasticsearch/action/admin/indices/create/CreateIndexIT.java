@@ -34,17 +34,22 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.junit.Ignore;
 
 import java.util.HashMap;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -276,5 +281,57 @@ public class CreateIndexIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate("test").setSettings(indexSettings()).get();
         internalCluster().fullRestart();
         ensureGreen("test");
+    }
+
+    public void testCreateShrinkedIndex() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", randomIntBetween(2, 7))).get();
+        for (int i = 0; i < 20; i++) {
+            client().prepareIndex("source", randomFrom("t1", "t2", "t3")).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+        }
+        String nodeName = internalCluster().startNode();
+        // relocate all shards to one node such that we can merge it.
+        client().admin().indices().prepareUpdateSettings("source")
+            .setSettings(Settings.builder().put("index.routing.allocation.include._name", nodeName)).get();
+        ensureGreen();
+        // now merge source into a single shard index
+        prepareCreate("target", 0, Settings.builder()
+            .put(indexSettings())
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .put("index.routing.allocation.include._name", nodeName)
+            .put("index.merge.source.name", "source")).get();
+        ensureGreen();
+        assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+        // relocate all shards to one node such that we can merge it.
+        client().admin().indices().prepareUpdateSettings("target")
+            .setSettings(Settings.builder()
+                .putNull("index.routing.allocation.include._name")
+                .put("index.number_of_replicas", 1)).get();
+        ensureGreen();
+        assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+    }
+
+    @Ignore(value = "this goes in an infinite allocaiton loop") //nocommit
+    public void testCreateShrinkedIndexFails() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", randomIntBetween(2, 7))).get();
+        for (int i = 0; i < 20; i++) {
+            client().prepareIndex("source", randomFrom("t1", "t2", "t3")).setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}").get();
+        }
+        String nodeName = internalCluster().startNode();
+        // relocate all shards to one node such that we can merge it.
+        client().admin().indices().prepareUpdateSettings("source")
+            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", nodeName)).get();
+        ensureGreen();
+        // now merge source into a single shard index
+        prepareCreate("target", 0, Settings.builder()
+            .put(indexSettings())
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .put("index.routing.allocation.include._name", nodeName)
+            .put("index.merge.source.name", "source")).get();
+        ensureGreen();
+        assertHitCount(client().prepareSearch("target").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
     }
 }

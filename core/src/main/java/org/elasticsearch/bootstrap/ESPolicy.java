@@ -25,6 +25,7 @@ import java.net.SocketPermission;
 import java.net.URL;
 import java.io.FilePermission;
 import java.io.IOException;
+import java.nio.file.LinkPermission;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
@@ -35,12 +36,12 @@ import java.util.Map;
 
 /** custom policy for union of static and dynamic permissions */
 final class ESPolicy extends Policy {
-    
+
     /** template policy file, the one used in tests */
     static final String POLICY_RESOURCE = "security.policy";
     /** limited policy for scripts */
     static final String UNTRUSTED_RESOURCE = "untrusted.policy";
-    
+
     final Policy template;
     final Policy untrusted;
     final Policy system;
@@ -48,6 +49,7 @@ final class ESPolicy extends Policy {
     final Map<String,Policy> plugins;
 
     public ESPolicy(PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults) {
+        dynamic.add(new LinkPermission("hard")); // nocommit - is this the right place to add this?
         this.template = Security.readPolicy(getClass().getResource(POLICY_RESOURCE), JarHell.parseClassPath());
         this.untrusted = Security.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), new URL[0]);
         if (filterBadDefaults) {
@@ -60,7 +62,7 @@ final class ESPolicy extends Policy {
     }
 
     @Override @SuppressForbidden(reason = "fast equals check is desired")
-    public boolean implies(ProtectionDomain domain, Permission permission) {        
+    public boolean implies(ProtectionDomain domain, Permission permission) {
         CodeSource codeSource = domain.getCodeSource();
         // codesource can be null when reducing privileges via doPrivileged()
         if (codeSource == null) {

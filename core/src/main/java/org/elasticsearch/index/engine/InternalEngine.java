@@ -1126,4 +1126,12 @@ public class InternalEngine extends Engine {
     public MergeStats getMergeStats() {
         return mergeScheduler.stats();
     }
+
+    @Override
+    public final void addIndexes(Directory... directories) throws IOException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            indexWriter.addIndexes(directories);
+        }
+    }
 }

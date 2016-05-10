@@ -55,6 +55,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -65,7 +66,6 @@ import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.script.ScriptService;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -264,7 +264,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                     templatesAliases.put(aliasMetaData.alias(), aliasMetaData);
                                 }
                             }
-
                             Settings.Builder indexSettingsBuilder = Settings.builder();
                             // apply templates, here, in reverse order, since first ones are better matching
                             for (int i = templates.size() - 1; i >= 0; i--) {
@@ -293,6 +292,22 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             }
 
                             indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
+
+                            if (IndexMetaData.INDEX_SHRINK_SOURCE_NAME.exists(request.settings())) {
+                                String index = IndexMetaData.INDEX_SHRINK_SOURCE_NAME.get(request.settings());
+                                IndexMetaData indexMetaData = currentState.getMetaData().index(index);
+                                if (indexMetaData == null) {
+                                    throw new IndexNotFoundException(index);
+                                }
+                                if (Integer.parseInt(indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS)) != 1) {
+                                    // TODO we might be able to fix this in the future
+                                    throw new IllegalArgumentException("Can't merge into an index with more than 1 shard");
+                                }
+                                if (indexMetaData.getNumberOfShards() == 1) {
+                                    throw new IllegalArgumentException("Unnecessary merge from an index with 1 shard");
+                                }
+                                indexSettingsBuilder.put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), indexMetaData.getIndexUUID());
+                            }
 
                             Settings actualIndexSettings = indexSettingsBuilder.build();
 

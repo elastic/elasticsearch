@@ -19,20 +19,23 @@
 
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.store.Store;
@@ -40,6 +43,10 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -63,19 +70,58 @@ final class StoreRecovery {
      * files / transaction logs. This
      * @param indexShard the index shard instance to recovery the shard into
      * @param indexShouldExists <code>true</code> iff the index should exist on disk ie. has the shard been allocated previously on the shards store.
-     * @param localNode the reference to the local node
      * @return  <code>true</code> if the shard has been recovered successfully, <code>false</code> if the recovery
      * has been ignored due to a concurrent modification of if the clusters state has changed due to async updates.
      * @see Store
      */
-    boolean recoverFromStore(final IndexShard indexShard, final boolean indexShouldExists, DiscoveryNode localNode) {
+    boolean recoverFromStore(final IndexShard indexShard, final boolean indexShouldExists) {
         if (canRecover(indexShard)) {
             if (indexShard.routingEntry().restoreSource() != null) {
                 throw new IllegalStateException("can't recover - restore source is not null");
             }
             return executeRecovery(indexShard, () -> {
                 logger.debug("starting recovery from store ...");
-                internalRecoverFromStore(indexShard, indexShouldExists);
+                internalRecoverFromStore(indexShard, indexShouldExists, () -> {});
+            });
+        }
+        return false;
+    }
+
+    boolean recoverFromLocalShards(BiConsumer<String, MappingMetaData> mappingUpdateConsumer, final IndexShard indexShard, final List<LocalShardSnapshot> shards) throws IOException {
+        if (canRecover(indexShard)) {
+            if (indexShard.routingEntry().restoreSource() != null) {
+                throw new IllegalStateException("can't recover - restore source is not null");
+            }
+            if (shards.isEmpty()) {
+                throw new IllegalArgumentException("shards must not be empty");
+            }
+            Set<Index> indices = shards.stream().map((s) -> s.getIndex()).collect(Collectors.toSet());
+            if (indices.size() > 1) {
+                throw new IllegalArgumentException("can't add shards from more than one index");
+            }
+            for (ObjectObjectCursor<String, MappingMetaData> mapping : shards.get(0).getMappings()) {
+                mappingUpdateConsumer.accept(mapping.key, mapping.value);
+            }
+            for (ObjectObjectCursor<String, MappingMetaData> mapping : shards.get(0).getMappings()) {
+                indexShard.mapperService().merge(mapping.key,mapping.value.source(), MapperService.MergeReason.MAPPING_RECOVERY, true);
+            }
+            return executeRecovery(indexShard, () -> {
+                logger.debug("starting recovery from local shards {}", shards);
+                internalRecoverFromStore(indexShard, false, () -> {
+                    try {
+                        final Engine engine = indexShard.getEngine();
+                        // nocommit - do we need stats for this?
+                        engine.addIndexes(shards.stream().map(s->s.getSnapshotDirectory())
+                            .collect(Collectors.toList()).toArray(new Directory[0]));
+                        engine.flush(true, true); // commit the added indices
+                        Store store = indexShard.store();
+                        SegmentInfos si = store.readLastCommittedSegmentsInfo();
+                        final RecoveryState.Index index = indexShard.recoveryState().getIndex();
+                        addRecoveredFileDetails(si, store, index);
+                    } catch (IOException ex) {
+                        throw new IndexShardRecoveryException(indexShard.shardId(), "failed to recover from local shards", ex);
+                    }
+                });
             });
         }
         return false;
@@ -89,7 +135,7 @@ final class StoreRecovery {
      * @return <code>true</code> if the shard has been recovered successfully, <code>false</code> if the recovery
      * has been ignored due to a concurrent modification of if the clusters state has changed due to async updates.
      */
-    boolean recoverFromRepository(final IndexShard indexShard, IndexShardRepository repository, DiscoveryNode localNode) {
+    boolean recoverFromRepository(final IndexShard indexShard, IndexShardRepository repository) {
         if (canRecover(indexShard)) {
             final ShardRouting shardRouting = indexShard.routingEntry();
             if (shardRouting.restoreSource() == null) {
@@ -170,7 +216,7 @@ final class StoreRecovery {
     /**
      * Recovers the state of the shard from the store.
      */
-    private void internalRecoverFromStore(IndexShard indexShard, boolean indexShouldExists) throws IndexShardRecoveryException {
+    private void internalRecoverFromStore(IndexShard indexShard, boolean indexShouldExists, Runnable afterRecover) throws IndexShardRecoveryException {
         final RecoveryState recoveryState = indexShard.recoveryState();
         indexShard.prepareForIndexRecovery();
         long version = -1;
@@ -200,35 +246,38 @@ final class StoreRecovery {
                         // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
                         // its a "new index create" API, we have to do something, so better to clean it than use same data
                         logger.trace("cleaning existing shard, shouldn't exists");
-                        IndexWriter writer = new IndexWriter(store.directory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setOpenMode(IndexWriterConfig.OpenMode.CREATE));
-                        writer.close();
+                        Lucene.cleanLuceneIndex(store.directory());
                     }
                 }
             } catch (Throwable e) {
                 throw new IndexShardRecoveryException(shardId, "failed to fetch index version after copying it over", e);
             }
             recoveryState.getIndex().updateVersion(version);
-
             // since we recover from local, just fill the files and size
             try {
                 final RecoveryState.Index index = recoveryState.getIndex();
                 if (si != null) {
-                    final Directory directory = store.directory();
-                    for (String name : Lucene.files(si)) {
-                        long length = directory.fileLength(name);
-                        index.addFileDetail(name, length, true);
-                    }
+                    addRecoveredFileDetails(si, store, index);
                 }
             } catch (IOException e) {
                 logger.debug("failed to list file details", e);
             }
             indexShard.performTranslogRecovery(indexShouldExists);
+            afterRecover.run();
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");
         } catch (EngineException | IOException e) {
             throw new IndexShardRecoveryException(shardId, "failed to recovery from gateway", e);
         } finally {
             store.decRef();
+        }
+    }
+
+    private void addRecoveredFileDetails(SegmentInfos si, Store store, RecoveryState.Index index) throws IOException {
+        final Directory directory = store.directory();
+        for (String name : Lucene.files(si)) {
+            long length = directory.fileLength(name);
+            index.addFileDetail(name, length, true);
         }
     }
 
@@ -260,4 +309,5 @@ final class StoreRecovery {
             throw new IndexShardRestoreFailedException(shardId, "restore failed", t);
         }
     }
+
 }

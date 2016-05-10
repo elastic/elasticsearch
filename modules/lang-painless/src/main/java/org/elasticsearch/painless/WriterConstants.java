@@ -20,9 +20,13 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.script.ScoreAccessor;
+import org.objectweb.asm.Handle;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
+import java.lang.invoke.CallSite;
+import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.Map;
 
@@ -40,22 +44,24 @@ class WriterConstants {
 
     final static Type DEFINITION_TYPE = Type.getType(Definition.class);
 
+    final static Type OBJECT_TYPE = Type.getType(Object.class);
+
     final static Type MAP_TYPE  = Type.getType(Map.class);
     final static Method MAP_GET = getAsmMethod(Object.class, "get", Object.class);
 
     final static Type SCORE_ACCESSOR_TYPE    = Type.getType(ScoreAccessor.class);
     final static Method SCORE_ACCESSOR_FLOAT = getAsmMethod(float.class, "floatValue");
 
-    final static Method DEF_METHOD_CALL = getAsmMethod(
-        Object.class, "methodCall", Object.class, String.class, Definition.class, Object[].class, boolean[].class);
+    /** dynamic callsite bootstrap signature */
+    final static MethodType DEF_BOOTSTRAP_TYPE = MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, 
+                                                                       String.class, MethodType.class, int.class);
+    final static Handle DEF_BOOTSTRAP_HANDLE = new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(DynamicCallSite.class),
+                                                          "bootstrap", WriterConstants.DEF_BOOTSTRAP_TYPE.toMethodDescriptorString());
+
     final static Method DEF_ARRAY_STORE = getAsmMethod(
-        void.class, "arrayStore", Object.class, Object.class, Object.class, Definition.class, boolean.class, boolean.class);
+        void.class, "arrayStore", Object.class, Object.class, Object.class);
     final static Method DEF_ARRAY_LOAD = getAsmMethod(
-        Object.class, "arrayLoad", Object.class, Object.class, Definition.class, boolean.class);
-    final static Method DEF_FIELD_STORE = getAsmMethod(
-        void.class, "fieldStore", Object.class, Object.class, String.class, Definition.class, boolean.class);
-    final static Method DEF_FIELD_LOAD = getAsmMethod(
-        Object.class, "fieldLoad", Object.class, String.class, Definition.class);
+        Object.class, "arrayLoad", Object.class, Object.class);
 
     final static Method DEF_NOT_CALL = getAsmMethod(Object.class, "not", Object.class);
     final static Method DEF_NEG_CALL = getAsmMethod(Object.class, "neg", Object.class);

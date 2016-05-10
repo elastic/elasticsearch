@@ -43,12 +43,6 @@ final class Compiler {
     static int MAXIMUM_SOURCE_LENGTH = 16384;
 
     /**
-     * The default language API to be used with Painless.  The second construction is used
-     * to finalize all the variables, so there is no mistake of modification afterwards.
-     */
-    private static Definition DEFAULT_DEFINITION = new Definition(new Definition());
-
-    /**
      * Define the class with lowest privileges.
      */
     private static final CodeSource CODESOURCE;
@@ -95,15 +89,14 @@ final class Compiler {
      * @param settings The CompilerSettings to be used during the compilation.
      * @return An {@link Executable} Painless script.
      */
-    static Executable compile(final Loader loader, final String name, final String source,
-                              final Definition custom, final CompilerSettings settings) {
+    static Executable compile(final Loader loader, final String name, final String source, final CompilerSettings settings) {
         if (source.length() > MAXIMUM_SOURCE_LENGTH) {
             throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
                 " plugin if a script longer than this length is a requirement.");
         }
 
-        final Definition definition = custom != null ? new Definition(custom) : DEFAULT_DEFINITION;
+        final Definition definition = Definition.INSTANCE;
         final ParserRuleContext root = createParseTree(source);
         final Metadata metadata = new Metadata(definition, source, root, settings);
         Analyzer.analyze(metadata);

@@ -49,13 +49,8 @@ import static org.elasticsearch.painless.PainlessParser.DIV;
 import static org.elasticsearch.painless.PainlessParser.MUL;
 import static org.elasticsearch.painless.PainlessParser.REM;
 import static org.elasticsearch.painless.PainlessParser.SUB;
-import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
-import static org.elasticsearch.painless.WriterConstants.DEFINITION_TYPE;
 import static org.elasticsearch.painless.WriterConstants.DEF_ARRAY_LOAD;
 import static org.elasticsearch.painless.WriterConstants.DEF_ARRAY_STORE;
-import static org.elasticsearch.painless.WriterConstants.DEF_FIELD_LOAD;
-import static org.elasticsearch.painless.WriterConstants.DEF_FIELD_STORE;
-import static org.elasticsearch.painless.WriterConstants.DEF_METHOD_CALL;
 import static org.elasticsearch.painless.WriterConstants.TOBYTEEXACT_INT;
 import static org.elasticsearch.painless.WriterConstants.TOBYTEEXACT_LONG;
 import static org.elasticsearch.painless.WriterConstants.TOBYTEWOOVERFLOW_DOUBLE;
@@ -473,20 +468,11 @@ class WriterExternal {
 
     private void writeLoadStoreField(final ParserRuleContext source, final boolean store, final String name) {
         if (store) {
-            final ExtNodeMetadata sourceemd = metadata.getExtNodeMetadata(source);
-            final ExternalMetadata parentemd = metadata.getExternalMetadata(sourceemd.parent);
-            final ExpressionMetadata expremd = metadata.getExpressionMetadata(parentemd.storeExpr);
-
-            execute.push(name);
-            execute.loadThis();
-            execute.getField(CLASS_TYPE, "definition", DEFINITION_TYPE);
-            execute.push(parentemd.token == 0 && expremd.typesafe);
-            execute.invokeStatic(definition.defobjType.type, DEF_FIELD_STORE);
+            execute.visitInvokeDynamicInsn(name, "(Ljava/lang/Object;Ljava/lang/Object;)V", 
+                                           WriterConstants.DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.STORE });
         } else {
-            execute.push(name);
-            execute.loadThis();
-            execute.getField(CLASS_TYPE, "definition", DEFINITION_TYPE);
-            execute.invokeStatic(definition.defobjType.type, DEF_FIELD_LOAD);
+            execute.visitInvokeDynamicInsn(name, "(Ljava/lang/Object;)Ljava/lang/Object;", 
+                                           WriterConstants.DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.LOAD });
         }
     }
 
@@ -496,23 +482,9 @@ class WriterExternal {
         }
 
         if (type.sort == Sort.DEF) {
-            final ExtbraceContext bracectx = (ExtbraceContext)source;
-            final ExpressionMetadata expremd0 = metadata.getExpressionMetadata(bracectx.expression());
-
             if (store) {
-                final ExtNodeMetadata braceenmd = metadata.getExtNodeMetadata(bracectx);
-                final ExternalMetadata parentemd = metadata.getExternalMetadata(braceenmd.parent);
-                final ExpressionMetadata expremd1 = metadata.getExpressionMetadata(parentemd.storeExpr);
-
-                execute.loadThis();
-                execute.getField(CLASS_TYPE, "definition", DEFINITION_TYPE);
-                execute.push(expremd0.typesafe);
-                execute.push(parentemd.token == 0 && expremd1.typesafe);
                 execute.invokeStatic(definition.defobjType.type, DEF_ARRAY_STORE);
             } else {
-                execute.loadThis();
-                execute.getField(CLASS_TYPE, "definition", DEFINITION_TYPE);
-                execute.push(expremd0.typesafe);
                 execute.invokeStatic(definition.defobjType.type, DEF_ARRAY_LOAD);
             }
         } else {
@@ -729,31 +701,29 @@ class WriterExternal {
                 execute.checkCast(target.rtn.type);
             }
         } else {
-            execute.push((String)sourceenmd.target);
-            execute.loadThis();
-            execute.getField(CLASS_TYPE, "definition", DEFINITION_TYPE);
-
-            execute.push(arguments.size());
-            execute.newArray(definition.defType.type);
-
-            for (int argument = 0; argument < arguments.size(); ++argument) {
-                execute.dup();
-                execute.push(argument);
-                writer.visit(arguments.get(argument));
-                execute.arrayStore(definition.defType.type);
-            }
-
-            execute.push(arguments.size());
-            execute.newArray(definition.booleanType.type);
-
-            for (int argument = 0; argument < arguments.size(); ++argument) {
-                execute.dup();
-                execute.push(argument);
-                execute.push(metadata.getExpressionMetadata(arguments.get(argument)).typesafe);
-                execute.arrayStore(definition.booleanType.type);
-            }
-
-            execute.invokeStatic(definition.defobjType.type, DEF_METHOD_CALL);
+            writeDynamicCallExternal(source);
         }
+    }
+    
+    private void writeDynamicCallExternal(final ExtcallContext source) {
+        final ExtNodeMetadata sourceenmd = metadata.getExtNodeMetadata(source);
+        final List<ExpressionContext> arguments = source.arguments().expression();
+        
+        StringBuilder signature = new StringBuilder();
+        signature.append('(');
+        // first parameter is the receiver, we never know its type: always Object
+        signature.append(WriterConstants.OBJECT_TYPE.getDescriptor());
+
+        // TODO: remove our explicit conversions and feed more type information for args/return value,
+        // it can avoid some unnecessary boxing etc.
+        for (int i = 0; i < arguments.size(); i++) {
+            signature.append(WriterConstants.OBJECT_TYPE.getDescriptor());
+            writer.visit(arguments.get(i));
+        }
+        signature.append(')');
+        // return value
+        signature.append(WriterConstants.OBJECT_TYPE.getDescriptor());
+        execute.visitInvokeDynamicInsn((String)sourceenmd.target, signature.toString(), 
+                                       WriterConstants.DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.METHOD_CALL });
     }
 }

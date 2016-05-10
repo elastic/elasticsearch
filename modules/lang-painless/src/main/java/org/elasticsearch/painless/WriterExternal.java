@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Constructor;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Method;
@@ -714,14 +715,16 @@ class WriterExternal {
         // first parameter is the receiver, we never know its type: always Object
         signature.append(WriterConstants.OBJECT_TYPE.getDescriptor());
 
-        // TODO: remove our explicit conversions and feed more type information for args/return value,
-        // it can avoid some unnecessary boxing etc.
         for (int i = 0; i < arguments.size(); i++) {
-            signature.append(WriterConstants.OBJECT_TYPE.getDescriptor());
+            ExpressionMetadata arg = metadata.getExpressionMetadata(arguments.get(i));
+            // disable any implicit casts/conversion for arguments, let invokeDynamic take care
+            arg.to = arg.from;
+            arg.cast = new Cast(arg.from, arg.from);
+            signature.append(arg.from.type.getDescriptor());
             writer.visit(arguments.get(i));
         }
         signature.append(')');
-        // return value
+        // return value: currently always Object. making this better may be tricky...
         signature.append(WriterConstants.OBJECT_TYPE.getDescriptor());
         execute.visitInvokeDynamicInsn((String)sourceenmd.target, signature.toString(), 
                                        WriterConstants.DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.METHOD_CALL });

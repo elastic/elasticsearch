@@ -2,7 +2,8 @@
 === Geo Distance Query
 
 Filters documents that include only hits that exists within a specific
-distance from a geo point. Assuming the following mapping:
+distance from a geo point. Assuming the following mapping and indexed
+document:
 
 [source,js]
 --------------------------------------------------
@@ -22,14 +23,7 @@ PUT /my_locations
         }
     }
 }
---------------------------------------------------
-// CONSOLE
 
-... and indexed document:
-
-
-[source,js]
---------------------------------------------------
 PUT /my_locations/location/1
 {
     "pin" : {
@@ -41,7 +35,7 @@ PUT /my_locations/location/1
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TESTSETUP
 
 
 Then the following simple query can be executed with a `geo_distance`
@@ -70,7 +64,6 @@ GET /my_locations/location/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
 
 [float]
 ==== Accepted Formats
@@ -104,7 +97,6 @@ GET /my_locations/location/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
 
 [float]
 ===== Lat Lon As Array
@@ -132,7 +124,6 @@ GET /my_locations/location/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
 
 
 [float]
@@ -160,7 +151,6 @@ GET /my_locations/location/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
 
 [float]
 ===== Geohash
@@ -185,7 +175,6 @@ GET /my_locations/location/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
 
 [float]
 ==== Options

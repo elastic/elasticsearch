@@ -26,9 +26,12 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.MethodHandles.Lookup;
-import java.lang.reflect.Array;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Support for dynamic type (def).
@@ -36,18 +39,13 @@ import java.util.Map;
  * Dynamic types can invoke methods, load/store fields, and be passed as parameters to operators without 
  * compile-time type information. 
  * <p>
- * Dynamic methods, loads, and stores involve locating the appropriate field or method depending
- * on the receiver's class. For these, we emit an {@code invokedynamic} instruction that, for each new 
- * type encountered will query a corresponding {@code lookupXXX} method to retrieve the appropriate method.
- * In most cases, the {@code lookupXXX} methods here will only be called once for a given call site, because 
+ * Dynamic methods, loads, stores, and array/list/map load/stores involve locating the appropriate field
+ * or method depending on the receiver's class. For these, we emit an {@code invokedynamic} instruction that,
+ * for each new  type encountered will query a corresponding {@code lookupXXX} method to retrieve the appropriate
+ * method. In most cases, the {@code lookupXXX} methods here will only be called once for a given call site, because 
  * caching ({@link DynamicCallSite}) generally works: usually all objects at any call site will be consistently 
  * the same type (or just a few types).  In extreme cases, if there is type explosion, they may be called every 
  * single time, but simplicity is still more valuable than performance in this code.
- * <p>
- * Dynamic array loads and stores and operator functions (e.g. {@code +}) are called directly
- * with {@code invokestatic}. Because these features cannot be overloaded in painless, they are hardcoded 
- * decision trees based on the only types that are possible. This keeps overhead low, and seems to be as fast
- * on average as the more adaptive methodhandle caching. 
  */
 public class Def {
 
@@ -96,8 +94,6 @@ public class Def {
                                            "for class [" + receiverClass.getCanonicalName() + "].");
     }
 
-    /** pointer to Array.getLength(Object) */
-    private static final MethodHandle ARRAY_LENGTH;
     /** pointer to Map.get(Object) */
     private static final MethodHandle MAP_GET;
     /** pointer to Map.put(Object,Object) */
@@ -109,9 +105,6 @@ public class Def {
     static {
         Lookup lookup = MethodHandles.publicLookup();
         try {
-            // TODO: maybe specialize handles for different array types. this may be slower, but simple :)
-            ARRAY_LENGTH = lookup.findStatic(Array.class, "getLength",
-                                             MethodType.methodType(int.class, Object.class));
             MAP_GET      = lookup.findVirtual(Map.class, "get",
                                              MethodType.methodType(Object.class, Object.class));
             MAP_PUT      = lookup.findVirtual(Map.class, "put",
@@ -123,6 +116,54 @@ public class Def {
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
+    }
+    
+    // TODO: Once Java has a factory for those in java.lang.invoke.MethodHandles, use it:
+
+    /** Helper class for isolating MethodHandles and methods to get the length of arrays
+     * (to emulate a "arraystore" byteoode using MethodHandles).
+     * This should really be a method in {@link MethodHandles} class!
+     */
+    private static final class ArrayLengthHelper {
+      private ArrayLengthHelper() {}
+    
+      private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+      private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
+        Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
+        char[].class, float[].class, double[].class, Object[].class)
+          .collect(Collectors.toMap(Function.identity(), type -> {
+            try {
+              return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "getArrayLength", MethodType.methodType(int.class, type));
+            } catch (ReflectiveOperationException e) {
+              throw new AssertionError(e);
+            }
+          }))
+      );
+      private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
+     
+      static int getArrayLength(boolean[] array) { return array.length; }
+      static int getArrayLength(byte[] array) { return array.length; }
+      static int getArrayLength(short[] array) { return array.length; }
+      static int getArrayLength(int[] array) { return array.length; }
+      static int getArrayLength(long[] array) { return array.length; }
+      static int getArrayLength(char[] array) { return array.length; }
+      static int getArrayLength(float[] array) { return array.length; }
+      static int getArrayLength(double[] array) { return array.length; }
+      static int getArrayLength(Object[] array) { return array.length; }
+      
+      public static MethodHandle arrayLengthGetter(Class<?> arrayType) {
+        if (!arrayType.isArray()) {
+          throw new IllegalArgumentException("type must be an array");
+        }
+        return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
+            ARRAY_TYPE_MH_MAPPING.get(arrayType) :
+            OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
+      }
+    }
+    
+    /** Returns an array length getter MethodHandle for the given array type */
+    public static MethodHandle arrayLengthGetter(Class<?> arrayType) {
+      return ArrayLengthHelper.arrayLengthGetter(arrayType);
     }
     
     /** 
@@ -177,7 +218,7 @@ public class Def {
         // special case: arrays, maps, and lists
         if (receiverClass.isArray() && "length".equals(name)) {
             // arrays expose .length as a read-only getter
-            return ARRAY_LENGTH;
+            return arrayLengthGetter(receiverClass);
         } else if (Map.class.isAssignableFrom(receiverClass)) {
             // maps allow access like mymap.key
             // wire 'key' as a parameter, its a constant in painless
@@ -266,56 +307,45 @@ public class Def {
                                            "for class [" + receiverClass.getCanonicalName() + "].");
     }
 
-    // NOTE: below methods are not cached, instead invoked directly because they are performant.
+    /**
+     * Returns a method handle to do an array store.
+     * @param receiverClass Class of the array to store the value in
+     * @return a MethodHandle that accepts the receiver as first argument, the index as second argument,
+     *   and the value to set as 3rd argument. Return value is undefined and should be ignored.
+     */
+    static MethodHandle lookupArrayStore(Class<?> receiverClass) {
+        if (receiverClass.isArray()) {
+            return MethodHandles.arrayElementSetter(receiverClass);
+        } else if (Map.class.isAssignableFrom(receiverClass)) {
+            // maps allow access like mymap[key]
+            return MAP_PUT;
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            return LIST_SET;
+        }
+        throw new IllegalArgumentException("Attempting to address a non-array type " +
+                                           "[" + receiverClass.getCanonicalName() + "] as an array.");
+    }
+   
+    /**
+     * Returns a method handle to do an array load.
+     * @param receiverClass Class of the array to load the value from
+     * @return a MethodHandle that accepts the receiver as first argument, the index as second argument.
+     *   It returns the loaded value.
+     */
+    static MethodHandle lookupArrayLoad(Class<?> receiverClass) {
+        if (receiverClass.isArray()) {
+            return MethodHandles.arrayElementGetter(receiverClass);
+        } else if (Map.class.isAssignableFrom(receiverClass)) {
+            // maps allow access like mymap[key]
+            return MAP_GET;
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            return LIST_GET;
+        }
+        throw new IllegalArgumentException("Attempting to address a non-array type " +
+                                           "[" + receiverClass.getCanonicalName() + "] as an array.");
+    }
 
-    /**
-     * Performs an actual array store.
-     * @param array array object
-     * @param index map key, array index (integer), or list index (integer)
-     * @param value value to store in the array.
-     */
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public static void arrayStore(final Object array, Object index, Object value) {
-        if (array instanceof Map) {
-            ((Map)array).put(index, value);
-        } else if (array.getClass().isArray()) {
-            try {
-                Array.set(array, (int)index, value);
-            } catch (final Throwable throwable) {
-                throw new IllegalArgumentException("Error storing value [" + value + "] " +
-                                                   "in array class [" + array.getClass().getCanonicalName() + "].", throwable);
-            }
-        } else if (array instanceof List) {
-            ((List)array).set((int)index, value);
-        } else {
-            throw new IllegalArgumentException("Attempting to address a non-array type " +
-                                               "[" + array.getClass().getCanonicalName() + "] as an array.");
-        }
-    }
-    
-    /**
-     * Performs an actual array load.
-     * @param array array object
-     * @param index map key, array index (integer), or list index (integer)
-     */
-    @SuppressWarnings("rawtypes")
-    public static Object arrayLoad(final Object array, Object index) {
-        if (array instanceof Map) {
-            return ((Map)array).get(index);
-        } else if (array.getClass().isArray()) {
-            try {
-                return Array.get(array, (int)index);
-            } catch (final Throwable throwable) {
-                throw new IllegalArgumentException("Error loading value from " +
-                                                   "array class [" + array.getClass().getCanonicalName() + "].", throwable);
-            }
-        } else if (array instanceof List) {
-            return ((List)array).get((int)index);
-        } else {
-            throw new IllegalArgumentException("Attempting to address a non-array type " +
-                                               "[" + array.getClass().getCanonicalName() + "] as an array.");
-        }
-    }
+    // NOTE: below methods are not cached, instead invoked directly because they are performant.
 
     public static Object not(final Object unary) {
         if (unary instanceof Double || unary instanceof Float || unary instanceof Long) {

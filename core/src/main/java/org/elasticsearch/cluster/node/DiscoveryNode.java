@@ -386,8 +386,8 @@ public class DiscoveryNode implements Writeable, ToXContent {
         if (nodeName.length() > 0) {
             sb.append('{').append(nodeName).append('}');
         }
-        sb.append('{').append(ephemeralId).append('}');
         sb.append('{').append(nodeId).append('}');
+        sb.append('{').append(ephemeralId).append('}');
         sb.append('{').append(hostName).append('}');
         sb.append('{').append(address).append('}');
         if (!attributes.isEmpty()) {

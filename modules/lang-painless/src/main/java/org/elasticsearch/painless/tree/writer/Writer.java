@@ -76,7 +76,7 @@ public class Writer {
         writeEnd();
     }
 
-    private void writeBegin() {
+    protected void writeBegin() {
         final int version = Opcodes.V1_7;
         final int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         final String base = BASE_CLASS_TYPE.getInternalName();
@@ -86,7 +86,7 @@ public class Writer {
         writer.visitSource(source, null);
     }
 
-    private void writeConstructor() {
+    protected void writeConstructor() {
         final GeneratorAdapter constructor = new GeneratorAdapter(Opcodes.ACC_PUBLIC, CONSTRUCTOR, null, null, writer);
         constructor.loadThis();
         constructor.loadArgs();
@@ -95,7 +95,7 @@ public class Writer {
         constructor.endMethod();
     }
 
-    private void writeExecute() {
+    protected void writeExecute() {
         final Variable input = variables.getVariable(null, "input");
 
         final Variable score = variables.getVariable(null, "score");

@@ -28,7 +28,7 @@ import java.util.Deque;
 import java.util.Iterator;
 
 public final class Variables {
-    public static final class Special {
+    public static final class Shortcut {
         public boolean doc = false;
         public boolean score = false;
         public boolean loop = false;
@@ -54,7 +54,7 @@ public final class Variables {
     private final Deque<Integer> scopes = new ArrayDeque<>();
     private final Deque<Variable> variables = new ArrayDeque<>();
 
-    public Variables(final CompilerSettings settings, final Definition definition, final Special special) {
+    public Variables(final CompilerSettings settings, final Definition definition, final Shortcut shortcut) {
         this.definition = definition;
 
         incrementScope();
@@ -62,15 +62,15 @@ public final class Variables {
         addVariable("[ #this ]", "Executable", "#this");
         addVariable("[ input ]", "Map<String,def>", "input");
 
-        if (special.score) {
+        if (shortcut.score) {
             addVariable("[ score ]", "float", "score");
         }
 
-        if (special.doc) {
+        if (shortcut.doc) {
             addVariable("[ doc ]", "Map<String,def>", "doc");
         }
 
-        if (special.loop && settings.getMaxLoopCounter() > 0) {
+        if (shortcut.loop && settings.getMaxLoopCounter() > 0) {
             addVariable("[ #loop ]", "int", "#loop");
         }
     }

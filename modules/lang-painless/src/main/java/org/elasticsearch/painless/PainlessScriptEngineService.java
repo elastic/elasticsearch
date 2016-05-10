@@ -25,6 +25,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.compiler.Compiler;
+import org.elasticsearch.painless.compiler.Compiler.Loader;
 import org.elasticsearch.painless.compiler.CompilerSettings;
 import org.elasticsearch.painless.compiler.Definition;
 import org.elasticsearch.painless.runtime.Executable;
@@ -182,10 +183,10 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
         }
 
         // Create our loader (which loads compiled code with no permissions).
-        final Compiler.Loader loader = AccessController.doPrivileged(new PrivilegedAction<Compiler.Loader>() {
+        final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
             @Override
-            public Compiler.Loader run() {
-                return new Compiler.Loader(getClass().getClassLoader());
+            public Loader run() {
+                return new Loader(getClass().getClassLoader());
             }
         });
 

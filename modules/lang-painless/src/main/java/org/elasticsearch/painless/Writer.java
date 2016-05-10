@@ -84,7 +84,6 @@ import static org.elasticsearch.painless.WriterConstants.MAP_GET;
 import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
 import static org.elasticsearch.painless.WriterConstants.SCORE_ACCESSOR_FLOAT;
 import static org.elasticsearch.painless.WriterConstants.SCORE_ACCESSOR_TYPE;
-import static org.elasticsearch.painless.WriterConstants.SIGNATURE;
 
 class Writer extends PainlessParserBaseVisitor<Void> {
     static byte[] write(Metadata metadata) {
@@ -116,7 +115,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         writeBegin();
         writeConstructor();
 
-        execute = new GeneratorAdapter(Opcodes.ACC_PUBLIC, EXECUTE, SIGNATURE, null, writer);
+        execute = new GeneratorAdapter(Opcodes.ACC_PUBLIC, EXECUTE, null, null, writer);
 
         final WriterUtility utility = new WriterUtility(metadata, execute);
         final WriterCaster caster = new WriterCaster(execute);
@@ -135,7 +134,14 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         final String base = BASE_CLASS_TYPE.getInternalName();
         final String name = CLASS_TYPE.getInternalName();
 
-        writer.visit(version, access, name, null, base, null);
+        // apply marker interface NeedsScore if we use the score!
+        final String interfaces[];
+        if (metadata.scoreValueUsed) {
+            interfaces = new String[] { WriterConstants.NEEDS_SCORE_TYPE.getInternalName() };
+        } else {
+            interfaces = null;
+        }
+        writer.visit(version, access, name, null, base, interfaces);
         writer.visitSource(source, null);
     }
 

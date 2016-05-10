@@ -16,7 +16,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The query string.
 <2> The fields to be queried.
 
@@ -37,7 +37,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Query the `title`, `first_name` and `last_name` fields.
 
 Individual fields can be boosted with the caret (`^`) notation:
@@ -54,7 +54,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `subject` field is three times as important as the `message` field.
 
@@ -98,16 +98,16 @@ find the single best matching field.  For instance, this query:
 GET /_search
 {
   "query": {
-  "multi_match" : {
-    "query":      "brown fox",
-    "type":       "best_fields",
-    "fields":     [ "subject", "message" ],
-    "tie_breaker": 0.3
-  }
+    "multi_match" : {
+      "query":      "brown fox",
+      "type":       "best_fields",
+      "fields":     [ "subject", "message" ],
+      "tie_breaker": 0.3
+    }
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 would be executed as:
 
@@ -126,7 +126,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Normally the `best_fields` type uses the score of the *single* best matching
 field, but if `tie_breaker` is specified, then it calculates the score as
@@ -165,7 +165,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> All terms must be present.
 
@@ -207,7 +207,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 would be executed as:
 
@@ -226,7 +226,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The score from each `match` clause is added together, then divided by the
 number of `match` clauses.
@@ -249,15 +249,15 @@ This query:
 GET /_search
 {
   "query": {
-  "multi_match" : {
-    "query":      "quick brown f",
-    "type":       "phrase_prefix",
-    "fields":     [ "subject", "message" ]
-  }
+    "multi_match" : {
+      "query":      "quick brown f",
+      "type":       "phrase_prefix",
+      "fields":     [ "subject", "message" ]
+    }
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 would be executed as:
 
@@ -266,16 +266,16 @@ would be executed as:
 GET /_search
 {
   "query": {
-  "dis_max": {
-    "queries": [
-      { "match_phrase_prefix": { "subject": "quick brown f" }},
-      { "match_phrase_prefix": { "message": "quick brown f" }}
-    ]
-  }
+    "dis_max": {
+      "queries": [
+        { "match_phrase_prefix": { "subject": "quick brown f" }},
+        { "match_phrase_prefix": { "message": "quick brown f" }}
+      ]
+    }
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Also, accepts `analyzer`, `boost`, `slop` and `zero_terms_query`  as explained
 in <<query-dsl-match-query>>.  Type `phrase_prefix` additionally accepts
@@ -326,16 +326,16 @@ A query like:
 GET /_search
 {
   "query": {
-  "multi_match" : {
-    "query":      "Will Smith",
-    "type":       "cross_fields",
-    "fields":     [ "first_name", "last_name" ],
-    "operator":   "and"
-  }
+    "multi_match" : {
+      "query":      "Will Smith",
+      "type":       "cross_fields",
+      "fields":     [ "first_name", "last_name" ],
+      "operator":   "and"
+    }
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 is executed as:
 
@@ -386,18 +386,18 @@ both use an `edge_ngram` analyzer, this query:
 GET /_search
 {
   "query": {
-  "multi_match" : {
-    "query":      "Jon",
-    "type":       "cross_fields",
-    "fields":     [
+    "multi_match" : {
+      "query":      "Jon",
+      "type":       "cross_fields",
+      "fields":     [
         "first", "first.edge",
         "last",  "last.edge"
-    ]
-  }
+      ]
+    }
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 would be executed as:
 
@@ -426,28 +426,28 @@ GET /_search
 {
   "query": {
     "bool": {
-        "should": [
-            {
-              "multi_match" : {
-                "query":      "Will Smith",
-                "type":       "cross_fields",
-                "fields":     [ "first", "last" ],
-                "minimum_should_match": "50%" <1>
-              }
-            },
-            {
-              "multi_match" : {
-                "query":      "Will Smith",
-                "type":       "cross_fields",
-                "fields":     [ "*.edge" ]
-              }
-            }
-        ]
+      "should": [
+        {
+          "multi_match" : {
+            "query":      "Will Smith",
+            "type":       "cross_fields",
+            "fields":     [ "first", "last" ],
+            "minimum_should_match": "50%" <1>
+          }
+        },
+        {
+          "multi_match" : {
+            "query":      "Will Smith",
+            "type":       "cross_fields",
+            "fields":     [ "*.edge" ]
+          }
+        }
+      ]
     }
   }
 }
 --------------------------------------------------
-// AUTOSENSE 
+// CONSOLE 
 
 <1> Either `will` or `smith` must be present in either of the `first`
     or `last` fields
@@ -460,16 +460,16 @@ parameter in the query.
 GET /_search
 {
   "query": {
-  "multi_match" : {
-    "query":      "Jon",
-    "type":       "cross_fields",
-    "analyzer":   "standard", <1>
-    "fields":     [ "first", "last", "*.edge" ]
-  }
+   "multi_match" : {
+      "query":      "Jon",
+      "type":       "cross_fields",
+      "analyzer":   "standard", <1>
+      "fields":     [ "first", "last", "*.edge" ]
+    }
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Use the `standard` analyzer for all fields.
 

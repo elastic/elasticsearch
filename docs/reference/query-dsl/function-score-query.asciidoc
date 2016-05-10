@@ -16,14 +16,14 @@ by the query.
 --------------------------------------------------
 GET /_search
 {
-  "query": {
-    "function_score": {
-        "query": {},
-        "boost": "5",
-        "random_score": {}, <1>
-        "boost_mode":"multiply"
+    "query": {
+        "function_score": {
+            "query": {},
+            "boost": "5",
+            "random_score": {}, <1>
+            "boost_mode":"multiply"
+        }
     }
-  }
 }
 --------------------------------------------------
 // CONSOLE
@@ -38,27 +38,27 @@ given filtering query
 --------------------------------------------------
 GET /_search
 {
-  "query": {
-    "function_score": {
-      "query": {},
-      "boost": "5", <1>
-      "functions": [
-          {
-              "filter": {},
-              "random_score": {}, <2>
-              "weight": 23
-          },
-          {
-              "filter": {},
-              "weight": 42 
-          }
-      ],
-      "max_boost": 42,
-      "score_mode": "max",
-      "boost_mode": "multiply",
-      "min_score" : 42
+    "query": {
+        "function_score": {
+          "query": {},
+          "boost": "5", <1>
+          "functions": [
+              {
+                  "filter": {},
+                  "random_score": {}, <2>
+                  "weight": 23
+              },
+              {
+                  "filter": {},
+                  "weight": 42 
+              }
+          ],
+          "max_boost": 42,
+          "score_mode": "max",
+          "boost_mode": "multiply",
+          "min_score" : 42
+        }
     }
-  }
 }
 --------------------------------------------------
 // CONSOLE
@@ -473,34 +473,34 @@ the request would look like this:
 --------------------------------------------------
 GET /_search
 {
-  "query": {
-    "function_score": {
-      "functions": [
-        {
-          "gauss": {
-            "price": {
-              "origin": "0",
-              "scale": "20"
+    "query": {
+        "function_score": {
+          "functions": [
+            {
+              "gauss": {
+                "price": {
+                  "origin": "0",
+                  "scale": "20"
+                }
+              }
+            },
+            {
+              "gauss": {
+                "location": {
+                  "origin": "11, 12",
+                  "scale": "2km"
+                }
+              }
             }
-          }
-        },
-        {
-          "gauss": {
-            "location": {
-              "origin": "11, 12",
-              "scale": "2km"
+          ],
+          "query": {
+            "match": {
+              "properties": "balcony"
             }
-          }
+          },
+          "score_mode": "multiply"
         }
-      ],
-      "query": {
-        "match": {
-          "properties": "balcony"
-        }
-      },
-      "score_mode": "multiply"
     }
-  }
 }
 --------------------------------------------------
 // CONSOLE

@@ -14,7 +14,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 A boost can also be associated with the query:
 
@@ -26,7 +26,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Or :
 
@@ -38,7 +38,7 @@ GET /_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 This multi term query allows you to control how it gets rewritten using the
 <<query-dsl-multi-term-rewrite,rewrite>>

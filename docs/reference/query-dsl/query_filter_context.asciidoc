@@ -63,7 +63,7 @@ GET /_search
   }
 }
 ------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `query` parameter indicates query context.
 <2> The `bool` and two `match` clauses are used in query context,
     which means that they are used to score how well each document

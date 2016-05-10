@@ -17,17 +17,17 @@ fields, limiting the number of selected terms to 12.
 --------------------------------------------------
 GET /_search
 {
-  "query": {
-    "more_like_this" : {
-        "fields" : ["title", "description"],
-        "like" : "Once upon a time",
-        "min_term_freq" : 1,
-        "max_query_terms" : 12
+    "query": {
+        "more_like_this" : {
+            "fields" : ["title", "description"],
+            "like" : "Once upon a time",
+            "min_term_freq" : 1,
+            "max_query_terms" : 12
+        }
     }
-  }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 A more complicated use case consists of mixing texts with documents already
 existing in the index. In this case, the syntax to specify a document is
@@ -37,29 +37,29 @@ similar to the one used in the <<docs-multi-get,Multi GET API>>.
 --------------------------------------------------
 GET /_search
 {
-  "query": {
-    "more_like_this" : {
-        "fields" : ["title", "description"],
-        "like" : [
-        {
-            "_index" : "imdb",
-            "_type" : "movies",
-            "_id" : "1"
-        },
-        {
-            "_index" : "imdb",
-            "_type" : "movies",
-            "_id" : "2"
-        },
-        "and potentially some more text here as well"
-        ],
-        "min_term_freq" : 1,
-        "max_query_terms" : 12
+    "query": {
+        "more_like_this" : {
+            "fields" : ["title", "description"],
+            "like" : [
+            {
+                "_index" : "imdb",
+                "_type" : "movies",
+                "_id" : "1"
+            },
+            {
+                "_index" : "imdb",
+                "_type" : "movies",
+                "_id" : "2"
+            },
+            "and potentially some more text here as well"
+            ],
+            "min_term_freq" : 1,
+            "max_query_terms" : 12
+        }
     }
-  }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Finally, users can mix some texts, a chosen set of documents but also provide
 documents not necessarily present in the index. To provide documents not
@@ -69,34 +69,34 @@ present in the index, the syntax is similar to <<docs-termvectors-artificial-doc
 --------------------------------------------------
 GET /_search
 {
-  "query": {
-    "more_like_this" : {
-        "fields" : ["name.first", "name.last"],
-        "like" : [
-        {
-            "_index" : "marvel",
-            "_type" : "quotes",
-            "doc" : {
-                "name": {
-                    "first": "Ben",
-                    "last": "Grimm"
-                },
-                "tweet": "You got no idea what I'd... what I'd give to be invisible."
-              }
-        },
-        {
-            "_index" : "marvel",
-            "_type" : "quotes",
-            "_id" : "2"
+    "query": {
+        "more_like_this" : {
+            "fields" : ["name.first", "name.last"],
+            "like" : [
+            {
+                "_index" : "marvel",
+                "_type" : "quotes",
+                "doc" : {
+                    "name": {
+                        "first": "Ben",
+                        "last": "Grimm"
+                    },
+                    "tweet": "You got no idea what I'd... what I'd give to be invisible."
+                  }
+            },
+            {
+                "_index" : "marvel",
+                "_type" : "quotes",
+                "_id" : "2"
+            }
+            ],
+            "min_term_freq" : 1,
+            "max_query_terms" : 12
         }
-        ],
-        "min_term_freq" : 1,
-        "max_query_terms" : 12
     }
-  }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 ==== How it Works
 
@@ -125,32 +125,32 @@ default, but there will be no speed up on analysis for these fields.
 --------------------------------------------------
 PUT /imdb
 {
-  "mappings": {
-    "movies": {
-      "properties": {
-        "title": {
-          "type": "text",
-          "term_vector": "yes"
-         },
-         "description": {
-          "type": "text"
-        },
-        "tags": {
-          "type": "text",
-          "fields" : {
-            "raw": {
-              "type" : "text",
-              "analyzer": "keyword",
-              "term_vector" : "yes"
+    "mappings": {
+        "movies": {
+            "properties": {
+                "title": {
+                    "type": "text",
+                    "term_vector": "yes"
+                },
+                "description": {
+                    "type": "text"
+                },
+                "tags": {
+                    "type": "text",
+                    "fields" : {
+                        "raw": {
+                            "type" : "text",
+                            "analyzer": "keyword",
+                            "term_vector" : "yes"
+                        }
+                    }
+                }
             }
-          }
         }
-      }
     }
-  }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 ==== Parameters
 

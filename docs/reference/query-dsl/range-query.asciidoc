@@ -22,7 +22,7 @@ GET _search
     }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE 
 
 The `range` query accepts the following parameters:
 
@@ -54,7 +54,7 @@ GET _search
     }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 ===== Date math and rounding
 
@@ -106,6 +106,7 @@ GET _search
     }
 }
 --------------------------------------------------
+// CONSOLE 
 
 ===== Time zone in range queries
 
@@ -117,8 +118,7 @@ accepts it), or it can be specified as the `time_zone` parameter:
 --------------------------------------------------
 GET _search
 {
-    "query":
-    {
+    "query": {
         "range" : {
             "timestamp" : {
                 "gte": "2015-01-01 00:00:00", <1>
@@ -129,6 +129,6 @@ GET _search
     }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> This date will be converted to `2014-12-31T23:00:00 UTC`.
 <2> `now` is not affected by the `time_zone` parameter (dates must be stored as UTC).

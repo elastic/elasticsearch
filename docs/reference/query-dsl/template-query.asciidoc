@@ -20,7 +20,7 @@ GET /_search
     }
 }
 ------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The above request is translated into:
 
@@ -35,7 +35,7 @@ GET /_search
     }
 }
 ------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Alternatively passing the template as an escaped string works as well:
 
@@ -53,7 +53,7 @@ GET /_search
     }
 }
 ------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> New line characters (`\n`) should be escaped as `\\n` or removed,
     and quotes (`"`) should be escaped as `\\"`.
@@ -79,7 +79,7 @@ GET /_search
     }
 }
 ------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Name of the query template in `config/scripts/`, i.e., `my_template.mustache`.
 
@@ -92,7 +92,7 @@ PUT /_search/template/my_template
     "template": { "match": { "text": "{{query_string}}" }}
 }
 ------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 and refer to it in the `template` query with the `id` parameter:
 
@@ -111,7 +111,7 @@ GET /_search
     }
 }
 ------------------------------------------
-// AUTOSENSE
+// CONSOLE
 // TEST[continued]
 
 <1> Name of the query template in `config/scripts/`, i.e., `my_template.mustache`.

@@ -129,17 +129,10 @@ public class NodeJoinControllerTests extends ESTestCase {
             pendingJoins.add(joinNodeAsync(node));
         }
         nodeJoinController.stopAccumulatingJoins("test");
-        boolean hadSyncJoin = false;
         for (int i = randomInt(5); i > 0; i--) {
             DiscoveryNode node = newNode(nodeId++);
             nodes.add(node);
             joinNode(node);
-            hadSyncJoin = true;
-        }
-        if (hadSyncJoin) {
-            for (Future<Void> joinFuture : pendingJoins) {
-                assertThat(joinFuture.isDone(), equalTo(true));
-            }
         }
         for (Future<Void> joinFuture : pendingJoins) {
             joinFuture.get();

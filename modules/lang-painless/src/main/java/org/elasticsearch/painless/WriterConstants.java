@@ -43,6 +43,8 @@ class WriterConstants {
     final static Type PAINLESS_ERROR_TYPE = Type.getType(PainlessError.class);
 
     final static Type DEFINITION_TYPE = Type.getType(Definition.class);
+    
+    final static Type NEEDS_SCORE_TYPE = Type.getType(NeedsScore.class);
 
     final static Type OBJECT_TYPE = Type.getType(Object.class);
 

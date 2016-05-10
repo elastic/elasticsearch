@@ -135,7 +135,14 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         final String base = BASE_CLASS_TYPE.getInternalName();
         final String name = CLASS_TYPE.getInternalName();
 
-        writer.visit(version, access, name, null, base, null);
+        // apply marker interface NeedsScore if we use the score!
+        final String interfaces[];
+        if (metadata.scoreValueUsed) {
+          interfaces = new String[] { WriterConstants.NEEDS_SCORE_TYPE.getInternalName() };
+        } else {
+          interfaces = null;
+        }
+        writer.visit(version, access, name, null, base, interfaces);
         writer.visitSource(source, null);
     }
 

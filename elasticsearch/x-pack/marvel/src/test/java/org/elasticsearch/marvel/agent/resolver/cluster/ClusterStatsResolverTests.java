@@ -137,7 +137,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
     private ShardStats[] randomShardStats() {
         Index index = new Index("test", UUID.randomUUID().toString());
         Path shardPath = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("0");
-        ShardRouting shardRouting = ShardRouting.newUnassigned(index, 0, null, false,
+        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), null, false,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         CommonStats shardCommonStats = new CommonStats();
         shardCommonStats.fieldData = new FieldDataStats();

@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingTestUtils;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -80,10 +79,10 @@ public class IndexStatsResolverTests extends MonitoringIndexNameResolverTestCase
         Index index = new Index("test-" + randomIntBetween(0, 5), UUID.randomUUID().toString());
         ShardId shardId = new ShardId(index, 0);
         Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("0");
-        ShardRouting shardRouting = ShardRouting.newUnassigned(index, 0, null, true,
+        ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, null, true,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
-        ShardRoutingTestUtils.initialize(shardRouting, "node-0");
-        ShardRoutingTestUtils.moveToStarted(shardRouting);
+        shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        shardRouting = shardRouting.moveToStarted();
         CommonStats stats = new CommonStats();
         stats.fieldData = new FieldDataStats();
         stats.queryCache = new QueryCacheStats();

@@ -29,7 +29,6 @@ import org.elasticsearch.client.ConnectionPool;
 import org.elasticsearch.client.RestClient;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -108,14 +107,7 @@ public class SniffingConnectionPool extends ConnectionPool {
         void sniff(HttpHost excludeHost) {
             if (running.compareAndSet(false, true)) {
                 try {
-                    Iterator<Connection> connectionIterator = nextConnection();
-                    if (connectionIterator.hasNext()) {
-                        sniff(connectionIterator, excludeHost);
-                    } else {
-                        Connection connection = lastResortConnection();
-                        logger.info("no healthy nodes available, trying " + connection.getHost());
-                        sniff(Collections.singleton(connection).iterator(), excludeHost);
-                    }
+                    sniff(nextConnection(), excludeHost);
                 } catch (Throwable t) {
                     logger.error("error while sniffing nodes", t);
                 } finally {

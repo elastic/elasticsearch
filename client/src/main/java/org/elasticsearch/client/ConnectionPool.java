@@ -35,11 +35,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Pool of connections to the different hosts that belong to an elasticsearch cluster.
- * It keeps track of the different hosts to communicate with and allows to retrieve a stream of connections to be used
+ * It keeps track of the different hosts to communicate with and allows to retrieve an iterator of connections to be used
  * for each request. Marks connections as dead/alive when needed.
- * Provides a stream of alive connections or dead ones that should be retried for each {@link #nextConnection()} call.
- * In case the returned stream is empty a last resort dead connection should be retrieved by calling {@link #lastResortConnection()}
- * and resurrected so that a last resort request attempt can be performed.
+ * Provides an iterator of connections to be used at each {@link #nextConnection()} call.
  * The {@link #onSuccess(Connection)} method marks the connection provided as an argument alive.
  * The {@link #onFailure(Connection)} method marks the connection provided as an argument dead.
  * This base implementation doesn't define the list implementation that stores connections, so that concurrency can be
@@ -60,12 +58,13 @@ public abstract class ConnectionPool implements Closeable {
     protected abstract List<Connection> getConnections();
 
     /**
-     * Returns a stream of connections that should be used for a request call.
-     * Ideally, the first connection is retrieved from the stream and used successfully for the request.
-     * Otherwise, after each failure the next connection should be retrieved from the stream so that the request can be retried.
-     * The maximum total of attempts is equal to the number of connections that are available in the stream.
-     * It may happen that the stream is empty, in which case it means that there aren't healthy connections to use.
-     * Then {@link #lastResortConnection()} should be called to retrieve a non healthy connection and try it.
+     * Returns an iterator of connections that should be used for a request call.
+     * Ideally, the first connection is retrieved from the iterator and used successfully for the request.
+     * Otherwise, after each failure the next connection should be retrieved from the iterator so that the request can be retried.
+     * The maximum total of attempts is equal to the number of connections that are available in the iterator.
+     * The iterator returned will never be empty, rather an {@link IllegalStateException} will be thrown in that case.
+     * In case there are no alive connections available, or dead ones that should be retried, one dead connection
+     * gets resurrected and returned.
      */
     public final Iterator<Connection> nextConnection() {
         List<Connection> connections = getConnections();
@@ -73,17 +72,30 @@ public abstract class ConnectionPool implements Closeable {
             throw new IllegalStateException("no connections available in the connection pool");
         }
 
-        List<Connection> sortedConnections = new ArrayList<>(connections);
+        List<Connection> rotatedConnections = new ArrayList<>(connections);
         //TODO is it possible to make this O(1)? (rotate is O(n))
-        Collections.rotate(sortedConnections, sortedConnections.size() - lastConnectionIndex.getAndIncrement());
-        Iterator<Connection> connectionIterator = sortedConnections.iterator();
+        Collections.rotate(rotatedConnections, rotatedConnections.size() - lastConnectionIndex.getAndIncrement());
+        Iterator<Connection> connectionIterator = rotatedConnections.iterator();
         while (connectionIterator.hasNext()) {
             Connection connection = connectionIterator.next();
             if (connection.isAlive() == false && connection.shouldBeRetried() == false) {
                 connectionIterator.remove();
             }
         }
-        return connectionIterator;
+        if (rotatedConnections.isEmpty()) {
+            List<Connection> sortedConnections = new ArrayList<>(connections);
+            Collections.sort(sortedConnections, new Comparator<Connection>() {
+                @Override
+                public int compare(Connection o1, Connection o2) {
+                    return Long.compare(o1.getDeadUntil(), o2.getDeadUntil());
+                }
+            });
+            Connection connection = sortedConnections.get(0);
+            connection.markResurrected();
+            logger.trace("marked connection resurrected for " + connection.getHost());
+            return Collections.singleton(connection).iterator();
+        }
+        return rotatedConnections.iterator();
     }
 
     /**
@@ -97,25 +109,6 @@ public abstract class ConnectionPool implements Closeable {
             connections.add(new Connection(host));
         }
         return Collections.unmodifiableList(connections);
-    }
-
-    /**
-     * Returns a connection that is not necessarily healthy, but can be used for a request attempt. To be called as last resort
-     * only in case {@link #nextConnection()} returns an empty stream.
-     */
-    public final Connection lastResortConnection() {
-        List<Connection> connections = getConnections();
-        if (connections.isEmpty()) {
-            throw new IllegalStateException("no connections available in the connection pool");
-        }
-        List<Connection> sortedConnections = new ArrayList<>(connections);
-        Collections.sort(sortedConnections, new Comparator<Connection>() {
-            @Override
-            public int compare(Connection o1, Connection o2) {
-                return Long.compare(o1.getDeadUntil(), o2.getDeadUntil());
-            }
-        });
-        return sortedConnections.get(0);
     }
 
     /**

@@ -39,7 +39,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
@@ -63,13 +62,7 @@ public final class RestClient implements Closeable {
             throws IOException {
         URI uri = buildUri(endpoint, params);
         HttpRequestBase request = createHttpRequest(method, uri, entity);
-        Iterator<Connection> connectionIterator = connectionPool.nextConnection();
-        if (connectionIterator.hasNext() == false) {
-            Connection connection = connectionPool.lastResortConnection();
-            logger.info("no healthy nodes available, trying " + connection.getHost());
-            return performRequest(request, Collections.singleton(connection).iterator());
-        }
-        return performRequest(request, connectionIterator);
+        return performRequest(request, connectionPool.nextConnection());
     }
 
     private ElasticsearchResponse performRequest(HttpRequestBase request, Iterator<Connection> connectionIterator) throws IOException {

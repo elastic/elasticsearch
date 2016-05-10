@@ -45,9 +45,17 @@ Closure setupTwitter = { String name, int count ->
         refresh: true
         body: |'''
     for (int i = 0; i < count; i++) {
+      String user, text
+      if (i == 0) {
+        user = 'kimchy'
+        text = 'trying out Elasticsearch'
+      } else {
+        user = 'test'
+        text = "some message with the number $i"
+      }
       buildRestTests.setups[name] += """
-          {"index":{}}
-          {"msg": "some message with the number $i", "date": $i}"""
+          {"index":{"_id": "$i"}}
+          {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
     }
   }
 setupTwitter('twitter', 5)

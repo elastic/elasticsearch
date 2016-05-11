@@ -15,9 +15,9 @@ import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 
 import java.io.IOException;
 
-public class MonitoringBulkResolver extends MonitoringIndexNameResolver.Timestamped<MonitoringBulkDoc> {
+public class MonitoringBulkTimestampedResolver extends MonitoringIndexNameResolver.Timestamped<MonitoringBulkDoc> {
 
-    public MonitoringBulkResolver(MonitoredSystem id, Settings settings) {
+    public MonitoringBulkTimestampedResolver(MonitoredSystem id, Settings settings) {
         super(id, settings);
     }
 

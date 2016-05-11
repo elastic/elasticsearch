@@ -9,6 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.action.MonitoringBulkDoc;
+import org.elasticsearch.marvel.action.MonitoringIndex;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterInfoMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateNodeMonitoringDoc;
@@ -20,7 +21,8 @@ import org.elasticsearch.marvel.agent.collector.indices.IndicesStatsMonitoringDo
 import org.elasticsearch.marvel.agent.collector.node.NodeStatsMonitoringDoc;
 import org.elasticsearch.marvel.agent.collector.shards.ShardMonitoringDoc;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
-import org.elasticsearch.marvel.agent.resolver.bulk.MonitoringBulkResolver;
+import org.elasticsearch.marvel.agent.resolver.bulk.MonitoringBulkDataResolver;
+import org.elasticsearch.marvel.agent.resolver.bulk.MonitoringBulkTimestampedResolver;
 import org.elasticsearch.marvel.agent.resolver.cluster.ClusterInfoResolver;
 import org.elasticsearch.marvel.agent.resolver.cluster.ClusterStateNodeResolver;
 import org.elasticsearch.marvel.agent.resolver.cluster.ClusterStateResolver;
@@ -72,8 +74,10 @@ public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> 
      * Registers resolvers for monitored systems
      */
     private void registerMonitoredSystem(MonitoredSystem id, Settings settings) {
-        final MonitoringBulkResolver resolver =  new MonitoringBulkResolver(id, settings);
-        registrations.add(resolveByClassSystemVersion(MonitoringBulkDoc.class, id, Version.CURRENT, resolver));
+        final MonitoringBulkDataResolver dataResolver =  new MonitoringBulkDataResolver();
+        final MonitoringBulkTimestampedResolver timestampedResolver =  new MonitoringBulkTimestampedResolver(id, settings);
+        registrations.add(resolveByClassSystemVersion(id, dataResolver, MonitoringIndex.DATA, Version.CURRENT));
+        registrations.add(resolveByClassSystemVersion(id, timestampedResolver, MonitoringIndex.TIMESTAMPED, Version.CURRENT));
     }
 
     /**
@@ -97,11 +101,11 @@ public class ResolversRegistry implements Iterable<MonitoringIndexNameResolver> 
         return new Registration(resolver, type::isInstance);
     }
 
-    static Registration resolveByClassSystemVersion(Class<? extends MonitoringDoc> type, MonitoredSystem system, Version version,
-                                                     MonitoringIndexNameResolver  resolver) {
+    static Registration resolveByClassSystemVersion(MonitoredSystem system, MonitoringIndexNameResolver  resolver, MonitoringIndex index,
+                                                    Version version) {
         return new Registration(resolver, doc -> {
             try {
-                if (type.isInstance(doc) == false) {
+                if (doc instanceof MonitoringBulkDoc == false || index != ((MonitoringBulkDoc)doc).getIndex()) {
                     return false;
                 }
                 if (system != MonitoredSystem.fromSystem(doc.getMonitoringId())) {

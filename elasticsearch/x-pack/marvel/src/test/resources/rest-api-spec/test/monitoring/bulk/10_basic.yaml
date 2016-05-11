@@ -26,7 +26,6 @@ setup:
               system: 1.51
               iowait: 0.85
               idle:   84.20
-              
           - index:
               _type:  test_type
           - avg-cpu:
@@ -52,7 +51,6 @@ setup:
       monitoring.bulk:
         system_id:      "kibana"
         system_version: $version
-        index: "default_index"
         type: "default_type"
         body:
           - '{"index": {}}'
@@ -61,6 +59,8 @@ setup:
           - '{"field_1": "value_2"}'
           - '{"index": {}}'
           - '{"field_1": "value_3"}'
+          - '{"index": {"_index": "_data", "_type": "kibana"}}'
+          - '{"field_1": "value_4"}'
 
   - is_false: errors
 
@@ -78,5 +78,12 @@ setup:
       search:
         index: .monitoring-kibana-*
         type:  custom_type
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        index: .monitoring-data-*
+        type:  kibana
 
   - match: { hits.total: 1 }

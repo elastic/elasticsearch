@@ -803,7 +803,7 @@ public class DefTests extends ScriptTestCase {
     }
 
     public void testNe() {
-        /*assertEquals(false, exec("def x = (byte)7 def y = (int)7 return x != y"));
+        assertEquals(false, exec("def x = (byte)7 def y = (int)7 return x != y"));
         assertEquals(false, exec("def x = (short)6 def y = (int)6 return x != y"));
         assertEquals(false, exec("def x = (char)5 def y = (int)5 return x != y"));
         assertEquals(false, exec("def x = (int)4 def y = (int)4 return x != y"));
@@ -819,10 +819,10 @@ public class DefTests extends ScriptTestCase {
         assertEquals(true, exec("def x = (float)6 def y = (double)2 return x != y"));
         assertEquals(true, exec("def x = (double)7 def y = (double)1 return x != y"));
 
-        assertEquals(false, exec("def x = new HashMap() def y = new HashMap() return x != y"));*/
+        assertEquals(false, exec("def x = new HashMap() def y = new HashMap() return x != y"));
         assertEquals(true, exec("def x = new HashMap() x.put(3, 3) def y = new HashMap() return x != y"));
-        //assertEquals(false, exec("def x = new HashMap() x.put(3, 3) def y = new HashMap() y.put(3, 3) return x != y"));
-        //assertEquals(false, exec("def x = new HashMap() def y = x x.put(3, 3) y.put(3, 3) return x != y"));
+        assertEquals(false, exec("def x = new HashMap() x.put(3, 3) def y = new HashMap() y.put(3, 3) return x != y"));
+        assertEquals(false, exec("def x = new HashMap() def y = x x.put(3, 3) y.put(3, 3) return x != y"));
     }
 
     public void testNer() {

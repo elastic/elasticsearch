@@ -120,7 +120,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      */
     @Override
     public void setScorer(final Scorer scorer) {
-        variables.put("#score", new ScoreAccessor(scorer));
+        variables.put("_score", new ScoreAccessor(scorer));
     }
 
     /**

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.Variables.Special;
 import org.elasticsearch.painless.Variables.Variable;
 import org.elasticsearch.painless.node.SSource;
 import org.objectweb.asm.ClassWriter;
@@ -92,16 +93,16 @@ public class Writer {
     }
 
     protected void writeExecute() {
-        final Variable input = variables.getVariable(null, "input");
+        final Variable input = variables.getVariable(null, Special.INPUT);
 
-        final Variable score = variables.getVariable(null, "score");
+        final Variable score = variables.getVariable(null, Special.SCORE);
 
         if (score != null) {
             final Label fals = new Label();
             final Label end = new Label();
 
             adapter.visitVarInsn(Opcodes.ALOAD, input.slot);
-            adapter.push("#score");
+            adapter.push(Special.SCORE);
             adapter.invokeInterface(MAP_TYPE, MAP_GET);
             adapter.dup();
             adapter.ifNull(fals);
@@ -115,14 +116,14 @@ public class Writer {
             adapter.visitVarInsn(Opcodes.FSTORE, score.slot);
         }
 
-        final Variable doc = variables.getVariable(null, "doc");
+        final Variable doc = variables.getVariable(null, Special.DOC);
 
         if (doc != null) {
             final Label fals = new Label();
             final Label end = new Label();
 
             adapter.visitVarInsn(Opcodes.ALOAD, input.slot);
-            adapter.push("doc");
+            adapter.push(Special.DOC);
             adapter.invokeInterface(MAP_TYPE, MAP_GET);
             adapter.dup();
             adapter.ifNull(fals);
@@ -134,7 +135,7 @@ public class Writer {
             adapter.visitVarInsn(Opcodes.ASTORE, doc.slot);
         }
 
-        final Variable loop = variables.getVariable(null, "#loop");
+        final Variable loop = variables.getVariable(null, Special.LOOP);
 
         if (loop != null) {
             adapter.push(settings.getMaxLoopCounter());

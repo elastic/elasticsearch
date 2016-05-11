@@ -27,19 +27,22 @@ import java.util.Iterator;
 
 public final class Variables {
     public static final class Special {
-        private static final String THIS = "#this";
-        private static final String INPUT = "input";
-        private static final String LOOP = "#loop";
-        private static final String DOC = "doc";
-        private static final String SCORE = "_score";
+        public static final String THIS = "#this";
+        public static final String INPUT = "input";
+        public static final String LOOP = "#loop";
+        public static final String DOC = "doc";
+        public static final String SCORE = "_score";
 
         private boolean doc = false;
         private boolean score = false;
         private boolean loop = false;
 
         public void checkSpecial(final String name) {
-            doc = DOC.equals(name);
-            score = SCORE.equals(name);
+            if (DOC.equals(name)) {
+                doc = true;
+            } else if (SCORE.equals(name)) {
+                score = true;
+            }
         }
 
         public void usesLoop() {
@@ -72,19 +75,19 @@ public final class Variables {
 
         incrementScope();
 
-        addVariable("[ #this ]", "Executable", "#this");
-        addVariable("[ input ]", "Map<String,def>", "input");
+        addVariable("[" + Special.THIS + "]", "Executable", Special.THIS);
+        addVariable("[" + Special.INPUT + "]", "Map<String,def>", Special.INPUT);
 
         if (special.score) {
-            addVariable("[ _score ]", "float", "score");
+            addVariable("[" + Special.SCORE + "]", "float", Special.SCORE);
         }
 
         if (special.doc) {
-            addVariable("[ doc ]", "Map<String,def>", "doc");
+            addVariable("[" + Special.DOC + "]", "Map<String,def>", Special.DOC);
         }
 
         if (special.loop && settings.getMaxLoopCounter() > 0) {
-            addVariable("[ #loop ]", "int", "#loop");
+            addVariable("[" + Special.LOOP + "]", "int", Special.LOOP);
         }
     }
 

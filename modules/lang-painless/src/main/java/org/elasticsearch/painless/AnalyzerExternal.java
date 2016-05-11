@@ -449,16 +449,18 @@ class AnalyzerExternal {
             }
 
             // special cases: reserved words
-            if (varenmd.last && ("_score".equals(id) || "doc".equals(id))) {
-                // read-only: don't allow stores
-                if (parentemd.storeExpr != null) {
+            if ("_score".equals(id) || "doc".equals(id) || "ctx".equals(id)) {
+                // read-only: don't allow stores to ourself
+                if (varenmd.last && parentemd.storeExpr != null) {
                     throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Variable [" + id + "] is read-only.");
                 }
-            }
-
-            // track if the _score value is ever used, we will invoke Scorer.score() only once if so.
-            if ("_score".equals(id)) {
-                metadata.scoreValueUsed = true;
+                if ("_score".equals(id)) {
+                    // track if the _score value is ever used, we will invoke Scorer.score() only once if so.
+                    metadata.scoreValueUsed = true;
+                } else if ("ctx".equals(id)) {
+                    // track if ctx value is ever used, we will invoke Map.get() only once if so.
+                    metadata.ctxValueUsed = true;
+                }
             }
 
             varenmd.target = variable.slot;

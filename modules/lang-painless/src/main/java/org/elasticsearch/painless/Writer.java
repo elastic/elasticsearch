@@ -157,6 +157,15 @@ class Writer extends PainlessParserBaseVisitor<Void> {
             execute.invokeVirtual(WriterConstants.SCORER_TYPE, WriterConstants.SCORER_SCORE);
             execute.visitVarInsn(Opcodes.FSTORE, metadata.scoreValueSlot);
         }
+        
+        if (metadata.ctxValueUsed) {
+            // if the _ctx value is used, we do this once:
+            //   Map<String,Object> ctx = input.get("ctx");
+            execute.visitVarInsn(Opcodes.ALOAD, metadata.inputValueSlot);
+            execute.push("ctx");
+            execute.invokeInterface(WriterConstants.MAP_TYPE, WriterConstants.MAP_GET);
+            execute.visitVarInsn(Opcodes.ASTORE, metadata.ctxValueSlot);
+        }
 
         execute.push(settings.getMaxLoopCounter());
         execute.visitVarInsn(Opcodes.ISTORE, metadata.loopCounterSlot);

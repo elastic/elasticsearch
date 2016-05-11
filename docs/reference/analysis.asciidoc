@@ -101,7 +101,7 @@ looking for:
 * The <<search-analyzer,`search_analyzer`>> mapping parameter.
 * The <<analyzer,`analyzer`>> mapping parameter.
 * An analyzer in the index settings called `default_search`.
-* An analyzer in the index settings called `search`.
+* An analyzer in the index settings called `default`.
 * The `standard` analyzer.
 
 --

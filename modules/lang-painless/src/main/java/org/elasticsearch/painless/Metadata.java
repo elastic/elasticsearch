@@ -429,8 +429,8 @@ class Metadata {
     int scoreValueSlot = -1;
 
     /**
-     * Used to determine if the _score variable is actually used.  This is used in the {@link Analyzer} to update
-     * variable slots at the completion of analysis if _score is not used.
+     * Used to determine if the _score variable is actually used.  This is used to know if we should call
+     * Scorer.score() once and cache into a local variable, and expose NeedsScore interface (to allow query caching)
      */
     boolean scoreValueUsed = false;
     
@@ -439,6 +439,18 @@ class Metadata {
      * the doc variable is accessed.
      */
     int docValueSlot = -1;
+    
+    /**
+     * Used to determine what slot the ctx variable is stored in.  This is used in the {@link Writer} whenever
+     * the ctx variable is accessed.
+     */
+    int ctxValueSlot = -1;
+    
+    /**
+     * Used to determine if the ctx variable is actually used.  This is used to determine if we should call
+     * Map.get once and store into a local variable on startup.
+     */
+    boolean ctxValueUsed = false;
 
     /**
      * Maps the relevant ANTLR node to its metadata.

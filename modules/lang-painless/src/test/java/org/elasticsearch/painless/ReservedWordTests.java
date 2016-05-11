@@ -19,6 +19,9 @@
 
 package org.elasticsearch.painless;
 
+import java.util.Collections;
+import java.util.HashMap;
+
 /** Tests for special reserved words such as _score */
 public class ReservedWordTests extends ScriptTestCase {
     
@@ -46,11 +49,32 @@ public class ReservedWordTests extends ScriptTestCase {
         assertTrue(expected.getMessage().contains("Variable name [doc] already defined"));
     }
     
-    /** check that we can't write to _score, its read-only! */
+    /** check that we can't write to doc, its read-only! */
     public void testDocStore() {
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
             exec("doc = 5; return doc;");
         });
         assertTrue(expected.getMessage().contains("Variable [doc] is read-only"));
+    }
+    
+    /** check that we can't declare a variable of ctx, its really reserved! */
+    public void testCtxVar() {
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+            exec("int ctx = 5; return ctx;");
+        });
+        assertTrue(expected.getMessage().contains("Variable name [ctx] already defined"));
+    }
+    
+    /** check that we can't write to ctx, its read-only! */
+    public void testCtxStore() {
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+            exec("ctx = 5; return ctx;");
+        });
+        assertTrue(expected.getMessage().contains("Variable [ctx] is read-only"));
+    }
+    
+    /** check that we can modify its contents though */
+    public void testCtxStoreMap() {
+        assertEquals(5, exec("ctx.foo = 5; return ctx.foo;", Collections.singletonMap("ctx", new HashMap<String,Object>())));
     }
 }

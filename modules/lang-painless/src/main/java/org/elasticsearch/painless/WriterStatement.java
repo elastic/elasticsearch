@@ -328,10 +328,6 @@ class WriterStatement {
         final Sort sort = declvaremd.to.sort;
         int slot = (int)declvaremd.postConst;
 
-        if (!metadata.scoreValueUsed && slot > metadata.scoreValueSlot) {
-            --slot;
-        }
-
         final ExpressionContext exprctx = ctx.expression();
         final boolean initialize = exprctx == null;
 

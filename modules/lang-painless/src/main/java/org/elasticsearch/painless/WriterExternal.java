@@ -422,10 +422,6 @@ class WriterExternal {
             throw new IllegalStateException(WriterUtility.error(source) + "Cannot load/store void type.");
         }
 
-        if (!metadata.scoreValueUsed && slot > metadata.scoreValueSlot) {
-            --slot;
-        }
-
         if (store) {
             execute.visitVarInsn(type.type.getOpcode(Opcodes.ISTORE), slot);
         } else {

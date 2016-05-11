@@ -101,7 +101,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         // scorer parameter passed to the script. internal use only.
         metadata.scorerValueSlot = utility.addVariable(null, "#scorer", definition.objectType).slot;
         // doc parameter passed to the script.
-        // TODO: currently working as a def type, should be smapType...
+        // TODO: currently working as a Map<String,Def>, we can do better?
         metadata.docValueSlot = utility.addVariable(null, "doc", definition.smapType).slot;
         //
         // reserved words implemented as local variables
@@ -110,6 +110,8 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         metadata.loopCounterSlot = utility.addVariable(null, "#loop", definition.intType).slot;
         // document's score as a read-only float.
         metadata.scoreValueSlot = utility.addVariable(null, "_score", definition.floatType).slot;
+        // ctx map set by executable scripts as a read-only map.
+        metadata.ctxValueSlot = utility.addVariable(null, "ctx", definition.smapType).slot;
 
         metadata.createStatementMetadata(metadata.root);
         visit(metadata.root);

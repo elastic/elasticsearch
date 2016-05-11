@@ -24,10 +24,10 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.SingleValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.SingleValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -115,7 +115,7 @@ public abstract class AbstractPercentilesParser extends NumericValuesSourceParse
     }
 
     @Override
-    protected ValuesSourceAggregatorBuilder<Numeric, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected SingleValuesSourceAggregatorBuilder<Numeric, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         PercentilesMethod method = (PercentilesMethod) otherOptions.getOrDefault(METHOD_FIELD, PercentilesMethod.TDIGEST);
 
@@ -126,7 +126,7 @@ public abstract class AbstractPercentilesParser extends NumericValuesSourceParse
         return buildFactory(aggregationName, cdfValues, method, compression, numberOfSignificantValueDigits, keyed);
     }
 
-    protected abstract ValuesSourceAggregatorBuilder<Numeric, ?> buildFactory(String aggregationName, double[] cdfValues,
+    protected abstract SingleValuesSourceAggregatorBuilder<Numeric, ?> buildFactory(String aggregationName, double[] cdfValues,
             PercentilesMethod method,
             Double compression,
             Integer numberOfSignificantValueDigits, Boolean keyed);

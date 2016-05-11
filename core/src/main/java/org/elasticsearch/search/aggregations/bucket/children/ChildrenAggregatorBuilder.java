@@ -34,17 +34,17 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
+import org.elasticsearch.search.aggregations.support.SingleValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.ParentChild;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.SingleValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<ParentChild, ChildrenAggregatorBuilder> {
+public class ChildrenAggregatorBuilder extends SingleValuesSourceAggregatorBuilder<ParentChild, ChildrenAggregatorBuilder> {
     public static final String NAME = InternalChildren.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
@@ -81,7 +81,7 @@ public class ChildrenAggregatorBuilder extends ValuesSourceAggregatorBuilder<Par
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ParentChild, ?> innerBuild(AggregationContext context,
+    protected SingleValuesSourceAggregatorFactory<ParentChild, ?> innerBuild(AggregationContext context,
             ValuesSourceConfig<ParentChild> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new ChildrenAggregatorFactory(name, type, config, parentType, childFilter, parentFilter, context, parent,
                 subFactoriesBuilder, metaData);

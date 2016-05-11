@@ -23,15 +23,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.support.SingleValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuilder<AB>>
-        extends ValuesSourceAggregatorBuilder<ValuesSource.Numeric, AB> {
+        extends SingleValuesSourceAggregatorBuilder<ValuesSource.Numeric, AB> {
 
     protected long interval;
     protected long offset = 0;

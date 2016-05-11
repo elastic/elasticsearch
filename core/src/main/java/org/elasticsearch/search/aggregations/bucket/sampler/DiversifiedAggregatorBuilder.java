@@ -27,16 +27,16 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SingleValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.SingleValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, DiversifiedAggregatorBuilder> {
+public class DiversifiedAggregatorBuilder extends SingleValuesSourceAggregatorBuilder<ValuesSource, DiversifiedAggregatorBuilder> {
     public static final String NAME = "diversified_sampler";
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
     public static final Type TYPE = new Type(NAME);
@@ -122,7 +122,7 @@ public class DiversifiedAggregatorBuilder extends ValuesSourceAggregatorBuilder<
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
+    protected SingleValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
             ValuesSourceConfig<ValuesSource> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new DiversifiedAggregatorFactory(name, TYPE, config, shardSize, maxDocsPerValue, executionHint, context, parent,
                 subFactoriesBuilder, metaData);

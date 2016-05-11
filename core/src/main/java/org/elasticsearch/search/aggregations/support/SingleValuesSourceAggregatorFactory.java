@@ -30,12 +30,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF extends ValuesSourceAggregatorFactory<VS, AF>>
+public abstract class SingleValuesSourceAggregatorFactory<VS extends ValuesSource, AF extends SingleValuesSourceAggregatorFactory<VS, AF>>
         extends AggregatorFactory<AF> {
 
     protected ValuesSourceConfig<VS> config;
 
-    public ValuesSourceAggregatorFactory(String name, Type type, ValuesSourceConfig<VS> config, AggregationContext context,
+    public SingleValuesSourceAggregatorFactory(String name, Type type, ValuesSourceConfig<VS> config, AggregationContext context,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactoriesBuilder, metaData);
         this.config = config;

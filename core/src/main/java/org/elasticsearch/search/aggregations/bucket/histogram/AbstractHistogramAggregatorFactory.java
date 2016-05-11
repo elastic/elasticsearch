@@ -34,11 +34,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.SingleValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 public abstract class AbstractHistogramAggregatorFactory<AF extends AbstractHistogramAggregatorFactory<AF>>
-        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, AF> {
+        extends SingleValuesSourceAggregatorFactory<Numeric, AF> {
 
     protected final long interval;
     protected final long offset;

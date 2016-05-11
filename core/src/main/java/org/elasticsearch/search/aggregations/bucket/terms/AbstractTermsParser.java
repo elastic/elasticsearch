@@ -26,10 +26,10 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
-import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.SingleValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.SingleValuesSourceParser.AnyValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -50,8 +50,8 @@ public abstract class AbstractTermsParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected final ValuesSourceAggregatorBuilder<ValuesSource, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+    protected final SingleValuesSourceAggregatorBuilder<ValuesSource, ?> createFactory(String aggregationName,
+            ValuesSourceType valuesSourceType, ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         BucketCountThresholds bucketCountThresholds = getDefaultBucketCountThresholds();
         Integer requiredSize = (Integer) otherOptions.get(REQUIRED_SIZE_FIELD_NAME);
         if (requiredSize != null && requiredSize != -1) {
@@ -77,10 +77,9 @@ public abstract class AbstractTermsParser extends AnyValuesSourceParser {
                 otherOptions);
     }
 
-    protected abstract ValuesSourceAggregatorBuilder<ValuesSource, ?> doCreateFactory(String aggregationName,
-            ValuesSourceType valuesSourceType,
-            ValueType targetValueType, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode collectMode, String executionHint,
-            IncludeExclude incExc, Map<ParseField, Object> otherOptions);
+    protected abstract SingleValuesSourceAggregatorBuilder<ValuesSource, ?> doCreateFactory(String aggregationName,
+            ValuesSourceType valuesSourceType, ValueType targetValueType, BucketCountThresholds bucketCountThresholds,
+            SubAggCollectionMode collectMode, String executionHint, IncludeExclude incExc, Map<ParseField, Object> otherOptions);
 
     @Override
     protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,

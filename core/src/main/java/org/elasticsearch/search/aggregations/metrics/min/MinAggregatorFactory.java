@@ -27,14 +27,14 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.SingleValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class MinAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, MinAggregatorFactory> {
+public class MinAggregatorFactory extends SingleValuesSourceAggregatorFactory<Numeric, MinAggregatorFactory> {
 
     public MinAggregatorFactory(String name, Type type, ValuesSourceConfig<Numeric> config, AggregationContext context,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {

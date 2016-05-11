@@ -27,14 +27,14 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.SingleValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, CardinalityAggregatorFactory> {
+public class CardinalityAggregatorFactory extends SingleValuesSourceAggregatorFactory<ValuesSource, CardinalityAggregatorFactory> {
 
     private final Long precisionThreshold;
 

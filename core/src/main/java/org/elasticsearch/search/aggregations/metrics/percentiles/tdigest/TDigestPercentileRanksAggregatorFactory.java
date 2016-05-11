@@ -25,9 +25,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.SingleValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
@@ -35,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 
 public class TDigestPercentileRanksAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, TDigestPercentileRanksAggregatorFactory> {
+        extends SingleValuesSourceAggregatorFactory<Numeric, TDigestPercentileRanksAggregatorFactory> {
 
     private final double[] percents;
     private final double compression;

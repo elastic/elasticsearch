@@ -32,10 +32,10 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.Bucket
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SingleValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.SingleValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -45,7 +45,8 @@ import java.util.Objects;
 /**
  *
  */
-public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource, SignificantTermsAggregatorBuilder> {
+public class SignificantTermsAggregatorBuilder
+        extends SingleValuesSourceAggregatorBuilder<ValuesSource, SignificantTermsAggregatorBuilder> {
     public static final String NAME = SignificantStringTerms.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
@@ -216,8 +217,8 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+    protected SingleValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
+            ValuesSourceConfig<ValuesSource> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new SignificantTermsAggregatorFactory(name, type, config, includeExclude, executionHint, filterBuilder,
                 bucketCountThresholds, significanceHeuristic, context, parent, subFactoriesBuilder, metaData);
     }

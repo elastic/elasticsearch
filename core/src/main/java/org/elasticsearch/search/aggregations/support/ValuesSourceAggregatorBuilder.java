@@ -30,11 +30,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
@@ -47,44 +43,13 @@ import java.util.Objects;
  *
  */
 public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregatorBuilder<VS, AB>>
-        extends AggregatorBuilder<AB> {
-
-    public static abstract class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregatorBuilder<VS, AB>>
-            extends ValuesSourceAggregatorBuilder<VS, AB> {
-
-        protected LeafOnly(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
-            super(name, type, valuesSourceType, targetValueType);
-        }
-
-        /**
-         * Read an aggregation from a stream that does not serialize its targetValueType. This should be used by most subclasses.
-         */
-        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
-            super(in, type, valuesSourceType, targetValueType);
-        }
-
-        /**
-         * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
-         * {@link #serializeTargetValueType()} to return true.
-         */
-        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType) throws IOException {
-            super(in, type, valuesSourceType);
-        }
-
-        @Override
-        public AB subAggregations(Builder subFactories) {
-            throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
-        }
-    }
-
-    private final ValuesSourceType valuesSourceType;
-    private final ValueType targetValueType;
-    private String field = null;
-    private Script script = null;
-    private ValueType valueType = null;
-    private String format = null;
-    private Object missing = null;
-    private DateTimeZone timeZone = null;
+    extends AggregatorBuilder<AB> {
+    protected final ValuesSourceType valuesSourceType;
+    protected final ValueType targetValueType;
+    protected ValueType valueType = null;
+    protected String format = null;
+    protected Object missing = null;
+    protected DateTimeZone timeZone = null;
     protected ValuesSourceConfig<VS> config;
 
     protected ValuesSourceAggregatorBuilder(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
@@ -120,49 +85,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         read(in);
     }
 
-    /**
-     * Read from a stream.
-     */
-    private void read(StreamInput in) throws IOException {
-        field = in.readOptionalString();
-        if (in.readBoolean()) {
-            script = new Script(in);
-        }
-        if (in.readBoolean()) {
-            valueType = ValueType.readFromStream(in);
-        }
-        format = in.readOptionalString();
-        missing = in.readGenericValue();
-        if (in.readBoolean()) {
-            timeZone = DateTimeZone.forID(in.readString());
-        }
-    }
-
-    @Override
-    protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (serializeTargetValueType()) {
-            out.writeOptionalWriteable(targetValueType);
-        }
-        out.writeOptionalString(field);
-        boolean hasScript = script != null;
-        out.writeBoolean(hasScript);
-        if (hasScript) {
-            script.writeTo(out);
-        }
-        boolean hasValueType = valueType != null;
-        out.writeBoolean(hasValueType);
-        if (hasValueType) {
-            valueType.writeTo(out);
-        }
-        out.writeOptionalString(format);
-        out.writeGenericValue(missing);
-        boolean hasTimeZone = timeZone != null;
-        out.writeBoolean(hasTimeZone);
-        if (hasTimeZone) {
-            out.writeString(timeZone.getID());
-        }
-        innerWriteTo(out);
-    }
+    protected abstract void read(StreamInput in) throws IOException;
 
     /**
      * Write subclass's state to the stream.
@@ -170,49 +93,11 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     protected abstract void innerWriteTo(StreamOutput out) throws IOException;
 
     /**
-     * Should this builder serialize its targetValueType? Defaults to false. All subclasses that override this to true should use the three
-     * argument read constructor rather than the four argument version.
+     * Should this builder serialize its targetValueType? Defaults to false. All subclasses that override this to true
+     * should use the three argument read constructor rather than the four argument version.
      */
     protected boolean serializeTargetValueType() {
         return false;
-    }
-
-    /**
-     * Sets the field to use for this aggregation.
-     */
-    @SuppressWarnings("unchecked")
-    public AB field(String field) {
-        if (field == null) {
-            throw new IllegalArgumentException("[field] must not be null: [" + name + "]");
-        }
-        this.field = field;
-        return (AB) this;
-    }
-
-    /**
-     * Gets the field to use for this aggregation.
-     */
-    public String field() {
-        return field;
-    }
-
-    /**
-     * Sets the script to use for this aggregation.
-     */
-    @SuppressWarnings("unchecked")
-    public AB script(Script script) {
-        if (script == null) {
-            throw new IllegalArgumentException("[script] must not be null: [" + name + "]");
-        }
-        this.script = script;
-        return (AB) this;
-    }
-
-    /**
-     * Gets the script to use for this aggregation.
-     */
-    public Script script() {
-        return script;
     }
 
     /**
@@ -293,23 +178,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         return timeZone;
     }
 
-    @Override
-    protected final ValuesSourceAggregatorFactory<VS, ?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        ValuesSourceConfig<VS> config = resolveConfig(context);
-        ValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, config, parent, subFactoriesBuilder);
-        return factory;
-    }
-
-    protected ValuesSourceConfig<VS> resolveConfig(AggregationContext context) {
-        ValuesSourceConfig<VS> config = config(context);
-        return config;
-    }
-
-    protected abstract ValuesSourceAggregatorFactory<VS, ?> innerBuild(AggregationContext context, ValuesSourceConfig<VS> config,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
-
-    public ValuesSourceConfig<VS> config(AggregationContext context) {
+    protected ValuesSourceConfig<VS> config(AggregationContext context, String field, Script script) {
 
         ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
 
@@ -393,14 +262,7 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     }
 
     @Override
-    public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (field != null) {
-            builder.field("field", field);
-        }
-        if (script != null) {
-            builder.field("script", script);
-        }
+    public XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         if (missing != null) {
             builder.field("missing", missing);
         }
@@ -421,23 +283,17 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     protected abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
     @Override
-    protected final int doHashCode() {
-        return Objects.hash(field, format, missing, script, targetValueType, timeZone, valueType, valuesSourceType,
-                innerHashCode());
+    protected int doHashCode() {
+        return Objects.hash(format, missing, targetValueType, timeZone, valueType, valuesSourceType,
+            innerHashCode());
     }
 
-    protected abstract int innerHashCode();
-
     @Override
-    protected final boolean doEquals(Object obj) {
+    protected boolean doEquals(Object obj) {
         ValuesSourceAggregatorBuilder<?, ?> other = (ValuesSourceAggregatorBuilder<?, ?>) obj;
-        if (!Objects.equals(field, other.field))
-            return false;
         if (!Objects.equals(format, other.format))
             return false;
         if (!Objects.equals(missing, other.missing))
-            return false;
-        if (!Objects.equals(script, other.script))
             return false;
         if (!Objects.equals(targetValueType, other.targetValueType))
             return false;
@@ -450,5 +306,6 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         return innerEquals(obj);
     }
 
+    protected abstract int innerHashCode();
     protected abstract boolean innerEquals(Object obj);
 }

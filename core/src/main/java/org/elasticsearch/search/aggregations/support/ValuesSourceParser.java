@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.ParseField;
@@ -25,7 +24,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.joda.time.DateTimeZone;
 
@@ -36,45 +34,16 @@ import java.util.Map;
 /**
  *
  */
-public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
-        implements Aggregator.Parser {
+public abstract class ValuesSourceParser<VS extends ValuesSource> implements Aggregator.Parser {
     static final ParseField TIME_ZONE = new ParseField("time_zone");
 
-    public abstract static class AnyValuesSourceParser extends AbstractValuesSourceParser<ValuesSource> {
+    protected boolean scriptable = true;
+    protected boolean formattable = false;
+    protected boolean timezoneAware = false;
+    protected ValuesSourceType valuesSourceType = null;
+    protected ValueType targetValueType = null;
 
-        protected AnyValuesSourceParser(boolean scriptable, boolean formattable) {
-            super(scriptable, formattable, false, ValuesSourceType.ANY, null);
-        }
-    }
-
-    public abstract static class NumericValuesSourceParser extends AbstractValuesSourceParser<ValuesSource.Numeric> {
-
-        protected NumericValuesSourceParser(boolean scriptable, boolean formattable, boolean timezoneAware) {
-            super(scriptable, formattable, timezoneAware, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
-        }
-    }
-
-    public abstract static class BytesValuesSourceParser extends AbstractValuesSourceParser<ValuesSource.Bytes> {
-
-        protected BytesValuesSourceParser(boolean scriptable, boolean formattable) {
-            super(scriptable, formattable, false, ValuesSourceType.BYTES, ValueType.STRING);
-        }
-    }
-
-    public abstract static class GeoPointValuesSourceParser extends AbstractValuesSourceParser<ValuesSource.GeoPoint> {
-
-        protected GeoPointValuesSourceParser(boolean scriptable, boolean formattable) {
-            super(scriptable, formattable, false, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
-        }
-    }
-
-    private boolean scriptable = true;
-    private boolean formattable = false;
-    private boolean timezoneAware = false;
-    private ValuesSourceType valuesSourceType = null;
-    private ValueType targetValueType = null;
-
-    private AbstractValuesSourceParser(boolean scriptable, boolean formattable, boolean timezoneAware, ValuesSourceType valuesSourceType,
+    protected ValuesSourceParser(boolean scriptable, boolean formattable, boolean timezoneAware, ValuesSourceType valuesSourceType,
             ValueType targetValueType) {
         this.timezoneAware = timezoneAware;
         this.valuesSourceType = valuesSourceType;
@@ -84,12 +53,9 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
     }
 
     @Override
-    public final ValuesSourceAggregatorBuilder<VS, ?> parse(String aggregationName, QueryParseContext context)
-            throws IOException {
-
+    public final ValuesSourceAggregatorBuilder<VS, ?> parse(String aggregationName,  QueryParseContext context)
+        throws IOException {
         XContentParser parser = context.parser();
-        String field = null;
-        Script script = null;
         ValueType valueType = null;
         String format = null;
         Object missing = null;
@@ -110,11 +76,11 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
                     timezone = DateTimeZone.forOffsetHours(parser.intValue());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
-                            "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
+                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if ("field".equals(currentFieldName)) {
-                    field = parser.text();
+                    parseField(parser);
                 } else if (formattable && "format".equals(currentFieldName)) {
                     format = parser.text();
                 } else if (scriptable) {
@@ -122,58 +88,44 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
                         valueType = ValueType.resolveForScript(parser.text());
                         if (targetValueType != null && valueType.isNotA(targetValueType)) {
                             throw new ParsingException(parser.getTokenLocation(),
-                                    "Aggregation [" + aggregationName + "] was configured with an incompatible value type ["
-                                            + valueType + "]. It can only work on value of type ["
-                                            + targetValueType + "]");
+                                "Aggregation [" + aggregationName + "] was configured with an incompatible value type ["
+                                    + valueType + "]. It can only work on value of type ["
+                                    + targetValueType + "]");
                         }
                     } else if (!token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
                         throw new ParsingException(parser.getTokenLocation(),
-                                "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
+                            "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                     }
                 } else if (!token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
                     throw new ParsingException(parser.getTokenLocation(),
-                            "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
+                        "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
             } else if (scriptable && token == XContentParser.Token.START_OBJECT) {
-                if (context.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, context.getParseFieldMatcher());
+                if (context.getParseFieldMatcher().match(currentFieldName, Script.ScriptField.SCRIPT)) {
+                    parseScript(aggregationName, currentFieldName, parser, context.getParseFieldMatcher());
                 } else if (!token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
                     throw new ParsingException(parser.getTokenLocation(),
-                            "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
-                }
-            } else if (!token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
-                throw new ParsingException(parser.getTokenLocation(),
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
+                }
+            } else if (!internalToken(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)
+                && !token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
+                throw new ParsingException(parser.getTokenLocation(),
+                    "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
             }
         }
 
-        ValuesSourceAggregatorBuilder<VS, ?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
-                otherOptions);
-        if (field != null) {
-            factory.field(field);
-        }
-        if (script != null) {
-            factory.script(script);
-        }
-        if (valueType != null) {
-            factory.valueType(valueType);
-        }
-        if (format != null) {
-            factory.format(format);
-        }
-        if (missing != null) {
-            factory.missing(missing);
-        }
-        if (timezone != null) {
-            factory.timeZone(timezone);
-        }
-        return factory;
+        return createBuilder(aggregationName, valueType, format, missing, timezone, otherOptions);
     }
+
+    protected abstract void parseField(XContentParser parser) throws IOException;
+
+    protected abstract void parseScript(final String aggregationName, final String currentFieldName,
+            XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException;
 
     /**
      * Creates a {@link ValuesSourceAggregatorBuilder} from the information
      * gathered by the subclass. Options parsed in
-     * {@link AbstractValuesSourceParser} itself will be added to the factory
+     * {@link ValuesSourceParser} itself will be added to the factory
      * after it has been returned by this method.
      *
      * @param aggregationName
@@ -192,8 +144,17 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
     protected abstract ValuesSourceAggregatorBuilder<VS, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions);
 
+    protected abstract ValuesSourceAggregatorBuilder<VS, ?> createBuilder(String aggregationName, final ValueType parsedValueType,
+            final String parsedFormat, final Object parsedMissing, final DateTimeZone parsedTimeZone,
+            Map<ParseField, Object> otherOptions);
+
+    protected boolean internalToken(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        return false;
+    }
+
     /**
-     * Allows subclasses of {@link AbstractValuesSourceParser} to parse extra
+     * Allows subclasses of {@link ValuesSourceParser} to parse extra
      * parameters and store them in a {@link Map} which will later be passed to
      * {@link #createFactory(String, ValuesSourceType, ValueType, Map)}.
      *

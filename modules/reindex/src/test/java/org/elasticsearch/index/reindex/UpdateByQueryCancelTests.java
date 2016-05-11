@@ -36,7 +36,7 @@ public class UpdateByQueryCancelTests extends ReindexTestCase {
     public void testCancel() throws Exception {
         BulkIndexByScrollResponse response = CancelTestUtils.testCancel(this, updateByQuery(), UpdateByQueryAction.NAME);
 
-        assertThat(response, updateByQueryResponseMatcher().updated(1).reasonCancelled(equalTo("by user request")));
+        assertThat(response, matcher().updated(1).reasonCancelled(equalTo("by user request")));
         refresh("source");
         assertHitCount(client().prepareSearch("source").setSize(0).setQuery(matchQuery("giraffes", "giraffes")).get(), 1);
     }

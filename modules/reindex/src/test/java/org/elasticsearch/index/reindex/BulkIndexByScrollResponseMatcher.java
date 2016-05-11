@@ -26,10 +26,9 @@ import org.hamcrest.TypeSafeMatcher;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public abstract class AbstractBulkIndexByScrollResponseMatcher<
-                Response extends BulkIndexByScrollResponse,
-                Self extends AbstractBulkIndexByScrollResponseMatcher<Response, Self>>
-        extends TypeSafeMatcher<Response> {
+public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkIndexByScrollResponse> {
+
+    private Matcher<Long> createdMatcher = equalTo(0L);
     private Matcher<Long> updatedMatcher = equalTo(0L);
     /**
      * Matches for number of batches. Optional.
@@ -39,14 +38,21 @@ public abstract class AbstractBulkIndexByScrollResponseMatcher<
     private Matcher<Integer> failuresMatcher = equalTo(0);
     private Matcher<String> reasonCancelledMatcher = nullValue(String.class);
 
-    protected abstract Self self();
-
-    public Self updated(Matcher<Long> updatedMatcher) {
-        this.updatedMatcher = updatedMatcher;
-        return self();
+    public BulkIndexByScrollResponseMatcher created(Matcher<Long> createdMatcher) {
+        this.createdMatcher = createdMatcher;
+        return this;
     }
 
-    public Self updated(long updated) {
+    public BulkIndexByScrollResponseMatcher created(long created) {
+        return created(equalTo(created));
+    }
+
+    public BulkIndexByScrollResponseMatcher updated(Matcher<Long> updatedMatcher) {
+        this.updatedMatcher = updatedMatcher;
+        return this;
+    }
+
+    public BulkIndexByScrollResponseMatcher updated(long updated) {
         return updated(equalTo(updated));
     }
 
@@ -55,26 +61,26 @@ public abstract class AbstractBulkIndexByScrollResponseMatcher<
      * integer because we usually don't care about how many batches the job
      * takes.
      */
-    public Self batches(Matcher<Integer> batchesMatcher) {
+    public BulkIndexByScrollResponseMatcher batches(Matcher<Integer> batchesMatcher) {
         this.batchesMatcher = batchesMatcher;
-        return self();
+        return this;
     }
 
-    public Self batches(int batches) {
+    public BulkIndexByScrollResponseMatcher batches(int batches) {
         return batches(equalTo(batches));
     }
 
-    public Self batches(int total, int batchSize) {
+    public BulkIndexByScrollResponseMatcher batches(int total, int batchSize) {
         // Round up
         return batches((total + batchSize - 1) / batchSize);
     }
 
-    public Self versionConflicts(Matcher<Long> versionConflictsMatcher) {
+    public BulkIndexByScrollResponseMatcher versionConflicts(Matcher<Long> versionConflictsMatcher) {
         this.versionConflictsMatcher = versionConflictsMatcher;
-        return self();
+        return this;
     }
 
-    public Self versionConflicts(long versionConflicts) {
+    public BulkIndexByScrollResponseMatcher versionConflicts(long versionConflicts) {
         return versionConflicts(equalTo(versionConflicts));
     }
 
@@ -83,35 +89,37 @@ public abstract class AbstractBulkIndexByScrollResponseMatcher<
      * matching do it by hand. The type signatures required to match the
      * actual failures list here just don't work.
      */
-    public Self failures(Matcher<Integer> failuresMatcher) {
+    public BulkIndexByScrollResponseMatcher failures(Matcher<Integer> failuresMatcher) {
         this.failuresMatcher = failuresMatcher;
-        return self();
+        return this;
     }
 
     /**
      * Set the expected size of the failures list.
      */
-    public Self failures(int failures) {
+    public BulkIndexByScrollResponseMatcher failures(int failures) {
         return failures(equalTo(failures));
     }
 
-    public Self reasonCancelled(Matcher<String> reasonCancelledMatcher) {
+    public BulkIndexByScrollResponseMatcher reasonCancelled(Matcher<String> reasonCancelledMatcher) {
         this.reasonCancelledMatcher = reasonCancelledMatcher;
-        return self();
+        return this;
     }
 
     @Override
-    protected boolean matchesSafely(Response item) {
+    protected boolean matchesSafely(BulkIndexByScrollResponse item) {
         return updatedMatcher.matches(item.getUpdated()) &&
-            (batchesMatcher == null || batchesMatcher.matches(item.getBatches())) &&
-            versionConflictsMatcher.matches(item.getVersionConflicts()) &&
-            failuresMatcher.matches(item.getIndexingFailures().size()) &&
-            reasonCancelledMatcher.matches(item.getReasonCancelled());
+                createdMatcher.matches(item.getCreated()) &&
+                (batchesMatcher == null || batchesMatcher.matches(item.getBatches())) &&
+                versionConflictsMatcher.matches(item.getVersionConflicts()) &&
+                failuresMatcher.matches(item.getIndexingFailures().size()) &&
+                reasonCancelledMatcher.matches(item.getReasonCancelled());
     }
 
     @Override
     public void describeTo(Description description) {
         description.appendText("indexed matches ").appendDescriptionOf(updatedMatcher);
+        description.appendText(" and created matches ").appendDescriptionOf(createdMatcher);
         if (batchesMatcher != null) {
             description.appendText(" and batches matches ").appendDescriptionOf(batchesMatcher);
         }

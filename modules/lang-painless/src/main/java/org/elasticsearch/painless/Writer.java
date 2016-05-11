@@ -98,14 +98,21 @@ final class Writer {
 
     private void writeExecute() {
         if (variables.reserved.score) {
+            // if the _score value is used, we do this once:
+            // final double _score = scorer.score();
+
             final Variable score = variables.getVariable(null, Reserved.SCORE);
 
             adapter.visitVarInsn(Opcodes.ALOAD, score.slot);
             adapter.invokeVirtual(WriterConstants.SCORER_TYPE, WriterConstants.SCORER_SCORE);
-            adapter.visitVarInsn(Opcodes.FSTORE, score.slot);
+            adapter.visitInsn(Opcodes.F2D);
+            adapter.visitVarInsn(Opcodes.DSTORE, score.slot);
         }
 
         if (variables.reserved.ctx) {
+            // if the _ctx value is used, we do this once:
+            // final Map<String,Object> ctx = input.get("ctx");
+
             final Variable input = variables.getVariable(null, Reserved.INPUT);
             final Variable ctx = variables.getVariable(null, Reserved.CTX);
 
@@ -116,6 +123,9 @@ final class Writer {
         }
 
         if (variables.reserved.loop) {
+            // if there is infinite loop protection, we do this once:
+            // int loopCounter = settings.getMaxLoopCounter()
+
             final Variable loop = variables.getVariable(null, Reserved.LOOP);
 
             adapter.push(settings.getMaxLoopCounter());

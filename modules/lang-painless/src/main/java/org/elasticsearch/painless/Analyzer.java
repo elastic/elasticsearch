@@ -26,7 +26,6 @@ import org.elasticsearch.painless.node.SSource;
  * Runs the analysis phase of compilation using the Painless AST.
  */
 final class Analyzer {
-
     static Variables analyze(final CompilerSettings settings, final Definition definition,
                                     final Reserved shortcut, final SSource root) {
         final Variables variables = new Variables(settings, definition, shortcut);

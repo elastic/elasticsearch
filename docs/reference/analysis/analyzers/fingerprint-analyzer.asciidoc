@@ -5,37 +5,115 @@ The `fingerprint` analyzer implements a
 https://github.com/OpenRefine/OpenRefine/wiki/Clustering-In-Depth#fingerprint[fingerprinting algorithm]
 which is used by the OpenRefine project to assist in clustering.
 
-The `fingerprint` analyzer is composed of a <<analysis-standard-tokenizer>>, and four
-token filters (in this order): <<analysis-lowercase-tokenfilter>>, <<analysis-stop-tokenfilter>>,
-<<analysis-fingerprint-tokenfilter>> and <<analysis-asciifolding-tokenfilter>>.
+Input text is lowercased, normalized to remove extended characters, sorted,
+deduplicated and concatenated into a single token.  If a stopword list is
+configured, stop words will also be removed.
 
-Input text is lowercased, normalized to remove extended characters, sorted, deduplicated and
-concatenated into a single token.  If a stopword list is configured, stop words will
-also be removed. For example, the sentence:
+[float]
+=== Definition
 
-____
-"Yes yes, Gödel said this sentence is consistent and."
-____
+It consists of:
 
-will be transformed into the token: `"and consistent godel is said sentence this yes"`
+Tokenizer::
+* <<analysis-standard-tokenizer,Standard Tokenizer>>
+
+Token Filters::
+* <<analysis-lowercase-tokenfilter,Lower Case Token Filter>>
+* <<analysis-stop-tokenfilter,Stop Token Filter>> (disabled by default)
+* <<analysis-fingerprint-tokenfilter>>
+* <<analysis-asciifolding-tokenfilter>>
+
+[float]
+=== Example output
+
+[source,js]
+---------------------------
+POST _analyze
+{
+  "analyzer": "fingerprint",
+  "text": "Yes yes, Gödel said this sentence is consistent and."
+}
+---------------------------
+// CONSOLE
+
+The above sentence would produce the following single term:
+
+[source,text]
+---------------------------
+[ and consistent godel is said sentence this yes ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `fingerprint` analyzer accepts the following parameters:
+
+[horizontal]
+`separator`::
+
+    The character to use to concate the terms.  Defaults to a space.
+
+`max_output_size`::
+
+    The maximum token size to emit.  Defaults to `255`. Tokens larger than
+    this size will be discarded.
+
+`preserve_original`::
+
+    If `true`, emits two tokens: one with ASCII-folding of terms that contain
+    extended characters (if any) and one with the original characters.
+    Defaults to `false`.
+
+`stopwords`::
+
+    A pre-defined stop words list like `_english_` or an array  containing a
+    list of stop words.  Defaults to `_none_`.
+
+`stopwords_path`::
+
+    The path to a file containing stop words.
+
+See the <<analysis-stop-tokenfilter,Stop Token Filter>> for more information
+about stop word configuration.
 
 
-Notice how the words are all lowercased, the umlaut in "gödel" has been normalized to "godel",
-punctuation has been removed, and "yes" has been de-duplicated.
+[float]
+=== Example configuration
 
-The `fingerprint` analyzer has these configurable settings
+In this example, we configure the `fingerprint` analyzer to use the
+pre-defined list of English stop words, and to emit a second token in
+the presence of non-ASCII characters:
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`separator` | The character that separates the tokens after concatenation.
-Defaults to a space.
-|`max_output_size` | The maximum token size to emit. Defaults to `255`. See <<analysis-fingerprint-tokenfilter-max-size>>
-|`preserve_original`| If true, emits both the original and folded version of
- tokens that contain extended characters.  Defaults to `false`
-|`stopwords` | A list of stop words to use. Defaults to an empty list (`_none_`).
-|`stopwords_path` | A path (either relative to `config` location, or absolute) to a stopwords
-                        file configuration. Each stop word should be in its own "line" (separated
-                        by a line break). The file must be UTF-8 encoded.
-|=======================================================================
+[source,js]
+----------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_fingerprint_analyzer": {
+          "type": "fingerprint",
+          "stopwords": "_english_",
+          "preserve_original": true
+        }
+      }
+    }
+  }
+}
 
+GET _cluster/health?wait_for_status=yellow
+
+POST my_index/_analyze
+{
+  "analyzer": "my_fingerprint_analyzer",
+  "text": "Yes yes, Gödel said this sentence is consistent and."
+}
+----------------------------
+// CONSOLE
+
+The above example produces the following two terms:
+
+[source,text]
+---------------------------
+[ consistent godel said sentence yes, consistent gödel said sentence yes ]
+---------------------------

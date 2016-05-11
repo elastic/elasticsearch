@@ -98,7 +98,7 @@ public final class Variables {
 
         addVariable("[" + Reserved.THIS + "]", definition.execType.name, Reserved.THIS, true, true);
         addVariable("[" + Reserved.INPUT + "]", definition.smapType.name, Reserved.INPUT, true, true);
-        addVariable("[" + Reserved.SCORE + "]", definition.floatType.name, Reserved.SCORE, true, true);
+        addVariable("[" + Reserved.SCORE + "]", definition.doubleType.name, Reserved.SCORE, true, true);
         addVariable("[" + Reserved.DOC + "]", definition.smapType.name, Reserved.DOC, true, true);
 
         if (reserved.ctx) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -68,7 +69,7 @@ public class DanglingIndicesState extends AbstractComponent {
      * Process dangling indices based on the provided meta data, handling cleanup, finding
      * new dangling indices, and allocating outstanding ones.
      */
-    public void processDanglingIndices(MetaData metaData) {
+    public void processDanglingIndices(final MetaData metaData) {
         if (nodeEnv.hasNodeFile() == false) {
             return;
         }
@@ -107,7 +108,7 @@ public class DanglingIndicesState extends AbstractComponent {
      * Finds (@{link #findNewAndAddDanglingIndices}) and adds the new dangling indices
      * to the currently tracked dangling indices.
      */
-    void findNewAndAddDanglingIndices(MetaData metaData) {
+    void findNewAndAddDanglingIndices(final MetaData metaData) {
         danglingIndices.putAll(findNewDanglingIndices(metaData));
     }
 
@@ -116,7 +117,7 @@ public class DanglingIndicesState extends AbstractComponent {
      * that have state on disk, but are not part of the provided meta data, or not detected
      * as dangled already.
      */
-    Map<Index, IndexMetaData> findNewDanglingIndices(MetaData metaData) {
+    Map<Index, IndexMetaData> findNewDanglingIndices(final MetaData metaData) {
         final Set<String> excludeIndexPathIds = new HashSet<>(metaData.indices().size() + danglingIndices.size());
         for (ObjectCursor<IndexMetaData> cursor : metaData.indices().values()) {
             excludeIndexPathIds.add(cursor.value.getIndex().getUUID());
@@ -125,13 +126,18 @@ public class DanglingIndicesState extends AbstractComponent {
         try {
             final List<IndexMetaData> indexMetaDataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);
             Map<Index, IndexMetaData> newIndices = new HashMap<>(indexMetaDataList.size());
+            final IndexGraveyard graveyard = metaData.indexGraveyard();
             for (IndexMetaData indexMetaData : indexMetaDataList) {
                 if (metaData.hasIndex(indexMetaData.getIndex().getName())) {
                     logger.warn("[{}] can not be imported as a dangling index, as index with same name already exists in cluster metadata",
                         indexMetaData.getIndex());
+                } else if (graveyard.containsIndex(indexMetaData.getIndex())) {
+                    logger.warn("[{}] can not be imported as a dangling index, as an index with the same name and UUID exist in the " +
+                                "index tombstones.  This situation is likely caused by copying over the data directory for an index " +
+                                "that was previously deleted.", indexMetaData.getIndex());
                 } else {
-                    logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, auto import to cluster state",
-                        indexMetaData.getIndex());
+                    logger.info("[{}] dangling index exists on local file system, but not in cluster metadata, " +
+                                "auto import to cluster state", indexMetaData.getIndex());
                     newIndices.put(indexMetaData.getIndex(), indexMetaData);
                 }
             }
@@ -151,17 +157,19 @@ public class DanglingIndicesState extends AbstractComponent {
             return;
         }
         try {
-            allocateDangledIndices.allocateDangled(Collections.unmodifiableCollection(new ArrayList<>(danglingIndices.values())), new LocalAllocateDangledIndices.Listener() {
-                @Override
-                public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {
-                    logger.trace("allocated dangled");
-                }
+            allocateDangledIndices.allocateDangled(Collections.unmodifiableCollection(new ArrayList<>(danglingIndices.values())),
+                new LocalAllocateDangledIndices.Listener() {
+                    @Override
+                    public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {
+                        logger.trace("allocated dangled");
+                    }
 
-                @Override
-                public void onFailure(Throwable e) {
-                    logger.info("failed to send allocated dangled", e);
+                    @Override
+                    public void onFailure(Throwable e) {
+                        logger.info("failed to send allocated dangled", e);
+                    }
                 }
-            });
+            );
         } catch (Throwable e) {
             logger.warn("failed to send allocate dangled", e);
         }

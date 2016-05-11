@@ -344,7 +344,6 @@ public final class Definition {
     }
 
     public final Map<String, Struct> structs;
-    public final Map<Class<?>, Struct> classes;
     public final Map<Cast, Transform> transforms;
     public final Map<Pair, Type> bounds;
     public final Map<Class<?>, RuntimeClass> runtimeMap;
@@ -427,13 +426,11 @@ public final class Definition {
 
     private Definition() {
         structs = new HashMap<>();
-        classes = new HashMap<>();
         transforms = new HashMap<>();
         bounds = new HashMap<>();
         runtimeMap = new HashMap<>();
 
         addDefaultStructs();
-        addDefaultClasses();
 
         voidType = getType("void");
         booleanType = getType("boolean");
@@ -513,7 +510,7 @@ public final class Definition {
         copyDefaultStructs();
         addDefaultTransforms();
         addDefaultBounds();
-        computeRuntimeClasses();
+        addDefaultRuntimeClasses();
     }
 
     private Definition(final Definition definition) {
@@ -524,14 +521,6 @@ public final class Definition {
         }
 
         this.structs = Collections.unmodifiableMap(structs);
-
-        final Map<Class<?>, Struct> classes = new HashMap<>();
-
-        for (final Struct struct : definition.classes.values()) {
-            classes.put(struct.clazz, this.structs.get(struct.name));
-        }
-
-        this.classes = Collections.unmodifiableMap(classes);
 
         this.transforms = Collections.unmodifiableMap(definition.transforms);
         this.bounds = Collections.unmodifiableMap(definition.bounds);
@@ -686,48 +675,6 @@ public final class Definition {
         addStruct( "Longs"     , ScriptDocValues.Longs.class);
         addStruct( "Doubles"   , ScriptDocValues.Doubles.class);
         addStruct( "GeoPoints" , ScriptDocValues.GeoPoints.class);
-    }
-
-    private void addDefaultClasses() {
-        addClass("boolean");
-        addClass("byte");
-        addClass("short");
-        addClass("char");
-        addClass("int");
-        addClass("long");
-        addClass("float");
-        addClass("double");
-
-        addClass("Boolean");
-        addClass("Byte");
-        addClass("Short");
-        addClass("Character");
-        addClass("Integer");
-        addClass("Long");
-        addClass("Float");
-        addClass("Double");
-
-        addClass("Object");
-        addClass("Number");
-        addClass("CharSequence");
-        addClass("String");
-
-        addClass("Iterator");
-        addClass("Collection");
-        addClass("List");
-        addClass("ArrayList");
-        addClass("Set");
-        addClass("HashSet");
-        addClass("Map");
-        addClass("HashMap");
-
-        addClass("Exception");
-
-        addClass("GeoPoint");
-        addClass("Strings");
-        addClass("Longs");
-        addClass("Doubles");
-        addClass("GeoPoints");
     }
 
     private void addDefaultElements() {
@@ -1660,57 +1607,46 @@ public final class Definition {
     }
 
     // precompute a more efficient structure for dynamic method/field access:
-    private void computeRuntimeClasses() {
-        this.runtimeMap.clear();
-        for (Class<?> clazz : classes.keySet()) {
-            runtimeMap.put(clazz, computeRuntimeClass(clazz));
-        }
-    }
+    private void addDefaultRuntimeClasses() {
+        addRuntimeClass(booleanType.struct);
+        addRuntimeClass(byteType.struct);
+        addRuntimeClass(shortType.struct);
+        addRuntimeClass(charType.struct);
+        addRuntimeClass(intType.struct);
+        addRuntimeClass(longType.struct);
+        addRuntimeClass(floatType.struct);
+        addRuntimeClass(doubleType.struct);
 
-    private RuntimeClass computeRuntimeClass(Class<?> clazz) {
-        Struct struct = classes.get(clazz);
-        Map<String, Method> methods = struct.methods;
-        Map<String, MethodHandle> getters = new HashMap<>();
-        Map<String, MethodHandle> setters = new HashMap<>();
-        // add all members
-        for (Map.Entry<String,Field> member : struct.members.entrySet()) {
-            getters.put(member.getKey(), member.getValue().getter);
-            setters.put(member.getKey(), member.getValue().setter);
-        }
-        // add all getters/setters
-        for (Map.Entry<String,Method> method : methods.entrySet()) {
-            String name = method.getKey();
-            Method m = method.getValue();
+        addRuntimeClass(booleanobjType.struct);
+        addRuntimeClass(byteobjType.struct);
+        addRuntimeClass(shortobjType.struct);
+        addRuntimeClass(charobjType.struct);
+        addRuntimeClass(intobjType.struct);
+        addRuntimeClass(longobjType.struct);
+        addRuntimeClass(floatobjType.struct);
+        addRuntimeClass(doubleobjType.struct);
 
-            if (m.arguments.size() == 0 &&
-                name.startsWith("get") &&
-                name.length() > 3 &&
-                Character.isUpperCase(name.charAt(3))) {
-                StringBuilder newName = new StringBuilder();
-                newName.append(Character.toLowerCase(name.charAt(3)));
-                newName.append(name.substring(4));
-                getters.putIfAbsent(newName.toString(), m.handle);
-            } else if (m.arguments.size() == 0 &&
-                name.startsWith("is") &&
-                name.length() > 2 &&
-                Character.isUpperCase(name.charAt(2))) {
-                StringBuilder newName = new StringBuilder();
-                newName.append(Character.toLowerCase(name.charAt(2)));
-                newName.append(name.substring(3));
-                getters.putIfAbsent(newName.toString(), m.handle);
-            }
+        addRuntimeClass(objectType.struct);
+        addRuntimeClass(numberType.struct);
+        addRuntimeClass(charseqType.struct);
+        addRuntimeClass(stringType.struct);
 
-            if (m.arguments.size() == 1 &&
-                name.startsWith("set") &&
-                name.length() > 3 &&
-                Character.isUpperCase(name.charAt(3))) {
-                StringBuilder newName = new StringBuilder();
-                newName.append(Character.toLowerCase(name.charAt(3)));
-                newName.append(name.substring(4));
-                setters.putIfAbsent(newName.toString(), m.handle);
-            }
-        }
-        return new RuntimeClass(methods, getters, setters);
+        addRuntimeClass(oitrType.struct);
+        addRuntimeClass(ocollectionType.struct);
+        addRuntimeClass(olistType.struct);
+        addRuntimeClass(oarraylistType.struct);
+        addRuntimeClass(osetType.struct);
+        addRuntimeClass(ohashsetType.struct);
+        addRuntimeClass(oomapType.struct);
+        addRuntimeClass(oohashmapType.struct);
+
+        addRuntimeClass(exceptionType.struct);
+
+        addRuntimeClass(geoPointType.struct);
+        addRuntimeClass(stringsType.struct);
+        addRuntimeClass(longsType.struct);
+        addRuntimeClass(doublesType.struct);
+        addRuntimeClass(geoPointsType.struct);
     }
 
     private final void addStruct(final String name, final Class<?> clazz) {
@@ -1725,20 +1661,6 @@ public final class Definition {
         final Struct struct = new Struct(name, clazz, org.objectweb.asm.Type.getType(clazz));
 
         structs.put(name, struct);
-    }
-
-    private final void addClass(final String name) {
-        final Struct struct = structs.get(name);
-
-        if (struct == null) {
-            throw new IllegalArgumentException("Struct [" + name + "] is not defined.");
-        }
-
-        if (classes.containsKey(struct.clazz)) {
-            throw new IllegalArgumentException("Duplicate struct class [" + struct.clazz + "] when defining dynamic.");
-        }
-
-        classes.put(struct.clazz, struct);
     }
 
     private final void addConstructor(final String struct, final String name, final Type[] args, final Type[] genargs) {
@@ -2227,6 +2149,52 @@ public final class Definition {
 
         bounds.put(pair0, bound);
         bounds.put(pair1, bound);
+    }
+
+    private void addRuntimeClass(final Struct struct) {
+        Map<String, Method> methods = struct.methods;
+        Map<String, MethodHandle> getters = new HashMap<>();
+        Map<String, MethodHandle> setters = new HashMap<>();
+        // add all members
+        for (Map.Entry<String,Field> member : struct.members.entrySet()) {
+            getters.put(member.getKey(), member.getValue().getter);
+            setters.put(member.getKey(), member.getValue().setter);
+        }
+        // add all getters/setters
+        for (Map.Entry<String,Method> method : methods.entrySet()) {
+            String name = method.getKey();
+            Method m = method.getValue();
+
+            if (m.arguments.size() == 0 &&
+                name.startsWith("get") &&
+                name.length() > 3 &&
+                Character.isUpperCase(name.charAt(3))) {
+                StringBuilder newName = new StringBuilder();
+                newName.append(Character.toLowerCase(name.charAt(3)));
+                newName.append(name.substring(4));
+                getters.putIfAbsent(newName.toString(), m.handle);
+            } else if (m.arguments.size() == 0 &&
+                name.startsWith("is") &&
+                name.length() > 2 &&
+                Character.isUpperCase(name.charAt(2))) {
+                StringBuilder newName = new StringBuilder();
+                newName.append(Character.toLowerCase(name.charAt(2)));
+                newName.append(name.substring(3));
+                getters.putIfAbsent(newName.toString(), m.handle);
+            }
+
+            if (m.arguments.size() == 1 &&
+                name.startsWith("set") &&
+                name.length() > 3 &&
+                Character.isUpperCase(name.charAt(3))) {
+                StringBuilder newName = new StringBuilder();
+                newName.append(Character.toLowerCase(name.charAt(3)));
+                newName.append(name.substring(4));
+                setters.putIfAbsent(newName.toString(), m.handle);
+            }
+        }
+
+        runtimeMap.put(struct.clazz, new RuntimeClass(methods, getters, setters));
     }
 
     public final Type getType(final String name) {

@@ -46,7 +46,7 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
                                          lookup, Collections.<String, Object>emptyMap());
         assertFalse(ss.needsScores());
 
-        compiled = service.compile("input.doc['d'].value", Collections.emptyMap());
+        compiled = service.compile("doc['d'].value", Collections.emptyMap());
         ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "painless", compiled), 
                             lookup, Collections.<String, Object>emptyMap());
         assertFalse(ss.needsScores());
@@ -56,7 +56,7 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
                             lookup, Collections.<String, Object>emptyMap());
         assertTrue(ss.needsScores());
 
-        compiled = service.compile("input.doc['d'].value * _score", Collections.emptyMap());
+        compiled = service.compile("doc['d'].value * _score", Collections.emptyMap());
         ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "painless", compiled), 
                             lookup, Collections.<String, Object>emptyMap());
         assertTrue(ss.needsScores());

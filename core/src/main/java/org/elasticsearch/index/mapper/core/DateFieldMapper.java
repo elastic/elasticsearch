@@ -317,21 +317,6 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            failIfNotIndexed();
-            long baseLo = parseToMilliseconds(value, false, null, dateMathParser);
-            long baseHi = parseToMilliseconds(value, true, null, dateMathParser);
-            long delta;
-            try {
-                delta = fuzziness.asTimeValue().millis();
-            } catch (Exception e) {
-                // not a time format
-                delta = fuzziness.asLong();
-            }
-            return LongPoint.newRangeQuery(name(), baseLo - delta, baseHi + delta);
-        }
-
-        @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
             failIfNotIndexed();
             return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null);

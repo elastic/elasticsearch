@@ -192,13 +192,6 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryStringQuery("_id:XXX1")).execute().actionGet();
         assertHitCount(searchResponse, 1L);
-
-        // id is not index, but we can automatically support prefix as well
-        searchResponse = client().prepareSearch().setQuery(QueryBuilders.prefixQuery("_id", "XXX")).execute().actionGet();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryStringQuery("_id:XXX*").lowercaseExpandedTerms(false)).execute().actionGet();
-        assertHitCount(searchResponse, 1L);
     }
 
     public void testSimpleDateRange() throws Exception {
@@ -421,6 +414,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 client().prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow + 1)).get(),
                 1);
     }
+
     public void testQueryNumericFieldWithRegex() throws Exception {
         assertAcked(prepareCreate("idx").addMapping("type", "num", "type=integer"));
         ensureGreen("idx");
@@ -429,7 +423,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
             client().prepareSearch("idx").setQuery(QueryBuilders.regexpQuery("num", "34")).get();
             fail("SearchPhaseExecutionException should have been thrown");
         } catch (SearchPhaseExecutionException ex) {
-            assertThat(ex.getCause().getCause().getMessage(), containsString("Can only use regular expression on keyword and text fields"));
+            assertThat(ex.getCause().getCause().getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
         }
     }
 

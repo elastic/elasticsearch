@@ -41,8 +41,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
     @Override
     protected FuzzyQueryBuilder doCreateTestQueryBuilder() {
-        Tuple<String, Object> fieldAndValue = getRandomFieldNameAndValue();
-        FuzzyQueryBuilder query = new FuzzyQueryBuilder(fieldAndValue.v1(), fieldAndValue.v2());
+        FuzzyQueryBuilder query = new FuzzyQueryBuilder(STRING_FIELD_NAME, getRandomValueForFieldName(STRING_FIELD_NAME));
         if (randomBoolean()) {
             query.fuzziness(randomFuzziness(query.fieldName()));
         }
@@ -63,11 +62,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
     @Override
     protected void doAssertLuceneQuery(FuzzyQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (isNumericFieldName(queryBuilder.fieldName()) || queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
-            assertThat(query, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
-        } else {
-            assertThat(query, instanceOf(FuzzyQuery.class));
-        }
+        assertThat(query, instanceOf(FuzzyQuery.class));
     }
 
     public void testIllegalArguments() {
@@ -142,14 +137,10 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 "        }\n" +
                 "    }\n" +
                 "}\n";
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        Query expected;
-        if (getIndexVersionCreated().onOrAfter(Version.V_5_0_0_alpha2)) {
-            expected = IntPoint.newRangeQuery(INT_FIELD_NAME, 7, 17);
-        } else {
-            expected = LegacyNumericRangeQuery.newIntRange(INT_FIELD_NAME, 7, 17, true, true);
-        }
-        assertEquals(expected, parsedQuery);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parseQuery(query).toQuery(createShardContext()));
+        assertEquals("Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
+                e.getMessage());
     }
 
     public void testFromJson() throws IOException {
@@ -169,6 +160,6 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         FuzzyQueryBuilder parsed = (FuzzyQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 42.0, parsed.boost(), 0.00001);
-        assertEquals(json, 2, parsed.fuzziness().asInt());
+        assertEquals(json, 2, parsed.fuzziness().asFloat(), 0f);
     }
 }

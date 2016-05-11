@@ -91,6 +91,16 @@ The following deprecated queries have been removed:
 
 ==== Changes to queries
 
+* Unsupported queries such as term queries on `geo_point` fields will now fail
+  rather than returning no hits.
+
+* Removed support for fuzzy queries on numeric, date and ip fields, use range
+  queries instead.
+
+* Removed support for range and prefix queries on `_uid` and `_id` fields.
+
+* Querying an unindexed field will now fail rather than returning no hits.
+
 * Removed support for the deprecated `min_similarity` parameter in `fuzzy
   query`, in favour of `fuzziness`.
 

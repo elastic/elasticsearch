@@ -36,7 +36,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -217,14 +216,6 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
             }
 
             return InetAddressPoint.newRangeQuery(name(), lower, upper);
-        }
-
-        @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            failIfNotIndexed();
-            InetAddress base = parse(value);
-            int mask = fuzziness.asInt();
-            return XInetAddressPoint.newPrefixQuery(name(), base, mask);
         }
 
         @Override

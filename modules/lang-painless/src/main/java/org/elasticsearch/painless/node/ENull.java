@@ -25,13 +25,17 @@ import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class ENull extends AExpression {
+/**
+ * Represents a null constant.
+ */
+public final class ENull extends AExpression {
+
     public ENull(final String location) {
         super(location);
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         isNull = true;
 
         if (expected != null) {
@@ -46,7 +50,7 @@ public class ENull extends AExpression {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.visitInsn(Opcodes.ACONST_NULL);
     }
 }

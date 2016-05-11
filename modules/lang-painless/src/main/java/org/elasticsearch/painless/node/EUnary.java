@@ -35,9 +35,13 @@ import static org.elasticsearch.painless.WriterConstants.DEF_NOT_CALL;
 import static org.elasticsearch.painless.WriterConstants.NEGATEEXACT_INT;
 import static org.elasticsearch.painless.WriterConstants.NEGATEEXACT_LONG;
 
-public class EUnary extends AExpression {
-    protected Operation operation;
-    protected AExpression child;
+/**
+ * Represents a unary math expression.
+ */
+public final class EUnary extends AExpression {
+
+    Operation operation;
+    AExpression child;
 
     public EUnary(final String location, final Operation operation, final AExpression child) {
         super(location);
@@ -47,7 +51,7 @@ public class EUnary extends AExpression {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (operation == Operation.NOT) {
             analyzeNot(settings, definition, variables);
         } else if (operation == Operation.BWNOT) {
@@ -61,7 +65,7 @@ public class EUnary extends AExpression {
         }
     }
 
-    protected void analyzeNot(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyzeNot(final CompilerSettings settings, final Definition definition, final Variables variables) {
         child.expected = definition.booleanType;
         child.analyze(settings, definition, variables);
         child = child.cast(settings, definition, variables);
@@ -73,7 +77,7 @@ public class EUnary extends AExpression {
         actual = definition.booleanType;
     }
 
-    protected void analyzeBWNot(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyzeBWNot(final CompilerSettings settings, final Definition definition, final Variables variables) {
         child.analyze(settings, definition, variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(definition, child.actual, false, true);
@@ -100,7 +104,7 @@ public class EUnary extends AExpression {
         actual = promote;
     }
 
-    protected void analyzerAdd(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyzerAdd(final CompilerSettings settings, final Definition definition, final Variables variables) {
         child.analyze(settings, definition, variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(definition, child.actual, true, true);
@@ -131,7 +135,7 @@ public class EUnary extends AExpression {
         actual = promote;
     }
 
-    protected void analyzerSub(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyzerSub(final CompilerSettings settings, final Definition definition, final Variables variables) {
         child.analyze(settings, definition, variables);
 
         final Type promote = AnalyzerCaster.promoteNumeric(definition, child.actual, true, true);
@@ -165,7 +169,7 @@ public class EUnary extends AExpression {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         if (operation == Operation.NOT) {
             if (tru == null && fals == null) {
                 final Label localfals = new Label();

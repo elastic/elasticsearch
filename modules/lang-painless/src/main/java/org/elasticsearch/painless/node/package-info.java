@@ -32,7 +32,7 @@
  * {@link org.elasticsearch.painless.node.ANode} - The superclass for all other nodes.
  * {@link org.elasticsearch.painless.node.AStatement} - The superclass for all S* (statement) nodes.
  * {@link org.elasticsearch.painless.node.EBinary} - Represents a binary math expression.
- * {@link org.elasticsearch.painless.node.EBool} - Respresents a boolean expression.
+ * {@link org.elasticsearch.painless.node.EBool} - Represents a boolean expression.
  * {@link org.elasticsearch.painless.node.EBoolean} - Represents a boolean constant.
  * {@link org.elasticsearch.painless.node.ECast} - Represents an implicit cast in most cases.  (Internal only.)
  * {@link org.elasticsearch.painless.node.EChain} - Represents the entirety of a variable/method chain for read/write operations.

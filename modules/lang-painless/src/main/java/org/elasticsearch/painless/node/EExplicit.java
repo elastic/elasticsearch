@@ -22,15 +22,18 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class EExplicit extends AExpression {
-    protected final String type;
-    protected AExpression child;
+/**
+ * Represents an explicit cast.
+ */
+public final class EExplicit extends AExpression {
 
-    protected Cast cast = null;
+    final String type;
+    AExpression child;
+
+    Cast cast = null;
 
     public EExplicit(final String location, final String type, final AExpression child) {
         super(location);
@@ -40,7 +43,7 @@ public class EExplicit extends AExpression {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         try {
             actual = definition.getType(this.type);
         } catch (final IllegalArgumentException exception) {
@@ -54,11 +57,11 @@ public class EExplicit extends AExpression {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 
-    protected AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
         child.expected = expected;
         child.explicit = explicit;
 

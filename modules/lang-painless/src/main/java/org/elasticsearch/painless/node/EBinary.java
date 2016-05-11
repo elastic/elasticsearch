@@ -29,12 +29,16 @@ import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.WriterUtility;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class EBinary extends AExpression {
-    protected final Operation operation;
-    protected AExpression left;
-    protected AExpression right;
+/**
+ * Represents a binary math expression.
+ */
+public final class EBinary extends AExpression {
 
-    protected boolean cat = false;
+    final Operation operation;
+    AExpression left;
+    AExpression right;
+
+    boolean cat = false;
 
     public EBinary(final String location, final Operation operation, final AExpression left, final AExpression right) {
         super(location);
@@ -45,7 +49,7 @@ public class EBinary extends AExpression {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (operation == Operation.MUL) {
             analyzeMul(settings, definition, variables);
         } else if (operation == Operation.DIV) {
@@ -73,7 +77,7 @@ public class EBinary extends AExpression {
         }
     }
 
-    protected void analyzeMul(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeMul(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -114,7 +118,7 @@ public class EBinary extends AExpression {
         actual = promote;
     }
 
-    protected void analyzeDiv(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeDiv(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -155,7 +159,7 @@ public class EBinary extends AExpression {
         actual = promote;
     }
 
-    protected void analyzeRem(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeRem(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -194,7 +198,7 @@ public class EBinary extends AExpression {
         actual = promote;
     }
 
-    protected void analyzeAdd(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeAdd(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -252,7 +256,7 @@ public class EBinary extends AExpression {
         actual = promote;
     }
 
-    protected void analyzeSub(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeSub(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -293,7 +297,7 @@ public class EBinary extends AExpression {
         actual = promote;
     }
 
-    protected void analyzeLSH(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeLSH(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -326,7 +330,7 @@ public class EBinary extends AExpression {
         actual = promote;
     }
 
-    protected void analyzeRSH(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeRSH(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -359,7 +363,7 @@ public class EBinary extends AExpression {
         actual = promote;
     }
 
-    protected void analyzeUSH(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeUSH(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -392,7 +396,7 @@ public class EBinary extends AExpression {
         actual = promote;
     }
 
-    protected void analyzeBWAnd(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeBWAnd(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -424,7 +428,7 @@ public class EBinary extends AExpression {
         actual = promote;
     }
 
-    protected void analyzeXor(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeXor(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -458,7 +462,7 @@ public class EBinary extends AExpression {
         actual = promote;
     }
 
-    protected void analyzeBWOr(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeBWOr(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -491,7 +495,7 @@ public class EBinary extends AExpression {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         if (actual.sort == Sort.STRING && operation == Operation.ADD) {
             if (!cat) {
                 WriterUtility.writeNewStrings(adapter);

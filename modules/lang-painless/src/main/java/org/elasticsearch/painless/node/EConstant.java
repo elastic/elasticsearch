@@ -26,15 +26,20 @@ import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.WriterUtility;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class EConstant extends AExpression {
-    public EConstant(final String location, final Object constant) {
+/**
+ * Respresents a constant.  Note this replaces any other expression
+ * node with a constant value set during a cast.  (Internal only.)
+ */
+final class EConstant extends AExpression {
+
+    EConstant(final String location, final Object constant) {
         super(location);
 
         this.constant = constant;
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (constant instanceof String) {
             actual = definition.stringType;
         } else if (constant instanceof Double) {
@@ -59,7 +64,7 @@ public class EConstant extends AExpression {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final Sort sort = actual.sort;
 
         switch (sort) {

@@ -26,13 +26,18 @@ import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.WriterUtility;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class ECast extends AExpression {
-    protected final String type;
-    protected AExpression child;
+/**
+ * Represents an implicit cast in most cases, though it will replace
+ * explicit casts in the tree for simplicity.  (Internal only.)
+ */
+final class ECast extends AExpression {
 
-    protected Cast cast = null;
+    final String type;
+    AExpression child;
 
-    protected ECast(final String location, final AExpression child, final Cast cast) {
+    Cast cast = null;
+
+    ECast(final String location, final AExpression child, final Cast cast) {
         super(location);
 
         this.type = null;
@@ -42,12 +47,12 @@ public class ECast extends AExpression {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         child.write(settings, definition, adapter);
         WriterUtility.writeCast(adapter, cast);
         WriterUtility.writeBranch(adapter, tru, fals);

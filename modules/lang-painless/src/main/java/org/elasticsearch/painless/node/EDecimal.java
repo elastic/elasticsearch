@@ -24,8 +24,12 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class EDecimal extends AExpression {
-    protected final String value;
+/**
+ * Respresents a decimal constant.
+ */
+public final class EDecimal extends AExpression {
+
+    final String value;
 
     public EDecimal(final String location, final String value) {
         super(location);
@@ -34,7 +38,7 @@ public class EDecimal extends AExpression {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (value.endsWith("f") || value.endsWith("F")) {
             try {
                 constant = Float.parseFloat(value.substring(0, value.length() - 1));
@@ -53,7 +57,7 @@ public class EDecimal extends AExpression {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 }

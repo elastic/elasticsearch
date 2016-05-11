@@ -25,9 +25,13 @@ import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class ENumeric extends AExpression {
-    protected final String value;
-    protected int radix;
+/**
+ * Respresents a non-decimal numeric constant.
+ */
+public final class ENumeric extends AExpression {
+
+    final String value;
+    int radix;
 
     public ENumeric(final String location, final String value, final int radix) {
         super(location);
@@ -37,7 +41,7 @@ public class ENumeric extends AExpression {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (value.endsWith("d") || value.endsWith("D")) {
             if (radix != 10) {
                 throw new IllegalStateException(error("Invalid tree structure."));
@@ -92,7 +96,7 @@ public class ENumeric extends AExpression {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         throw new IllegalArgumentException(error("Illegal tree structure."));
     }
 }

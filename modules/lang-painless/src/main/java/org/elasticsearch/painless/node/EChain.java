@@ -32,18 +32,22 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.List;
 
-public class EChain extends AExpression {
-    protected final List<ALink> links;
-    protected final boolean pre;
-    protected final boolean post;
-    protected Operation operation;
-    protected AExpression expression;
+/**
+ * Represents the entirety of a variable/method chain for read/write operations.
+ */
+public final class EChain extends AExpression {
 
-    protected boolean cat = false;
-    protected Type promote = null;
-    protected boolean exact = false;
-    protected Cast there = null;
-    protected Cast back = null;
+    final List<ALink> links;
+    final boolean pre;
+    final boolean post;
+    Operation operation;
+    AExpression expression;
+
+    boolean cat = false;
+    Type promote = null;
+    boolean exact = false;
+    Cast there = null;
+    Cast back = null;
 
     public EChain(final String location, final List<ALink> links,
                   final boolean pre, final boolean post, final Operation operation, final AExpression expression) {
@@ -57,7 +61,7 @@ public class EChain extends AExpression {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         analyzeLinks(settings, definition, variables);
         analyzeIncrDecr();
 
@@ -70,7 +74,7 @@ public class EChain extends AExpression {
         }
     }
 
-    protected void analyzeLinks(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeLinks(final CompilerSettings settings, final Definition definition, final Variables variables) {
         ALink previous = null;
         int index = 0;
 
@@ -109,7 +113,7 @@ public class EChain extends AExpression {
         }
     }
 
-    protected void analyzeIncrDecr() {
+    private void analyzeIncrDecr() {
         final ALink last = links.get(links.size() - 1);
 
         if (pre && post) {
@@ -151,7 +155,7 @@ public class EChain extends AExpression {
         }
     }
 
-    protected void analyzeCompound(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeCompound(final CompilerSettings settings, final Definition definition, final Variables variables) {
         final ALink last = links.get(links.size() - 1);
 
         expression.analyze(settings, definition, variables);
@@ -215,7 +219,7 @@ public class EChain extends AExpression {
         actual = read ? last.after : definition.voidType;
     }
 
-    protected void analyzeWrite(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeWrite(final CompilerSettings settings, final Definition definition, final Variables variables) {
         final ALink last = links.get(links.size() - 1);
 
         expression.expected = last.after;
@@ -226,7 +230,7 @@ public class EChain extends AExpression {
         actual = read ? last.after : definition.voidType;
     }
 
-    protected void analyzeRead() {
+    private void analyzeRead() {
         final ALink last = links.get(links.size() - 1);
 
         constant = last.constant;
@@ -235,7 +239,7 @@ public class EChain extends AExpression {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         if (cat) {
             WriterUtility.writeNewStrings(adapter);
         }

@@ -26,10 +26,14 @@ import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class EBool extends AExpression {
-    protected final Operation operation;
-    protected AExpression left;
-    protected AExpression right;
+/**
+ * Represents a boolean expression.
+ */
+public final class EBool extends AExpression {
+
+    final Operation operation;
+    AExpression left;
+    AExpression right;
 
     public EBool(final String location, final Operation operation, final AExpression left, final AExpression right) {
         super(location);
@@ -40,7 +44,7 @@ public class EBool extends AExpression {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.expected = definition.booleanType;
         left.analyze(settings, definition, variables);
         left = left.cast(settings, definition, variables);
@@ -63,7 +67,7 @@ public class EBool extends AExpression {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         if (tru != null || fals != null) {
             if (operation == Operation.AND) {
                 final Label localfals = fals == null ? new Label() : fals;

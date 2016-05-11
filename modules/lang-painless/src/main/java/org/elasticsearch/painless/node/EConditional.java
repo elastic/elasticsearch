@@ -27,10 +27,14 @@ import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class EConditional extends AExpression {
-    protected AExpression condition;
-    protected AExpression left;
-    protected AExpression right;
+/**
+ * Respresents a conditional expression.
+ */
+public final class EConditional extends AExpression {
+
+    AExpression condition;
+    AExpression left;
+    AExpression right;
 
     public EConditional(final String location, final AExpression condition, final AExpression left, final AExpression right) {
         super(location);
@@ -41,7 +45,7 @@ public class EConditional extends AExpression {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         condition.expected = definition.booleanType;
         condition.analyze(settings, definition, variables);
         condition = condition.cast(settings, definition, variables);
@@ -72,7 +76,7 @@ public class EConditional extends AExpression {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final Label localfals = new Label();
         final Label end = new Label();
 

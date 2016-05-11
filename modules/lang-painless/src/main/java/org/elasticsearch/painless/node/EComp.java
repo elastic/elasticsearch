@@ -36,10 +36,14 @@ import static org.elasticsearch.painless.WriterConstants.DEF_GT_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_LTE_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_LT_CALL;
 
-public class EComp extends AExpression {
-    protected final Operation operation;
-    protected AExpression left;
-    protected AExpression right;
+/**
+ * Represents a comparison expression.
+ */
+public final class EComp extends AExpression {
+
+    final Operation operation;
+    AExpression left;
+    AExpression right;
 
     public EComp(final String location, final Operation operation, final AExpression left, final AExpression right) {
         super(location);
@@ -50,7 +54,7 @@ public class EComp extends AExpression {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (operation == Operation.EQ) {
             analyzeEq(settings, definition, variables);
         } else if (operation == Operation.EQR) {
@@ -72,7 +76,7 @@ public class EComp extends AExpression {
         }
     }
 
-    protected void analyzeEq(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeEq(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -118,7 +122,7 @@ public class EComp extends AExpression {
         actual = definition.booleanType;
     }
 
-    protected void analyzeEqR(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeEqR(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -160,7 +164,7 @@ public class EComp extends AExpression {
         actual = definition.booleanType;
     }
 
-    protected void analyzeNE(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeNE(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -206,7 +210,7 @@ public class EComp extends AExpression {
         actual = definition.booleanType;
     }
 
-    protected void analyzeNER(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeNER(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -248,7 +252,7 @@ public class EComp extends AExpression {
         actual = definition.booleanType;
     }
 
-    protected void analyzeGTE(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeGTE(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -284,7 +288,7 @@ public class EComp extends AExpression {
         actual = definition.booleanType;
     }
 
-    protected void analyzeGT(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeGT(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -320,7 +324,7 @@ public class EComp extends AExpression {
         actual = definition.booleanType;
     }
 
-    protected void analyzeLTE(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeLTE(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -356,7 +360,7 @@ public class EComp extends AExpression {
         actual = definition.booleanType;
     }
 
-    protected void analyzeLT(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    private void analyzeLT(final CompilerSettings settings, final Definition definition, final Variables variables) {
         left.analyze(settings, definition, variables);
         right.analyze(settings, definition, variables);
 
@@ -393,7 +397,7 @@ public class EComp extends AExpression {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final boolean branch = tru != null || fals != null;
         final org.objectweb.asm.Type rtype = right.actual.type;
         final Sort rsort = right.actual.sort;

@@ -25,32 +25,68 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
+/**
+ * The superclass for all L* (link) nodes.
+ */
 public abstract class ALink extends ANode {
-    protected final int size;
 
-    protected boolean load = true;
-    protected boolean store = false;
+    /**
+     * Size is set to a value based on this link's size on the stack.  This is
+     * used during the writing phase to dup stack values from this link as
+     * necessary during certain store operations.
+     */
+    final int size;
 
-    protected boolean statik = false;
-    protected Type before = null;
-    protected Type after = null;
-    protected boolean typesafe = true;
+    /**
+     * Set to false only if the link is not going to be read from.
+     */
+    boolean load = true;
 
-    protected boolean statement = false;
-    protected Object constant = null;
+    /**
+     * Set to true only if the link is going to be written to and
+     * is the final link in a chain.
+     */
+    boolean store = false;
 
-    public ALink(final String location, final int size) {
+    /**
+     * Set to true if this link represents a statik type to be accessed.
+     */
+    boolean statik = false;
+
+    /**
+     * Set by the parent chain to type of the previous link or null if
+     * there was no previous link.
+     */
+    Type before = null;
+
+    /**
+     * Set by the link to be the type after the link has been loaded/stored.
+     */
+    Type after = null;
+
+    /**
+     * Set to true if this link could be a stand-alone statement.
+     */
+    boolean statement = false;
+
+    /**
+     * Used by {@link LString} to set the value of the String constant.  Also
+     * used by shortcuts to represent a constant key.
+     */
+    String constant = null;
+
+    ALink(final String location, final int size) {
         super(location);
 
         this.size = size;
     }
 
-    protected abstract ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
-    protected abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
-    protected abstract void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
-    protected abstract void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
+    abstract ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
+    abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
+    abstract void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
+    abstract void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
 
-    protected ALink copy(final ALink link) {
+    ALink copy(final ALink link) {
         load       = link.load;
         store      = link.store;
 

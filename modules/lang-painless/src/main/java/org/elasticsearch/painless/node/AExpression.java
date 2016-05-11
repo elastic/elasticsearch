@@ -28,28 +28,80 @@ import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
+/**
+ * The superclass for all E* (expression) nodes.
+ */
 public abstract class AExpression extends ANode {
+
+    /**
+     * Set to false when an expression will not be read from such as
+     * a basic assignment.  Note this variable is always set by the parent
+     * as input.
+     */
     protected boolean read = true;
+
+    /**
+     * Set to true when an expression can be considered a stand alone
+     * statement.  Used to prevent extraneous bytecode. This is always
+     * set by the node as output.
+     */
     protected boolean statement = false;
 
+    /**
+     * Set to the expected type this node needs to be.  Note this variable
+     * is always set by the parent as input and should never be read from.
+     */
     protected Type expected = null;
+
+    /**
+     * Set to the actual type this node is.  Note this variable is always
+     * set by the node as output and should only be read from outside of the
+     * node itself.  <b>Also, actual can always be read after a cast is
+     * called on this node to get the type of the node after the cast.</b>
+     */
     protected Type actual = null;
+
+    /**
+     * Set by {@link EExplicit} if a cast made on an expression node should be
+     * explicit.
+     */
     protected boolean explicit = false;
 
+    /**
+     * Set to the value of the constant this expression node represents if
+     * and only if the node represents a constant.  If this is not null
+     * this node will be replaced by an {@link EConstant} during casting
+     * if it's not already one.
+     */
     protected Object constant = null;
+
+    /**
+     * Set to true by {@link ENull} to represent a null value.
+     */
     protected boolean isNull = false;
 
+    /**
+     * If an expression represents a branch statement, represents the jump should
+     * the expression evaluate to a true value.  It should always be the case that only
+     * one of tru and fals are non-null or both are null.  Only used during the writing phase.
+     */
     protected Label tru = null;
+
+    /**
+     * If an expression represents a branch statement, represents the jump should
+     * the expression evaluate to a false value.  It should always be the case that only
+     * one of tru and fals are non-null or both are null.  Only used during the writing phase.
+     */
     protected Label fals = null;
 
     public AExpression(final String location) {
         super(location);
     }
 
-    protected abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
-    protected abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
+    abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
+    abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
 
-    protected AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
         final Cast cast = AnalyzerCaster.getLegalCast(definition, location, actual, expected, explicit);
 
         if (cast == null) {

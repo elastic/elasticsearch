@@ -19,10 +19,17 @@
 
 package org.elasticsearch.painless.node;
 
+/**
+ * The superclass for all other nodes.
+ */
 public abstract class ANode {
-    public final String location;
 
-    public ANode(final String location) {
+    /**
+     * The location in the original source to be printed in error messages.
+     */
+    final String location;
+
+    ANode(final String location) {
         this.location = location;
     }
 

@@ -89,6 +89,6 @@ final class LDefCall extends ALink {
 
     @Override
     void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        // Do nothing.
+        throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

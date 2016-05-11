@@ -29,10 +29,10 @@ import org.objectweb.asm.commons.GeneratorAdapter;
  */
 public final class LString extends ALink {
 
-    public LString(final String location, final String constant) {
+    public LString(final String location, final String string) {
         super(location, -1);
 
-        this.constant = constant;
+        this.string = string;
     }
 
     @Override
@@ -40,9 +40,9 @@ public final class LString extends ALink {
         if (before != null) {
             throw new IllegalStateException("Illegal tree structure.");
         } else if (store) {
-            throw new IllegalArgumentException(error("Cannot write to read-only String constant [" + constant + "]."));
+            throw new IllegalArgumentException(error("Cannot write to read-only String constant [" + string + "]."));
         } else if (!load) {
-            throw new IllegalArgumentException(error("Must read String constant [" + constant + "]."));
+            throw new IllegalArgumentException(error("Must read String constant [" + string + "]."));
         }
 
         after = definition.stringType;
@@ -57,11 +57,11 @@ public final class LString extends ALink {
 
     @Override
     void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        adapter.push((String)constant);
+        adapter.push(string);
     }
 
     @Override
     void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        // Do nothing.
+        throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

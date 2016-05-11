@@ -73,7 +73,7 @@ public abstract class ALink extends ANode {
      * Used by {@link LString} to set the value of the String constant.  Also
      * used by shortcuts to represent a constant key.
      */
-    String constant = null;
+    String string = null;
 
     ALink(final String location, final int size) {
         super(location);
@@ -110,13 +110,11 @@ public abstract class ALink extends ANode {
     final ALink copy(final ALink link) {
         load       = link.load;
         store      = link.store;
-
         statik     = link.statik;
         before     = link.before;
         after      = link.after;
-
         statement  = link.statement;
-        constant   = link.constant;
+        string     = link.string;
 
         return this;
     }

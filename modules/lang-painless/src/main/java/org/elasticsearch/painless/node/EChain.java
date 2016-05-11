@@ -233,7 +233,7 @@ public final class EChain extends AExpression {
     private void analyzeRead() {
         final ALink last = links.get(links.size() - 1);
 
-        constant = last.constant;
+        constant = last.string;
         statement = last.statement;
         actual = last.after;
     }

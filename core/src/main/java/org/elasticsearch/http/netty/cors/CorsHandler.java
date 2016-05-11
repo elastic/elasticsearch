@@ -33,6 +33,7 @@ import org.jboss.netty.handler.codec.http.HttpResponse;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.ACCESS_CONTROL_ALLOW_CREDENTIALS;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.ACCESS_CONTROL_ALLOW_HEADERS;
@@ -57,6 +58,7 @@ import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
 public class CorsHandler extends SimpleChannelUpstreamHandler {
 
     public static final String ANY_ORIGIN = "*";
+    private static Pattern PATTERN = Pattern.compile("^https?://");
     private final CorsConfig config;
 
     private HttpRequest request;
@@ -134,7 +136,7 @@ public class CorsHandler extends SimpleChannelUpstreamHandler {
     private static boolean isSameOrigin(final String origin, final String host) {
         if (Strings.isNullOrEmpty(host) == false) {
             // strip protocol from origin
-            final String originDomain = origin.replaceFirst("(http|https)://", "");
+            final String originDomain = PATTERN.matcher(origin).replaceFirst("");
             if (host.equals(originDomain)) {
                 return true;
             }

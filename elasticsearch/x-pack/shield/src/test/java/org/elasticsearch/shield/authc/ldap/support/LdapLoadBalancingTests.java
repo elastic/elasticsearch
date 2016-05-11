@@ -26,7 +26,7 @@ public class LdapLoadBalancingTests extends ESTestCase {
             LdapLoadBalancing.serverSet(null, null, settings, null, null);
             fail("using type [" + badType + "] should have thrown an exception");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("unknown server set type"));
+            assertThat(e.getMessage(), containsString("unknown load balance type"));
         }
     }
 

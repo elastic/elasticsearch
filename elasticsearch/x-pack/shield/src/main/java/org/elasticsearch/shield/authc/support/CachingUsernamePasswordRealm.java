@@ -14,6 +14,7 @@ import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.support.Exceptions;
 import org.elasticsearch.shield.user.User;
 
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -162,6 +163,13 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             }
             return null;
         }
+    }
+
+    @Override
+    public Map<String, Object> usageStats() {
+        Map<String, Object> stats = super.usageStats();
+        stats.put("size", UserbaseScale.resolve(cache.count()).toString());
+        return stats;
     }
 
     protected abstract User doAuthenticate(UsernamePasswordToken token);

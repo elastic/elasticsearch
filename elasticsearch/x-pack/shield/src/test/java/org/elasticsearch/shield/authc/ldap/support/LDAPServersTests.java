@@ -12,6 +12,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class LDAPServersTests extends ESTestCase {
+
     public void testConfigure1ldaps() {
         String[] urls = new String[] { "ldaps://example.com:636" };
 

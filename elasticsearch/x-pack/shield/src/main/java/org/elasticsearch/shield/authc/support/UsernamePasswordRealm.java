@@ -11,6 +11,8 @@ import org.elasticsearch.shield.authc.AuthenticationToken;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.RealmConfig;
 
+import java.util.Locale;
+
 /**
  *
  */
@@ -34,6 +36,32 @@ public abstract class UsernamePasswordRealm extends Realm<UsernamePasswordToken>
         protected Factory(String type, RestController restController, boolean internal) {
             super(type, internal);
             restController.registerRelevantHeaders(UsernamePasswordToken.BASIC_AUTH_HEADER);
+        }
+    }
+
+    public enum UserbaseScale {
+
+        SMALL,
+        MEDIUM,
+        LARGE,
+        XLARGE;
+
+        public static UserbaseScale resolve(int count) {
+            if (count < 10) {
+                return SMALL;
+            }
+            if (count < 50) {
+                return MEDIUM;
+            }
+            if (count < 250) {
+                return LARGE;
+            }
+            return XLARGE;
+        }
+
+        @Override
+        public String toString() {
+            return this == XLARGE ? "x-large" : name().toLowerCase(Locale.ROOT);
         }
     }
 }

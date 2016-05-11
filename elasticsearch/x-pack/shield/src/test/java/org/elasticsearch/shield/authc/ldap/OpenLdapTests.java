@@ -13,6 +13,7 @@ import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
 import org.elasticsearch.shield.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
+import org.elasticsearch.shield.authc.support.DnRoleMapper;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
@@ -22,9 +23,14 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.core.Is.is;
+import static org.mockito.Mockito.mock;
 
 @Network
 public class OpenLdapTests extends ESTestCase {
@@ -90,6 +96,36 @@ public class OpenLdapTests extends ESTestCase {
             ldap.close();
         }
     }
+
+    public void testUsageStats() throws Exception {
+        String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
+        Settings.Builder settings = Settings.builder()
+                .put(buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
+                .put("group_search.filter", "(&(objectclass=posixGroup)(memberUID={0}))")
+                .put("group_search.user_attribute", "uid");
+
+        boolean userSearch = randomBoolean();
+        if (userSearch) {
+            settings.put("user_search.base_dn", "");
+        }
+
+        String loadBalanceType = randomFrom("failover", "round_robin");
+        settings.put("load_balance.type", loadBalanceType);
+
+        RealmConfig config = new RealmConfig("oldap-test", settings.build(), globalSettings);
+        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService).init();
+        LdapRealm realm = new LdapRealm(config, sessionFactory, mock(DnRoleMapper.class));
+
+        Map<String, Object> stats = realm.usageStats();
+        assertThat(stats, is(notNullValue()));
+        assertThat(stats, hasEntry("size", "small"));
+        assertThat(stats, hasEntry("ssl", true));
+        assertThat(stats, hasEntry("user_search", userSearch));
+        assertThat(stats, hasEntry("load_balance_type", loadBalanceType));
+    }
+
+
 
     public void testCustomFilter() throws Exception {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";

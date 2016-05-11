@@ -6,7 +6,6 @@
 package org.elasticsearch.shield.authc.ldap;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapTestCase;
@@ -15,16 +14,20 @@ import org.elasticsearch.shield.authc.support.DnRoleMapper;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
+
+import java.util.Map;
 
 import static org.elasticsearch.shield.authc.ldap.LdapSessionFactory.USER_DN_TEMPLATES_SETTING;
 import static org.elasticsearch.shield.authc.ldap.support.SessionFactory.HOSTNAME_VERIFICATION_SETTING;
 import static org.elasticsearch.shield.authc.ldap.support.SessionFactory.URLS_SETTING;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -35,6 +38,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class LdapRealmTests extends LdapTestCase {
+
     public static final String VALID_USER_TEMPLATE = "cn={0},ou=people,o=sevenSeas";
     public static final String VALID_USERNAME = "Thomas Masterman Hardy";
     public static final String PASSWORD = "pass";
@@ -216,5 +220,38 @@ public class LdapRealmTests extends LdapTestCase {
         User user = ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", SecuredStringTests.build(PASSWORD)));
         assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContaining("avenger"));
+    }
+
+    public void testUsageStats() throws Exception {
+        String groupSearchBase = "o=sevenSeas";
+        Settings.Builder settings = Settings.builder()
+                .putArray(URLS_SETTING, ldapUrls())
+                .put("bind_dn", "cn=Thomas Masterman Hardy,ou=people,o=sevenSeas")
+                .put("bind_password", PASSWORD)
+                .put("group_search.base_dn", groupSearchBase)
+                .put("group_search.scope", LdapSearchScope.SUB_TREE)
+                .put(HOSTNAME_VERIFICATION_SETTING, false);
+
+        int order = randomIntBetween(0, 10);
+        settings.put("order", order);
+
+        boolean userSearch = randomBoolean();
+        if (userSearch) {
+            settings.put("user_search.base_dn", "");
+        }
+
+        RealmConfig config = new RealmConfig("ldap-realm", settings.build(), globalSettings);
+
+        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null).init();
+        LdapRealm realm = new LdapRealm(config, ldapFactory, new DnRoleMapper(LdapRealm.TYPE, config, resourceWatcherService, null));
+
+        Map<String, Object> stats = realm.usageStats();
+        assertThat(stats, is(notNullValue()));
+        assertThat(stats, hasEntry("type", "ldap"));
+        assertThat(stats, hasEntry("name", "ldap-realm"));
+        assertThat(stats, hasEntry("order", realm.order()));
+        assertThat(stats, hasEntry("size", "small"));
+        assertThat(stats, hasEntry("ssl", false));
+        assertThat(stats, hasEntry("user_search", userSearch));
     }
 }

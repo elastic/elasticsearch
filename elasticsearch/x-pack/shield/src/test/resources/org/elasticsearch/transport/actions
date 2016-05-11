@@ -75,6 +75,7 @@ cluster:admin/script/delete
 cluster:admin/script/put
 indices:data/write/update
 cluster:monitor/xpack/info
+cluster:monitor/xpack/usage
 cluster:monitor/xpack/license/get
 cluster:admin/xpack/license/delete
 cluster:admin/xpack/license/put

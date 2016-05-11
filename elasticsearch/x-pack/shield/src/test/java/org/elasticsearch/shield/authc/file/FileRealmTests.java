@@ -7,23 +7,25 @@ package org.elasticsearch.shield.authc.file;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
+import org.elasticsearch.shield.authc.support.UsernamePasswordRealm;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Before;
 
 import java.util.Locale;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -159,6 +161,27 @@ public class FileRealmTests extends ESTestCase {
         assertThat(user4, not(sameInstance(user5)));
         User user6 = realm.lookupUser("user1");
         assertThat(user5, sameInstance(user6));
+    }
+
+    public void testUsageStats() throws Exception {
+        int userCount = randomIntBetween(0, 1000);
+        when(userPasswdStore.usersCount()).thenReturn(userCount);
+
+        Settings.Builder settings = Settings.builder();
+
+        int order = randomIntBetween(0, 10);
+        settings.put("order", order);
+
+        RealmConfig config = new RealmConfig("file-realm", settings.build(), globalSettings);
+        FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
+
+        Map<String, Object> usage = realm.usageStats();
+        assertThat(usage, is(notNullValue()));
+        assertThat(usage, hasEntry("type", "file"));
+        assertThat(usage, hasEntry("name", "file-realm"));
+        assertThat(usage, hasEntry("order", order));
+        assertThat(usage, hasEntry("size", UsernamePasswordRealm.UserbaseScale.resolve(userCount)));
+
     }
 
     static class UserPasswdStore extends FileUserPasswdStore {

@@ -31,6 +31,7 @@ import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 import org.jboss.netty.handler.codec.http.HttpResponse;
 
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.ACCESS_CONTROL_ALLOW_CREDENTIALS;
@@ -38,6 +39,7 @@ import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.ACCESS_CONTRO
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.ACCESS_CONTROL_ALLOW_METHODS;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.ACCESS_CONTROL_ALLOW_ORIGIN;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.ACCESS_CONTROL_MAX_AGE;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.HOST;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.ORIGIN;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.USER_AGENT;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.VARY;
@@ -55,8 +57,9 @@ import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
 public class CorsHandler extends SimpleChannelUpstreamHandler {
 
     public static final String ANY_ORIGIN = "*";
-    private final CorsConfig config;
+    private static Pattern SCHEME_PATTERN = Pattern.compile("^https?://");
 
+    private final CorsConfig config;
     private HttpRequest request;
 
     /**
@@ -96,7 +99,7 @@ public class CorsHandler extends SimpleChannelUpstreamHandler {
             final String originHeaderVal;
             if (config.isAnyOriginSupported()) {
                 originHeaderVal = ANY_ORIGIN;
-            } else if (config.isOriginAllowed(originHeader)) {
+            } else if (config.isOriginAllowed(originHeader) || isSameOrigin(originHeader, request.headers().get(HOST))) {
                 originHeaderVal = originHeader;
             } else {
                 originHeaderVal = null;
@@ -127,6 +130,17 @@ public class CorsHandler extends SimpleChannelUpstreamHandler {
     private static void forbidden(final ChannelHandlerContext ctx, final HttpRequest request) {
         ctx.getChannel().write(new DefaultHttpResponse(request.getProtocolVersion(), FORBIDDEN))
             .addListener(ChannelFutureListener.CLOSE);
+    }
+
+    private static boolean isSameOrigin(final String origin, final String host) {
+        if (Strings.isNullOrEmpty(host) == false) {
+            // strip protocol from origin
+            final String originDomain = SCHEME_PATTERN.matcher(origin).replaceFirst("");
+            if (host.equals(originDomain)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -176,6 +190,11 @@ public class CorsHandler extends SimpleChannelUpstreamHandler {
         }
 
         if ("null".equals(origin) && config.isNullOriginAllowed()) {
+            return true;
+        }
+
+        // if the origin is the same as the host of the request, then allow
+        if (isSameOrigin(origin, request.headers().get(HOST))) {
             return true;
         }
 

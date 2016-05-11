@@ -98,9 +98,21 @@ public abstract class AExpression extends ANode {
         super(location);
     }
 
+    /**
+     * Checks for errors and collects data for the writing phase.
+     */
     abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
+
+    /**
+     * Writes ASM based on the data collected during the analysis phase.
+     */
     abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
 
+    /**
+     * Inserts {@link ECast} nodes into the tree for implicit casts.  Also replaces
+     * nodes with the constant variable set to a non-null value with {@link EConstant}.
+     * @return The new child node for the parent node calling this method.
+     */
     AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
         final Cast cast = AnalyzerCaster.getLegalCast(definition, location, actual, expected, explicit);
 

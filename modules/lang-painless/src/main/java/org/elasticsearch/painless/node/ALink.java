@@ -81,12 +81,33 @@ public abstract class ALink extends ANode {
         this.size = size;
     }
 
+    /**
+     * Checks for errors and collects data for the writing phase.
+     * @return Possibly returns a different {@link ALink} node if a type is
+     * def or a shortcut is used. Otherwise, returns itself.  This will be
+     * updated into the {@link EChain} node's list of links.
+     */
     abstract ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
+
+    /**
+     * Write values before a load/store occurs such as an array index.
+     */
     abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
+
+    /**
+     * Write a load for the specific link type.
+     */
     abstract void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
+
+    /**
+     * Write a store for the specific link type.
+     */
     abstract void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
 
-    ALink copy(final ALink link) {
+    /**
+     * Used to copy link data from one to another during analysis in the case of replacement.
+     */
+    final ALink copy(final ALink link) {
         load       = link.load;
         store      = link.store;
 

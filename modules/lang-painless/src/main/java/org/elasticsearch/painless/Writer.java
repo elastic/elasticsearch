@@ -101,9 +101,10 @@ final class Writer {
             // if the _score value is used, we do this once:
             // final double _score = scorer.score();
 
+            final Variable scorer = variables.getVariable(null, Reserved.SCORER);
             final Variable score = variables.getVariable(null, Reserved.SCORE);
 
-            adapter.visitVarInsn(Opcodes.ALOAD, score.slot);
+            adapter.visitVarInsn(Opcodes.ALOAD, scorer.slot);
             adapter.invokeVirtual(WriterConstants.SCORER_TYPE, WriterConstants.SCORER_SCORE);
             adapter.visitInsn(Opcodes.F2D);
             adapter.visitVarInsn(Opcodes.DSTORE, score.slot);
@@ -124,7 +125,7 @@ final class Writer {
 
         if (variables.reserved.loop) {
             // if there is infinite loop protection, we do this once:
-            // int loopCounter = settings.getMaxLoopCounter()
+            // int #loop = settings.getMaxLoopCounter()
 
             final Variable loop = variables.getVariable(null, Reserved.LOOP);
 

@@ -306,18 +306,14 @@ class WriterExternal {
             final boolean cat = utility.containsStrings(parentemd.storeExpr);
 
             if (cat) {
-                if (field || name || shortcut) {
-                    execute.dupX1();
-                } else if (array) {
-                    execute.dup2X1();
+                if (maplist && constant != null) {
+                    utility.writeConstant(source, constant);
                 }
 
-                if (maplist) {
-                    if (constant != null) {
-                        utility.writeConstant(source, constant);
-                    }
-
-                    execute.dupX2();
+                if (field || name || (shortcut && !maplist)) {
+                    execute.dupX1();
+                } else if (array || maplist) {
+                    execute.dup2X1();
                 }
 
                 writeLoadStoreInstruction(source, false, variable, field, name, array, shortcut);
@@ -340,18 +336,14 @@ class WriterExternal {
             } else if (parentemd.token > 0) {
                 final int token = parentemd.token;
 
-                if (field || name || shortcut) {
-                    execute.dup();
-                } else if (array) {
-                    execute.dup2();
+                if (maplist && constant != null) {
+                    utility.writeConstant(source, constant);
                 }
 
-                if (maplist) {
-                    if (constant != null) {
-                        utility.writeConstant(source, constant);
-                    }
-
-                    execute.dupX1();
+                if (field || name || (shortcut && !maplist)) {
+                    execute.dup();
+                } else if (array || maplist) {
+                    execute.dup2();
                 }
 
                 writeLoadStoreInstruction(source, false, variable, field, name, array, shortcut);
@@ -467,10 +459,10 @@ class WriterExternal {
 
     private void writeLoadStoreField(final ParserRuleContext source, final boolean store, final String name) {
         if (store) {
-            execute.visitInvokeDynamicInsn(name, WriterConstants.DEF_DYNAMIC_STORE_FIELD_DESC, 
+            execute.visitInvokeDynamicInsn(name, WriterConstants.DEF_DYNAMIC_STORE_FIELD_DESC,
                                            WriterConstants.DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.STORE });
         } else {
-            execute.visitInvokeDynamicInsn(name, WriterConstants.DEF_DYNAMIC_LOAD_FIELD_DESC, 
+            execute.visitInvokeDynamicInsn(name, WriterConstants.DEF_DYNAMIC_LOAD_FIELD_DESC,
                                            WriterConstants.DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.LOAD });
         }
     }
@@ -482,10 +474,10 @@ class WriterExternal {
 
         if (type.sort == Sort.DEF) {
             if (store) {
-                execute.visitInvokeDynamicInsn("arrayStore", WriterConstants.DEF_DYNAMIC_ARRAY_STORE_DESC, 
+                execute.visitInvokeDynamicInsn("arrayStore", WriterConstants.DEF_DYNAMIC_ARRAY_STORE_DESC,
                                            WriterConstants.DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.ARRAY_STORE });
             } else {
-                execute.visitInvokeDynamicInsn("arrayLoad", WriterConstants.DEF_DYNAMIC_ARRAY_LOAD_DESC, 
+                execute.visitInvokeDynamicInsn("arrayLoad", WriterConstants.DEF_DYNAMIC_ARRAY_LOAD_DESC,
                                            WriterConstants.DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.ARRAY_LOAD });
             }
         } else {
@@ -705,11 +697,11 @@ class WriterExternal {
             writeDynamicCallExternal(source);
         }
     }
-    
+
     private void writeDynamicCallExternal(final ExtcallContext source) {
         final ExtNodeMetadata sourceenmd = metadata.getExtNodeMetadata(source);
         final List<ExpressionContext> arguments = source.arguments().expression();
-        
+
         StringBuilder signature = new StringBuilder();
         signature.append('(');
         // first parameter is the receiver, we never know its type: always Object
@@ -726,7 +718,7 @@ class WriterExternal {
         signature.append(')');
         // return value: currently always Object. making this better may be tricky...
         signature.append(WriterConstants.OBJECT_TYPE.getDescriptor());
-        execute.visitInvokeDynamicInsn((String)sourceenmd.target, signature.toString(), 
+        execute.visitInvokeDynamicInsn((String)sourceenmd.target, signature.toString(),
                                        WriterConstants.DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.METHOD_CALL });
     }
 }

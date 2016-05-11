@@ -102,7 +102,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         metadata.scorerValueSlot = utility.addVariable(null, "#scorer", definition.objectType).slot;
         // doc parameter passed to the script.
         // TODO: currently working as a def type, should be smapType...
-        metadata.docValueSlot = utility.addVariable(null, "doc", definition.defType).slot;
+        metadata.docValueSlot = utility.addVariable(null, "doc", definition.smapType).slot;
         //
         // reserved words implemented as local variables
         //

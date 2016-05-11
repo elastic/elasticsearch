@@ -42,22 +42,22 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
         SearchLookup lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
 
         Object compiled = service.compile("1.2", Collections.emptyMap());
-        SearchScript ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "painless", compiled), 
+        SearchScript ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "painless", compiled),
                                          lookup, Collections.<String, Object>emptyMap());
         assertFalse(ss.needsScores());
 
         compiled = service.compile("doc['d'].value", Collections.emptyMap());
-        ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "painless", compiled), 
+        ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "painless", compiled),
                             lookup, Collections.<String, Object>emptyMap());
         assertFalse(ss.needsScores());
 
         compiled = service.compile("1/_score", Collections.emptyMap());
-        ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "painless", compiled), 
+        ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "painless", compiled),
                             lookup, Collections.<String, Object>emptyMap());
         assertTrue(ss.needsScores());
 
         compiled = service.compile("doc['d'].value * _score", Collections.emptyMap());
-        ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "painless", compiled), 
+        ss = service.search(new CompiledScript(ScriptType.INLINE, "randomName", "painless", compiled),
                             lookup, Collections.<String, Object>emptyMap());
         assertTrue(ss.needsScores());
     }

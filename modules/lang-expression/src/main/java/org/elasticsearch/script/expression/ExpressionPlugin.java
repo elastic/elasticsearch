@@ -38,6 +38,6 @@ public class ExpressionPlugin extends Plugin {
 
     public void onModule(ScriptModule module) {
         module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExpressionScriptEngineService.class,
-                        ExpressionScriptEngineService.TYPES, ScriptMode.ON));
+                        ExpressionScriptEngineService.NAME, ScriptMode.ON));
     }
 }

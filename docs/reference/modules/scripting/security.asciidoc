@@ -64,9 +64,10 @@ script.file:   true
 -----------------------------------
 
 NOTE: Global scripting settings affect the `mustache` scripting language.
-<<search-template,Search templates>> internally use the `mustache` language, and
-will be disabled by default, but they can be enabled/disabled according to
-fine-grained settings specified in `elasticsearch.yml`.
+<<search-template,Search templates>> internally use the `mustache` language,
+and will still be enabled by default as the `mustache` engine is sandboxed,
+but they will be enabled/disabled according to fine-grained settings
+specified in `elasticsearch.yml`.
 
 [[security-script-context]]
 [float]
@@ -86,9 +87,9 @@ of using the generic `plugin` category. Those operations can be referred to
 in the following form: `${pluginName}_${operation}`.
 
 The following example disables scripting for `update` and `plugin` operations,
-regardless of the script source or language. Scripts can be executed from
-languages as part of `aggregations`, `search` and plugins execution though,
-assuming they are enabled in the scripting settings.
+regardless of the script source or language. Scripts can still be executed
+from sandboxed languages as part of `aggregations`, `search` and plugins
+execution though, as the above defaults still get applied.
 
 [source,yaml]
 -----------------------------------

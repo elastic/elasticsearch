@@ -161,8 +161,8 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override

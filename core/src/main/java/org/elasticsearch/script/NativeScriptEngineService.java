@@ -40,8 +40,6 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
 
     public static final String NAME = "native";
 
-    public static final List<String> TYPES = Collections.singletonList(NAME);
-
     private final Map<String, NativeScriptFactory> scripts;
 
     @Inject
@@ -51,8 +49,8 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override

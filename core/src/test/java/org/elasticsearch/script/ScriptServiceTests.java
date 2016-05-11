@@ -110,8 +110,8 @@ public class ScriptServiceTests extends ESTestCase {
             contexts.put(context, new ScriptContext.Plugin(plugin, operation));
         }
         List<ScriptEngineRegistry.ScriptEngineRegistration> registries = new ArrayList<>(2);
-        registries.add(new ScriptEngineRegistry.ScriptEngineRegistration(TestEngineService.class, TestEngineService.TYPES, ScriptMode.ON));
-        registries.add(new ScriptEngineRegistry.ScriptEngineRegistration(TestDangerousEngineService.class, TestDangerousEngineService.TYPES));
+        registries.add(new ScriptEngineRegistry.ScriptEngineRegistration(TestEngineService.class, TestEngineService.NAME, ScriptMode.ON));
+        registries.add(new ScriptEngineRegistry.ScriptEngineRegistration(TestDangerousEngineService.class, TestDangerousEngineService.NAME));
         scriptEngineRegistry = new ScriptEngineRegistry(registries);
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
@@ -195,30 +195,11 @@ public class ScriptServiceTests extends ESTestCase {
         assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
     }
 
-    public void testInlineScriptCompiledOnceMultipleLangAcronyms() throws IOException {
-        buildScriptService(Settings.EMPTY);
-        CompiledScript compiledScript1 = scriptService.compile(new Script("script", ScriptType.INLINE, "test", null),
-                randomFrom(scriptContexts), Collections.emptyMap(), emptyClusterState());
-        CompiledScript compiledScript2 = scriptService.compile(new Script("script", ScriptType.INLINE, "test2", null),
-                randomFrom(scriptContexts), Collections.emptyMap(), emptyClusterState());
-        assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
-    }
-
-    public void testFileScriptCompiledOnceMultipleLangAcronyms() throws IOException {
-        buildScriptService(Settings.EMPTY);
-        createFileScripts("test");
-        CompiledScript compiledScript1 = scriptService.compile(new Script("file_script", ScriptType.FILE, "test", null),
-                randomFrom(scriptContexts), Collections.emptyMap(), emptyClusterState());
-        CompiledScript compiledScript2 = scriptService.compile(new Script("file_script", ScriptType.FILE, "test2", null),
-                randomFrom(scriptContexts), Collections.emptyMap(), emptyClusterState());
-        assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
-    }
-
     public void testDefaultBehaviourFineGrainedSettings() throws IOException {
         Settings.Builder builder = Settings.builder();
         //rarely inject the default settings, which have no effect
         if (rarely()) {
-            builder.put("script.file", randomFrom(ScriptModesTests.ENABLE_VALUES));
+            builder.put("script.file", "true");
         }
         buildScriptService(builder.build());
         createFileScripts("groovy", "mustache", "dtest");
@@ -258,7 +239,7 @@ public class ScriptServiceTests extends ESTestCase {
             do {
                 ScriptType scriptType = randomFrom(ScriptType.values());
                 ScriptContext scriptContext = randomFrom(this.scriptContexts);
-                settingKey = scriptEngineService.getTypes().get(0) + "." + scriptType + "." + scriptContext.getKey();
+                settingKey = scriptEngineService.getType() + "." + scriptType + "." + scriptContext.getKey();
             } while (engineSettings.containsKey(settingKey));
             engineSettings.put(settingKey, randomFrom(ScriptMode.values()));
         }
@@ -289,7 +270,7 @@ public class ScriptServiceTests extends ESTestCase {
             String part1 = entry.getKey().substring(0, delimiter);
             String part2 = entry.getKey().substring(delimiter + 1);
 
-            String lang = randomFrom(scriptEnginesByLangMap.get(part1).getTypes());
+            String lang = randomFrom(scriptEnginesByLangMap.get(part1).getType());
             switch (entry.getValue()) {
                 case ON:
                     builder.put("script.engine" + "." + lang + "." + part2, "true");
@@ -309,7 +290,7 @@ public class ScriptServiceTests extends ESTestCase {
             String script = scriptType == ScriptType.FILE ? "file_script" : "script";
             for (ScriptContext scriptContext : this.scriptContexts) {
                 //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
-                ScriptMode scriptMode = engineSettings.get(dangerousScriptEngineService.getTypes().get(0) + "." + scriptType + "." + scriptContext.getKey());
+                ScriptMode scriptMode = engineSettings.get(dangerousScriptEngineService.getType() + "." + scriptType + "." + scriptContext.getKey());
                 if (scriptMode == null) {
                     scriptMode = scriptContextSettings.get(scriptContext);
                 }
@@ -320,15 +301,14 @@ public class ScriptServiceTests extends ESTestCase {
                     scriptMode = DEFAULT_SCRIPT_MODES.get(scriptType);
                 }
 
-                for (String lang : dangerousScriptEngineService.getTypes()) {
-                    switch (scriptMode) {
-                        case ON:
-                            assertCompileAccepted(lang, script, scriptType, scriptContext);
-                            break;
-                        case OFF:
-                            assertCompileRejected(lang, script, scriptType, scriptContext);
-                            break;
-                    }
+                String lang = dangerousScriptEngineService.getType();
+                switch (scriptMode) {
+                    case ON:
+                        assertCompileAccepted(lang, script, scriptType, scriptContext);
+                        break;
+                    case OFF:
+                        assertCompileRejected(lang, script, scriptType, scriptContext);
+                        break;
                 }
             }
         }
@@ -343,14 +323,13 @@ public class ScriptServiceTests extends ESTestCase {
             unknownContext = randomAsciiOfLength(randomIntBetween(1, 30));
         } while(scriptContextRegistry.isSupportedContext(new ScriptContext.Plugin(pluginName, unknownContext)));
 
-        for (String type : scriptEngineService.getTypes()) {
-            try {
-                scriptService.compile(new Script("test", randomFrom(ScriptType.values()), type, null), new ScriptContext.Plugin(
-                        pluginName, unknownContext), Collections.emptyMap(), emptyClusterState());
-                fail("script compilation should have been rejected");
-            } catch(IllegalArgumentException e) {
-                assertThat(e.getMessage(), containsString("script context [" + pluginName + "_" + unknownContext + "] not supported"));
-            }
+        String type = scriptEngineService.getType();
+        try {
+            scriptService.compile(new Script("test", randomFrom(ScriptType.values()), type, null), new ScriptContext.Plugin(
+                            pluginName, unknownContext), Collections.emptyMap(), emptyClusterState());
+            fail("script compilation should have been rejected");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("script context [" + pluginName + "_" + unknownContext + "] not supported"));
         }
     }
 
@@ -529,13 +508,13 @@ public class ScriptServiceTests extends ESTestCase {
 
     public static class TestEngineService implements ScriptEngineService {
 
-        public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("test", "test2"));
+        public static final String NAME = "test";
 
         public static final List<String> EXTENSIONS = Collections.unmodifiableList(Arrays.asList("test", "tst"));
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override
@@ -571,13 +550,13 @@ public class ScriptServiceTests extends ESTestCase {
 
     public static class TestDangerousEngineService implements ScriptEngineService {
 
-        public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("dtest"));
+        public static final String NAME = "dtest";
 
         public static final List<String> EXTENSIONS = Collections.unmodifiableList(Arrays.asList("dtest"));
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override

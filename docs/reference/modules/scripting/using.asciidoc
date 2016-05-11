@@ -110,15 +110,15 @@ second version is only compiled once.
 [[modules-scripting-file-scripts]]
 === File-based Scripts
 
-To increase security, scripts for languages that are not deemed to be safe by
-default can only be specified in files stored on every node in the cluster. File
-scripts must be saved in the `scripts` directory whose default location depends
-on whether you use the <<zip-targz-layout,`zip`/`tar.gz`>>
-(`$ES_HOME/config/scripts/`), <<rpm-layout,RPM>>, or <<deb-layout,Debian>>
-package. The default may be changed with the `path.script` setting.
+To increase security, non-sandboxed languages can only be specified in script
+files stored on every node in the cluster.  File scripts must be saved in the
+`scripts` directory whose default location depends on whether you use  the
+<<zip-targz-layout,`zip`/`tar.gz`>> (`$ES_HOME/config/scripts/`),
+<<rpm-layout,RPM>>, or <<deb-layout,Debian>> package.  The default may be
+changed with the `path.script` setting.
 
-The languages which are assumed to be safe by default are: painless,
-expressions, and mustache (used for query templates).
+The languages which are assumed to be safe by default are: `painless`,
+`expression`, and `mustache` (used for search and query templates).
 
 Any files placed in the `scripts` directory will be compiled automatically
 when the node starts up and then <<reload-scripts,every 60 seconds thereafter>>.

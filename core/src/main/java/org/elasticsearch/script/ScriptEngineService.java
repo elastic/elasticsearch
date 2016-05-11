@@ -31,7 +31,7 @@ import java.util.Map;
  */
 public interface ScriptEngineService extends Closeable {
 
-    List<String> getTypes();
+    String getType();
 
     List<String> getExtensions();
 

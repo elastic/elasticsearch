@@ -68,7 +68,9 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class JavaScriptScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
-    public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("js", "javascript"));
+    public static final String NAME = "javascript";
+
+    public static final List<String> EXTENSIONS = Collections.unmodifiableList(Arrays.asList("js", "javascript"));
 
     private final AtomicLong counter = new AtomicLong();
 
@@ -159,13 +161,13 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override
     public List<String> getExtensions() {
-        return Collections.unmodifiableList(Arrays.asList("js"));
+        return EXTENSIONS;
     }
 
     @Override

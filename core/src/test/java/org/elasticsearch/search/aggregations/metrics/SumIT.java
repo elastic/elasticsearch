@@ -365,7 +365,7 @@ public class SumIT extends AbstractNumericTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractFieldScriptEngine.class, ExtractFieldScriptEngine.TYPES, ScriptMode.ON));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractFieldScriptEngine.class, ExtractFieldScriptEngine.NAME, ScriptMode.ON));
         }
 
     }
@@ -385,8 +385,8 @@ public class SumIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override
@@ -494,7 +494,7 @@ public class SumIT extends AbstractNumericTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.TYPES, ScriptMode.ON));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.NAME, ScriptMode.ON));
         }
 
     }
@@ -514,8 +514,8 @@ public class SumIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override

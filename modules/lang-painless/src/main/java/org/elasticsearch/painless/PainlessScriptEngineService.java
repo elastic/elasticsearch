@@ -103,8 +103,8 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
      * @return Always contains only the single name of the language.
      */
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     /**

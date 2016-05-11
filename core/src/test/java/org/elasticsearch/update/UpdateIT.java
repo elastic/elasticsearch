@@ -94,7 +94,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PutFieldValuesScriptEngine.class, PutFieldValuesScriptEngine.TYPES, ScriptMode.ON));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PutFieldValuesScriptEngine.class, PutFieldValuesScriptEngine.NAME, ScriptMode.ON));
         }
 
     }
@@ -110,8 +110,8 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override
@@ -183,7 +183,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldIncrementScriptEngine.class, FieldIncrementScriptEngine.TYPES, ScriptMode.ON));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldIncrementScriptEngine.class, FieldIncrementScriptEngine.NAME, ScriptMode.ON));
         }
 
     }
@@ -199,8 +199,8 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override
@@ -265,7 +265,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ScriptedUpsertScriptEngine.class, ScriptedUpsertScriptEngine.TYPES, ScriptMode.ON));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ScriptedUpsertScriptEngine.class, ScriptedUpsertScriptEngine.NAME, ScriptMode.ON));
         }
 
     }
@@ -281,8 +281,8 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override
@@ -347,7 +347,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractContextInSourceScriptEngine.class, ExtractContextInSourceScriptEngine.TYPES, ScriptMode.ON));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractContextInSourceScriptEngine.class, ExtractContextInSourceScriptEngine.NAME, ScriptMode.ON));
         }
 
     }
@@ -363,8 +363,8 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override

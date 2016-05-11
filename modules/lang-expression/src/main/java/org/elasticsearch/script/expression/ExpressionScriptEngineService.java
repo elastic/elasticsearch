@@ -70,8 +70,8 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override

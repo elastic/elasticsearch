@@ -57,14 +57,14 @@ public class MockScriptEngine implements ScriptEngineService {
 
         public void onModule(ScriptModule module) {
             module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
-                            MockScriptEngine.TYPES, ScriptMode.ON));
+                            MockScriptEngine.NAME, ScriptMode.ON));
         }
 
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override

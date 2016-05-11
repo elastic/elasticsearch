@@ -224,7 +224,7 @@ public class ValueCountIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.TYPES, ScriptMode.ON));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.NAME, ScriptMode.ON));
         }
 
     }
@@ -243,8 +243,8 @@ public class ValueCountIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override

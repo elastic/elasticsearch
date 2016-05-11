@@ -38,6 +38,6 @@ public class MustachePlugin extends Plugin {
 
     public void onModule(ScriptModule module) {
         module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class,
-                        MustacheScriptEngineService.TYPES, ScriptMode.ON));
+                        MustacheScriptEngineService.NAME, ScriptMode.ON));
     }
 }

@@ -62,6 +62,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
@@ -151,7 +152,9 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 engines.add(mockScriptEngine);
                 List<ScriptContext.Plugin> customContexts = new ArrayList<>();
                 ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections
-                        .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
+                        .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
+                                                                                         MockScriptEngine.NAME,
+                                                                                         ScriptMode.ON)));
                 bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
                 ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
                 bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);

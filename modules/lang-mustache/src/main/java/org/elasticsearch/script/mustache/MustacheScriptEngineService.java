@@ -112,8 +112,8 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override

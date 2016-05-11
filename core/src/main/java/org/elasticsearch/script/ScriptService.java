@@ -168,9 +168,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
         Map<String, ScriptEngineService> enginesByLangBuilder = new HashMap<>();
         Map<String, ScriptEngineService> enginesByExtBuilder = new HashMap<>();
         for (ScriptEngineService scriptEngine : scriptEngines) {
-            for (String language : scriptEngineRegistry.getLanguages(scriptEngine.getClass())) {
-                enginesByLangBuilder.put(language, scriptEngine);
-            }
+            String language = scriptEngineRegistry.getLanguage(scriptEngine.getClass());
+            enginesByLangBuilder.put(language, scriptEngine);
             for (String ext : scriptEngine.getExtensions()) {
                 enginesByExtBuilder.put(ext, scriptEngine);
             }
@@ -558,12 +557,12 @@ public class ScriptService extends AbstractComponent implements Closeable {
                 try {
                     //we don't know yet what the script will be used for, but if all of the operations for this lang
                     // with file scripts are disabled, it makes no sense to even compile it and cache it.
-                    if (isAnyScriptContextEnabled(engineService.getTypes().get(0), engineService, ScriptType.FILE)) {
+                    if (isAnyScriptContextEnabled(engineService.getType(), engineService, ScriptType.FILE)) {
                         logger.info("compiling script file [{}]", file.toAbsolutePath());
                         try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
                             String script = Streams.copyToString(reader);
                             CacheKey cacheKey = new CacheKey(engineService, scriptNameExt.v1(), null, Collections.emptyMap());
-                            staticCache.put(cacheKey, new CompiledScript(ScriptType.FILE, scriptNameExt.v1(), engineService.getTypes().get(0), engineService.compile(script, Collections.emptyMap())));
+                            staticCache.put(cacheKey, new CompiledScript(ScriptType.FILE, scriptNameExt.v1(), engineService.getType(), engineService.compile(script, Collections.emptyMap())));
                             scriptMetrics.onCompilation();
                         }
                     } else {
@@ -667,7 +666,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         final Map<String, String> params;
 
         private CacheKey(final ScriptEngineService service, final String name, final String code, final Map<String, String> params) {
-            this.lang = service.getTypes().get(0);
+            this.lang = service.getType();
             this.name = name;
             this.code = code;
             this.params = params;

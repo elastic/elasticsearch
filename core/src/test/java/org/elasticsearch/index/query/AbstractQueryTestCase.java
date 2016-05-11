@@ -241,7 +241,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 ScriptEngineRegistry scriptEngineRegistry =
                         new ScriptEngineRegistry(Collections
                                 .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
-                                                                                                 MockScriptEngine.TYPES, ScriptMode.ON)));
+                                                                                                 MockScriptEngine.NAME, ScriptMode.ON)));
                 bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
                 ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
                 bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);

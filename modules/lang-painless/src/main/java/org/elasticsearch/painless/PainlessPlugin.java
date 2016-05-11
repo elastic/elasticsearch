@@ -41,6 +41,6 @@ public final class PainlessPlugin extends Plugin {
 
     public void onModule(final ScriptModule module) {
         module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(
-                        PainlessScriptEngineService.class, PainlessScriptEngineService.TYPES, ScriptMode.ON));
+                        PainlessScriptEngineService.class, PainlessScriptEngineService.NAME, ScriptMode.ON));
     }
 }

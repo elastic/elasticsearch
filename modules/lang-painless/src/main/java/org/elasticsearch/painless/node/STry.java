@@ -28,9 +28,13 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 import java.util.Collections;
 import java.util.List;
 
-public class STry extends AStatement {
-    protected final AStatement block;
-    protected final List<STrap> traps;
+/**
+ * Represents the try block as part of a try-catch block.
+ */
+public final class STry extends AStatement {
+
+    final AStatement block;
+    final List<STrap> traps;
 
     public STry(final String location, final AStatement block, final List<STrap> traps) {
         super(location);
@@ -40,7 +44,7 @@ public class STry extends AStatement {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         block.lastSource = lastSource;
         block.inLoop = inLoop;
         block.lastLoop = lastLoop;
@@ -79,7 +83,7 @@ public class STry extends AStatement {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final Label begin = new Label();
         final Label end = new Label();
         final Label exception = new Label();

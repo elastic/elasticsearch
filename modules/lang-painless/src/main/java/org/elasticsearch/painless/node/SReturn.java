@@ -24,8 +24,12 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SReturn extends AStatement {
-    protected AExpression expression;
+/**
+ * Represents a return statement.
+ */
+public final class SReturn extends AStatement {
+
+    AExpression expression;
 
     public SReturn(final String location, final AExpression expression) {
         super(location);
@@ -34,7 +38,7 @@ public class SReturn extends AStatement {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         expression.expected = definition.objectType;
         expression.analyze(settings, definition, variables);
         expression = expression.cast(settings, definition, variables);
@@ -47,7 +51,7 @@ public class SReturn extends AStatement {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         expression.write(settings, definition, adapter);
         adapter.returnValue();
     }

@@ -26,8 +26,12 @@ import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.WriterUtility;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SExpression extends AStatement {
-    protected AExpression expression;
+/**
+ * Represents the top-level node for an expression as a statement.
+ */
+public final class SExpression extends AStatement {
+
+    AExpression expression;
 
     public SExpression(final String location, final AExpression expression) {
         super(location);
@@ -36,7 +40,7 @@ public class SExpression extends AStatement {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         expression.read = lastSource;
         expression.analyze(settings, definition, variables);
 
@@ -56,7 +60,7 @@ public class SExpression extends AStatement {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         expression.write(settings, definition, adapter);
 
         if (methodEscape) {

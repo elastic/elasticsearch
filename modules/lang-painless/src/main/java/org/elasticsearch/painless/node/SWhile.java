@@ -26,9 +26,13 @@ import org.elasticsearch.painless.WriterUtility;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SWhile extends AStatement {
-    protected AExpression condition;
-    protected final AStatement block;
+/**
+ * Represents a while loop.
+ */
+public final class SWhile extends AStatement {
+
+    AExpression condition;
+    final AStatement block;
 
     public SWhile(final String location, final AExpression condition, final AStatement block) {
         super(location);
@@ -38,7 +42,7 @@ public class SWhile extends AStatement {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         variables.incrementScope();
 
         condition.expected = definition.booleanType;
@@ -89,7 +93,7 @@ public class SWhile extends AStatement {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final Label begin = new Label();
         final Label end = new Label();
 

@@ -24,13 +24,17 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SContinue extends AStatement {
+/**
+ * Represents a continue statement.
+ */
+public final class SContinue extends AStatement {
+
     public SContinue(final String location) {
         super(location);
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (!inLoop) {
             throw new IllegalArgumentException(error("Continue statement outside of a loop."));
         }
@@ -45,7 +49,7 @@ public class SContinue extends AStatement {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.goTo(continu);
     }
 }

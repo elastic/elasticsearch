@@ -25,10 +25,14 @@ import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SIfElse extends AStatement {
-    protected AExpression condition;
-    protected final AStatement ifblock;
-    protected final AStatement elseblock;
+/**
+ * Represents an if/else block.
+ */
+public final class SIfElse extends AStatement {
+
+    AExpression condition;
+    final AStatement ifblock;
+    final AStatement elseblock;
 
     public SIfElse(final String location, final AExpression condition, final AStatement ifblock, final AStatement elseblock) {
         super(location);
@@ -39,7 +43,7 @@ public class SIfElse extends AStatement {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         condition.expected = definition.booleanType;
         condition.analyze(settings, definition, variables);
         condition = condition.cast(settings, definition, variables);
@@ -79,7 +83,7 @@ public class SIfElse extends AStatement {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final Label end = new Label();
         final Label fals = elseblock != null ? new Label() : end;
 

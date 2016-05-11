@@ -24,13 +24,17 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SBreak extends AStatement {
+/**
+ * Represents a break statement.
+ */
+public final class SBreak extends AStatement {
+
     public SBreak(final String location) {
         super(location);
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (!inLoop) {
             throw new IllegalArgumentException(error("Break statement outside of a loop."));
         }
@@ -42,7 +46,7 @@ public class SBreak extends AStatement {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.goTo(brake);
     }
 }

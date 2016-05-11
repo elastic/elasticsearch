@@ -27,7 +27,11 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 import java.util.Collections;
 import java.util.List;
 
-public class SDeclBlock extends AStatement {
+/**
+ * Represents a series of declarations.
+ */
+public final class SDeclBlock extends AStatement {
+
     final List<SDeclaration> declarations;
 
     public SDeclBlock(final String location, final List<SDeclaration> declarations) {
@@ -37,7 +41,7 @@ public class SDeclBlock extends AStatement {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         for (final SDeclaration declaration : declarations) {
             declaration.analyze(settings, definition, variables);
         }
@@ -46,7 +50,7 @@ public class SDeclBlock extends AStatement {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         for (final SDeclaration declaration : declarations) {
             declaration.write(settings, definition, adapter);
         }

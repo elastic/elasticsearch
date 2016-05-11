@@ -27,16 +27,20 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class STrap extends AStatement {
-    protected final String type;
-    protected final String name;
-    protected final AStatement block;
+/**
+ * Represents a catch block as part of a try-catch block.
+ */
+public final class STrap extends AStatement {
 
-    protected Variable variable;
+    final String type;
+    final String name;
+    final AStatement block;
 
-    protected Label begin;
-    protected Label end;
-    protected Label exception;
+    Variable variable;
+
+    Label begin;
+    Label end;
+    Label exception;
 
     public STrap(final String location, final String type, final String name, final AStatement block) {
         super(location);
@@ -47,7 +51,7 @@ public class STrap extends AStatement {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         variable = variables.addVariable(location, type, name, true, false);
 
         try {
@@ -73,7 +77,7 @@ public class STrap extends AStatement {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final Label jump = new Label();
 
         adapter.mark(jump);

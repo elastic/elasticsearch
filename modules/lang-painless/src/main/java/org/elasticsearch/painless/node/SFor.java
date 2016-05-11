@@ -26,11 +26,15 @@ import org.elasticsearch.painless.WriterUtility;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SFor extends AStatement {
-    protected ANode initializer;
-    protected AExpression condition;
-    protected AExpression afterthought;
-    protected final AStatement block;
+/**
+ * Represents a for loop.
+ */
+public final class SFor extends AStatement {
+
+    ANode initializer;
+    AExpression condition;
+    AExpression afterthought;
+    final AStatement block;
 
     public SFor(final String location,
                 final ANode initializer, final AExpression condition, final AExpression afterthought, final AStatement block) {
@@ -43,7 +47,7 @@ public class SFor extends AStatement {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         variables.incrementScope();
 
         boolean continuous = false;
@@ -125,7 +129,7 @@ public class SFor extends AStatement {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final Label start = new Label();
         final Label begin = afterthought == null ? start : new Label();
         final Label end = new Label();

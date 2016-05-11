@@ -27,8 +27,12 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 import java.util.Collections;
 import java.util.List;
 
-public class SBlock extends AStatement {
-    protected final List<AStatement> statements;
+/**
+ * Represents a set of statements as a branch of control-flow.
+ */
+public final class SBlock extends AStatement {
+
+    final List<AStatement> statements;
 
     public SBlock(final String location, final List<AStatement> statements) {
         super(location);
@@ -37,7 +41,7 @@ public class SBlock extends AStatement {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         final AStatement last = statements.get(statements.size() - 1);
 
         for (final AStatement statement : statements) {
@@ -61,7 +65,7 @@ public class SBlock extends AStatement {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         for (final AStatement statement : statements) {
             statement.continu = continu;
             statement.brake = brake;

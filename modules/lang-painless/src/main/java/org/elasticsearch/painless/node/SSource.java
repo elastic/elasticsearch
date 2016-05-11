@@ -28,8 +28,12 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 import java.util.Collections;
 import java.util.List;
 
-public class SSource extends AStatement {
-    protected final List<AStatement> statements;
+/**
+ * The root of all Painless trees.  Contains a series of statements.
+ */
+public final class SSource extends AStatement {
+
+    final List<AStatement> statements;
 
     public SSource(final String location, final List<AStatement> statements) {
         super(location);

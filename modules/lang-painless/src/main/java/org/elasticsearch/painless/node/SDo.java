@@ -26,9 +26,13 @@ import org.elasticsearch.painless.WriterUtility;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class SDo extends AStatement {
-    protected final AStatement block;
-    protected AExpression condition;
+/**
+ * Represents a do-while loop.
+ */
+public final class SDo extends AStatement {
+
+    final AStatement block;
+    AExpression condition;
 
     public SDo(final String location, final AStatement block, final AExpression condition) {
         super(location);
@@ -38,7 +42,7 @@ public class SDo extends AStatement {
     }
 
     @Override
-    protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         variables.incrementScope();
 
         block.beginLoop = true;
@@ -77,7 +81,7 @@ public class SDo extends AStatement {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final Label start = new Label();
         final Label begin = new Label();
         final Label end = new Label();

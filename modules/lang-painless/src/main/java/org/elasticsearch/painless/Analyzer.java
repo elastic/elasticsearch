@@ -108,8 +108,8 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         //
         // loop counter to catch runaway scripts. internal use only.
         metadata.loopCounterSlot = utility.addVariable(null, "#loop", definition.intType).slot;
-        // document's score as a read-only float.
-        metadata.scoreValueSlot = utility.addVariable(null, "_score", definition.floatType).slot;
+        // document's score as a read-only double.
+        metadata.scoreValueSlot = utility.addVariable(null, "_score", definition.doubleType).slot;
         // ctx map set by executable scripts as a read-only map.
         metadata.ctxValueSlot = utility.addVariable(null, "ctx", definition.smapType).slot;
 

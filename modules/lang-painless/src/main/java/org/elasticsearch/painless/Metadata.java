@@ -415,6 +415,11 @@ class Metadata {
      * _score from it, if _score will be accessed by the script.
      */
     int scorerValueSlot = -1;
+    
+    /**
+     * Used to determine what slot the _value variable is scored in. 
+     */
+    int aggregationValueSlot = -1;
 
     /**
      * Used to determine what slot the loopCounter variable is stored in.  This is used n the {@link Writer} whenever

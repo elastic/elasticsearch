@@ -111,10 +111,7 @@ class ExpressionSearchScript implements SearchScript {
             }
 
             @Override
-            public void setNextVar(String name, Object value) {
-                // this should only be used for the special "_value" variable used in aggregations
-                assert(name.equals("_value"));
-
+            public void setNextAggregationValue(Object value) {
                 // _value isn't used in script if specialValue == null
                 if (specialValue != null) {
                     if (value instanceof Number) {
@@ -123,6 +120,12 @@ class ExpressionSearchScript implements SearchScript {
                         throw new ScriptException("Cannot use expression with text variable using " + compiledScript);
                     }
                 }
+            }
+
+            @Override
+            public void setNextVar(String name, Object value) {
+                // other per-document variables aren't supported yet, even if they are numbers
+                // but we shouldn't encourage this anyway.
             }
         };
     }

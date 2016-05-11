@@ -28,10 +28,14 @@ import org.antlr.v4.runtime.Token;
 
 import java.text.ParseException;
 
-class ParserErrorStrategy extends DefaultErrorStrategy {
+/**
+ * An error strategy that will override the default error behavior to fail on the first parser error.
+ */
+final class ParserErrorStrategy extends DefaultErrorStrategy {
+
     @Override
-    public void recover(Parser recognizer, RecognitionException re) {
-        Token token = re.getOffendingToken();
+    public void recover(final Parser recognizer, final RecognitionException re) {
+        final Token token = re.getOffendingToken();
         String message;
 
         if (token == null) {
@@ -52,23 +56,24 @@ class ParserErrorStrategy extends DefaultErrorStrategy {
                     " unexpected token near [" + getTokenErrorDisplay(token) + "].";
         }
 
-        ParseException parseException = new ParseException(message, token == null ? -1 : token.getStartIndex());
+        final ParseException parseException = new ParseException(message, token == null ? -1 : token.getStartIndex());
         parseException.initCause(re);
 
         throw new RuntimeException(parseException);
     }
 
     @Override
-    public Token recoverInline(Parser recognizer) throws RecognitionException {
-        Token token = recognizer.getCurrentToken();
-        String message = "Error[" + token.getLine() + ":" + token.getCharPositionInLine() + "]:" +
-                " unexpected token [" + getTokenErrorDisplay(token) + "]" +
-                " was expecting one of [" + recognizer.getExpectedTokens().toString(recognizer.getVocabulary()) + "].";
-        ParseException parseException = new ParseException(message, token.getStartIndex());
+    public Token recoverInline(final Parser recognizer) throws RecognitionException {
+        final Token token = recognizer.getCurrentToken();
+        final String message = "Error[" + token.getLine() + ":" + token.getCharPositionInLine() + "]:" +
+            " unexpected token [" + getTokenErrorDisplay(token) + "]" +
+            " was expecting one of [" + recognizer.getExpectedTokens().toString(recognizer.getVocabulary()) + "].";
+        final ParseException parseException = new ParseException(message, token.getStartIndex());
+
         throw new RuntimeException(parseException);
     }
 
     @Override
-    public void sync(Parser recognizer) {
+    public void sync(final Parser recognizer) {
     }
 }

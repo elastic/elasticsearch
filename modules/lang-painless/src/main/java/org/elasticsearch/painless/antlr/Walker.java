@@ -116,7 +116,11 @@ import org.elasticsearch.painless.node.SWhile;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Walker extends PainlessParserBaseVisitor<ANode> {
+/**
+ * Converts the ANTLR tree to a Painless tree.
+ */
+public final class Walker extends PainlessParserBaseVisitor<ANode> {
+
     public static SSource buildPainlessTree(final String source, final Reserved reserved) {
         return new Walker(source, reserved).source;
     }

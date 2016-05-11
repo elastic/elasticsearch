@@ -25,21 +25,26 @@ import org.antlr.v4.runtime.misc.Interval;
 
 import java.text.ParseException;
 
-class ErrorHandlingLexer extends PainlessLexer {
-    public ErrorHandlingLexer(CharStream charStream) {
+/**
+ * A lexer that will override the default error behavior to fail on the first error.
+ */
+final class ErrorHandlingLexer extends PainlessLexer {
+
+    ErrorHandlingLexer(final CharStream charStream) {
         super(charStream);
     }
 
     @Override
-    public void recover(LexerNoViableAltException lnvae) {
-        CharStream charStream = lnvae.getInputStream();
-        int startIndex = lnvae.getStartIndex();
-        String text = charStream.getText(Interval.of(startIndex, charStream.index()));
+    public void recover(final LexerNoViableAltException lnvae) {
+        final CharStream charStream = lnvae.getInputStream();
+        final int startIndex = lnvae.getStartIndex();
+        final String text = charStream.getText(Interval.of(startIndex, charStream.index()));
 
-        ParseException parseException = new ParseException("Error [" + _tokenStartLine + ":" +
+        final ParseException parseException = new ParseException("Error [" + _tokenStartLine + ":" +
                 _tokenStartCharPositionInLine + "]: unexpected character [" +
                 getErrorDisplay(text) + "].",  _tokenStartCharIndex);
         parseException.initCause(lnvae);
+
         throw new RuntimeException(parseException);
     }
 }

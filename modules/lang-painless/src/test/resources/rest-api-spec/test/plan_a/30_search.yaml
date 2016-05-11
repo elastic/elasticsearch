@@ -363,3 +363,33 @@
 
     - match: { hits.total: 1 }
     - match: { hits.hits.0.fields.foobar.0: 1 }
+
+---
+
+"Agg _value":
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "dummy_field": 1 }
+    - do:
+        indices.refresh: {}
+
+
+    - do:
+        index: test
+        search:
+            body:
+                aggs:
+                    value_agg:
+                        terms:
+                            field: dummy_field
+                            script:
+                                lang: painless
+                                inline: "_value + 1"
+
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._score: 1.0 }
+    - match: { aggregations.value_agg.buckets.0.key: 2 }
+    - match: { aggregations.value_agg.buckets.0.doc_count: 1 }

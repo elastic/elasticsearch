@@ -443,7 +443,10 @@ Generating the terms using a script:
     "aggs" : {
         "genders" : {
             "terms" : {
-                "script" : "doc['gender'].value"
+                "script" : { 
+                    "inline": "doc['gender'].value"
+                    "lang": "painless"
+                }
             }
         }
     }
@@ -482,7 +485,10 @@ TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
         "genders" : {
             "terms" : {
                 "field" : "gender",
-                "script" : "'Gender: ' +_value"
+                "script" : { 
+                    "inline" : "'Gender: ' +_value"
+                    "lang" : "painless" 
+                }
             }
         }
     }

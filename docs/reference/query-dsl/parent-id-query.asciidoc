@@ -7,6 +7,7 @@ The `parent_id` query can be used to find child documents which belong to a part
 
 [source,js]
 --------------------------------------------------
+PUT /my_index
 {
     "parent_id" : {
         "type" : "blog_tag",
@@ -14,6 +15,8 @@ The `parent_id` query can be used to find child documents which belong to a part
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TESTSETUP
 
 The above is functionally equivalent to using the following
 <<query-dsl-has-parent-query, `has_parent`>> query, but performs
@@ -21,17 +24,21 @@ better as it does not need to do a join:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-  "has_parent": {
-    "type": "blog",
     "query": {
-      "term": {
-        "_id": "1"
-      }
+        "has_parent": {
+            "type": "blog",
+                "query": {
+                    "term": {
+                        "_id": "1"
+                    }
+                }
+        }
     }
-  }
 }
 --------------------------------------------------
+// CONSOLE
 
 ==== Parameters
 

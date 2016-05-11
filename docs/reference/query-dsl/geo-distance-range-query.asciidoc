@@ -5,24 +5,28 @@ Filters documents that exists within a range from a specific point:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_distance_range" : {
-                "from" : "200km",
-                "to" : "400km",
-                "pin.location" : {
-                    "lat" : 40,
-                    "lon" : -70
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+                "filter" : {
+                    "geo_distance_range" : {
+                        "from" : "200km",
+                        "to" : "400km",
+                        "pin.location" : {
+                            "lat" : 40,
+                            "lon" : -70
+                        }
+                    }
                 }
-            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Supports the same point location parameter and query options as the
 <<query-dsl-geo-distance-query,geo_distance>>

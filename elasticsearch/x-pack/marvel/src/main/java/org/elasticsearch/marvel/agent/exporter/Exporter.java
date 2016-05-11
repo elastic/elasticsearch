@@ -41,6 +41,10 @@ public abstract class Exporter implements AutoCloseable {
         return config.name;
     }
 
+    public Config config() {
+        return config;
+    }
+
     public boolean masterOnly() {
         return false;
     }

@@ -24,7 +24,11 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class LString extends ALink {
+/**
+ * Represents a string constant.
+ */
+public final class LString extends ALink {
+
     public LString(final String location, final String constant) {
         super(location, -1);
 
@@ -32,7 +36,7 @@ public class LString extends ALink {
     }
 
     @Override
-    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (before != null) {
             throw new IllegalStateException("Illegal tree structure.");
         } else if (store) {
@@ -47,17 +51,17 @@ public class LString extends ALink {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 
     @Override
-    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.push((String)constant);
     }
 
     @Override
-    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 }

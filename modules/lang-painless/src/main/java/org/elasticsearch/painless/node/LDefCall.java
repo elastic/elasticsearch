@@ -29,11 +29,15 @@ import java.util.List;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 
-public class LDefCall extends ALink {
-    protected final String name;
-    protected final List<AExpression> arguments;
+/**
+ * Represents a method call made on a def type. (Internal only.)
+ */
+final class LDefCall extends ALink {
 
-    protected LDefCall(final String location, final String name, final List<AExpression> arguments) {
+    final String name;
+    final List<AExpression> arguments;
+
+    LDefCall(final String location, final String name, final List<AExpression> arguments) {
         super(location, -1);
 
         this.name = name;
@@ -41,7 +45,7 @@ public class LDefCall extends ALink {
     }
 
     @Override
-    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             final AExpression expression = arguments.get(argument);
 
@@ -57,12 +61,12 @@ public class LDefCall extends ALink {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 
     @Override
-    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final StringBuilder signature = new StringBuilder();
 
         signature.append('(');
@@ -84,7 +88,7 @@ public class LDefCall extends ALink {
     }
 
     @Override
-    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 }

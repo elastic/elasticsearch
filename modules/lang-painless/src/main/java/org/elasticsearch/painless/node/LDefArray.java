@@ -29,10 +29,14 @@ import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.DEF_DYNAMIC_ARRAY_LOAD_DESC;
 import static org.elasticsearch.painless.WriterConstants.DEF_DYNAMIC_ARRAY_STORE_DESC;
 
-public class LDefArray extends ALink {
-    protected AExpression index;
+/**
+ * Represents an array load/store or shortcut on a def type.  (Internal only.)
+ */
+final class LDefArray extends ALink {
 
-    protected LDefArray(final String location, final AExpression index) {
+    AExpression index;
+
+    LDefArray(final String location, final AExpression index) {
         super(location, 0);
 
         this.index = index;
@@ -40,7 +44,7 @@ public class LDefArray extends ALink {
 
 
     @Override
-    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         index.expected = definition.objectType;
         index.analyze(settings, definition, variables);
         index = index.cast(settings, definition, variables);
@@ -51,19 +55,19 @@ public class LDefArray extends ALink {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         index.write(settings, definition, adapter);
     }
 
     @Override
-    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.visitInvokeDynamicInsn(
             "arrayLoad", DEF_DYNAMIC_ARRAY_LOAD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.ARRAY_LOAD });
 
     }
 
     @Override
-    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.visitInvokeDynamicInsn(
             "arrayStore", DEF_DYNAMIC_ARRAY_STORE_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.ARRAY_STORE });
     }

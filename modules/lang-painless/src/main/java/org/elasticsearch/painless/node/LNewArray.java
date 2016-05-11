@@ -27,9 +27,13 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.List;
 
-public class LNewArray extends ALink {
-    protected final String type;
-    protected final List<AExpression> arguments;
+/**
+ * Represents an array instantiation.
+ */
+public final class LNewArray extends ALink {
+
+    final String type;
+    final List<AExpression> arguments;
 
     public LNewArray(final String location, final String type, final List<AExpression> arguments) {
         super(location, -1);
@@ -39,7 +43,7 @@ public class LNewArray extends ALink {
     }
 
     @Override
-    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (before != null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         } else if (store) {
@@ -70,12 +74,12 @@ public class LNewArray extends ALink {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 
     @Override
-    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         for (final AExpression argument : arguments) {
             argument.write(settings, definition, adapter);
         }
@@ -88,7 +92,7 @@ public class LNewArray extends ALink {
     }
 
     @Override
-    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 }

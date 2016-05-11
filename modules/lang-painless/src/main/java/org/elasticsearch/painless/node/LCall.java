@@ -28,11 +28,15 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.util.List;
 
-public class LCall extends ALink {
-    protected final String name;
-    protected final List<AExpression> arguments;
+/**
+ * Represents a method call or deferes to a def call.
+ */
+public final class LCall extends ALink {
 
-    protected Method method = null;
+    final String name;
+    final List<AExpression> arguments;
+
+    Method method = null;
 
     public LCall(final String location, final String name, final List<AExpression> arguments) {
         super(location, -1);
@@ -42,7 +46,7 @@ public class LCall extends ALink {
     }
 
     @Override
-    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         } else if (before.sort == Definition.Sort.ARRAY) {
@@ -86,12 +90,12 @@ public class LCall extends ALink {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 
     @Override
-    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         for (final AExpression argument : arguments) {
             argument.write(settings, definition, adapter);
         }
@@ -110,7 +114,7 @@ public class LCall extends ALink {
     }
 
     @Override
-    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 }

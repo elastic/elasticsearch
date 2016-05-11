@@ -28,8 +28,12 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 import java.util.List;
 import java.util.Map;
 
-public class LBrace extends ALink {
-    protected AExpression index;
+/**
+ * Represents an array load/store or defers to possible shortcuts.
+ */
+public final class LBrace extends ALink {
+
+    AExpression index;
 
     public LBrace(final String location, final AExpression index) {
         super(location, 2);
@@ -38,7 +42,7 @@ public class LBrace extends ALink {
     }
 
     @Override
-    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
@@ -77,17 +81,17 @@ public class LBrace extends ALink {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         index.write(settings, definition, adapter);
     }
 
     @Override
-    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.arrayLoad(after.type);
     }
 
     @Override
-    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.arrayStore(after.type);
     }
 

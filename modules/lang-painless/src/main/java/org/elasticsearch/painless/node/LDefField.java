@@ -29,10 +29,14 @@ import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.DEF_DYNAMIC_LOAD_FIELD_DESC;
 import static org.elasticsearch.painless.WriterConstants.DEF_DYNAMIC_STORE_FIELD_DESC;
 
-public class LDefField extends ALink {
-    protected final String value;
+/**
+ * Represents a field load/store or shortcut on a def type.  (Internal only.)
+ */
+final class LDefField extends ALink {
 
-    protected LDefField(final String location, final String value) {
+    final String value;
+
+    LDefField(final String location, final String value) {
         super(location, 1);
 
         this.value = value;
@@ -40,24 +44,24 @@ public class LDefField extends ALink {
 
 
     @Override
-    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         after = definition.defType;
 
         return this;
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 
     @Override
-    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.visitInvokeDynamicInsn(value, DEF_DYNAMIC_LOAD_FIELD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.LOAD });
     }
 
     @Override
-    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.visitInvokeDynamicInsn(value, DEF_DYNAMIC_STORE_FIELD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.STORE });
     }
 }

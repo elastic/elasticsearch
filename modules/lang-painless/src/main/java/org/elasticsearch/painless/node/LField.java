@@ -30,10 +30,14 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 import java.util.List;
 import java.util.Map;
 
-public class LField extends ALink {
-    protected final String value;
+/**
+ * Represents a field load/store or defers to a possible shortcuts.
+ */
+public final class LField extends ALink {
 
-    protected Field field;
+    final String value;
+
+    Field field;
 
     public LField(final String location, final String value) {
         super(location, 1);
@@ -42,7 +46,7 @@ public class LField extends ALink {
     }
 
     @Override
-    protected ALink analyze(CompilerSettings settings, Definition definition, Variables variables) {
+    ALink analyze(CompilerSettings settings, Definition definition, Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
@@ -100,12 +104,12 @@ public class LField extends ALink {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 
     @Override
-    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
             adapter.getStatic(field.owner.type, field.reflect.getName(), field.type.type);
 
@@ -122,7 +126,7 @@ public class LField extends ALink {
     }
 
     @Override
-    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
             adapter.putStatic(field.owner.type, field.reflect.getName(), field.type.type);
         } else {

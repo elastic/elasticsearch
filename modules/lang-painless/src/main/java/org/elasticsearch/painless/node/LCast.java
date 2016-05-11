@@ -27,10 +27,14 @@ import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.WriterUtility;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class LCast extends ALink {
-    protected final String type;
+/**
+ * Represents a cast made in a variable/method chain.
+ */
+public final class LCast extends ALink {
 
-    protected Cast cast = null;
+    final String type;
+
+    Cast cast = null;
 
     public LCast(final String location, final String type) {
         super(location, -1);
@@ -39,7 +43,7 @@ public class LCast extends ALink {
     }
 
     @Override
-    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         } else if (store) {
@@ -58,17 +62,17 @@ public class LCast extends ALink {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         WriterUtility.writeCast(adapter, cast);
     }
 
     @Override
-    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 
     @Override
-    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 }

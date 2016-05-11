@@ -24,17 +24,21 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class LArrayLength extends ALink {
-    protected final String value;
+/**
+ * Represents an array length field load.
+ */
+public final class LArrayLength extends ALink {
 
-    protected LArrayLength(final String location, final String value) {
+    final String value;
+
+    LArrayLength(final String location, final String value) {
         super(location, -1);
 
         this.value = value;
     }
 
     @Override
-    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if ("length".equals(value)) {
             if (!load) {
                 throw new IllegalArgumentException(error("Must read array field [length]."));
@@ -51,17 +55,17 @@ public class LArrayLength extends ALink {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 
     @Override
-    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.arrayLength();
     }
 
     @Override
-    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 }

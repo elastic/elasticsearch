@@ -28,20 +28,24 @@ import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.WriterUtility;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class LShortcut extends ALink {
-    protected final String value;
+/**
+ * Represents a field load/store shortcut.  (Internal only.)
+ */
+final class LShortcut extends ALink {
 
-    protected Method getter = null;
-    protected Method setter = null;
+    final String value;
 
-    protected LShortcut(final String location, final String value) {
+    Method getter = null;
+    Method setter = null;
+
+    LShortcut(final String location, final String value) {
         super(location, 1);
 
         this.value = value;
     }
 
     @Override
-    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         final Struct struct = before.struct;
 
         getter = struct.methods.get("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1));
@@ -71,12 +75,12 @@ public class LShortcut extends ALink {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 
     @Override
-    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
             adapter.invokeInterface(getter.owner.type, getter.method);
         } else {
@@ -89,7 +93,7 @@ public class LShortcut extends ALink {
     }
 
     @Override
-    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
             adapter.invokeInterface(setter.owner.type, setter.method);
         } else {

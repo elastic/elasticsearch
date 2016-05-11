@@ -27,10 +27,14 @@ import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-public class LVariable extends ALink {
-    protected final String name;
+/**
+ * Represents a variable load/store.
+ */
+public final class LVariable extends ALink {
 
-    protected int slot;
+    final String name;
+
+    int slot;
 
     public LVariable(final String location, final String name) {
         super(location, 0);
@@ -39,7 +43,7 @@ public class LVariable extends ALink {
     }
 
     @Override
-    protected ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (before != null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
@@ -70,17 +74,17 @@ public class LVariable extends ALink {
     }
 
     @Override
-    protected void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         // Do nothing.
     }
 
     @Override
-    protected void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.visitVarInsn(after.type.getOpcode(Opcodes.ILOAD), slot);
     }
 
     @Override
-    protected void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.visitVarInsn(after.type.getOpcode(Opcodes.ISTORE), slot);
     }
 }

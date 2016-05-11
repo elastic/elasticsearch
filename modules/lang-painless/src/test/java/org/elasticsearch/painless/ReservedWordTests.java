@@ -37,4 +37,20 @@ public class ReservedWordTests extends ScriptTestCase {
         });
         assertTrue(expected.getMessage().contains("Variable [_score] is read-only"));
     }
+    
+    /** check that we can't declare a variable of doc, its really reserved! */
+    public void testDocVar() {
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+            exec("int doc = 5; return doc;");
+        });
+        assertTrue(expected.getMessage().contains("Variable name [doc] already defined"));
+    }
+    
+    /** check that we can't write to _score, its read-only! */
+    public void testDocStore() {
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+            exec("doc = 5; return doc;");
+        });
+        assertTrue(expected.getMessage().contains("Variable [doc] is read-only"));
+    }
 }

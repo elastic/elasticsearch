@@ -19,17 +19,20 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Pair;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Transform;
 import org.elasticsearch.painless.Definition.Type;
 
 import java.lang.reflect.InvocationTargetException;
 
-public class AnalyzerCaster {
+/**
+ * Used during the analysis phase to collect legal type casts and promotions
+ * for type-checking and later to write necessary casts in the bytecode.
+ */
+public final class AnalyzerCaster {
+
     public static Cast getLegalCast(final Definition definition,
                                     final String location, final Type actual, final Type expected, final boolean explicit) {
         final Cast cast = new Cast(actual, expected);
@@ -39,7 +42,7 @@ public class AnalyzerCaster {
         }
 
         if (actual.sort == Sort.DEF && expected.sort != Sort.VOID || actual.sort != Sort.VOID && expected.sort == Sort.DEF) {
-            final Transform transform = definition.transforms.get(cast);
+            final Transform transform = definition.transformsMap.get(cast);
 
             if (transform != null) {
                 return transform;
@@ -485,7 +488,7 @@ public class AnalyzerCaster {
     }
 
     private static Transform checkTransform(final Definition definition, final String location, final Cast cast) {
-        final Transform transform = definition.transforms.get(cast);
+        final Transform transform = definition.transformsMap.get(cast);
 
         if (transform == null) {
             throw new ClassCastException("Error" + location + ": Cannot cast from [" + cast.from.name + "] to [" + cast.to.name + "].");
@@ -805,9 +808,12 @@ public class AnalyzerCaster {
             }
         }
 
-        final Pair pair = new Pair(from0, from1);
-        final Type bound = definition.bounds.get(pair);
+        // TODO: In the rare case we still haven't reached a correct promotion we need
+        //       to calculate the highest upper bound for the two types and return that.
+        //       However, for now we just return objectType that may require an extra cast.
 
-        return bound == null ? definition.objectType : bound;
+        return definition.objectType;
     }
+
+    private AnalyzerCaster() {}
 }

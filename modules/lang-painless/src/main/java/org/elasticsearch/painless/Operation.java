@@ -19,8 +19,15 @@
 
 package org.elasticsearch.painless;
 
+/**
+ * Provides a way to represent operations independently of ASM, to keep ASM
+ * contained to only the writing phase of compilation.  Note there are also
+ * a few extra operations not in ASM that are used internally by the
+ * Painless tree.
+ */
 public enum Operation {
-    MUL     ( "+"  ),
+
+    MUL     ( "+"   ),
     DIV     ( "/"   ),
     REM     ( "%"   ),
     ADD     ( "+"   ),

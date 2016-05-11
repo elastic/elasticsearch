@@ -35,7 +35,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * The entire API for Painless.  Also used as a whitelist for checking for legal
+ * methods and fields during at both compile-time and runtime.
+ */
 public final class Definition {
+
     /**
      * The default language API to be used with Painless.  The second construction is used
      * to finalize all the variables, so there is no mistake of modification afterwards.
@@ -249,39 +254,6 @@ public final class Definition {
         }
     }
 
-    public static final class Pair {
-        public final Type type0;
-        public final Type type1;
-
-        public Pair(final Type type0, final Type type1) {
-            this.type0 = type0;
-            this.type1 = type1;
-        }
-
-        @Override
-        public boolean equals(final Object object) {
-            if (this == object) {
-                return true;
-            }
-
-            if (object == null || getClass() != object.getClass()) {
-                return false;
-            }
-
-            final Pair pair = (Pair)object;
-
-            return type0.equals(pair.type0) && type1.equals(pair.type1);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = type0.hashCode();
-            result = 31 * result + type1.hashCode();
-
-            return result;
-        }
-    }
-
     public static class Cast {
         public final Type from;
         public final Type to;
@@ -336,16 +308,16 @@ public final class Definition {
         public final Map<String, MethodHandle> getters;
         public final Map<String, MethodHandle> setters;
 
-        private RuntimeClass(Map<String, Method> methods, Map<String, MethodHandle> getters, Map<String, MethodHandle> setters) {
+        private RuntimeClass(final Map<String, Method> methods,
+                             final Map<String, MethodHandle> getters, final Map<String, MethodHandle> setters) {
             this.methods = methods;
             this.getters = getters;
             this.setters = setters;
         }
     }
 
-    public final Map<String, Struct> structs;
-    public final Map<Cast, Transform> transforms;
-    public final Map<Pair, Type> bounds;
+    public final Map<String, Struct> structsMap;
+    public final Map<Cast, Transform> transformsMap;
     public final Map<Class<?>, RuntimeClass> runtimeMap;
 
     public final Type voidType;
@@ -425,12 +397,11 @@ public final class Definition {
     public final Type geoPointsType;
 
     private Definition() {
-        structs = new HashMap<>();
-        transforms = new HashMap<>();
-        bounds = new HashMap<>();
+        structsMap = new HashMap<>();
+        transformsMap = new HashMap<>();
         runtimeMap = new HashMap<>();
 
-        addDefaultStructs();
+        addStructs();
 
         voidType = getType("void");
         booleanType = getType("boolean");
@@ -506,24 +477,21 @@ public final class Definition {
         doublesType = getType("Doubles");
         geoPointsType = getType("GeoPoints");
 
-        addDefaultElements();
-        copyDefaultStructs();
-        addDefaultTransforms();
-        addDefaultBounds();
-        addDefaultRuntimeClasses();
+        addElements();
+        copyStructs();
+        addTransforms();
+        addRuntimeClasses();
     }
 
     private Definition(final Definition definition) {
         final Map<String, Struct> structs = new HashMap<>();
 
-        for (final Struct struct : definition.structs.values()) {
+        for (final Struct struct : definition.structsMap.values()) {
             structs.put(struct.name, new Struct(struct));
         }
 
-        this.structs = Collections.unmodifiableMap(structs);
-
-        this.transforms = Collections.unmodifiableMap(definition.transforms);
-        this.bounds = Collections.unmodifiableMap(definition.bounds);
+        this.structsMap = Collections.unmodifiableMap(structs);
+        this.transformsMap = Collections.unmodifiableMap(definition.transformsMap);
         this.runtimeMap = Collections.unmodifiableMap(definition.runtimeMap);
 
         this.voidType = definition.voidType;
@@ -601,7 +569,7 @@ public final class Definition {
         this.geoPointsType = definition.geoPointsType;
     }
 
-    private void addDefaultStructs() {
+    private void addStructs() {
         addStruct( "void"    , void.class    );
         addStruct( "boolean" , boolean.class );
         addStruct( "byte"    , byte.class    );
@@ -677,7 +645,7 @@ public final class Definition {
         addStruct( "GeoPoints" , ScriptDocValues.GeoPoints.class);
     }
 
-    private void addDefaultElements() {
+    private void addElements() {
         addMethod("Object", "toString", null, false, stringType, new Type[] {}, null, null);
         addMethod("Object", "equals", null, false, booleanType, new Type[] {objectType}, null, null);
         addMethod("Object", "hashCode", null, false, intType, new Type[] {}, null, null);
@@ -1097,7 +1065,7 @@ public final class Definition {
                   new Type[] { stringType }, null, null);
     }
 
-    private void copyDefaultStructs() {
+    private void copyStructs() {
         copyStruct("Void", "Object");
         copyStruct("Boolean", "Object");
         copyStruct("Byte", "Number", "Object");
@@ -1150,7 +1118,7 @@ public final class Definition {
         copyStruct("GeoPoints", "List", "Collection", "Object");
     }
 
-    private void addDefaultTransforms() {
+    private void addTransforms() {
         addTransform(booleanType, byteType, "Utility", "booleanTobyte", true);
         addTransform(booleanType, shortType, "Utility", "booleanToshort", true);
         addTransform(booleanType, charType, "Utility", "booleanTochar", true);
@@ -1425,189 +1393,7 @@ public final class Definition {
         addTransform(stringType, charobjType, "Utility", "StringToCharacter", true);
     }
 
-    private void addDefaultBounds() {
-        addBound(byteobjType, numberType, numberType);
-
-        addBound(shortobjType, numberType, numberType);
-        addBound(shortobjType, byteobjType, numberType);
-
-        addBound(intobjType, numberType, numberType);
-        addBound(intobjType, byteobjType, numberType);
-        addBound(intobjType, shortobjType, numberType);
-
-        addBound(longobjType, numberType, numberType);
-        addBound(longobjType, byteobjType, numberType);
-        addBound(longobjType, shortobjType, numberType);
-        addBound(longobjType, intobjType, numberType);
-
-        addBound(floatobjType, numberType, numberType);
-        addBound(floatobjType, byteobjType, numberType);
-        addBound(floatobjType, shortobjType, numberType);
-        addBound(floatobjType, intobjType, numberType);
-        addBound(floatobjType, longobjType, numberType);
-
-        addBound(doubleobjType, numberType, numberType);
-        addBound(doubleobjType, byteobjType, numberType);
-        addBound(doubleobjType, shortobjType, numberType);
-        addBound(doubleobjType, intobjType, numberType);
-        addBound(doubleobjType, longobjType, numberType);
-        addBound(doubleobjType, floatobjType, numberType);
-
-        addBound(stringType, charseqType, charseqType);
-
-        addBound(oitrType, itrType, itrType);
-        addBound(oitrType, sitrType, itrType);
-        addBound(sitrType, itrType, itrType);
-
-        addBound(ocollectionType, collectionType, collectionType);
-        addBound(scollectionType, collectionType, collectionType);
-        addBound(scollectionType, ocollectionType, ocollectionType);
-        addBound(listType, collectionType, collectionType);
-        addBound(listType, ocollectionType, collectionType);
-        addBound(listType, scollectionType, collectionType);
-        addBound(arraylistType, collectionType, collectionType);
-        addBound(arraylistType, ocollectionType, collectionType);
-        addBound(arraylistType, scollectionType, collectionType);
-        addBound(arraylistType, listType, listType);
-        addBound(olistType, collectionType, collectionType);
-        addBound(olistType, ocollectionType, ocollectionType);
-        addBound(olistType, scollectionType, ocollectionType);
-        addBound(olistType, listType, listType);
-        addBound(olistType, arraylistType, listType);
-        addBound(oarraylistType, collectionType, collectionType);
-        addBound(oarraylistType, ocollectionType, ocollectionType);
-        addBound(oarraylistType, scollectionType, ocollectionType);
-        addBound(oarraylistType, listType, listType);
-        addBound(oarraylistType, arraylistType, arraylistType);
-        addBound(oarraylistType, olistType, olistType);
-        addBound(slistType, collectionType, collectionType);
-        addBound(slistType, ocollectionType, ocollectionType);
-        addBound(slistType, scollectionType, scollectionType);
-        addBound(slistType, listType, listType);
-        addBound(slistType, arraylistType, listType);
-        addBound(slistType, olistType, olistType);
-        addBound(slistType, oarraylistType, olistType);
-        addBound(sarraylistType, collectionType, collectionType);
-        addBound(sarraylistType, ocollectionType, ocollectionType);
-        addBound(sarraylistType, scollectionType, scollectionType);
-        addBound(sarraylistType, listType, listType);
-        addBound(sarraylistType, arraylistType, arraylistType);
-        addBound(sarraylistType, olistType, olistType);
-        addBound(sarraylistType, oarraylistType, oarraylistType);
-        addBound(sarraylistType, slistType, slistType);
-        addBound(setType, collectionType, collectionType);
-        addBound(setType, ocollectionType, collectionType);
-        addBound(setType, scollectionType, collectionType);
-        addBound(setType, listType, collectionType);
-        addBound(setType, arraylistType, collectionType);
-        addBound(setType, olistType, collectionType);
-        addBound(setType, oarraylistType, collectionType);
-        addBound(setType, slistType, collectionType);
-        addBound(setType, sarraylistType, collectionType);
-        addBound(hashsetType, collectionType, collectionType);
-        addBound(hashsetType, ocollectionType, collectionType);
-        addBound(hashsetType, scollectionType, collectionType);
-        addBound(hashsetType, listType, collectionType);
-        addBound(hashsetType, arraylistType, collectionType);
-        addBound(hashsetType, olistType, collectionType);
-        addBound(hashsetType, oarraylistType, collectionType);
-        addBound(hashsetType, slistType, collectionType);
-        addBound(hashsetType, sarraylistType, collectionType);
-        addBound(hashsetType, setType, setType);
-        addBound(osetType, collectionType, collectionType);
-        addBound(osetType, ocollectionType, ocollectionType);
-        addBound(osetType, scollectionType, ocollectionType);
-        addBound(osetType, listType, collectionType);
-        addBound(osetType, arraylistType, collectionType);
-        addBound(osetType, olistType, ocollectionType);
-        addBound(osetType, oarraylistType, ocollectionType);
-        addBound(osetType, slistType, ocollectionType);
-        addBound(osetType, sarraylistType, ocollectionType);
-        addBound(osetType, setType, setType);
-        addBound(osetType, hashsetType, setType);
-        addBound(ohashsetType, collectionType, collectionType);
-        addBound(ohashsetType, ocollectionType, ocollectionType);
-        addBound(ohashsetType, scollectionType, ocollectionType);
-        addBound(ohashsetType, listType, collectionType);
-        addBound(ohashsetType, arraylistType, collectionType);
-        addBound(ohashsetType, olistType, ocollectionType);
-        addBound(ohashsetType, oarraylistType, ocollectionType);
-        addBound(ohashsetType, slistType, ocollectionType);
-        addBound(ohashsetType, sarraylistType, ocollectionType);
-        addBound(ohashsetType, setType, setType);
-        addBound(ohashsetType, hashsetType, hashsetType);
-        addBound(ohashsetType, osetType, osetType);
-        addBound(ssetType, collectionType, collectionType);
-        addBound(ssetType, ocollectionType, ocollectionType);
-        addBound(ssetType, scollectionType, scollectionType);
-        addBound(ssetType, listType, collectionType);
-        addBound(ssetType, arraylistType, collectionType);
-        addBound(ssetType, olistType, ocollectionType);
-        addBound(ssetType, oarraylistType, ocollectionType);
-        addBound(ssetType, slistType, scollectionType);
-        addBound(ssetType, sarraylistType, scollectionType);
-        addBound(ssetType, setType, setType);
-        addBound(ssetType, hashsetType, setType);
-        addBound(ssetType, osetType, osetType);
-        addBound(ssetType, ohashsetType, osetType);
-        addBound(shashsetType, collectionType, collectionType);
-        addBound(shashsetType, ocollectionType, ocollectionType);
-        addBound(shashsetType, scollectionType, scollectionType);
-        addBound(shashsetType, listType, collectionType);
-        addBound(shashsetType, arraylistType, collectionType);
-        addBound(shashsetType, olistType, ocollectionType);
-        addBound(shashsetType, oarraylistType, ocollectionType);
-        addBound(shashsetType, slistType, scollectionType);
-        addBound(shashsetType, sarraylistType, scollectionType);
-        addBound(shashsetType, setType, setType);
-        addBound(shashsetType, hashsetType, hashsetType);
-        addBound(shashsetType, osetType, osetType);
-        addBound(shashsetType, ohashsetType, hashsetType);
-        addBound(shashsetType, ssetType, ssetType);
-
-        addBound(hashmapType, mapType, mapType);
-        addBound(oomapType, mapType, mapType);
-        addBound(oomapType, hashmapType, mapType);
-        addBound(oohashmapType, mapType, mapType);
-        addBound(oohashmapType, hashmapType, hashmapType);
-        addBound(oohashmapType, oomapType, oomapType);
-        addBound(smapType, mapType, mapType);
-        addBound(smapType, hashmapType, mapType);
-        addBound(smapType, oomapType, oomapType);
-        addBound(smapType, oohashmapType, oomapType);
-        addBound(shashmapType, mapType, mapType);
-        addBound(shashmapType, hashmapType, hashmapType);
-        addBound(shashmapType, oomapType, oomapType);
-        addBound(shashmapType, oohashmapType, oohashmapType);
-        addBound(shashmapType, smapType, smapType);
-        addBound(somapType, mapType, mapType);
-        addBound(somapType, hashmapType, mapType);
-        addBound(somapType, oomapType, oomapType);
-        addBound(somapType, oohashmapType, oomapType);
-        addBound(somapType, smapType, smapType);
-        addBound(somapType, shashmapType, smapType);
-        addBound(sohashmapType, mapType, mapType);
-        addBound(sohashmapType, hashmapType, hashmapType);
-        addBound(sohashmapType, oomapType, oomapType);
-        addBound(sohashmapType, oohashmapType, oohashmapType);
-        addBound(sohashmapType, smapType, smapType);
-        addBound(sohashmapType, shashmapType, shashmapType);
-        addBound(sohashmapType, somapType, somapType);
-
-        addBound(arithexcepType, exceptionType, exceptionType);
-        addBound(iargexcepType, exceptionType, exceptionType);
-        addBound(istateexceptType, exceptionType, exceptionType);
-        addBound(nfexcepType, exceptionType, exceptionType);
-        addBound(arithexcepType, iargexcepType, exceptionType);
-        addBound(arithexcepType, istateexceptType, exceptionType);
-        addBound(arithexcepType, nfexcepType, exceptionType);
-        addBound(iargexcepType, istateexceptType, exceptionType);
-        addBound(iargexcepType, nfexcepType, exceptionType);
-        addBound(istateexceptType, nfexcepType, exceptionType);
-    }
-
-    // precompute a more efficient structure for dynamic method/field access:
-    private void addDefaultRuntimeClasses() {
+    private void addRuntimeClasses() {
         addRuntimeClass(booleanType.struct);
         addRuntimeClass(byteType.struct);
         addRuntimeClass(shortType.struct);
@@ -1654,17 +1440,17 @@ public final class Definition {
             throw new IllegalArgumentException("Invalid struct name [" + name + "].");
         }
 
-        if (structs.containsKey(name)) {
+        if (structsMap.containsKey(name)) {
             throw new IllegalArgumentException("Duplicate struct name [" + name + "].");
         }
 
         final Struct struct = new Struct(name, clazz, org.objectweb.asm.Type.getType(clazz));
 
-        structs.put(name, struct);
+        structsMap.put(name, struct);
     }
 
     private final void addConstructor(final String struct, final String name, final Type[] args, final Type[] genargs) {
-        final Struct owner = structs.get(struct);
+        final Struct owner = structsMap.get(struct);
 
         if (owner == null) {
             throw new IllegalArgumentException(
@@ -1725,7 +1511,7 @@ public final class Definition {
 
     private final void addMethod(final String struct, final String name, final String alias, final boolean statik,
                                 final Type rtn, final Type[] args, final Type genrtn, final Type[] genargs) {
-        final Struct owner = structs.get(struct);
+        final Struct owner = structsMap.get(struct);
 
         if (owner == null) {
             throw new IllegalArgumentException("Owner struct [" + struct + "] not defined" +
@@ -1847,7 +1633,7 @@ public final class Definition {
 
     private final void addField(final String struct, final String name, final String alias,
                                final boolean statik, final Type type, final Type generic) {
-        final Struct owner = structs.get(struct);
+        final Struct owner = structsMap.get(struct);
 
         if (owner == null) {
             throw new IllegalArgumentException("Owner struct [" + struct + "] not defined for " +
@@ -1936,14 +1722,14 @@ public final class Definition {
     }
 
     private final void copyStruct(final String struct, final String... children) {
-        final Struct owner = structs.get(struct);
+        final Struct owner = structsMap.get(struct);
 
         if (owner == null) {
             throw new IllegalArgumentException("Owner struct [" + struct + "] not defined for copy.");
         }
 
         for (int count = 0; count < children.length; ++count) {
-            final Struct child = structs.get(children[count]);
+            final Struct child = structsMap.get(children[count]);
 
             if (struct == null) {
                 throw new IllegalArgumentException("Child struct [" + children[count] + "]" +
@@ -2018,7 +1804,7 @@ public final class Definition {
 
     private final void addTransform(final Type from, final Type to, final String struct,
                                    final String name, final boolean statik) {
-        final Struct owner = structs.get(struct);
+        final Struct owner = structsMap.get(struct);
 
         if (owner == null) {
             throw new IllegalArgumentException("Owner struct [" + struct + "] not defined for" +
@@ -2032,7 +1818,7 @@ public final class Definition {
 
         final Cast cast = new Cast(from, to);
 
-        if (transforms.containsKey(cast)) {
+        if (transformsMap.containsKey(cast)) {
             throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
                 " and cast type from [" + from.name + "] to cast type to [" + to.name + "] already defined.");
         }
@@ -2130,46 +1916,33 @@ public final class Definition {
         }
 
         final Transform transform = new Transform(cast, method, upcast, downcast);
-        transforms.put(cast, transform);
+        transformsMap.put(cast, transform);
     }
 
-    private final void addBound(final Type type0, final Type type1, final Type bound) {
-        final Pair pair0 = new Pair(type0, type1);
-        final Pair pair1 = new Pair(type1, type0);
-
-        if (bounds.containsKey(pair0)) {
-            throw new IllegalArgumentException(
-                "Bound already defined for types [" + type0.name + "] and [" + type1.name + "].");
-        }
-
-        if (bounds.containsKey(pair1)) {
-            throw new IllegalArgumentException(
-                "Bound already defined for types [" + type1.name + "] and [" + type0.name + "].");
-        }
-
-        bounds.put(pair0, bound);
-        bounds.put(pair1, bound);
-    }
-
+    /**
+     * Precomputes a more efficient structure for dynamic method/field access.
+     */
     private void addRuntimeClass(final Struct struct) {
-        Map<String, Method> methods = struct.methods;
-        Map<String, MethodHandle> getters = new HashMap<>();
-        Map<String, MethodHandle> setters = new HashMap<>();
+        final Map<String, Method> methods = struct.methods;
+        final Map<String, MethodHandle> getters = new HashMap<>();
+        final Map<String, MethodHandle> setters = new HashMap<>();
+
         // add all members
-        for (Map.Entry<String,Field> member : struct.members.entrySet()) {
+        for (final Map.Entry<String, Field> member : struct.members.entrySet()) {
             getters.put(member.getKey(), member.getValue().getter);
             setters.put(member.getKey(), member.getValue().setter);
         }
+
         // add all getters/setters
-        for (Map.Entry<String,Method> method : methods.entrySet()) {
-            String name = method.getKey();
-            Method m = method.getValue();
+        for (final Map.Entry<String, Method> method : methods.entrySet()) {
+            final String name = method.getKey();
+            final Method m = method.getValue();
 
             if (m.arguments.size() == 0 &&
                 name.startsWith("get") &&
                 name.length() > 3 &&
                 Character.isUpperCase(name.charAt(3))) {
-                StringBuilder newName = new StringBuilder();
+                final StringBuilder newName = new StringBuilder();
                 newName.append(Character.toLowerCase(name.charAt(3)));
                 newName.append(name.substring(4));
                 getters.putIfAbsent(newName.toString(), m.handle);
@@ -2177,7 +1950,7 @@ public final class Definition {
                 name.startsWith("is") &&
                 name.length() > 2 &&
                 Character.isUpperCase(name.charAt(2))) {
-                StringBuilder newName = new StringBuilder();
+                final StringBuilder newName = new StringBuilder();
                 newName.append(Character.toLowerCase(name.charAt(2)));
                 newName.append(name.substring(3));
                 getters.putIfAbsent(newName.toString(), m.handle);
@@ -2187,7 +1960,7 @@ public final class Definition {
                 name.startsWith("set") &&
                 name.length() > 3 &&
                 Character.isUpperCase(name.charAt(3))) {
-                StringBuilder newName = new StringBuilder();
+                final StringBuilder newName = new StringBuilder();
                 newName.append(Character.toLowerCase(name.charAt(3)));
                 newName.append(name.substring(4));
                 setters.putIfAbsent(newName.toString(), m.handle);
@@ -2200,7 +1973,7 @@ public final class Definition {
     public final Type getType(final String name) {
         final int dimensions = getDimensions(name);
         final String structstr = dimensions == 0 ? name : name.substring(0, name.indexOf('['));
-        final Struct struct = structs.get(structstr);
+        final Struct struct = structsMap.get(structstr);
 
         if (struct == null) {
             throw new IllegalArgumentException("The struct with name [" + name + "] has not been defined.");

@@ -33,24 +33,28 @@ import static org.elasticsearch.painless.WriterConstants.EXECUTE;
 import static org.elasticsearch.painless.WriterConstants.MAP_GET;
 import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
 
-public class Writer {
-    public static byte[] write(final CompilerSettings settings, final Definition definition,
+/**
+ * Runs the writing phase of compilation using the Painless AST.
+ */
+final class Writer {
+
+    static byte[] write(final CompilerSettings settings, final Definition definition,
                                final String source, final Variables variables, final SSource root) {
         final Writer writer = new Writer(settings, definition, source, variables, root);
 
         return writer.getBytes();
     }
 
-    protected final CompilerSettings settings;
-    protected final Definition definition;
-    protected final String source;
-    protected final Variables variables;
-    protected final SSource root;
+    private final CompilerSettings settings;
+    private final Definition definition;
+    private final String source;
+    private final Variables variables;
+    private final SSource root;
 
-    protected final ClassWriter writer;
-    protected final GeneratorAdapter adapter;
+    private final ClassWriter writer;
+    private final GeneratorAdapter adapter;
 
-    protected Writer(final CompilerSettings settings, final Definition definition,
+    private Writer(final CompilerSettings settings, final Definition definition,
                      final String source, final Variables variables, final SSource root) {
         this.settings = settings;
         this.definition = definition;
@@ -69,7 +73,7 @@ public class Writer {
         writeEnd();
     }
 
-    protected void writeBegin() {
+    private void writeBegin() {
         final int version = Opcodes.V1_7;
         final int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         final String base = BASE_CLASS_TYPE.getInternalName();
@@ -83,7 +87,7 @@ public class Writer {
         writer.visitSource(source, null);
     }
 
-    protected void writeConstructor() {
+    private void writeConstructor() {
         final GeneratorAdapter constructor = new GeneratorAdapter(Opcodes.ACC_PUBLIC, CONSTRUCTOR, null, null, writer);
         constructor.loadThis();
         constructor.loadArgs();
@@ -92,7 +96,7 @@ public class Writer {
         constructor.endMethod();
     }
 
-    protected void writeExecute() {
+    private void writeExecute() {
         if (variables.reserved.score) {
             final Variable score = variables.getVariable(null, Reserved.SCORE);
 
@@ -122,11 +126,11 @@ public class Writer {
         adapter.endMethod();
     }
 
-    protected void writeEnd() {
+    private void writeEnd() {
         writer.visitEnd();
     }
 
-    protected byte[] getBytes() {
+    private byte[] getBytes() {
         return writer.toByteArray();
     }
 }

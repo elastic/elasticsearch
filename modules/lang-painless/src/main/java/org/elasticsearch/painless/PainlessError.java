@@ -28,6 +28,7 @@ package org.elasticsearch.painless;
  */
 @SuppressWarnings("serial")
 public class PainlessError extends Error {
+
     /**
      * Constructor.
      * @param message The error message.

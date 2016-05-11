@@ -19,7 +19,12 @@
 
 package org.elasticsearch.painless;
 
+/**
+ * A set of methods for non-native boxing and non-native
+ * exact math operations used at both compile-time and runtime.
+ */
 public class Utility {
+
     public static boolean NumberToboolean(final Number value) {
         return value.longValue() != 0;
     }

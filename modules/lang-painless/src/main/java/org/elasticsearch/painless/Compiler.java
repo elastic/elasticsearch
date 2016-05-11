@@ -20,8 +20,8 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.Variables.Reserved;
+import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.node.SSource;
 
 import java.net.MalformedURLException;
@@ -33,12 +33,13 @@ import java.security.cert.Certificate;
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 
 /**
- * The Compiler is the entry point for generating a Painless script.  The compiler will generate an ANTLR
- * parse tree based on the source code that is passed in.  Two passes will then be run over the parse tree,
+ * The Compiler is the entry point for generating a Painless script.  The compiler will receive a Painless
+ * tree based on the type of input passed in (currently only ANTLR).  Two passes will then be run over the tree,
  * one for analysis using the {@link Analyzer} and another to generate the actual byte code using ASM in
  * the {@link Writer}.
  */
 final class Compiler {
+
     /**
      * The maximum number of characters allowed in the script source.
      */

@@ -46,7 +46,7 @@ import java.util.Map;
 /**
  * Implementation of a ScriptEngine for the Painless language.
  */
-public class PainlessScriptEngineService extends AbstractComponent implements ScriptEngineService {
+public final class PainlessScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     /**
      * Standard name of the Painless language.

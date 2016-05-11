@@ -23,6 +23,7 @@ package org.elasticsearch.painless;
  * Settings to use when compiling a script.
  */
 public final class CompilerSettings {
+
     /**
      * Constant to be used when specifying numeric overflow when compiling a script.
      */
@@ -66,7 +67,8 @@ public final class CompilerSettings {
 
     /**
      * Returns the value for the cumulative total number of statements that can be made in all loops
-     * in a script before an exception is thrown.  This attempts to prevent infinite loops.
+     * in a script before an exception is thrown.  This attempts to prevent infinite loops.  Note if
+     * the counter is set to 0, no loop counter will be written.
      */
     public final int getMaxLoopCounter() {
         return maxLoopCounter;

@@ -41,17 +41,17 @@ import org.elasticsearch.painless.antlr.PainlessParser.EmptyContext;
 import org.elasticsearch.painless.antlr.PainlessParser.EmptyscopeContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ExprContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ExpressionContext;
-import org.elasticsearch.painless.antlr.PainlessParser.ExtbraceContext;
-import org.elasticsearch.painless.antlr.PainlessParser.ExtcallContext;
-import org.elasticsearch.painless.antlr.PainlessParser.ExtcastContext;
-import org.elasticsearch.painless.antlr.PainlessParser.ExtdotContext;
-import org.elasticsearch.painless.antlr.PainlessParser.ExternalContext;
-import org.elasticsearch.painless.antlr.PainlessParser.ExtfieldContext;
-import org.elasticsearch.painless.antlr.PainlessParser.ExtnewContext;
-import org.elasticsearch.painless.antlr.PainlessParser.ExtprecContext;
-import org.elasticsearch.painless.antlr.PainlessParser.ExtstartContext;
-import org.elasticsearch.painless.antlr.PainlessParser.ExtstringContext;
-import org.elasticsearch.painless.antlr.PainlessParser.ExtvarContext;
+import org.elasticsearch.painless.antlr.PainlessParser.LinkbraceContext;
+import org.elasticsearch.painless.antlr.PainlessParser.LinkcallContext;
+import org.elasticsearch.painless.antlr.PainlessParser.LinkcastContext;
+import org.elasticsearch.painless.antlr.PainlessParser.LinkdotContext;
+import org.elasticsearch.painless.antlr.PainlessParser.ReadContext;
+import org.elasticsearch.painless.antlr.PainlessParser.LinkfieldContext;
+import org.elasticsearch.painless.antlr.PainlessParser.LinknewContext;
+import org.elasticsearch.painless.antlr.PainlessParser.LinkprecContext;
+import org.elasticsearch.painless.antlr.PainlessParser.ChainContext;
+import org.elasticsearch.painless.antlr.PainlessParser.LinkstringContext;
+import org.elasticsearch.painless.antlr.PainlessParser.LinkvarContext;
 import org.elasticsearch.painless.antlr.PainlessParser.FalseContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ForContext;
 import org.elasticsearch.painless.antlr.PainlessParser.GenericContext;
@@ -376,7 +376,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
         final List<ALink> links = new ArrayList<>();
         final Operation operation;
 
-        visitExtstart(ctx.chain(), links);
+        visitChain(ctx.chain(), links);
 
         if (ctx.INCR() != null) {
             operation = Operation.INCR;
@@ -394,7 +394,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
         final List<ALink> links = new ArrayList<>();
         final Operation operation;
 
-        visitExtstart(ctx.extstart(), links);
+        visitChain(ctx.chain(), links);
 
         if (ctx.INCR() != null) {
             operation = Operation.INCR;
@@ -408,10 +408,10 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitExternal(final ExternalContext ctx) {
+    public ANode visitRead(final ReadContext ctx) {
         final List<ALink> links = new ArrayList<>();
 
-        visitExtstart(ctx.extstart(), links);
+        visitChain(ctx.chain(), links);
 
         return new EChain(location(ctx), links, false, false, null, null);
     }
@@ -540,7 +540,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
         final List<ALink> links = new ArrayList<>();
         final Operation operation;
 
-        visitExtstart(ctx.extstart(), links);
+        visitChain(ctx.chain(), links);
 
         if (ctx.AMUL() != null) {
             operation = Operation.MUL;
@@ -571,65 +571,65 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
         return new EChain(location(ctx), links, false, false, operation, (AExpression)visit(ctx.expression()));
     }
 
-    private void visitExtstart(final ExtstartContext ctx, final List<ALink> links) {
-        if (ctx.extprec() != null) {
-            visitExtprec(ctx.extprec(), links);
-        } else if (ctx.extcast() != null) {
-            visitExtcast(ctx.extcast(), links);
-        } else if (ctx.extvar() != null) {
-            visitExtvar(ctx.extvar(), links);
-        } else if (ctx.extnew() != null) {
-            visitExtnew(ctx.extnew(), links);
-        } else if (ctx.extstring() != null) {
-            visitExtstring(ctx.extstring(), links);
+    private void visitChain(final ChainContext ctx, final List<ALink> links) {
+        if (ctx.linkprec() != null) {
+            visitLinkprec(ctx.linkprec(), links);
+        } else if (ctx.linkcast() != null) {
+            visitLinkcast(ctx.linkcast(), links);
+        } else if (ctx.linkvar() != null) {
+            visitLinkvar(ctx.linkvar(), links);
+        } else if (ctx.linknew() != null) {
+            visitLinknew(ctx.linknew(), links);
+        } else if (ctx.linkstring() != null) {
+            visitLinkstring(ctx.linkstring(), links);
         } else {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
     }
 
     @Override
-    public ANode visitExtstart(final ExtstartContext ctx) {
+    public ANode visitChain(final ChainContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
     }
 
-    private void visitExtprec(final ExtprecContext ctx, final List<ALink> links) {
-        if (ctx.extprec() != null) {
-            visitExtprec(ctx.extprec(), links);
-        } else if (ctx.extcast() != null) {
-            visitExtcast(ctx.extcast(), links);
-        } else if (ctx.extvar() != null) {
-            visitExtvar(ctx.extvar(), links);
-        } else if (ctx.extnew() != null) {
-            visitExtnew(ctx.extnew(), links);
-        } else if (ctx.extstring() != null) {
-            visitExtstring(ctx.extstring(), links);
+    private void visitLinkprec(final LinkprecContext ctx, final List<ALink> links) {
+        if (ctx.linkprec() != null) {
+            visitLinkprec(ctx.linkprec(), links);
+        } else if (ctx.linkcast() != null) {
+            visitLinkcast(ctx.linkcast(), links);
+        } else if (ctx.linkvar() != null) {
+            visitLinkvar(ctx.linkvar(), links);
+        } else if (ctx.linknew() != null) {
+            visitLinknew(ctx.linknew(), links);
+        } else if (ctx.linkstring() != null) {
+            visitLinkstring(ctx.linkstring(), links);
         } else {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
 
-        if (ctx.extbrace() != null) {
-            visitExtbrace(ctx.extbrace(), links);
-        } else if (ctx.extdot() != null) {
-            visitExtdot(ctx.extdot(), links);
+        if (ctx.linkbrace() != null) {
+            visitLinkbrace(ctx.linkbrace(), links);
+        } else if (ctx.linkdot() != null) {
+            visitLinkdot(ctx.linkdot(), links);
         }
     }
 
     @Override
-    public ANode visitExtprec(final ExtprecContext ctx) {
+    public ANode visitLinkprec(final LinkprecContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
     }
 
-    private void visitExtcast(final ExtcastContext ctx, final List<ALink> links) {
-        if (ctx.extprec() != null) {
-            visitExtprec(ctx.extprec(), links);
-        } else if (ctx.extcast() != null) {
-            visitExtcast(ctx.extcast(), links);
-        } else if (ctx.extvar() != null) {
-            visitExtvar(ctx.extvar(), links);
-        } else if (ctx.extnew() != null) {
-            visitExtnew(ctx.extnew(), links);
-        } else if (ctx.extstring() != null) {
-            visitExtstring(ctx.extstring(), links);
+    private void visitLinkcast(final LinkcastContext ctx, final List<ALink> links) {
+        if (ctx.linkprec() != null) {
+            visitLinkprec(ctx.linkprec(), links);
+        } else if (ctx.linkcast() != null) {
+            visitLinkcast(ctx.linkcast(), links);
+        } else if (ctx.linkvar() != null) {
+            visitLinkvar(ctx.linkvar(), links);
+        } else if (ctx.linknew() != null) {
+            visitLinknew(ctx.linknew(), links);
+        } else if (ctx.linkstring() != null) {
+            visitLinkstring(ctx.linkstring(), links);
         } else {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
@@ -638,39 +638,39 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitExtcast(final ExtcastContext ctx) {
+    public ANode visitLinkcast(final LinkcastContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
     }
 
-    private void visitExtbrace(final ExtbraceContext ctx, final List<ALink> links) {
+    private void visitLinkbrace(final LinkbraceContext ctx, final List<ALink> links) {
         links.add(new LBrace(location(ctx), (AExpression)visit(ctx.expression())));
 
-        if (ctx.extbrace() != null) {
-            visitExtbrace(ctx.extbrace(), links);
-        } else if (ctx.extdot() != null) {
-            visitExtdot(ctx.extdot(), links);
+        if (ctx.linkbrace() != null) {
+            visitLinkbrace(ctx.linkbrace(), links);
+        } else if (ctx.linkdot() != null) {
+            visitLinkdot(ctx.linkdot(), links);
         }
     }
 
     @Override
-    public ANode visitExtbrace(final ExtbraceContext ctx) {
+    public ANode visitLinkbrace(final LinkbraceContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
     }
 
-    private void visitExtdot(final ExtdotContext ctx, final List<ALink> links) {
-        if (ctx.extcall() != null) {
-            visitExtcall(ctx.extcall(), links);
-        } else if (ctx.extfield() != null) {
-            visitExtfield(ctx.extfield(), links);
+    private void visitLinkdot(final LinkdotContext ctx, final List<ALink> links) {
+        if (ctx.linkcall() != null) {
+            visitLinkcall(ctx.linkcall(), links);
+        } else if (ctx.linkfield() != null) {
+            visitLinkfield(ctx.linkfield(), links);
         }
     }
 
     @Override
-    public ANode visitExtdot(final ExtdotContext ctx) {
+    public ANode visitLinkdot(final LinkdotContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
     }
 
-    private void visitExtcall(final ExtcallContext ctx, final List<ALink> links) {
+    private void visitLinkcall(final LinkcallContext ctx, final List<ALink> links) {
         final List<AExpression> arguments = new ArrayList<>();
 
         for (final ExpressionContext expression : ctx.arguments().expression()) {
@@ -679,38 +679,38 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
 
         links.add(new LCall(location(ctx), ctx.EXTID().getText(), arguments));
 
-        if (ctx.extbrace() != null) {
-            visitExtbrace(ctx.extbrace(), links);
-        } else if (ctx.extdot() != null) {
-            visitExtdot(ctx.extdot(), links);
+        if (ctx.linkbrace() != null) {
+            visitLinkbrace(ctx.linkbrace(), links);
+        } else if (ctx.linkdot() != null) {
+            visitLinkdot(ctx.linkdot(), links);
         }
     }
 
     @Override
-    public ANode visitLinkcall(final ExtcallContext ctx) {
+    public ANode visitLinkcall(final LinkcallContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
     }
 
-    private void visitExtvar(final ExtvarContext ctx, final List<ALink> links) {
+    private void visitLinkvar(final LinkvarContext ctx, final List<ALink> links) {
         final String name = ctx.identifier().getText();
 
         reserved.markSpecial(name);
 
         links.add(new LVariable(location(ctx), name));
 
-        if (ctx.extbrace() != null) {
-            visitExtbrace(ctx.extbrace(), links);
-        } else if (ctx.extdot() != null) {
-            visitExtdot(ctx.extdot(), links);
+        if (ctx.linkbrace() != null) {
+            visitLinkbrace(ctx.linkbrace(), links);
+        } else if (ctx.linkdot() != null) {
+            visitLinkdot(ctx.linkdot(), links);
         }
     }
 
     @Override
-    public ANode visitExtvar(final ExtvarContext ctx) {
+    public ANode visitLinkvar(final LinkvarContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
     }
 
-    private void visitExtfield(final ExtfieldContext ctx, final List<ALink> links) {
+    private void visitLinkfield(final LinkfieldContext ctx, final List<ALink> links) {
         final String value;
 
         if (ctx.EXTID() != null) {
@@ -723,19 +723,19 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
 
         links.add(new LField(location(ctx), value));
 
-        if (ctx.extbrace() != null) {
-            visitExtbrace(ctx.extbrace(), links);
-        } else if (ctx.extdot() != null) {
-            visitExtdot(ctx.extdot(), links);
+        if (ctx.linkbrace() != null) {
+            visitLinkbrace(ctx.linkbrace(), links);
+        } else if (ctx.linkdot() != null) {
+            visitLinkdot(ctx.linkdot(), links);
         }
     }
 
     @Override
-    public ANode visitExtfield(final ExtfieldContext ctx) {
+    public ANode visitLinkfield(final LinkfieldContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
     }
 
-    private void visitExtnew(final ExtnewContext ctx, final List<ALink> links) {
+    private void visitLinknew(final LinknewContext ctx, final List<ALink> links) {
         final List<AExpression> arguments = new ArrayList<>();
 
         if (ctx.arguments() != null) {
@@ -754,28 +754,28 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
 
-        if (ctx.extdot() != null) {
-            visitExtdot(ctx.extdot(), links);
+        if (ctx.linkdot() != null) {
+            visitLinkdot(ctx.linkdot(), links);
         }
     }
 
     @Override
-    public ANode visitExtnew(final ExtnewContext ctx) {
+    public ANode visitLinknew(final LinknewContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
     }
 
-    private void visitExtstring(final ExtstringContext ctx, final List<ALink> links) {
+    private void visitLinkstring(final LinkstringContext ctx, final List<ALink> links) {
         links.add(new LString(location(ctx), ctx.STRING().getText().substring(1, ctx.STRING().getText().length() - 1)));
 
-        if (ctx.extbrace() != null) {
-            visitExtbrace(ctx.extbrace(), links);
-        } else if (ctx.extdot() != null) {
-            visitExtdot(ctx.extdot(), links);
+        if (ctx.linkbrace() != null) {
+            visitLinkbrace(ctx.linkbrace(), links);
+        } else if (ctx.linkdot() != null) {
+            visitLinkdot(ctx.linkdot(), links);
         }
     }
 
     @Override
-    public ANode visitExtstring(final ExtstringContext ctx) {
+    public ANode visitLinkstring(final LinkstringContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
     }
 

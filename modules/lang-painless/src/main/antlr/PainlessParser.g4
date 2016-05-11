@@ -92,9 +92,9 @@ expression
     |               TRUE                                                # true
     |               FALSE                                               # false
     |               NULL                                                # null
-    | <assoc=right> chain ( INCR | DECR )                            # postinc
-    | <assoc=right> ( INCR | DECR ) chain                            # preinc
-    |               chain                                            # external
+    | <assoc=right> chain ( INCR | DECR )                               # postinc
+    | <assoc=right> ( INCR | DECR ) chain                               # preinc
+    |               chain                                               # read
     | <assoc=right> ( BOOLNOT | BWNOT | ADD | SUB ) expression          # unary
     | <assoc=right> LP decltype RP expression                           # cast
     |               expression ( MUL | DIV | REM ) expression           # binary

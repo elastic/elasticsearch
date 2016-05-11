@@ -31,14 +31,18 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.Map;
 
-public class WriterConstants {
+/**
+ * General pool of constants used during the writing phase of compilation.
+ */
+public final class WriterConstants {
+
     public final static String BASE_CLASS_NAME = Executable.class.getName();
     public final static String CLASS_NAME      = BASE_CLASS_NAME + "$CompiledPainlessExecutable";
     public final static Type BASE_CLASS_TYPE   = Type.getType(Executable.class);
     public final static Type CLASS_TYPE        = Type.getType("L" + CLASS_NAME.replace(".", "/") + ";");
 
-    final static Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", String.class, String.class);
-    final static Method EXECUTE     = getAsmMethod(Object.class, "execute", Map.class, Scorer.class, LeafDocLookup.class);
+    public final static Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", String.class, String.class);
+    public final static Method EXECUTE     = getAsmMethod(Object.class, "execute", Map.class, Scorer.class, LeafDocLookup.class);
 
     public final static Type PAINLESS_ERROR_TYPE = Type.getType(PainlessError.class);
 

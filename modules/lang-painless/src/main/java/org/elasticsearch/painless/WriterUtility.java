@@ -87,7 +87,12 @@ import static org.elasticsearch.painless.WriterConstants.TOSHORTEXACT_LONG;
 import static org.elasticsearch.painless.WriterConstants.TOSHORTWOOVERFLOW_DOUBLE;
 import static org.elasticsearch.painless.WriterConstants.TOSHORTWOOVERFLOW_FLOAT;
 
-public class WriterUtility {
+/**
+ * Set of methods used during the writing phase of compilation
+ * shared by the nodes of the Painless tree.
+ */
+public final class WriterUtility {
+
     public static void writeLoopCounter(final GeneratorAdapter adapter, final int slot, final int count) {
         if (slot > -1) {
             final Label end = new Label();

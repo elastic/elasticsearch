@@ -33,6 +33,7 @@ import java.util.Map;
  * to run a previously compiled Painless script.
  */
 final class ScriptImpl implements ExecutableScript, LeafSearchScript {
+
     /**
      * The Painless Executable script that can be run.
      */

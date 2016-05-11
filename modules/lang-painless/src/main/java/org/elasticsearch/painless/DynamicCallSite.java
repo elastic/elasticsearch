@@ -42,6 +42,7 @@ import java.lang.invoke.MutableCallSite;
 // NOTE: this class must be public, because generated painless classes are in a different package,
 // and it needs to be accessible by that code.
 public final class DynamicCallSite {
+
     // NOTE: these must be primitive types, see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
     /** static bootstrap parameter indicating a dynamic method call, e.g. foo.bar(...) */
     public static final int METHOD_CALL = 0;

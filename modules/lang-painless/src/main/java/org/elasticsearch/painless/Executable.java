@@ -24,7 +24,11 @@ import org.elasticsearch.search.lookup.LeafDocLookup;
 
 import java.util.Map;
 
+/**
+ * The superclass used to build all Painless scripts on top of.
+ */
 public abstract class Executable {
+
     private final String name;
     private final String source;
 
@@ -41,5 +45,8 @@ public abstract class Executable {
         return source;
     }
 
+    /**
+     * This method will be defined in a subclass during the writing phase.  See {@link Writer}.
+     */
     public abstract Object execute(final Map<String, Object> input, final Scorer scorer, final LeafDocLookup doc);
 }

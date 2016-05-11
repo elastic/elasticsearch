@@ -1343,6 +1343,17 @@ class PainlessParser extends Parser {
       else return visitor.visitChildren(this);
     }
   }
+  public static class ReadContext extends ExpressionContext {
+    public ChainContext chain() {
+      return getRuleContext(ChainContext.class,0);
+    }
+    public ReadContext(ExpressionContext ctx) { copyFrom(ctx); }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof PainlessParserVisitor ) return ((PainlessParserVisitor<? extends T>)visitor).visitRead(this);
+      else return visitor.visitChildren(this);
+    }
+  }
   public static class BoolContext extends ExpressionContext {
     public List<ExpressionContext> expression() {
       return getRuleContexts(ExpressionContext.class);
@@ -1489,17 +1500,6 @@ class PainlessParser extends Parser {
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
       if ( visitor instanceof PainlessParserVisitor ) return ((PainlessParserVisitor<? extends T>)visitor).visitCast(this);
-      else return visitor.visitChildren(this);
-    }
-  }
-  public static class ExternalContext extends ExpressionContext {
-    public ChainContext chain() {
-      return getRuleContext(ChainContext.class,0);
-    }
-    public ExternalContext(ExpressionContext ctx) { copyFrom(ctx); }
-    @Override
-    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof PainlessParserVisitor ) return ((PainlessParserVisitor<? extends T>)visitor).visitExternal(this);
       else return visitor.visitChildren(this);
     }
   }
@@ -1703,7 +1703,7 @@ class PainlessParser extends Parser {
         break;
       case 11:
         {
-        _localctx = new ExternalContext(_localctx);
+        _localctx = new ReadContext(_localctx);
         _ctx = _localctx;
         _prevctx = _localctx;
         setState(232);

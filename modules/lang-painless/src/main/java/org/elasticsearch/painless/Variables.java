@@ -25,7 +25,17 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Iterator;
 
+/**
+ * Tracks variables across compilation phases.
+ */
 public final class Variables {
+
+    /**
+     * Tracks reserved variables.  Must be given to any source of input
+     * prior to beginning the analysis phase so that reserved variables
+     * are known ahead of time to assign appropriate slots without
+     * being wasteful.
+     */
     public static final class Reserved {
         public static final String THIS = "#this";
         public static final String INPUT = "input";

@@ -382,8 +382,6 @@ public class Def {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
                     return ((Number)left).doubleValue() * ((Number)right).doubleValue();
-                } else if (left instanceof Long && right instanceof Long) {
-                    return ((Number)left).longValue() * ((Number)right).longValue();
                 } else if (left instanceof Float || right instanceof Float) {
                     return ((Number)left).floatValue() * ((Number)right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
@@ -427,8 +425,6 @@ public class Def {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
                     return ((Number)left).doubleValue() / ((Number)right).doubleValue();
-                } else if (left instanceof Long && right instanceof Long) {
-                    return ((Number)left).longValue() / ((Number)right).longValue();
                 } else if (left instanceof Float || right instanceof Float) {
                     return ((Number)left).floatValue() / ((Number)right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
@@ -472,8 +468,6 @@ public class Def {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
                     return ((Number)left).doubleValue() % ((Number)right).doubleValue();
-                } else if (left instanceof Long && right instanceof Long) {
-                    return ((Number)left).longValue() % ((Number)right).longValue();
                 } else if (left instanceof Float || right instanceof Float) {
                     return ((Number)left).floatValue() % ((Number)right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
@@ -519,8 +513,6 @@ public class Def {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
                     return ((Number)left).doubleValue() + ((Number)right).doubleValue();
-                } else if (left instanceof Long && right instanceof Long) {
-                    return ((Number)left).longValue() + ((Number)right).longValue();
                 } else if (left instanceof Float || right instanceof Float) {
                     return ((Number)left).floatValue() + ((Number)right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
@@ -564,8 +556,6 @@ public class Def {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
                     return ((Number)left).doubleValue() - ((Number)right).doubleValue();
-                } else if (left instanceof Long && right instanceof Long) {
-                    return ((Number)left).longValue() - ((Number)right).longValue();
                 } else if (left instanceof Float || right instanceof Float) {
                     return ((Number)left).floatValue() - ((Number)right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
@@ -822,8 +812,6 @@ public class Def {
                 } else if (left instanceof Character) {
                     return (char)left == ((Number)right).doubleValue();
                 }
-            } else if (left instanceof Long && right instanceof Long) {
-                return (long)left == (long)right;
             } else if (left instanceof Float) {
                 if (right instanceof Number) {
                     return (float)left == ((Number)right).floatValue();
@@ -871,8 +859,6 @@ public class Def {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
                     return ((Number)left).doubleValue() < ((Number)right).doubleValue();
-                } else if (left instanceof Long && right instanceof Long) {
-                    return ((Number)left).longValue() < ((Number)right).longValue();
                 } else if (left instanceof Float || right instanceof Float) {
                     return ((Number)left).floatValue() < ((Number)right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
@@ -916,8 +902,6 @@ public class Def {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
                     return ((Number)left).doubleValue() <= ((Number)right).doubleValue();
-                } else if (left instanceof Long && right instanceof Long) {
-                    return ((Number)left).longValue() <= ((Number)right).longValue();
                 } else if (left instanceof Float || right instanceof Float) {
                     return ((Number)left).floatValue() <= ((Number)right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
@@ -961,8 +945,6 @@ public class Def {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
                     return ((Number)left).doubleValue() > ((Number)right).doubleValue();
-                } else if (left instanceof Long && right instanceof Long) {
-                    return ((Number)left).longValue() > ((Number)right).longValue();
                 } else if (left instanceof Float || right instanceof Float) {
                     return ((Number)left).floatValue() > ((Number)right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {
@@ -1006,8 +988,6 @@ public class Def {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double) {
                     return ((Number)left).doubleValue() >= ((Number)right).doubleValue();
-                } else if (left instanceof Long && right instanceof Long) {
-                    return ((Number)left).longValue() >= ((Number)right).longValue();
                 } else if (left instanceof Float || right instanceof Float) {
                     return ((Number)left).floatValue() >= ((Number)right).floatValue();
                 } else if (left instanceof Long || right instanceof Long) {

@@ -19,7 +19,8 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.script.ScoreAccessor;
+import org.apache.lucene.search.Scorer;
+import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -36,21 +37,17 @@ public class WriterConstants {
     public final static Type BASE_CLASS_TYPE   = Type.getType(Executable.class);
     public final static Type CLASS_TYPE        = Type.getType("L" + CLASS_NAME.replace(".", "/") + ";");
 
-    public final static Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", Definition.class, String.class, String.class);
-    public final static Method EXECUTE     = getAsmMethod(Object.class, "execute", Map.class);
-    public final static String SIGNATURE   = "(Ljava/util/Map<Ljava/lang/String;Ljava/lang/Object;>;)Ljava/lang/Object;";
+    final static Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", String.class, String.class);
+    final static Method EXECUTE     = getAsmMethod(Object.class, "execute", Map.class, Scorer.class, LeafDocLookup.class);
 
     public final static Type PAINLESS_ERROR_TYPE = Type.getType(PainlessError.class);
 
-    public final static Type DEFINITION_TYPE = Type.getType(Definition.class);
-
-    public final static Type OBJECT_TYPE = Type.getType(Object.class);
+    public final static Type NEEDS_SCORE_TYPE = Type.getType(NeedsScore.class);
+    public final static Type SCORER_TYPE = Type.getType(Scorer.class);
+    public final static Method SCORER_SCORE = getAsmMethod(float.class, "score");
 
     public final static Type MAP_TYPE  = Type.getType(Map.class);
     public final static Method MAP_GET = getAsmMethod(Object.class, "get", Object.class);
-
-    public final static Type SCORE_ACCESSOR_TYPE    = Type.getType(ScoreAccessor.class);
-    public final static Method SCORE_ACCESSOR_FLOAT = getAsmMethod(float.class, "floatValue");
 
     /** dynamic callsite bootstrap signature */
     public final static MethodType DEF_BOOTSTRAP_TYPE =

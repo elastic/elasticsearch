@@ -58,6 +58,10 @@ public class LVariable extends ALink {
         } else {
             final Variable variable = variables.getVariable(location, name);
 
+            if (store && variable.readonly) {
+                throw new IllegalArgumentException(error("Variable [" + variable.name + "] is read-only."));
+            }
+
             slot = variable.slot;
             after = variable.type;
         }

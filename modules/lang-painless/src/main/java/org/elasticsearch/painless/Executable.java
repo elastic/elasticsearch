@@ -19,19 +19,16 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition;
+import org.apache.lucene.search.Scorer;
+import org.elasticsearch.search.lookup.LeafDocLookup;
 
 import java.util.Map;
 
 public abstract class Executable {
-    protected final Definition definition;
-
     private final String name;
     private final String source;
 
-    public Executable(final Definition definition, final String name, final String source) {
-        this.definition = definition;
-
+    public Executable(final String name, final String source) {
         this.name = name;
         this.source = source;
     }
@@ -44,9 +41,5 @@ public abstract class Executable {
         return source;
     }
 
-    public Definition getDefinition() {
-        return definition;
-    }
-
-    public abstract Object execute(Map<String, Object> input);
+    public abstract Object execute(final Map<String, Object> input, final Scorer scorer, final LeafDocLookup doc);
 }

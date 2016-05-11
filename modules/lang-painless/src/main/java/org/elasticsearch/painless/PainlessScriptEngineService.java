@@ -216,11 +216,10 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
 
             /**
              * Whether or not the score is needed.
-             * @return Always true as it's assumed score is needed.
              */
             @Override
             public boolean needsScores() {
-                return true;
+                return compiledScript.compiled() instanceof NeedsScore;
             }
         };
     }

@@ -48,12 +48,12 @@ public class STrap extends AStatement {
 
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        variable = variables.addVariable(location, type, name);
+        variable = variables.addVariable(location, type, name, true, false);
 
         try {
             variable.type.clazz.asSubclass(Exception.class);
         } catch (final ClassCastException cce) {
-            throw new IllegalArgumentException(error("Not an exception type [" + variable.type.name + "]."));
+            throw new ClassCastException(error("Not an exception type [" + variable.type.name + "]."));
         }
 
         if (block != null) {

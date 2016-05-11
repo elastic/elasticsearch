@@ -16,20 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.node.SSource;
-import org.elasticsearch.painless.Variables.Reserved;
-
-public class Analyzer {
-    public static Variables analyze(final CompilerSettings settings, final Definition definition,
-                                    final Reserved shortcut, final SSource root) {
-        final Variables variables = new Variables(settings, definition, shortcut);
-        root.analyze(settings, definition, variables);
-
-        return variables;
-    }
-
-    private Analyzer() {}
+/** Marker interface that a generated {@link Executable} uses the {@code _score} value */
+public interface NeedsScore {
 }

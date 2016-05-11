@@ -44,7 +44,7 @@ public class SDeclaration extends AStatement {
 
     @Override
     protected void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        variable = variables.addVariable(location, type, name);
+        variable = variables.addVariable(location, type, name, false, false);
 
         if (expression != null) {
             expression.expected = variable.type;

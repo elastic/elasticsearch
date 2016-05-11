@@ -26,24 +26,30 @@ import java.util.Deque;
 import java.util.Iterator;
 
 public final class Variables {
-    public static final class Special {
+    public static final class Reserved {
         public static final String THIS = "#this";
         public static final String INPUT = "input";
-        public static final String LOOP = "#loop";
-        public static final String DOC = "doc";
         public static final String SCORE = "_score";
+        public static final String DOC = "doc";
+        public static final String CTX = "ctx";
+        public static final String LOOP = "#loop";
 
-        private boolean doc = false;
-        private boolean score = false;
-        private boolean loop = false;
+        boolean score = false;
+        boolean ctx = false;
+        boolean loop = false;
 
-        public void checkSpecial(final String name) {
-            if (DOC.equals(name)) {
-                doc = true;
-            } else if (SCORE.equals(name)) {
+        public void markSpecial(final String name) {
+            if (SCORE.equals(name)) {
                 score = true;
+            } else if (CTX.equals(name)) {
+                ctx = true;
             }
         }
+
+        public boolean isSpecial(final String name) {
+            return name.equals(THIS) || name.equals(INPUT) || name.equals(SCORE) ||
+                name.equals(DOC) || name.equals(CTX) || name.equals(LOOP);
+         }
 
         public void usesLoop() {
             loop = true;
@@ -55,39 +61,42 @@ public final class Variables {
         public final String name;
         public final Type type;
         public final int slot;
+        public final boolean readonly;
+
         public boolean read = false;
 
-        private Variable(final String location, final String name, final Type type, final int slot) {
+        private Variable(final String location, final String name, final Type type, final int slot, final boolean readonly) {
             this.location = location;
             this.name = name;
             this.type = type;
             this.slot = slot;
+            this.readonly = readonly;
         }
     }
 
     private final Definition definition;
+    final Reserved reserved;
 
     private final Deque<Integer> scopes = new ArrayDeque<>();
     private final Deque<Variable> variables = new ArrayDeque<>();
 
-    public Variables(final CompilerSettings settings, final Definition definition, final Special special) {
+    public Variables(final CompilerSettings settings, final Definition definition, final Reserved reserved) {
         this.definition = definition;
+        this.reserved = reserved;
 
         incrementScope();
 
-        addVariable("[" + Special.THIS + "]", "Executable", Special.THIS);
-        addVariable("[" + Special.INPUT + "]", "Map<String,def>", Special.INPUT);
+        addVariable("[" + Reserved.THIS + "]", definition.execType.name, Reserved.THIS, true, true);
+        addVariable("[" + Reserved.INPUT + "]", definition.smapType.name, Reserved.INPUT, true, true);
+        addVariable("[" + Reserved.SCORE + "]", definition.floatType.name, Reserved.SCORE, true, true);
+        addVariable("[" + Reserved.DOC + "]", definition.smapType.name, Reserved.DOC, true, true);
 
-        if (special.score) {
-            addVariable("[" + Special.SCORE + "]", "float", Special.SCORE);
+        if (reserved.ctx) {
+            addVariable("[" + Reserved.CTX + "]", definition.smapType.name, Reserved.CTX, true, true);
         }
 
-        if (special.doc) {
-            addVariable("[" + Special.DOC + "]", "Map<String,def>", Special.DOC);
-        }
-
-        if (special.loop && settings.getMaxLoopCounter() > 0) {
-            addVariable("[" + Special.LOOP + "]", "int", Special.LOOP);
+        if (reserved.loop && settings.getMaxLoopCounter() > 0) {
+            addVariable("[" + Reserved.LOOP + "]", definition.intType.name, Reserved.LOOP, true, true);
         }
     }
 
@@ -127,9 +136,14 @@ public final class Variables {
         return null;
     }
 
-    public Variable addVariable(final String location, final String typestr, final String name) {
+    public Variable addVariable(final String location, final String typestr, final String name,
+                                final boolean readonly, final boolean reserved) {
+        if (!reserved && this.reserved.isSpecial(name)) {
+            throw new IllegalArgumentException("Error " + location + ": Variable name [" + name + "] is reserved.");
+        }
+
         if (getVariable(null, name) != null) {
-            throw new IllegalArgumentException("Error " + location + ": Variable [" + name + "] already defined.");
+            throw new IllegalArgumentException("Error " + location + ": Variable name [" + name + "] already defined.");
         }
 
         final Type type;
@@ -160,7 +174,7 @@ public final class Variables {
             slot = previous.slot + previous.type.type.getSize();
         }
 
-        final Variable variable = new Variable(location, name, type, slot);
+        final Variable variable = new Variable(location, name, type, slot, readonly);
         variables.push(variable);
 
         final int update = scopes.pop() + 1;

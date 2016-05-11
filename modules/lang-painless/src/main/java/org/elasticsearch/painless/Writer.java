@@ -19,11 +19,10 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Variables.Special;
+import org.elasticsearch.painless.Variables.Reserved;
 import org.elasticsearch.painless.Variables.Variable;
 import org.elasticsearch.painless.node.SSource;
 import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
@@ -33,9 +32,6 @@ import static org.elasticsearch.painless.WriterConstants.CONSTRUCTOR;
 import static org.elasticsearch.painless.WriterConstants.EXECUTE;
 import static org.elasticsearch.painless.WriterConstants.MAP_GET;
 import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
-import static org.elasticsearch.painless.WriterConstants.SCORE_ACCESSOR_FLOAT;
-import static org.elasticsearch.painless.WriterConstants.SCORE_ACCESSOR_TYPE;
-import static org.elasticsearch.painless.WriterConstants.SIGNATURE;
 
 public class Writer {
     public static byte[] write(final CompilerSettings settings, final Definition definition,
@@ -67,7 +63,7 @@ public class Writer {
         writeBegin();
         writeConstructor();
 
-        adapter = new GeneratorAdapter(Opcodes.ACC_PUBLIC, EXECUTE, SIGNATURE, null, writer);
+        adapter = new GeneratorAdapter(Opcodes.ACC_PUBLIC, EXECUTE, null, null, writer);
 
         writeExecute();
         writeEnd();
@@ -79,7 +75,11 @@ public class Writer {
         final String base = BASE_CLASS_TYPE.getInternalName();
         final String name = CLASS_TYPE.getInternalName();
 
-        writer.visit(version, access, name, null, base, null);
+        // apply marker interface NeedsScore if we use the score!
+        final String interfaces[] = variables.reserved.score ?
+            new String[] { WriterConstants.NEEDS_SCORE_TYPE.getInternalName() } : null;
+
+        writer.visit(version, access, name, null, base, interfaces);
         writer.visitSource(source, null);
     }
 
@@ -93,51 +93,27 @@ public class Writer {
     }
 
     protected void writeExecute() {
-        final Variable input = variables.getVariable(null, Special.INPUT);
+        if (variables.reserved.score) {
+            final Variable score = variables.getVariable(null, Reserved.SCORE);
 
-        final Variable score = variables.getVariable(null, Special.SCORE);
-
-        if (score != null) {
-            final Label fals = new Label();
-            final Label end = new Label();
-
-            adapter.visitVarInsn(Opcodes.ALOAD, input.slot);
-            adapter.push(Special.SCORE);
-            adapter.invokeInterface(MAP_TYPE, MAP_GET);
-            adapter.dup();
-            adapter.ifNull(fals);
-            adapter.checkCast(SCORE_ACCESSOR_TYPE);
-            adapter.invokeVirtual(SCORE_ACCESSOR_TYPE, SCORE_ACCESSOR_FLOAT);
-            adapter.goTo(end);
-            adapter.mark(fals);
-            adapter.pop();
-            adapter.push(0F);
-            adapter.mark(end);
+            adapter.visitVarInsn(Opcodes.ALOAD, score.slot);
+            adapter.invokeVirtual(WriterConstants.SCORER_TYPE, WriterConstants.SCORER_SCORE);
             adapter.visitVarInsn(Opcodes.FSTORE, score.slot);
         }
 
-        final Variable doc = variables.getVariable(null, Special.DOC);
-
-        if (doc != null) {
-            final Label fals = new Label();
-            final Label end = new Label();
+        if (variables.reserved.ctx) {
+            final Variable input = variables.getVariable(null, Reserved.INPUT);
+            final Variable ctx = variables.getVariable(null, Reserved.CTX);
 
             adapter.visitVarInsn(Opcodes.ALOAD, input.slot);
-            adapter.push(Special.DOC);
+            adapter.push(Reserved.CTX);
             adapter.invokeInterface(MAP_TYPE, MAP_GET);
-            adapter.dup();
-            adapter.ifNull(fals);
-            adapter.goTo(end);
-            adapter.mark(fals);
-            adapter.pop();
-            adapter.push(Opcodes.ACONST_NULL);
-            adapter.mark(end);
-            adapter.visitVarInsn(Opcodes.ASTORE, doc.slot);
+            adapter.visitVarInsn(Opcodes.ASTORE, ctx.slot);
         }
 
-        final Variable loop = variables.getVariable(null, Special.LOOP);
+        if (variables.reserved.loop) {
+            final Variable loop = variables.getVariable(null, Reserved.LOOP);
 
-        if (loop != null) {
             adapter.push(settings.getMaxLoopCounter());
             adapter.visitVarInsn(Opcodes.ISTORE, loop.slot);
         }

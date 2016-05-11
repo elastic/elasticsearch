@@ -29,8 +29,9 @@ import java.lang.invoke.MutableCallSite;
 /**
  * Painless invokedynamic call site.
  * <p>
- * Has 3 flavors (passed as static bootstrap parameters): dynamic method call,
- * dynamic field load (getter), and dynamic field store (setter).
+ * Has 5 flavors (passed as static bootstrap parameters): dynamic method call,
+ * dynamic field load (getter), and dynamic field store (setter), dynamic array load,
+ * and dynamic array store.
  * <p>
  * When a new type is encountered at the call site, we lookup from the appropriate
  * whitelist, and cache with a guard. If we encounter too many types, we stop caching.

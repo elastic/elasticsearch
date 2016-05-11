@@ -94,6 +94,7 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         utility.incrementScope();
         utility.addVariable(null, "#this", definition.execType);
         metadata.inputValueSlot = utility.addVariable(null, "input", definition.smapType).slot;
+        metadata.scorerValueSlot = utility.addVariable(null, "#scorer", definition.objectType).slot;
         metadata.loopCounterSlot = utility.addVariable(null, "#loop", definition.intType).slot;
         metadata.scoreValueSlot = utility.addVariable(null, "_score", definition.floatType).slot;
 

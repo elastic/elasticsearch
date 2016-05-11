@@ -72,7 +72,6 @@ import org.elasticsearch.painless.PainlessParser.TryContext;
 import org.elasticsearch.painless.PainlessParser.UnaryContext;
 import org.elasticsearch.painless.PainlessParser.WhileContext;
 import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
@@ -80,10 +79,6 @@ import static org.elasticsearch.painless.WriterConstants.BASE_CLASS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 import static org.elasticsearch.painless.WriterConstants.CONSTRUCTOR;
 import static org.elasticsearch.painless.WriterConstants.EXECUTE;
-import static org.elasticsearch.painless.WriterConstants.MAP_GET;
-import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
-import static org.elasticsearch.painless.WriterConstants.SCORE_ACCESSOR_FLOAT;
-import static org.elasticsearch.painless.WriterConstants.SCORE_ACCESSOR_TYPE;
 
 class Writer extends PainlessParserBaseVisitor<Void> {
     static byte[] write(Metadata metadata) {
@@ -155,22 +150,11 @@ class Writer extends PainlessParserBaseVisitor<Void> {
     }
 
     private void writeExecute() {
-        final Label fals = new Label();
-        final Label end = new Label();
-
         if (metadata.scoreValueUsed) {
-            execute.visitVarInsn(Opcodes.ALOAD, metadata.inputValueSlot);
-            execute.push("#score");
-            execute.invokeInterface(MAP_TYPE, MAP_GET);
-            execute.dup();
-            execute.ifNull(fals);
-            execute.checkCast(SCORE_ACCESSOR_TYPE);
-            execute.invokeVirtual(SCORE_ACCESSOR_TYPE, SCORE_ACCESSOR_FLOAT);
-            execute.goTo(end);
-            execute.mark(fals);
-            execute.pop();
-            execute.push(0F);
-            execute.mark(end);
+            // if the _score value is used, we do this once:
+            //   float _score = scorer.score();
+            execute.visitVarInsn(Opcodes.ALOAD, metadata.scorerValueSlot);
+            execute.invokeVirtual(WriterConstants.SCORER_TYPE, WriterConstants.SCORER_SCORE);
             execute.visitVarInsn(Opcodes.FSTORE, metadata.scoreValueSlot);
         }
 

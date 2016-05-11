@@ -22,7 +22,6 @@ package org.elasticsearch.painless;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
-import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 
 import java.util.HashMap;
@@ -47,6 +46,12 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      * The lookup is used to access search field values at run-time.
      */
     private final LeafSearchLookup lookup;
+
+    /**
+     * Current scorer being used
+     * @see #setScorer(Scorer)
+     */
+    private Scorer scorer;
 
     /**
      * Creates a ScriptImpl for the a previously compiled Painless script.
@@ -84,7 +89,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      */
     @Override
     public Object run() {
-        return executable.execute(variables);
+        return executable.execute(variables, scorer);
     }
 
     /**
@@ -120,7 +125,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      */
     @Override
     public void setScorer(final Scorer scorer) {
-        variables.put("#score", new ScoreAccessor(scorer));
+        this.scorer = scorer;
     }
 
     /**

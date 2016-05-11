@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.script.ScoreAccessor;
+import org.apache.lucene.search.Scorer;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -37,7 +37,7 @@ class WriterConstants {
     final static Type CLASS_TYPE        = Type.getType("L" + CLASS_NAME.replace(".", "/") + ";");
 
     final static Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", Definition.class, String.class, String.class);
-    final static Method EXECUTE     = getAsmMethod(Object.class, "execute", Map.class);
+    final static Method EXECUTE     = getAsmMethod(Object.class, "execute", Map.class, Scorer.class);
 
     final static Type PAINLESS_ERROR_TYPE = Type.getType(PainlessError.class);
 
@@ -47,11 +47,11 @@ class WriterConstants {
 
     final static Type OBJECT_TYPE = Type.getType(Object.class);
 
+    final static Type SCORER_TYPE = Type.getType(Scorer.class);
+    final static Method SCORER_SCORE = getAsmMethod(float.class, "score");
+
     final static Type MAP_TYPE  = Type.getType(Map.class);
     final static Method MAP_GET = getAsmMethod(Object.class, "get", Object.class);
-
-    final static Type SCORE_ACCESSOR_TYPE    = Type.getType(ScoreAccessor.class);
-    final static Method SCORE_ACCESSOR_FLOAT = getAsmMethod(float.class, "floatValue");
 
     /** dynamic callsite bootstrap signature */
     final static MethodType DEF_BOOTSTRAP_TYPE = MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.lucene.search.Scorer;
+
 import java.util.Map;
 
 public abstract class Executable {
@@ -46,5 +48,5 @@ public abstract class Executable {
         return definition;
     }
 
-    public abstract Object execute(Map<String, Object> input);
+    public abstract Object execute(Map<String, Object> input, Scorer scorer);
 }

@@ -238,14 +238,6 @@ class AnalyzerExternal {
                 definition.getType(parentemd.current.struct, parentemd.current.type.getDimensions() - 1);
             analyzeLoadStoreExternal(ctx);
             parentemd.current = braceenmd.type;
-
-            if (dotctx != null) {
-                metadata.createExtNodeMetadata(parent, dotctx);
-                analyzer.visit(dotctx);
-            } else if (bracectx != null) {
-                metadata.createExtNodeMetadata(parent, bracectx);
-                analyzer.visit(bracectx);
-            }
         } else {
             final boolean store = braceenmd.last && parentemd.storeExpr != null;
             final boolean get = parentemd.read || parentemd.token > 0 || !braceenmd.last;
@@ -318,6 +310,14 @@ class AnalyzerExternal {
         if (braceenmd.target == null) {
             throw new IllegalArgumentException(AnalyzerUtility.error(ctx) +
                 "Attempting to address a non-array type [" + parentemd.current.name + "] as an array.");
+        }
+
+        if (dotctx != null) {
+            metadata.createExtNodeMetadata(parent, dotctx);
+            analyzer.visit(dotctx);
+        } else if (bracectx != null) {
+            metadata.createExtNodeMetadata(parent, bracectx);
+            analyzer.visit(bracectx);
         }
     }
 
@@ -449,7 +449,7 @@ class AnalyzerExternal {
             }
 
             // special cases: reserved words
-            if ("_score".equals(id) || "doc".equals(id)) {
+            if (varenmd.last && ("_score".equals(id) || "doc".equals(id))) {
                 // read-only: don't allow stores
                 if (parentemd.storeExpr != null) {
                     throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Variable [" + id + "] is read-only.");

@@ -1,6 +1,38 @@
 [[analysis-simple-analyzer]]
 === Simple Analyzer
 
-An analyzer of type `simple` that is built using a
-<<analysis-lowercase-tokenizer,Lower
-Case Tokenizer>>.
+The `simple` analyzer breaks text into terms whenever it encounters a
+character which is not a letter. All terms are lower cased.
+
+[float]
+=== Definition
+
+It consists of:
+
+Tokenizer::
+* <<analysis-lowercase-tokenizer,Lower Case Tokenizer>>
+
+[float]
+=== Example output
+
+[source,js]
+---------------------------
+POST _analyze
+{
+  "analyzer": "simple",
+  "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
+}
+---------------------------
+// CONSOLE
+
+The above sentence would produce the following terms:
+
+[source,text]
+---------------------------
+[ the, quick, brown, foxes, jumped, over, the, lazy, dog, s, bone ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `simple` analyzer is not configurable.

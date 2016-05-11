@@ -48,7 +48,7 @@ public final class Variables {
         boolean ctx = false;
         boolean loop = false;
 
-        public void markSpecial(final String name) {
+        public void markReserved(final String name) {
             if (SCORE.equals(name)) {
                 score = true;
             } else if (CTX.equals(name)) {
@@ -56,7 +56,7 @@ public final class Variables {
             }
         }
 
-        public boolean isSpecial(final String name) {
+        public boolean isReserved(final String name) {
             return name.equals(THIS) || name.equals(INPUT) || name.equals(SCORE) ||
                 name.equals(DOC) || name.equals(CTX) || name.equals(LOOP);
          }
@@ -148,7 +148,7 @@ public final class Variables {
 
     public Variable addVariable(final String location, final String typestr, final String name,
                                 final boolean readonly, final boolean reserved) {
-        if (!reserved && this.reserved.isSpecial(name)) {
+        if (!reserved && this.reserved.isReserved(name)) {
             throw new IllegalArgumentException("Error " + location + ": Variable name [" + name + "] is reserved.");
         }
 

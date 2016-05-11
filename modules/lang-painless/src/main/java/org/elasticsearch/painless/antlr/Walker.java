@@ -698,7 +698,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     private void visitLinkvar(final LinkvarContext ctx, final List<ALink> links) {
         final String name = ctx.identifier().getText();
 
-        reserved.markSpecial(name);
+        reserved.markReserved(name);
 
         links.add(new LVariable(location(ctx), name));
 

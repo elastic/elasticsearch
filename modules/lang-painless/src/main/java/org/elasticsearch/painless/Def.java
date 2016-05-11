@@ -345,10 +345,12 @@ public class Def {
                                            "[" + receiverClass.getCanonicalName() + "] as an array.");
     }
 
-    // NOTE: below methods are not cached, instead invoked directly because they are performant.
+    // NOTE: Below methods are not cached, instead invoked directly because they are performant.
+    //       We also check for Long values first when possible since the type is more
+    //       likely to be a Long than a Float.
 
     public static Object not(final Object unary) {
-        if (unary instanceof Double || unary instanceof Float || unary instanceof Long) {
+        if (unary instanceof Double || unary instanceof Long || unary instanceof Float) {
             return ~((Number)unary).longValue();
         } else if (unary instanceof Number) {
             return ~((Number)unary).intValue();
@@ -392,10 +394,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() * (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() * (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() * (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() * (char)right;
                 } else {
                     return ((Number)left).intValue() * (char)right;
                 }
@@ -404,10 +406,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left * ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left * ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left * ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left * ((Number)right).floatValue();
                 } else {
                     return (char)left * ((Number)right).intValue();
                 }
@@ -435,10 +437,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() / (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() / (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() / (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() / (char)right;
                 } else {
                     return ((Number)left).intValue() / (char)right;
                 }
@@ -447,10 +449,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left / ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left / ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left / ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left / ((Number)right).floatValue();
                 } else {
                     return (char)left / ((Number)right).intValue();
                 }
@@ -478,10 +480,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() % (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() % (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() % (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() % (char)right;
                 } else {
                     return ((Number)left).intValue() % (char)right;
                 }
@@ -490,10 +492,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left % ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left % ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left % ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left % ((Number)right).floatValue();
                 } else {
                     return (char)left % ((Number)right).intValue();
                 }
@@ -523,10 +525,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() + (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() + (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() + (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() + (char)right;
                 } else {
                     return ((Number)left).intValue() + (char)right;
                 }
@@ -535,10 +537,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left + ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left + ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left + ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left + ((Number)right).floatValue();
                 } else {
                     return (char)left + ((Number)right).intValue();
                 }
@@ -566,10 +568,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() - (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() - (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() - (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() - (char)right;
                 } else {
                     return ((Number)left).intValue() - (char)right;
                 }
@@ -578,10 +580,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left - ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left - ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left - ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left - ((Number)right).floatValue();
                 } else {
                     return (char)left - ((Number)right).intValue();
                 }
@@ -595,7 +597,7 @@ public class Def {
     }
 
     public static Object lsh(final Object left, final int right) {
-        if (left instanceof Double || left instanceof Float || left instanceof Long) {
+        if (left instanceof Double || left instanceof Long || left instanceof Float) {
             return ((Number)left).longValue() << right;
         } else if (left instanceof Number) {
             return ((Number)left).intValue() << right;
@@ -607,7 +609,7 @@ public class Def {
     }
 
     public static Object rsh(final Object left, final int right) {
-        if (left instanceof Double || left instanceof Float || left instanceof Long) {
+        if (left instanceof Double || left instanceof Long || left instanceof Float) {
             return ((Number)left).longValue() >> right;
         } else if (left instanceof Number) {
             return ((Number)left).intValue() >> right;
@@ -619,7 +621,7 @@ public class Def {
     }
 
     public static Object ush(final Object left, final int right) {
-        if (left instanceof Double || left instanceof Float || left instanceof Long) {
+        if (left instanceof Double || left instanceof Long || left instanceof Float) {
             return ((Number)left).longValue() >>> right;
         } else if (left instanceof Number) {
             return ((Number)left).intValue() >>> right;
@@ -636,14 +638,14 @@ public class Def {
         } else if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double ||
-                        left instanceof Float || right instanceof Float ||
-                        left instanceof Long || right instanceof Long) {
+                    left instanceof Long || right instanceof Long ||
+                    left instanceof Float || right instanceof Float) {
                     return ((Number)left).longValue() & ((Number)right).longValue();
                 } else {
                     return ((Number)left).intValue() & ((Number)right).intValue();
                 }
             } else if (right instanceof Character) {
-                if (left instanceof Double || left instanceof Float || left instanceof Long) {
+                if (left instanceof Double || left instanceof Long || left instanceof Float) {
                     return ((Number)left).longValue() & (char)right;
                 } else {
                     return ((Number)left).intValue() & (char)right;
@@ -651,7 +653,7 @@ public class Def {
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
-                if (right instanceof Double || right instanceof Float || right instanceof Long) {
+                if (right instanceof Double || right instanceof Long || right instanceof Float) {
                     return (char)left & ((Number)right).longValue();
                 } else {
                     return (char)left & ((Number)right).intValue();
@@ -671,14 +673,14 @@ public class Def {
         } else if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double ||
-                        left instanceof Float || right instanceof Float ||
-                        left instanceof Long || right instanceof Long) {
+                    left instanceof Long || right instanceof Long ||
+                    left instanceof Float || right instanceof Float) {
                     return ((Number)left).longValue() ^ ((Number)right).longValue();
                 } else {
                     return ((Number)left).intValue() ^ ((Number)right).intValue();
                 }
             } else if (right instanceof Character) {
-                if (left instanceof Double || left instanceof Float || left instanceof Long) {
+                if (left instanceof Double || left instanceof Long || left instanceof Float) {
                     return ((Number)left).longValue() ^ (char)right;
                 } else {
                     return ((Number)left).intValue() ^ (char)right;
@@ -686,7 +688,7 @@ public class Def {
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
-                if (right instanceof Double || right instanceof Float || right instanceof Long) {
+                if (right instanceof Double || right instanceof Long || right instanceof Float) {
                     return (char)left ^ ((Number)right).longValue();
                 } else {
                     return (char)left ^ ((Number)right).intValue();
@@ -706,14 +708,14 @@ public class Def {
         } else if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double ||
-                        left instanceof Float || right instanceof Float ||
-                        left instanceof Long || right instanceof Long) {
+                    left instanceof Long || right instanceof Long ||
+                    left instanceof Float || right instanceof Float) {
                     return ((Number)left).longValue() | ((Number)right).longValue();
                 } else {
                     return ((Number)left).intValue() | ((Number)right).intValue();
                 }
             } else if (right instanceof Character) {
-                if (left instanceof Double || left instanceof Float || left instanceof Long) {
+                if (left instanceof Double || left instanceof Long || left instanceof Float) {
                     return ((Number)left).longValue() | (char)right;
                 } else {
                     return ((Number)left).intValue() | (char)right;
@@ -721,7 +723,7 @@ public class Def {
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
-                if (right instanceof Double || right instanceof Float || right instanceof Long) {
+                if (right instanceof Double || right instanceof Long || right instanceof Float) {
                     return (char)left | ((Number)right).longValue();
                 } else {
                     return (char)left | ((Number)right).intValue();
@@ -806,10 +808,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() < (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() < (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() < (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() < (char)right;
                 } else {
                     return ((Number)left).intValue() < (char)right;
                 }
@@ -818,10 +820,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left < ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left < ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left < ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left < ((Number)right).floatValue();
                 } else {
                     return (char)left < ((Number)right).intValue();
                 }
@@ -849,10 +851,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() <= (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() <= (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() <= (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() <= (char)right;
                 } else {
                     return ((Number)left).intValue() <= (char)right;
                 }
@@ -861,10 +863,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left <= ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left <= ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left <= ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left <= ((Number)right).floatValue();
                 } else {
                     return (char)left <= ((Number)right).intValue();
                 }
@@ -892,10 +894,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() > (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() > (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() > (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() > (char)right;
                 } else {
                     return ((Number)left).intValue() > (char)right;
                 }
@@ -904,10 +906,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left > ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left > ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left > ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left > ((Number)right).floatValue();
                 } else {
                     return (char)left > ((Number)right).intValue();
                 }
@@ -935,10 +937,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() >= (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() >= (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() >= (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() >= (char)right;
                 } else {
                     return ((Number)left).intValue() >= (char)right;
                 }
@@ -947,10 +949,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left >= ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left >= ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left >= ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left >= ((Number)right).floatValue();
                 } else {
                     return (char)left >= ((Number)right).intValue();
                 }

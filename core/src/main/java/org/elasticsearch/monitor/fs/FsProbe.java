@@ -80,7 +80,6 @@ public class FsProbe extends AbstractComponent {
 
             List<FsInfo.DeviceStats> devicesStats = new ArrayList<>();
 
-            final long diskStatsNow = now();
             List<String> lines = readProcDiskStats();
             if (!lines.isEmpty()) {
                 for (String line : lines) {
@@ -93,11 +92,8 @@ public class FsProbe extends AbstractComponent {
                     final String deviceName = fields[2];
                     final long readsCompleted = Long.parseLong(fields[3]);
                     final long sectorsRead = Long.parseLong(fields[5]);
-                    final long readMilliseconds = Long.parseLong(fields[6]);
                     final long writesCompleted = Long.parseLong(fields[7]);
                     final long sectorsWritten = Long.parseLong(fields[9]);
-                    final long writeMilliseconds = Long.parseLong(fields[10]);
-                    final long weightedMilliseconds = Long.parseLong(fields[13]);
                     final FsInfo.DeviceStats deviceStats =
                             new FsInfo.DeviceStats(
                                     majorDeviceNumber,
@@ -105,12 +101,8 @@ public class FsProbe extends AbstractComponent {
                                     deviceName,
                                     readsCompleted,
                                     sectorsRead,
-                                    readMilliseconds,
                                     writesCompleted,
                                     sectorsWritten,
-                                    writeMilliseconds,
-                                    weightedMilliseconds,
-                                    diskStatsNow,
                                     deviceMap.get(Tuple.tuple(majorDeviceNumber, minorDeviceNumber)));
                     devicesStats.add(deviceStats);
                 }
@@ -128,10 +120,6 @@ public class FsProbe extends AbstractComponent {
     @SuppressForbidden(reason = "read /proc/diskstats")
     List<String> readProcDiskStats() throws IOException {
         return Files.readAllLines(PathUtils.get("/proc/diskstats"));
-    }
-
-    long now() {
-        return System.nanoTime();
     }
 
     public static FsInfo.Path getFSInfo(NodePath nodePath) throws IOException {

@@ -21,8 +21,6 @@ package org.elasticsearch.monitor.fs;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.concurrent.TimeUnit;
-
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class DeviceStatsTests extends ESTestCase {
@@ -33,52 +31,32 @@ public class DeviceStatsTests extends ESTestCase {
         final String deviceName = randomAsciiOfLength(3);
         final int readsCompleted = randomIntBetween(1, 1 << 16);
         final int sectorsRead = randomIntBetween(8 * readsCompleted, 16 * readsCompleted);
-        final int readMilliseconds = randomIntBetween(readsCompleted, 2 * readsCompleted);
         final int writesCompleted = randomIntBetween(1, 1 << 16);
         final int sectorsWritten = randomIntBetween(8 * writesCompleted, 16 * writesCompleted);
-        final int writeMilliseconds = randomIntBetween(writesCompleted, 2 * writesCompleted);
-        final int weightedMillseconds =
-                randomIntBetween(readMilliseconds, 2 * readMilliseconds) + randomIntBetween(writeMilliseconds, 2 * writeMilliseconds);
-        final long relativeTime = randomIntBetween(0, Integer.MAX_VALUE);
-        final long elapsed = randomIntBetween((int) TimeUnit.SECONDS.toNanos(1), (int) TimeUnit.SECONDS.toNanos(2));
 
         FsInfo.DeviceStats previous = new FsInfo.DeviceStats(
-                majorDeviceNumber,
-                minorDeviceNumber,
-                deviceName,
-                readsCompleted,
-                sectorsRead,
-                readMilliseconds,
-                writesCompleted,
-                sectorsWritten,
-                writeMilliseconds,
-                weightedMillseconds,
-                relativeTime,
-                null);
+            majorDeviceNumber,
+            minorDeviceNumber,
+            deviceName,
+            readsCompleted,
+            sectorsRead,
+            writesCompleted,
+            sectorsWritten,
+            null);
         FsInfo.DeviceStats current = new FsInfo.DeviceStats(
-                majorDeviceNumber,
-                minorDeviceNumber,
-                deviceName,
-                readsCompleted + 1024,
-                sectorsRead + 16384,
-                readMilliseconds + 2048,
-                writesCompleted + 2048,
-                sectorsWritten + 32768,
-                writeMilliseconds + 4096,
-                weightedMillseconds + 4096 + 8192,
-                relativeTime + elapsed,
-                previous);
-        final long scale = TimeUnit.SECONDS.toNanos(1);
-        assertThat(current.iops(), equalTo(scale * 3072d / elapsed));
-        assertThat(current.readsPerSecond(), equalTo(scale * 1024d / elapsed));
-        assertThat(current.writesPerSecond(), equalTo(scale * 2048d / elapsed));
-        assertThat(current.readKilobytesPerSecond(), equalTo(scale * 8192d / elapsed));
-        assertThat(current.writeKilobytesPerSecond(), equalTo(scale * 16384d / elapsed));
-        assertThat(current.averageRequestSizeInKilobytes(), equalTo(8d));
-        assertThat(current.averageResidentRequests(), equalTo(scale * 12288d / elapsed / 1000));
-        assertThat(current.averageAwaitTimeInMilliseconds(), equalTo(2d));
-        assertThat(current.averageReadAwaitTimeInMilliseconds(), equalTo(2d));
-        assertThat(current.averageWriteAwaitTimeInMilliseconds(), equalTo(2d));
+            majorDeviceNumber,
+            minorDeviceNumber,
+            deviceName,
+            readsCompleted + 1024,
+            sectorsRead + 16384,
+            writesCompleted + 2048,
+            sectorsWritten + 32768,
+            previous);
+        assertThat(current.operations(), equalTo(1024L + 2048L));
+        assertThat(current.readOperations(), equalTo(1024L));
+        assertThat(current.writeOperations(), equalTo(2048L));
+        assertThat(current.readKilobytes(), equalTo(16384L / 2));
+        assertThat(current.writeKilobytes(), equalTo(32768L / 2));
     }
 
 }

@@ -45,7 +45,7 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
         this.osService = new OsService(settings);
         this.processService = new ProcessService(settings);
         this.jvmService = new JvmService(settings);
-        this.fsService = new FsService(settings, nodeEnvironment, threadPool::scheduleWithFixedDelay);
+        this.fsService = new FsService(settings, nodeEnvironment);
     }
 
     public OsService osService() {
@@ -67,18 +67,15 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
     @Override
     protected void doStart() {
         jvmGcMonitorService.start();
-        fsService.start();
     }
 
     @Override
     protected void doStop() {
-        fsService.stop();
         jvmGcMonitorService.stop();
     }
 
     @Override
     protected void doClose() {
-        fsService.close();
         jvmGcMonitorService.close();
     }
 

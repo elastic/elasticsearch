@@ -32,7 +32,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
 
@@ -198,18 +197,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         final long previousReadsCompleted;
         final long currentSectorsRead;
         final long previousSectorsRead;
-        final long currentReadMilliseconds;
-        final long previousReadMilliseconds;
         final long currentWritesCompleted;
         final long previousWritesCompleted;
         final long currentSectorsWritten;
         final long previousSectorsWritten;
-        final long currentWriteMilliseconds;
-        final long previousWriteMilliseconds;
-        final long currentWeightedMilliseconds;
-        final long previousWeightedMilliseconds;
-        final long currentRelativeTime;
-        final long previousRelativeTime;
 
         public DeviceStats(
                 final int majorDeviceNumber,
@@ -217,12 +208,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
                 final String deviceName,
                 final long currentReadsCompleted,
                 final long currentSectorsRead,
-                final long currentReadMilliseconds,
                 final long currentWritesCompleted,
                 final long currentSectorsWritten,
-                final long currentWriteMilliseconds,
-                final long currentWeightedMillseconds,
-                final long currentRelativeTime,
                 final DeviceStats previousDeviceStats) {
             this(
                     majorDeviceNumber,
@@ -235,15 +222,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
                     currentSectorsRead,
                     previousDeviceStats != null ? previousDeviceStats.currentSectorsRead : -1,
                     currentWritesCompleted,
-                    previousDeviceStats != null ? previousDeviceStats.currentWritesCompleted : -1,
-                    currentReadMilliseconds,
-                    previousDeviceStats != null ? previousDeviceStats.currentReadMilliseconds : -1,
-                    currentWriteMilliseconds,
-                    previousDeviceStats != null ? previousDeviceStats.currentWriteMilliseconds : -1,
-                    currentWeightedMillseconds,
-                    previousDeviceStats != null ? previousDeviceStats.currentWeightedMilliseconds : -1,
-                    currentRelativeTime,
-                    previousDeviceStats != null ? previousDeviceStats.currentRelativeTime : -1);
+                    previousDeviceStats != null ? previousDeviceStats.currentWritesCompleted : -1);
         }
 
         private DeviceStats(
@@ -257,15 +236,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
                 final long currentSectorsRead,
                 final long previousSectorsRead,
                 final long currentWritesCompleted,
-                final long previousWritesCompleted,
-                final long currentReadMilliseconds,
-                final long previousReadMilliseconds,
-                final long currentWriteMilliseconds,
-                final long previousWriteMilliseconds,
-                final long currentWeightedMilliseconds,
-                final long previousWeightedMilliseconds,
-                final long currentRelativeTime,
-                final long previousRelativeTime) {
+                final long previousWritesCompleted) {
             this.majorDeviceNumber = majorDeviceNumber;
             this.minorDeviceNumber = minorDeviceNumber;
             this.deviceName = deviceName;
@@ -277,14 +248,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             this.previousSectorsRead = previousSectorsRead;
             this.currentSectorsWritten = currentSectorsWritten;
             this.previousSectorsWritten = previousSectorsWritten;
-            this.currentReadMilliseconds = currentReadMilliseconds;
-            this.previousReadMilliseconds = previousReadMilliseconds;
-            this.currentWriteMilliseconds = currentWriteMilliseconds;
-            this.previousWriteMilliseconds = previousWriteMilliseconds;
-            this.currentWeightedMilliseconds = currentWeightedMilliseconds;
-            this.previousWeightedMilliseconds = previousWeightedMilliseconds;
-            this.currentRelativeTime = currentRelativeTime;
-            this.previousRelativeTime = previousRelativeTime;
         }
 
         public DeviceStats(StreamInput in) throws IOException {
@@ -299,14 +262,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             previousSectorsRead = in.readLong();
             currentSectorsWritten = in.readLong();
             previousSectorsWritten = in.readLong();
-            currentReadMilliseconds = in.readLong();
-            previousReadMilliseconds = in.readLong();
-            currentWriteMilliseconds = in.readLong();
-            previousWriteMilliseconds = in.readLong();
-            currentWeightedMilliseconds = in.readLong();
-            previousWeightedMilliseconds = in.readLong();
-            currentRelativeTime = in.readLong();
-            previousRelativeTime = in.readLong();
         }
 
         @Override
@@ -322,122 +277,86 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             out.writeLong(previousSectorsRead);
             out.writeLong(currentSectorsWritten);
             out.writeLong(previousSectorsWritten);
-            out.writeLong(currentReadMilliseconds);
-            out.writeLong(previousReadMilliseconds);
-            out.writeLong(currentWriteMilliseconds);
-            out.writeLong(previousWriteMilliseconds);
-            out.writeLong(currentWeightedMilliseconds);
-            out.writeLong(previousWeightedMilliseconds);
-            out.writeLong(currentRelativeTime);
-            out.writeLong(previousRelativeTime);
         }
 
-        private long totalOperationsCompleted() {
-            return (currentReadsCompleted - previousReadsCompleted) + (currentWritesCompleted - previousWritesCompleted);
+        public long operations() {
+            if (previousReadsCompleted == -1 || previousWritesCompleted == -1) return -1;
+
+            return (currentReadsCompleted - previousReadsCompleted) +
+                (currentWritesCompleted - previousWritesCompleted);
         }
 
-        public double iops() {
-            if (previousReadsCompleted == -1 || previousWritesCompleted == -1 || previousRelativeTime == -1) return -1;
+        public long readOperations() {
+            if (previousReadsCompleted == -1) return -1;
 
-            return rateOfChange(
-                    previousReadsCompleted + previousWritesCompleted,
-                    currentReadsCompleted + currentWritesCompleted,
-                    previousRelativeTime,
-                    currentRelativeTime);
+            return (currentReadsCompleted - previousReadsCompleted);
         }
 
-        public double readsPerSecond() {
-            if (previousReadsCompleted == -1 || previousRelativeTime == -1) return -1;
+        public long writeOperations() {
+            if (previousWritesCompleted == -1) return -1;
 
-            return rateOfChange(previousReadsCompleted, currentReadsCompleted, previousRelativeTime, currentRelativeTime);
+            return (currentWritesCompleted - previousWritesCompleted);
         }
 
-        public double writesPerSecond() {
-            if (previousWritesCompleted == -1 || previousRelativeTime == -1) return -1;
+        public long readKilobytes() {
+            if (previousSectorsRead == -1) return -1;
 
-            return rateOfChange(previousWritesCompleted, currentWritesCompleted, previousRelativeTime, currentRelativeTime);
+            return (currentSectorsRead - previousSectorsRead) / 2;
         }
 
-        public double readKilobytesPerSecond() {
-            if (previousSectorsRead == -1 || previousRelativeTime == -1) return -1;
+        public long writeKilobytes() {
+            if (previousSectorsWritten == -1) return -1;
 
-            return rateOfChange(previousSectorsRead, currentSectorsRead, previousRelativeTime, currentRelativeTime) / 2;
-        }
-
-        public double writeKilobytesPerSecond() {
-            if (previousSectorsWritten == -1 || previousRelativeTime == -1) return -1;
-
-            return rateOfChange(previousSectorsWritten, currentSectorsWritten, previousRelativeTime, currentRelativeTime) / 2;
-        }
-
-        public double averageRequestSizeInKilobytes() {
-            if (previousReadsCompleted == -1 || previousWritesCompleted == -1 || previousSectorsRead == -1) return -1;
-
-            final long totalOperationsCompleted = totalOperationsCompleted();
-            if (totalOperationsCompleted == 0) return 0;
-            return ((currentSectorsRead - previousSectorsRead) + (currentSectorsWritten - previousSectorsWritten))
-                    / (double)totalOperationsCompleted / 2;
-        }
-
-        public double averageResidentRequests() {
-            if (previousWeightedMilliseconds == -1 || previousRelativeTime == -1) return -1;
-
-            return rateOfChange(
-                    previousWeightedMilliseconds,
-                    currentWeightedMilliseconds,
-                    previousRelativeTime,
-                    currentRelativeTime) / 1000;
-        }
-
-        public double averageAwaitTimeInMilliseconds() {
-            if (previousReadMilliseconds == -1 || previousReadsCompleted == -1) return -1;
-
-            final long totalOperationsCompleted = totalOperationsCompleted();
-            if (totalOperationsCompleted == 0) return 0;
-            return ((currentReadMilliseconds - previousReadMilliseconds) + (currentWriteMilliseconds - previousWriteMilliseconds))
-                    / (double) totalOperationsCompleted;
-        }
-
-        public double averageReadAwaitTimeInMilliseconds() {
-            if (previousReadMilliseconds == -1 || previousReadsCompleted == -1) return -1;
-
-            final long readOperationsCompleted = currentReadsCompleted - previousReadsCompleted;
-            if (readOperationsCompleted == 0) return 0;
-            return (currentReadMilliseconds - previousReadMilliseconds) / (double)readOperationsCompleted;
-        }
-
-        public double averageWriteAwaitTimeInMilliseconds() {
-            if (previousWriteMilliseconds == -1 || previousWritesCompleted == -1) return -1;
-
-            final long writeOperationsCompleted = currentWritesCompleted - previousWritesCompleted;
-            if (writeOperationsCompleted == 0) return 0;
-            return (currentWriteMilliseconds - previousWriteMilliseconds) / (double)writeOperationsCompleted;
-
+            return (currentSectorsWritten - previousSectorsWritten) / 2;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("device_name", deviceName);
-            builder.field("iops", iops());
-            builder.field("reads_per_second", readsPerSecond());
-            builder.field("writes_per_second", writesPerSecond());
-            builder.field("read_kilobytes_per_second", readKilobytesPerSecond());
-            builder.field("write_kilobytes_per_second", writeKilobytesPerSecond());
-            builder.field("average_request_size_in_kilobytes", averageRequestSizeInKilobytes());
-            builder.field("average_resident_requests", averageResidentRequests());
-            builder.field("average_await_time_in_milliseconds", averageAwaitTimeInMilliseconds());
-            builder.field("average_read_await_time_in_milliseconds", averageReadAwaitTimeInMilliseconds());
-            builder.field("average_write_await_time_in_milliseconds", averageWriteAwaitTimeInMilliseconds());
+            builder.field(IoStats.OPERATIONS, operations());
+            builder.field(IoStats.READ_OPERATIONS, readOperations());
+            builder.field(IoStats.WRITE_OPERATIONS, writeOperations());
+            builder.field(IoStats.READ_KILOBYTES, readKilobytes());
+            builder.field(IoStats.WRITE_KILOBYTES, writeKilobytes());
             return builder;
         }
 
     }
 
     public static class IoStats implements Writeable, ToXContent {
+
+        private static final String OPERATIONS = "operations";
+        private static final String READ_OPERATIONS = "read_operations";
+        private static final String WRITE_OPERATIONS = "write_operations";
+        private static final String READ_KILOBYTES = "read_kilobytes";
+        private static final String WRITE_KILOBYTES = "write_kilobytes";
+
         final DeviceStats[] devicesStats;
+        final long totalOperations;
+        final long totalReadOperations;
+        final long totalWriteOperations;
+        final long totalReadKilobytes;
+        final long totalWriteKilobytes;
 
         public IoStats(final DeviceStats[] devicesStats) {
             this.devicesStats = devicesStats;
+            long totalOperations = 0;
+            long totalReadOperations = 0;
+            long totalWriteOperations = 0;
+            long totalReadKilobytes = 0;
+            long totalWriteKilobytes = 0;
+            for (DeviceStats deviceStats : devicesStats) {
+                totalOperations += deviceStats.operations() != -1 ? deviceStats.operations() : 0;
+                totalReadOperations += deviceStats.readOperations() != -1 ? deviceStats.readOperations() : 0;
+                totalWriteOperations += deviceStats.writeOperations() != -1 ? deviceStats.writeOperations() : 0;
+                totalReadKilobytes += deviceStats.readKilobytes() != -1 ? deviceStats.readKilobytes() : 0;
+                totalWriteKilobytes += deviceStats.writeKilobytes() != -1 ? deviceStats.writeKilobytes() : 0;
+            }
+            this.totalOperations = totalOperations;
+            this.totalReadOperations = totalReadOperations;
+            this.totalWriteOperations = totalWriteOperations;
+            this.totalReadKilobytes = totalReadKilobytes;
+            this.totalWriteKilobytes = totalWriteKilobytes;
         }
 
         public IoStats(StreamInput in) throws IOException {
@@ -447,6 +366,11 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
                 devicesStats[i] = new DeviceStats(in);
             }
             this.devicesStats = devicesStats;
+            this.totalOperations = in.readLong();
+            this.totalReadOperations = in.readLong();
+            this.totalWriteOperations = in.readLong();
+            this.totalReadKilobytes = in.readLong();
+            this.totalWriteKilobytes = in.readLong();
         }
 
         @Override
@@ -455,6 +379,11 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             for (int i = 0; i < devicesStats.length; i++) {
                 devicesStats[i].writeTo(out);
             }
+            out.writeLong(totalOperations);
+            out.writeLong(totalReadOperations);
+            out.writeLong(totalWriteOperations);
+            out.writeLong(totalReadKilobytes);
+            out.writeLong(totalWriteKilobytes);
         }
 
         @Override
@@ -467,14 +396,16 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
                     builder.endObject();
                 }
                 builder.endArray();
+                builder.startObject("total");
+                builder.field(OPERATIONS, totalOperations);
+                builder.field(READ_OPERATIONS, totalReadOperations);
+                builder.field(WRITE_OPERATIONS, totalWriteOperations);
+                builder.field(READ_KILOBYTES, totalReadKilobytes);
+                builder.field(WRITE_KILOBYTES, totalWriteKilobytes);
             }
             return builder;
         }
 
-    }
-
-    private static double rateOfChange(final long previous, final long current, final long t1, final long t2) {
-        return TimeUnit.SECONDS.toNanos(1) * (current - previous) / (double)(t2 - t1);
     }
 
     final long timestamp;

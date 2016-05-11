@@ -21,19 +21,15 @@ package org.elasticsearch.monitor.fs;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -47,7 +43,6 @@ public class FsProbeTests extends ESTestCase {
     public void testFsInfo() throws IOException {
 
         try (NodeEnvironment env = newNodeEnvironment()) {
-            final long now = System.nanoTime();
             FsProbe probe = new FsProbe(Settings.EMPTY, env);
 
             FsInfo stats = probe.stats(null);
@@ -64,18 +59,10 @@ public class FsProbeTests extends ESTestCase {
                     assertThat(deviceStats.previousReadsCompleted, equalTo(-1L));
                     assertThat(deviceStats.currentSectorsRead, greaterThanOrEqualTo(0L));
                     assertThat(deviceStats.previousSectorsRead, equalTo(-1L));
-                    assertThat(deviceStats.currentReadMilliseconds, greaterThanOrEqualTo(0L));
-                    assertThat(deviceStats.previousReadMilliseconds, equalTo(-1L));
                     assertThat(deviceStats.currentWritesCompleted, greaterThanOrEqualTo(0L));
                     assertThat(deviceStats.previousWritesCompleted, equalTo(-1L));
                     assertThat(deviceStats.currentSectorsWritten, greaterThanOrEqualTo(0L));
                     assertThat(deviceStats.previousSectorsWritten, equalTo(-1L));
-                    assertThat(deviceStats.currentWriteMilliseconds, greaterThanOrEqualTo(0L));
-                    assertThat(deviceStats.previousWriteMilliseconds, equalTo(-1L));
-                    assertThat(deviceStats.currentWeightedMilliseconds, greaterThanOrEqualTo(0L));
-                    assertThat(deviceStats.previousWeightedMilliseconds, equalTo(-1L));
-                    assertThat(deviceStats.currentRelativeTime, greaterThanOrEqualTo(now));
-                    assertThat(deviceStats.previousRelativeTime, equalTo(-1L));
                 }
             } else {
                 assertNull(stats.getIoStats());
@@ -109,47 +96,42 @@ public class FsProbeTests extends ESTestCase {
                 " 253       0 dm-0 287716 0 7184666 33457 8398869 0 118857776 18730966 0 1918440 18767169",
                 " 253       1 dm-1 112 0 4624 13 0 0 0 0 0 5 13",
                 " 253       2 dm-2 47802 0 710658 49312 1371977 0 64126096 33730596 0 1058193 33781827"));
-        final AtomicLong now = new AtomicLong();
-        final long start = randomIntBetween(0, Integer.MAX_VALUE / 2);
-        now.set(start);
-        final FsProbe probe = new FsProbe(Settings.EMPTY, null) {
 
+        final FsProbe probe = new FsProbe(Settings.EMPTY, null) {
             @Override
             List<String> readProcDiskStats() throws IOException {
                 return diskStats.get();
             }
-
-            @Override
-            long now() {
-                return now.get();
-            }
-
         };
+
         final Set<Tuple<Integer, Integer>> devicesNumbers = new HashSet<>();
+        devicesNumbers.add(Tuple.tuple(253, 0));
         devicesNumbers.add(Tuple.tuple(253, 2));
         final FsInfo.IoStats first = probe.ioStats(devicesNumbers, null);
         assertNotNull(first);
         assertThat(first.devicesStats[0].majorDeviceNumber, equalTo(253));
-        assertThat(first.devicesStats[0].minorDeviceNumber, equalTo(2));
-        assertThat(first.devicesStats[0].deviceName, equalTo("dm-2"));
-        assertThat(first.devicesStats[0].currentReadsCompleted, equalTo(47802L));
+        assertThat(first.devicesStats[0].minorDeviceNumber, equalTo(0));
+        assertThat(first.devicesStats[0].deviceName, equalTo("dm-0"));
+        assertThat(first.devicesStats[0].currentReadsCompleted, equalTo(287716L));
         assertThat(first.devicesStats[0].previousReadsCompleted, equalTo(-1L));
-        assertThat(first.devicesStats[0].currentSectorsRead, equalTo(710658L));
+        assertThat(first.devicesStats[0].currentSectorsRead, equalTo(7184666L));
         assertThat(first.devicesStats[0].previousSectorsRead, equalTo(-1L));
-        assertThat(first.devicesStats[0].currentReadMilliseconds, equalTo(49312L));
-        assertThat(first.devicesStats[0].previousReadMilliseconds, equalTo(-1L));
-        assertThat(first.devicesStats[0].currentWritesCompleted, equalTo(1371977L));
+        assertThat(first.devicesStats[0].currentWritesCompleted, equalTo(8398869L));
         assertThat(first.devicesStats[0].previousWritesCompleted, equalTo(-1L));
-        assertThat(first.devicesStats[0].currentSectorsWritten, equalTo(64126096L));
+        assertThat(first.devicesStats[0].currentSectorsWritten, equalTo(118857776L));
         assertThat(first.devicesStats[0].previousSectorsWritten, equalTo(-1L));
-        assertThat(first.devicesStats[0].currentWriteMilliseconds, equalTo(33730596L));
-        assertThat(first.devicesStats[0].previousWriteMilliseconds, equalTo(-1L));
-        assertThat(first.devicesStats[0].currentWeightedMilliseconds, equalTo(33781827L));
-        assertThat(first.devicesStats[0].previousWeightedMilliseconds, equalTo(-1L));
-        assertThat(first.devicesStats[0].currentRelativeTime, equalTo(start));
-        assertThat(first.devicesStats[0].previousRelativeTime, equalTo(-1L));
+        assertThat(first.devicesStats[1].majorDeviceNumber, equalTo(253));
+        assertThat(first.devicesStats[1].minorDeviceNumber, equalTo(2));
+        assertThat(first.devicesStats[1].deviceName, equalTo("dm-2"));
+        assertThat(first.devicesStats[1].currentReadsCompleted, equalTo(47802L));
+        assertThat(first.devicesStats[1].previousReadsCompleted, equalTo(-1L));
+        assertThat(first.devicesStats[1].currentSectorsRead, equalTo(710658L));
+        assertThat(first.devicesStats[1].previousSectorsRead, equalTo(-1L));
+        assertThat(first.devicesStats[1].currentWritesCompleted, equalTo(1371977L));
+        assertThat(first.devicesStats[1].previousWritesCompleted, equalTo(-1L));
+        assertThat(first.devicesStats[1].currentSectorsWritten, equalTo(64126096L));
+        assertThat(first.devicesStats[1].previousSectorsWritten, equalTo(-1L));
 
-        final long end = start + TimeUnit.SECONDS.toNanos(1);
         diskStats.set(Arrays.asList(
                 " 259       0 nvme0n1 336870 0 7928397 82876 10264393 0 182986405 52451610 0 2971042 52536492",
                 " 259       1 nvme0n1p1 602 0 9919 131 1 0 1 0 0 19 131",
@@ -158,30 +140,38 @@ public class FsProbeTests extends ESTestCase {
                 " 253       0 dm-0 287734 0 7185242 33464 8398869 0 118857776 18730966 0 1918444 18767176",
                 " 253       1 dm-1 112 0 4624 13 0 0 0 0 0 5 13",
                 " 253       2 dm-2 48045 0 714866 49369 1372291 0 64128568 33730766 0 1058347 33782056"));
-        now.set(end);
 
         final FsInfo previous = new FsInfo(System.currentTimeMillis(), first, null);
         final FsInfo.IoStats second = probe.ioStats(devicesNumbers, previous);
         assertNotNull(second);
         assertThat(second.devicesStats[0].majorDeviceNumber, equalTo(253));
-        assertThat(second.devicesStats[0].minorDeviceNumber, equalTo(2));
-        assertThat(second.devicesStats[0].deviceName, equalTo("dm-2"));
-        assertThat(second.devicesStats[0].currentReadsCompleted, equalTo(48045L));
-        assertThat(second.devicesStats[0].previousReadsCompleted, equalTo(47802L));
-        assertThat(second.devicesStats[0].currentSectorsRead, equalTo(714866L));
-        assertThat(second.devicesStats[0].previousSectorsRead, equalTo(710658L));
-        assertThat(second.devicesStats[0].currentReadMilliseconds, equalTo(49369L));
-        assertThat(second.devicesStats[0].previousReadMilliseconds, equalTo(49312L));
-        assertThat(second.devicesStats[0].currentWritesCompleted, equalTo(1372291L));
-        assertThat(second.devicesStats[0].previousWritesCompleted, equalTo(1371977L));
-        assertThat(second.devicesStats[0].currentSectorsWritten, equalTo(64128568L));
-        assertThat(second.devicesStats[0].previousSectorsWritten, equalTo(64126096L));
-        assertThat(second.devicesStats[0].currentWriteMilliseconds, equalTo(33730766L));
-        assertThat(second.devicesStats[0].previousWriteMilliseconds, equalTo(33730596L));
-        assertThat(second.devicesStats[0].currentWeightedMilliseconds, equalTo(33782056L));
-        assertThat(second.devicesStats[0].previousWeightedMilliseconds, equalTo(33781827L));
-        assertThat(second.devicesStats[0].currentRelativeTime, equalTo(end));
-        assertThat(second.devicesStats[0].previousRelativeTime, equalTo(start));
+        assertThat(second.devicesStats[0].minorDeviceNumber, equalTo(0));
+        assertThat(second.devicesStats[0].deviceName, equalTo("dm-0"));
+        assertThat(second.devicesStats[0].currentReadsCompleted, equalTo(287734L));
+        assertThat(second.devicesStats[0].previousReadsCompleted, equalTo(287716L));
+        assertThat(second.devicesStats[0].currentSectorsRead, equalTo(7185242L));
+        assertThat(second.devicesStats[0].previousSectorsRead, equalTo(7184666L));
+        assertThat(second.devicesStats[0].currentWritesCompleted, equalTo(8398869L));
+        assertThat(second.devicesStats[0].previousWritesCompleted, equalTo(8398869L));
+        assertThat(second.devicesStats[0].currentSectorsWritten, equalTo(118857776L));
+        assertThat(second.devicesStats[0].previousSectorsWritten, equalTo(118857776L));
+        assertThat(second.devicesStats[1].majorDeviceNumber, equalTo(253));
+        assertThat(second.devicesStats[1].minorDeviceNumber, equalTo(2));
+        assertThat(second.devicesStats[1].deviceName, equalTo("dm-2"));
+        assertThat(second.devicesStats[1].currentReadsCompleted, equalTo(48045L));
+        assertThat(second.devicesStats[1].previousReadsCompleted, equalTo(47802L));
+        assertThat(second.devicesStats[1].currentSectorsRead, equalTo(714866L));
+        assertThat(second.devicesStats[1].previousSectorsRead, equalTo(710658L));
+        assertThat(second.devicesStats[1].currentWritesCompleted, equalTo(1372291L));
+        assertThat(second.devicesStats[1].previousWritesCompleted, equalTo(1371977L));
+        assertThat(second.devicesStats[1].currentSectorsWritten, equalTo(64128568L));
+        assertThat(second.devicesStats[1].previousSectorsWritten, equalTo(64126096L));
+
+        assertThat(second.totalOperations, equalTo(575L));
+        assertThat(second.totalReadOperations, equalTo(261L));
+        assertThat(second.totalWriteOperations, equalTo(314L));
+        assertThat(second.totalReadKilobytes, equalTo(2392L));
+        assertThat(second.totalWriteKilobytes, equalTo(1236L));
     }
 
 }

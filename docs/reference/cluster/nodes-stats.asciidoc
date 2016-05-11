@@ -130,42 +130,45 @@ information that concern the file system:
 `fs.io_stats.devices.device_name` (Linux only)::
     The Linux device name.
 
-`fs.io_stats.devices.iops` (Linux only)::
-    The average number of read and write operations completed per
-    second.
+`fs.io_stats.devices.operations` (Linux only)::
+    The total number of read and write operations for the device
+    completed since starting Elasticsearch.
 
-`fs.io_stats.devices.reads_per_second` (Linux only)::
-    The average number of read operations completed per second.
+`fs.io_stats.devices.read_operations` (Linux only)::
+    The total number of read operations for the device completed since
+    starting Elasticsearch.
 
-`fs.io_stats.devices.writes_per_second` (Linux only)::
-    The average number of write operations completed per second.
+`fs.io_stats.devices.write_operations` (Linux only)::
+    The total number of write operations for the device completed since
+    starting Elasticsearch.
 
-`fs.io_stats.devices.read_kilobytes_per_second` (Linux only)::
-    The average number of kilobytes read per second.
+`fs.io_stats.devices.read_kilobytes` (Linux only)::
+    The total number of kilobytes read for the device since starting
+    Elasticsearch.
 
-`fs.io_stats.devices.write_kilobytes_per_second` (Linux only)::
-    The average number of kilobytes written per second.
+`fs.io_stats.devices.write_kilobytes` (Linux only)::
+    The total number of kilobytes written for the device since
+    starting Elasticsearch.
 
-`fs.io_stats.devices.average_request_size_in_kilobytes` (Linux only)::
-    The average number of kilobytes of requests that were issued to the
-    device.
+`fs.io_stats.operations` (Linux only)::
+    The total number of read and write operations across all devices
+    used by Elasticsearch completed since starting Elasticsearch.
 
-`fs.io_stats.devices.average_resident_requests` (Linux only)::
-    The average number of requests being serviced or waiting to be
-    serviced (sometimes referred to as "average queue size", but this
-    is misleading because requests being serviced are included.
+`fs.io_stats.read_operations` (Linux only)::
+    The total number of read operations for across all devices used by
+    Elasticsearch completed since starting Elasticsearch.
 
-`fs.io_stats.devices.average_await_time_in_milliseconds` (Linux only)::
-    The average time in milliseconds for requests issued to the device
-    to be served.
+`fs.io_stats.write_operations` (Linux only)::
+    The total number of write operations across all devices used by
+    Elasticsearch completed since starting Elasticsearch.
 
-`fs.io_stats.devices.read_await_time_in_milliseconds` (Linux only)::
-    The average time in milliseconds for read requests issued to the
-    device to be served.
+`fs.io_stats.read_kilobytes` (Linux only)::
+    The total number of kilobytes read across all devices used by
+    Elasticsearch since starting Elasticsearch.
 
-`fs.io_stats.devices.write_await_time_in_milliseconds` (Linux only)::
-    The average time in milliseconds for write requests issued to the
-    device to be served.
+`fs.io_stats.write_kilobytes` (Linux only)::
+    The total number of kilobytes written across all devices used by
+    Elasticsearch since starting Elasticsearch.
 
 [float]
 [[os-stats]]

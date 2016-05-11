@@ -433,6 +433,12 @@ class Metadata {
      * variable slots at the completion of analysis if _score is not used.
      */
     boolean scoreValueUsed = false;
+    
+    /**
+     * Used to determine what slot the doc variable is stored in.  This is used in the {@link Writer} whenever
+     * the doc variable is accessed.
+     */
+    int docValueSlot = -1;
 
     /**
      * Maps the relevant ANTLR node to its metadata.

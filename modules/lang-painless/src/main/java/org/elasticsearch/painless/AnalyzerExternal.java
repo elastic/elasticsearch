@@ -449,11 +449,15 @@ class AnalyzerExternal {
             }
 
             // special cases: reserved words
-            if ("_score".equals(id)) {
+            if ("_score".equals(id) || "doc".equals(id)) {
                 // read-only: don't allow stores
                 if (parentemd.storeExpr != null) {
                     throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Variable [" + id + "] is read-only.");
                 }
+            }
+
+            // track if the _score value is ever used, we will invoke Scorer.score() only once if so.
+            if ("_score".equals(id)) {
                 metadata.scoreValueUsed = true;
             }
 

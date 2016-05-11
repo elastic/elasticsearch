@@ -93,9 +93,22 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
 
         utility.incrementScope();
         utility.addVariable(null, "#this", definition.execType);
+        //
+        // reserved words parameters.
+        //
+        // input map of variables passed to the script. TODO: rename to 'params' since that will be its use
         metadata.inputValueSlot = utility.addVariable(null, "input", definition.smapType).slot;
+        // scorer parameter passed to the script. internal use only.
         metadata.scorerValueSlot = utility.addVariable(null, "#scorer", definition.objectType).slot;
+        // doc parameter passed to the script.
+        // TODO: currently working as a def type, should be smapType...
+        metadata.docValueSlot = utility.addVariable(null, "doc", definition.defType).slot;
+        //
+        // reserved words implemented as local variables
+        //
+        // loop counter to catch runaway scripts. internal use only.
         metadata.loopCounterSlot = utility.addVariable(null, "#loop", definition.intType).slot;
+        // document's score as a read-only float.
         metadata.scoreValueSlot = utility.addVariable(null, "_score", definition.floatType).slot;
 
         metadata.createStatementMetadata(metadata.root);

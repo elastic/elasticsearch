@@ -527,7 +527,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             try {
                 if (clusterState.metaData().hasIndex(indexName)) {
                     final IndexMetaData index = clusterState.metaData().index(indexName);
-                    throw new IllegalStateException("Can't delete unassigned index store for [" + indexName + "] - it's still part of the cluster state [" + index.getIndexUUID() + "] [" + metaData.getIndexUUID() + "]");
+                    throw new IllegalStateException("Can't delete unassigned index store for [" + indexName + "] - it's still part of " +
+                                                    "the cluster state [" + index.getIndexUUID() + "] [" + metaData.getIndexUUID() + "]");
                 }
                 deleteIndexStore(reason, metaData, clusterState);
             } catch (IOException e) {

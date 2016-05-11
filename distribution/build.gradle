@@ -317,6 +317,8 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     preUninstall file("${scripts}/prerm")
     postUninstall file("${scripts}/postrm")
 
+    requires('/bin/bash')
+
     into '/usr/share/elasticsearch'
     fileMode 0644
     dirMode 0755

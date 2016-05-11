@@ -448,7 +448,12 @@ class AnalyzerExternal {
                 throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Unknown variable [" + id + "].");
             }
 
+            // special cases: reserved words
             if ("_score".equals(id)) {
+                // read-only: don't allow stores
+                if (parentemd.storeExpr != null) {
+                    throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Variable [" + id + "] is read-only.");
+                }
                 metadata.scoreValueUsed = true;
             }
 

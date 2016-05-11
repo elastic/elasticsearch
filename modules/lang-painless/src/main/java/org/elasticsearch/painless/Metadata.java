@@ -411,6 +411,12 @@ class Metadata {
     int inputValueSlot = -1;
 
     /**
+     * Used to determine what slot the Scorer variable is stored in.  This is used in the {@link Writer} to load
+     * _score from it, if _score will be accessed by the script.
+     */
+    int scorerValueSlot = -1;
+
+    /**
      * Used to determine what slot the loopCounter variable is stored in.  This is used n the {@link Writer} whenever
      * the loop variable is accessed.
      */

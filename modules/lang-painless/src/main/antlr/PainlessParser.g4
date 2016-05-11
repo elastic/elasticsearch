@@ -92,9 +92,9 @@ expression
     |               TRUE                                                # true
     |               FALSE                                               # false
     |               NULL                                                # null
-    | <assoc=right> extstart ( INCR | DECR )                            # postinc
-    | <assoc=right> ( INCR | DECR ) extstart                            # preinc
-    |               extstart                                            # external
+    | <assoc=right> chain ( INCR | DECR )                            # postinc
+    | <assoc=right> ( INCR | DECR ) chain                            # preinc
+    |               chain                                            # external
     | <assoc=right> ( BOOLNOT | BWNOT | ADD | SUB ) expression          # unary
     | <assoc=right> LP decltype RP expression                           # cast
     |               expression ( MUL | DIV | REM ) expression           # binary
@@ -108,28 +108,28 @@ expression
     |               expression BOOLAND expression                       # bool
     |               expression BOOLOR expression                        # bool
     | <assoc=right> expression COND expression COLON expression         # conditional
-    | <assoc=right> extstart ( ASSIGN | AADD | ASUB | AMUL | ADIV
+    | <assoc=right> chain ( ASSIGN | AADD | ASUB | AMUL | ADIV
                                       | AREM | AAND | AXOR | AOR
                                       | ALSH | ARSH | AUSH ) expression # assignment
     ;
 
-extstart
-    : extprec
-    | extcast
-    | extvar
-    | extnew
-    | extstring
+chain
+    : linkprec
+    | linkcast
+    | linkvar
+    | linknew
+    | linkstring
     ;
 
-extprec:   LP ( extprec | extcast | extvar | extnew | extstring ) RP ( extdot | extbrace )?;
-extcast:   LP decltype RP ( extprec | extcast | extvar | extnew | extstring );
-extbrace:  LBRACE expression RBRACE ( extdot | extbrace )?;
-extdot:    DOT ( extcall | extfield );
-extcall:   EXTID arguments ( extdot | extbrace )?;
-extvar:    identifier ( extdot | extbrace )?;
-extfield:  ( EXTID | EXTINTEGER ) ( extdot | extbrace )?;
-extnew:    NEW identifier ( ( arguments extdot? ) | ( ( LBRACE expression RBRACE )+ extdot? ) );
-extstring: STRING (extdot | extbrace )?;
+linkprec:   LP ( linkprec | linkcast | linkvar | linknew | linkstring ) RP ( linkdot | linkbrace )?;
+linkcast:   LP decltype RP ( linkprec | linkcast | linkvar | linknew | linkstring );
+linkbrace:  LBRACE expression RBRACE ( linkdot | linkbrace )?;
+linkdot:    DOT ( linkcall | linkfield );
+linkcall:   EXTID arguments ( linkdot | linkbrace )?;
+linkvar:    identifier ( linkdot | linkbrace )?;
+linkfield:  ( EXTID | EXTINTEGER ) ( linkdot | linkbrace )?;
+linknew:    NEW identifier ( ( arguments linkdot? ) | ( ( LBRACE expression RBRACE )+ linkdot? ) );
+linkstring: STRING (linkdot | linkbrace )?;
 
 arguments
     : ( LP ( expression ( COMMA expression )* )? RP )

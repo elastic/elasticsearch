@@ -376,7 +376,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
         final List<ALink> links = new ArrayList<>();
         final Operation operation;
 
-        visitExtstart(ctx.extstart(), links);
+        visitExtstart(ctx.chain(), links);
 
         if (ctx.INCR() != null) {
             operation = Operation.INCR;
@@ -687,7 +687,7 @@ public class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitExtcall(final ExtcallContext ctx) {
+    public ANode visitLinkcall(final ExtcallContext ctx) {
         throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
     }
 

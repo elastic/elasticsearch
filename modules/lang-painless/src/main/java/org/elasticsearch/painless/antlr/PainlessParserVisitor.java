@@ -273,65 +273,65 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitTrue(PainlessParser.TrueContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#extstart}.
+   * Visit a parse tree produced by {@link PainlessParser#chain}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitExtstart(PainlessParser.ExtstartContext ctx);
+  T visitChain(PainlessParser.ChainContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#extprec}.
+   * Visit a parse tree produced by {@link PainlessParser#linkprec}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitExtprec(PainlessParser.ExtprecContext ctx);
+  T visitLinkprec(PainlessParser.LinkprecContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#extcast}.
+   * Visit a parse tree produced by {@link PainlessParser#linkcast}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitExtcast(PainlessParser.ExtcastContext ctx);
+  T visitLinkcast(PainlessParser.LinkcastContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#extbrace}.
+   * Visit a parse tree produced by {@link PainlessParser#linkbrace}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitExtbrace(PainlessParser.ExtbraceContext ctx);
+  T visitLinkbrace(PainlessParser.LinkbraceContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#extdot}.
+   * Visit a parse tree produced by {@link PainlessParser#linkdot}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitExtdot(PainlessParser.ExtdotContext ctx);
+  T visitLinkdot(PainlessParser.LinkdotContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#extcall}.
+   * Visit a parse tree produced by {@link PainlessParser#linkcall}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitExtcall(PainlessParser.ExtcallContext ctx);
+  T visitLinkcall(PainlessParser.LinkcallContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#extvar}.
+   * Visit a parse tree produced by {@link PainlessParser#linkvar}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitExtvar(PainlessParser.ExtvarContext ctx);
+  T visitLinkvar(PainlessParser.LinkvarContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#extfield}.
+   * Visit a parse tree produced by {@link PainlessParser#linkfield}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitExtfield(PainlessParser.ExtfieldContext ctx);
+  T visitLinkfield(PainlessParser.LinkfieldContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#extnew}.
+   * Visit a parse tree produced by {@link PainlessParser#linknew}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitExtnew(PainlessParser.ExtnewContext ctx);
+  T visitLinknew(PainlessParser.LinknewContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#extstring}.
+   * Visit a parse tree produced by {@link PainlessParser#linkstring}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitExtstring(PainlessParser.ExtstringContext ctx);
+  T visitLinkstring(PainlessParser.LinkstringContext ctx);
   /**
    * Visit a parse tree produced by {@link PainlessParser#arguments}.
    * @param ctx the parse tree

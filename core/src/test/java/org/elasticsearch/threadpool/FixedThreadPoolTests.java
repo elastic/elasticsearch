@@ -58,7 +58,7 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
                         latch.countDown();
                         block.await();
                     } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
+                        fail(e.toString());
                     }
                 });
             }

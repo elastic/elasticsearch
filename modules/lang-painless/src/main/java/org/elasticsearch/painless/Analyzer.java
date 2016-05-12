@@ -103,6 +103,8 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         // doc parameter passed to the script.
         // TODO: currently working as a Map<String,Def>, we can do better?
         metadata.docValueSlot = utility.addVariable(null, "doc", definition.smapType).slot;
+        // aggregation _value parameter passed to the script
+        metadata.aggregationValueSlot = utility.addVariable(null, "_value", definition.defType).slot;
         //
         // reserved words implemented as local variables
         //

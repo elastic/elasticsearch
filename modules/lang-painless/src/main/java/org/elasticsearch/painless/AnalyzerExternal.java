@@ -449,7 +449,7 @@ class AnalyzerExternal {
             }
 
             // special cases: reserved words
-            if ("_score".equals(id) || "doc".equals(id) || "ctx".equals(id)) {
+            if ("_score".equals(id) || "_value".equals(id) || "doc".equals(id) || "ctx".equals(id)) {
                 // read-only: don't allow stores to ourself
                 if (varenmd.last && parentemd.storeExpr != null) {
                     throw new IllegalArgumentException(AnalyzerUtility.error(ctx) + "Variable [" + id + "] is read-only.");

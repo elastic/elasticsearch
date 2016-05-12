@@ -32,21 +32,23 @@ import java.nio.charset.StandardCharsets;
 final class Debugger {
 
     /** compiles source to bytecode, and returns debugging output */
-    static String toString(String source) {
+    static String toString(final String source) {
         return toString(source, new CompilerSettings());
     }
 
     /** compiles to bytecode, and returns debugging output */
-    static String toString(String source, CompilerSettings settings) {
-        byte[] bytes = Compiler.compile("debugger", source, Definition.INSTANCE, settings);
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        PrintWriter outputWriter = new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
-        ClassReader reader = new ClassReader(bytes);
+    static String toString(final String source, final CompilerSettings settings) {
+        final byte[] bytes = Compiler.compile(source, settings);
+        final ByteArrayOutputStream output = new ByteArrayOutputStream();
+        final PrintWriter outputWriter = new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
+        final ClassReader reader = new ClassReader(bytes);
+
         reader.accept(new TraceClassVisitor(outputWriter), 0);
         outputWriter.flush();
+
         try {
             return output.toString("UTF-8");
-        } catch (UnsupportedEncodingException e) {
+        } catch (final UnsupportedEncodingException e) {
             throw new RuntimeException(e);
         }
     }

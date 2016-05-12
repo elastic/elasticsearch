@@ -408,7 +408,7 @@ class Metadata {
      * Used to determine what slot the input variable is stored in.  This is used in the {@link Writer} whenever
      * the input variable is accessed.
      */
-    int inputValueSlot = -1;
+    int paramsValueSlot = -1;
 
     /**
      * Used to determine what slot the Scorer variable is stored in.  This is used in the {@link Writer} to load

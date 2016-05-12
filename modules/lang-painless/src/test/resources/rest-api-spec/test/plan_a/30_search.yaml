@@ -51,7 +51,7 @@
                 query:
                     script:
                         script:
-                            inline: "doc['num1'].value > input.param1;"
+                            inline: "doc['num1'].value > params.param1;"
                             lang: painless
                             params:
                                 param1: 1
@@ -76,7 +76,7 @@
                 query:
                     script:
                         script:
-                            inline: "doc['num1'].value > input.param1;"
+                            inline: "doc['num1'].value > params.param1;"
                             lang: painless
                             params:
                                 param1: -1
@@ -236,7 +236,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "inline": "input.param1 * input.param2 * _score",
+                                    "inline": "params.param1 * params.param2 * _score",
                                     "params": {
                                         "param1": 2,
                                         "param2": 2

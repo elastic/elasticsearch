@@ -94,10 +94,10 @@ class Analyzer extends PainlessParserBaseVisitor<Void> {
         utility.incrementScope();
         utility.addVariable(null, "#this", definition.execType);
         //
-        // reserved words parameters.
+        // reserved words.
         //
-        // input map of variables passed to the script. TODO: rename to 'params' since that will be its use
-        metadata.inputValueSlot = utility.addVariable(null, "input", definition.smapType).slot;
+        // input map of parameters passed to the script.
+        metadata.paramsValueSlot = utility.addVariable(null, "params", definition.smapType).slot;
         // scorer parameter passed to the script. internal use only.
         metadata.scorerValueSlot = utility.addVariable(null, "#scorer", definition.objectType).slot;
         // doc parameter passed to the script.

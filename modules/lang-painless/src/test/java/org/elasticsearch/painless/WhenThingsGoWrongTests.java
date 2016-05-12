@@ -26,7 +26,7 @@ import java.util.Collections;
 public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testNullPointer() {
         expectThrows(NullPointerException.class, () -> {
-            exec("int x = (int) ((Map) input).get(\"missing\"); return x;");
+            exec("int x = params['missing']; return x;");
         });
     }
 

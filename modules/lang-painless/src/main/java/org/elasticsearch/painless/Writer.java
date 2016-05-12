@@ -162,7 +162,7 @@ class Writer extends PainlessParserBaseVisitor<Void> {
         if (metadata.ctxValueUsed) {
             // if the _ctx value is used, we do this once:
             //   final Map<String,Object> ctx = input.get("ctx");
-            execute.visitVarInsn(Opcodes.ALOAD, metadata.inputValueSlot);
+            execute.visitVarInsn(Opcodes.ALOAD, metadata.paramsValueSlot);
             execute.push("ctx");
             execute.invokeInterface(WriterConstants.MAP_TYPE, WriterConstants.MAP_GET);
             execute.visitVarInsn(Opcodes.ASTORE, metadata.ctxValueSlot);

@@ -5,7 +5,7 @@
       put_script:
         id: "1"
         lang: "painless"
-        body: { "script":  "_score * doc[\"myParent.weight\"].value" }
+        body: { "script":  "_score * doc['myParent.weight'].value" }
   - match: { acknowledged: true }
 
   - do:
@@ -15,7 +15,7 @@
   - match: { found: true }
   - match: { lang: painless }
   - match: { _id: "1" }
-  - match: { "script":  "_score * doc[\"myParent.weight\"].value" }
+  - match: { "script":  "_score * doc['myParent.weight'].value" }
 
   - do:
      catch: missing
@@ -44,11 +44,11 @@
       put_script:
         id: "1"
         lang: "painless"
-        body: { "script":  "_score * foo bar + doc[\"myParent.weight\"].value" }
+        body: { "script":  "_score * foo bar + doc['myParent.weight'].value" }
 
   - do:
       catch: /Unable.to.parse.*/
       put_script:
         id: "1"
         lang: "painless"
-        body: { "script":  "_score * foo bar + doc[\"myParent.weight\"].value" }
+        body: { "script":  "_score * foo bar + doc['myParent.weight'].value" }

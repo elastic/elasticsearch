@@ -47,7 +47,7 @@ import java.util.stream.Stream;
  * the same type (or just a few types).  In extreme cases, if there is type explosion, they may be called every
  * single time, but simplicity is still more valuable than performance in this code.
  */
-public class Def {
+public final class Def {
 
     // TODO: Once Java has a factory for those in java.lang.invoke.MethodHandles, use it:
 

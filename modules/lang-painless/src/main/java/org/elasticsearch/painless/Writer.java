@@ -100,7 +100,6 @@ final class Writer {
         if (variables.reserved.score) {
             // if the _score value is used, we do this once:
             // final double _score = scorer.score();
-
             final Variable scorer = variables.getVariable(null, Reserved.SCORER);
             final Variable score = variables.getVariable(null, Reserved.SCORE);
 
@@ -114,7 +113,7 @@ final class Writer {
             // if the _ctx value is used, we do this once:
             // final Map<String,Object> ctx = input.get("ctx");
 
-            final Variable input = variables.getVariable(null, Reserved.INPUT);
+            final Variable input = variables.getVariable(null, Reserved.PARAMS);
             final Variable ctx = variables.getVariable(null, Reserved.CTX);
 
             adapter.visitVarInsn(Opcodes.ALOAD, input.slot);

@@ -38,7 +38,7 @@ public final class Variables {
      */
     public static final class Reserved {
         public static final String THIS   = "#this";
-        public static final String INPUT  = "input";
+        public static final String PARAMS = "params";
         public static final String SCORER = "#scorer";
         public static final String DOC    = "doc";
         public static final String VALUE  = "_value";
@@ -59,7 +59,7 @@ public final class Variables {
         }
 
         public boolean isReserved(final String name) {
-            return name.equals(THIS) || name.equals(INPUT) || name.equals(SCORER) || name.equals(DOC) ||
+            return name.equals(THIS) || name.equals(PARAMS) || name.equals(SCORER) || name.equals(DOC) ||
                 name.equals(VALUE) || name.equals(SCORE) || name.equals(CTX) || name.equals(LOOP);
          }
 
@@ -104,7 +104,7 @@ public final class Variables {
         addVariable("[" + Reserved.THIS + "]"  , definition.execType.name, Reserved.THIS  , true, true);
 
         // Input map of variables passed to the script.  TODO: Rename to 'params' since that will be its use.
-        addVariable("[" + Reserved.INPUT + "]" , definition.smapType.name, Reserved.INPUT , true, true);
+        addVariable("[" + Reserved.PARAMS + "]", definition.smapType.name, Reserved.PARAMS, true, true);
 
         // Scorer parameter passed to the script.  Internal use only.
         addVariable("[" + Reserved.SCORER + "]", definition.defType.name , Reserved.SCORER, true, true);

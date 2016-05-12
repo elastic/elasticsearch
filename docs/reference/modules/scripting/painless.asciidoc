@@ -72,7 +72,7 @@ PUT hockey/player/_bulk?refresh
 [float]
 === Accessing Doc Values from Painless
 
-All Painless scripts take in a `Map<String,def>` of values called `input`.  Document values can be accessed through another `Map<String,def>` within the `input` variable.
+Document values can be accessed from a `Map<String,def>` named `doc`.
 
 For example, the following script calculates a player's total goals. This example uses a strongly typed `int` and a `for` loop.
 
@@ -85,7 +85,7 @@ GET hockey/_search
       "script_score": {
         "script": {
           "lang": "painless",
-          "inline": "int total = 0; for (int i = 0; i < input.doc['goals'].size(); ++i) { total += input.doc['goals'][i]; } return total;"
+          "inline": "int total = 0; for (int i = 0; i < doc['goals'].length; ++i) { total += doc['goals'][i]; } return total;"
         }
       }
     }
@@ -107,7 +107,7 @@ GET hockey/_search
     "total_goals": {
       "script": {
         "lang": "painless",
-        "inline": "int total = 0; for (int i = 0; i < input.doc['goals'].size(); ++i) { total += input.doc['goals'][i]; } return total;"
+        "inline": "int total = 0; for (int i = 0; i < doc['goals'].length; ++i) { total += doc['goals'][i]; } return total;"
       }
     }
   }
@@ -116,7 +116,7 @@ GET hockey/_search
 // CONSOLE
 
 The following example uses a Painless script to sort the players by their combined first and last names. The names are accessed using
-`input.doc['first'].value` and `input.doc['last'].value`.
+`doc['first'].value` and `doc['last'].value`.
 
 [source,js]
 ----------------------------------------------------------------
@@ -131,7 +131,7 @@ GET hockey/_search
       "order": "asc",
       "script": {
         "lang": "painless",
-        "inline": "input.doc['first'].value + ' ' + input.doc['last'].value"
+        "inline": "doc['first'].value + ' ' + doc['last'].value"
       }
     }
   }
@@ -142,7 +142,7 @@ GET hockey/_search
 [float]
 === Updating Fields with Painless
 
-You can also easily update fields. You access the original source for a field as `input.ctx._source.<field-name>`.
+You can also easily update fields. You access the original source for a field as `ctx._source.<field-name>`.
 
 First, let's look at the source data for a player by submitting the following request:
 
@@ -163,7 +163,7 @@ GET hockey/_search
 ----------------------------------------------------------------
 // CONSOLE
 
-To change player 1's last name to `hockey`, simply set `input.ctx._source.last` to the new value:
+To change player 1's last name to `hockey`, simply set `ctx._source.last` to the new value:
 
 [source,js]
 ----------------------------------------------------------------
@@ -171,7 +171,7 @@ POST hockey/player/1/_update
 {
   "script": {
     "lang": "painless",
-    "inline": "input.ctx._source.last = input.last",
+    "inline": "ctx._source.last = params.last",
     "params": {
       "last": "hockey"
     }
@@ -189,7 +189,7 @@ POST hockey/player/1/_update
 {
   "script": {
     "lang": "painless",
-    "inline": "input.ctx._source.last = input.last input.ctx._source.nick = input.nick",
+    "inline": "ctx._source.last = params.last ctx._source.nick = params.nick",
     "params": {
       "last": "gaudreau",
       "nick": "hockey"

@@ -46,5 +46,5 @@ public abstract class Executable {
     }
 
     public abstract Object execute(
-        final Map<String, Object> input, final Scorer scorer, final LeafDocLookup doc, final Object value);
+        final Map<String, Object> params, final Scorer scorer, final LeafDocLookup doc, final Object value);
 }

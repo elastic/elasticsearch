@@ -49,5 +49,5 @@ public abstract class Executable {
         return definition;
     }
 
-    public abstract Object execute(Map<String, Object> input, Scorer scorer, LeafDocLookup doc, Object value);
+    public abstract Object execute(Map<String, Object> params, Scorer scorer, LeafDocLookup doc, Object value);
 }

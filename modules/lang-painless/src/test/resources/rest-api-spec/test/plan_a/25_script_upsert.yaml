@@ -7,7 +7,7 @@
           type:     test
           id:       1
           body:
-            script: "ctx._source.foo = input.bar"
+            script: "ctx._source.foo = params.bar"
             lang: "painless"
             params: { bar: 'xxx' }
             upsert: { foo: baz }
@@ -27,7 +27,7 @@
           type:     test
           id:       1
           body:
-            script: "ctx._source.foo = input.bar"
+            script: "ctx._source.foo = params.bar"
             lang: "painless"
             params: { bar: 'xxx' }
             upsert: { foo: baz }
@@ -46,7 +46,7 @@
           type:     test
           id:       2
           body:
-            script: "ctx._source.foo = input.bar"
+            script: "ctx._source.foo = params.bar"
             lang: "painless"
             params: { bar: 'xxx' }
             upsert: { foo: baz }

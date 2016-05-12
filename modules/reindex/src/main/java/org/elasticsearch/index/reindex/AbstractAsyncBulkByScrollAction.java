@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -57,6 +58,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -91,7 +93,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final ThreadPool threadPool;
     private final SearchRequest firstSearchRequest;
     private final ActionListener<Response> listener;
-    private final Retry retry;
+    private final BackoffPolicy backoffPolicy;
+    private final Retry bulkRetry;
 
     public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, ESLogger logger, ParentTaskAssigningClient client,
             ThreadPool threadPool, Request mainRequest, SearchRequest firstSearchRequest, ActionListener<Response> listener) {
@@ -102,7 +105,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.mainRequest = mainRequest;
         this.firstSearchRequest = firstSearchRequest;
         this.listener = listener;
-        retry = Retry.on(EsRejectedExecutionException.class).policy(wrapBackoffPolicy(backoffPolicy()));
+        backoffPolicy = buildBackoffPolicy();
+        bulkRetry = Retry.on(EsRejectedExecutionException.class).policy(wrapBackoffPolicy(backoffPolicy));
     }
 
     protected abstract BulkRequest buildBulk(Iterable<SearchHit> docs);
@@ -131,21 +135,14 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                         firstSearchRequest.types() == null || firstSearchRequest.types().length == 0 ? ""
                                 : firstSearchRequest.types());
             }
-            client.search(firstSearchRequest, new ActionListener<SearchResponse>() {
-                @Override
-                public void onResponse(SearchResponse response) {
-                    logger.debug("[{}] documents match query", response.getHits().getTotalHits());
-                    onScrollResponse(timeValueSeconds(0), response);
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    finishHim(e);
-                }
-            });
         } catch (Throwable t) {
             finishHim(t);
+            return;
         }
+        searchWithRetry(listener -> client.search(firstSearchRequest, listener), (SearchResponse response) -> {
+            logger.debug("[{}] documents match query", response.getHits().getTotalHits());
+            onScrollResponse(timeValueSeconds(0), response);
+        });
     }
 
     /**
@@ -239,7 +236,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             finishHim(null);
             return;
         }
-        retry.withAsyncBackoff(client, request, new ActionListener<BulkResponse>() {
+        bulkRetry.withAsyncBackoff(client, request, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse response) {
                 onBulkResponse(response);
@@ -322,16 +319,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         SearchScrollRequest request = new SearchScrollRequest();
         // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
         request.scrollId(scroll.get()).scroll(timeValueNanos(firstSearchRequest.scroll().keepAlive().nanos() + waitTime));
-        client.searchScroll(request, new ActionListener<SearchResponse>() {
-            @Override
-            public void onResponse(SearchResponse response) {
-                onScrollResponse(timeValueNanos(max(0, earliestNextBatchStartTime - System.nanoTime())), response);
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                finishHim(e);
-            }
+        searchWithRetry(listener -> client.searchScroll(request, listener), (SearchResponse response) -> {
+            onScrollResponse(timeValueNanos(max(0, earliestNextBatchStartTime - System.nanoTime())), response);
         });
     }
 
@@ -434,9 +423,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     /**
-     * Build the backoff policy for use with retries.
+     * Get the backoff policy for use with retries.
      */
-    BackoffPolicy backoffPolicy() {
+    BackoffPolicy buildBackoffPolicy() {
         return exponentialBackoff(mainRequest.getRetryBackoffInitialTime(), mainRequest.getMaxRetries());
     }
 
@@ -470,7 +459,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     /**
-     * Wraps a backoffPolicy in another policy that counts the number of backoffs acquired.
+     * Wraps a backoffPolicy in another policy that counts the number of backoffs acquired. Used to count bulk backoffs.
      */
     private BackoffPolicy wrapBackoffPolicy(BackoffPolicy backoffPolicy) {
         return new BackoffPolicy() {
@@ -488,11 +477,52 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                         if (false == delegate.hasNext()) {
                             return null;
                         }
-                        task.countRetry();
+                        task.countBulkRetry();
                         return delegate.next();
                     }
                 };
             }
         };
+    }
+
+    /**
+     * Run a search action and call onResponse when a the response comes in, retrying if the action fails with an exception caused by
+     * rejected execution.
+     *
+     * @param action consumes a listener and starts the action. The listener it consumes is rigged to retry on failure.
+     * @param onResponse consumes the response from the action
+     */
+    private <T> void searchWithRetry(Consumer<ActionListener<T>> action, Consumer<T> onResponse) {
+        class RetryHelper extends AbstractRunnable implements ActionListener<T> {
+            private final Iterator<TimeValue> retries = backoffPolicy.iterator();
+
+            @Override
+            public void onResponse(T response) {
+                onResponse.accept(response);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                action.accept(this);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                if (ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class) != null) {
+                    if (retries.hasNext()) {
+                        logger.trace("retrying rejected search", e);
+                        threadPool.schedule(retries.next(), ThreadPool.Names.SAME, this);
+                        task.countSearchRetry();
+                    } else {
+                        logger.warn("giving up on search because we retried {} times without success", e, retries);
+                        finishHim(e);
+                    }
+                } else {
+                    logger.warn("giving up on search because it failed with a non-retryable exception", e);
+                    finishHim(e);
+                }
+            }
+        }
+        new RetryHelper().run();
     }
 }

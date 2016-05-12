@@ -1,0 +1,33 @@
+[[breaking_50_document_api_changes]]
+=== Document API changes
+
+==== Reindex and Update By Query
+Before 5.0.0 `_reindex` and `_update_by_query` only retried bulk failures so
+they used the following response format:
+
+[source,js]
+----------------------
+{
+   ...
+   "retries": 10
+   ...
+}
+----------------------
+
+Where `retries` counts the number of bulk retries. Now they retry on search
+failures as well and use this response format:
+
+[source,js]
+----------------------
+{
+   ...
+   "retries": {
+     "bulk": 10,
+     "search": 1
+   }
+   ...
+}
+----------------------
+
+Where `bulk` counts the number of bulk retries and `search` counts the number
+of search retries.

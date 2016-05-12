@@ -26,7 +26,10 @@ That will return something like this:
   "batches": 1,
   "version_conflicts": 0,
   "noops": 0,
-  "retries": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  },
   "throttled_millis": 0,
   "requests_per_second": "unlimited",
   "throttled_until_millis": 0,
@@ -220,7 +223,10 @@ The JSON response looks like this:
   "updated": 0,
   "batches": 1,
   "version_conflicts": 2,
-  "retries": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  }
   "throttled_millis": 0,
   "failures" : [ ]
 }
@@ -244,7 +250,8 @@ The number of version conflicts that the update by query hit.
 
 `retries`::
 
-The number of retries that the update by query did in response to a full queue.
+The number of retries attempted by update-by-query. `bulk` is the number of bulk
+actions retried and `search` is the number of search actions retried.
 
 `throttled_millis`::
 
@@ -299,7 +306,10 @@ The responses looks like:
             "batches" : 4,
             "version_conflicts" : 0,
             "noops" : 0,
-            "retries": 0,
+            "retries": {
+              "bulk": 0,
+              "search": 0
+            }
             "throttled_millis": 0
           },
           "description" : ""

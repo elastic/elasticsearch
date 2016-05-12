@@ -50,7 +50,7 @@ See <<lang-python-file>> for a safer option.
 If you have enabled {ref}/modules-scripting-security.html#enable-dynamic-scripting[inline scripts],
 you can use Python as follows:
 
-[source,json]
+[source,js]
 ----
 DELETE test
 
@@ -93,7 +93,7 @@ See <<lang-python-file>> for a safer option.
 If you have enabled {ref}/modules-scripting-security.html#enable-dynamic-scripting[stored scripts],
 you can use Python as follows:
 
-[source,json]
+[source,js]
 ----
 DELETE test
 
@@ -154,7 +154,7 @@ doc["num"].value * factor
 
 then use the script as follows:
 
-[source,json]
+[source,js]
 ----
 DELETE test
 

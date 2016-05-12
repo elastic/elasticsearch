@@ -146,7 +146,7 @@ If both parameters are used, the largest number of both is applied.
 
 Then create an analyzer as follows:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT kuromoji_sample
 {
@@ -178,7 +178,7 @@ POST kuromoji_sample/_analyze?analyzer=my_analyzer&text=東京スカイツリー
 
 The above `analyze` request returns the following:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 # Result
 {
@@ -204,7 +204,7 @@ The above `analyze` request returns the following:
 The `kuromoji_baseform` token filter replaces terms with their
 BaseFormAttribute. This acts as a lemmatizer for verbs and adjectives.
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT kuromoji_sample
 {
@@ -253,7 +253,7 @@ part-of-speech tags. It accepts the following setting:
     An array of part-of-speech tags that should be removed. It defaults to the
     `stoptags.txt` file embedded in the `lucene-analyzer-kuromoji.jar`.
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT kuromoji_sample
 {
@@ -322,7 +322,7 @@ to `true`. The default when defining a custom `kuromoji_readingform`, however,
 is `false`.  The only reason to use the custom form is if you need the
 katakana reading form:
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT kuromoji_sample
 {
@@ -379,7 +379,7 @@ This token filter accepts the following setting:
     is `4`).
 
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT kuromoji_sample
 {
@@ -425,7 +425,7 @@ the predefined `_japanese_` stopwords list.  If you want to use a different
 predefined list, then use the
 {ref}/analysis-stop-tokenfilter.html[`stop` token filter] instead.
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT kuromoji_sample
 {
@@ -480,7 +480,7 @@ The above request returns:
 The `kuromoji_number` token filter normalizes Japanese numbers (kansūji)
 to regular Arabic decimal numbers in half-width characters.
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT kuromoji_sample
 {

@@ -11,7 +11,7 @@ GET /_search
     "query": {
         "query_string" : {
             "default_field" : "content",
-                "query" : "this AND that OR thus"
+            "query" : "this AND that OR thus"
         }
     }
 }
@@ -122,7 +122,7 @@ GET /_search
     "query": {
         "query_string" : {
             "fields" : ["content", "name"],
-                "query" : "this AND that"
+            "query" : "this AND that"
         }
     }
 }
@@ -177,8 +177,8 @@ GET /_search
     "query": {
         "query_string" : {
             "fields" : ["city.*"],
-                "query" : "this AND that OR thus",
-                "use_dis_max" : true
+            "query" : "this AND that OR thus",
+            "use_dis_max" : true
         }
     }
 }

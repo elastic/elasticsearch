@@ -89,9 +89,9 @@ GET /tweets/_search
         "terms" : {
             "user" : {
                 "index" : "users",
-                    "type" : "user",
-                    "id" : "2",
-                    "path" : "followers"
+                "type" : "user",
+                "id" : "2",
+                "path" : "followers"
             }
         }
     }

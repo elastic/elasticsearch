@@ -32,7 +32,7 @@ GET /_search
         "match_phrase" : {
             "message" : {
                 "query" : "this is a test",
-                    "analyzer" : "my_analyzer"
+                "analyzer" : "my_analyzer"
             }
         }
     }

@@ -23,13 +23,13 @@ PUT /my-index
                 }
             }
         },
-            "queries": {
-                "properties": {
-                    "query": {
-                        "type": "percolator"
-                    }
+        "queries": {
+            "properties": {
+                "query": {
+                    "type": "percolator"
                 }
             }
+        }
     }
 }
 --------------------------------------------------

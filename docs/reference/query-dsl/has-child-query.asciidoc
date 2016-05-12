@@ -67,14 +67,14 @@ GET /_search
     "query": {
         "has_child" : {
             "type" : "blog_tag",
-                "score_mode" : "min",
-                "min_children": 2, <1>
-                    "max_children": 10, <1>
-                    "query" : {
-                        "term" : {
-                            "tag" : "something"
-                        }
-                    }
+            "score_mode" : "min",
+            "min_children": 2, <1>
+            "max_children": 10, <1>
+            "query" : {
+                "term" : {
+                    "tag" : "something"
+                }
+            }
         }
     }
 }

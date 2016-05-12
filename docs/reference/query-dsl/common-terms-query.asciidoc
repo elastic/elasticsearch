@@ -173,11 +173,11 @@ GET /_search
                     "minimum_should_match": 2
                 }
             },
-                "should": [
-                    { "term": { "body": "the"}},
-                    { "term": { "body": "as"}},
-                    { "term": { "body": "a"}}
-                    ]
+            "should": [
+                { "term": { "body": "the"}},
+                { "term": { "body": "as"}},
+                { "term": { "body": "a"}}
+                ]
         }
     }
 }
@@ -230,17 +230,17 @@ GET /_search
                     "minimum_should_match": 2
                 }
             },
-                "should": {
-                    "bool": {
-                        "should": [
-                        { "term": { "body": "the"}},
-                        { "term": { "body": "not"}},
-                        { "term": { "body": "as"}},
-                        { "term": { "body": "a"}}
-                        ],
-                        "minimum_should_match": 3
-                    }
+            "should": {
+                "bool": {
+                    "should": [
+                    { "term": { "body": "the"}},
+                    { "term": { "body": "not"}},
+                    { "term": { "body": "as"}},
+                    { "term": { "body": "a"}}
+                    ],
+                    "minimum_should_match": 3
                 }
+            }
         }
     }
 }

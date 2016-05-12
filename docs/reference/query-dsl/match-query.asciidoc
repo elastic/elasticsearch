@@ -64,7 +64,7 @@ GET /_search
         "match" : {
             "message" : {
                 "query" : "this is a test",
-                    "operator" : "and"
+                "operator" : "and"
             }
         }
     }
@@ -87,8 +87,8 @@ GET /_search
         "match" : {
             "message" : {
                 "query" : "to be or not to be",
-                    "operator" : "and",
-                    "zero_terms_query": "all"
+                "operator" : "and",
+                "zero_terms_query": "all"
             }
         }
     }
@@ -128,7 +128,7 @@ GET /_search
         "match" : {
             "message" : {
                 "query" : "to be or not to be",
-                    "cutoff_frequency" : 0.001
+                "cutoff_frequency" : 0.001
             }
         }
     }

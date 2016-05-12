@@ -48,20 +48,20 @@ GET /_search
             "must" : {
                 "match_all" : {}
             },
-                "filter" : {
-                    "geo_bounding_box" : {
-                        "pin.location" : {
-                            "top_left" : {
-                                "lat" : 40.73,
-                                "lon" : -74.1
-                            },
-                            "bottom_right" : {
-                                "lat" : 40.01,
-                                "lon" : -71.12
-                            }
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "top_left" : {
+                            "lat" : 40.73,
+                            "lon" : -74.1
+                        },
+                        "bottom_right" : {
+                            "lat" : 40.01,
+                            "lon" : -71.12
                         }
                     }
                 }
+            }
         }
     }
 }
@@ -141,14 +141,14 @@ GET /_search
             "must" : {
                 "match_all" : {}
             },
-                "filter" : {
-                    "geo_bounding_box" : {
-                        "pin.location" : {
-                            "top_left" : [-74.1, 40.73],
-                            "bottom_right" : [-71.12, 40.01]
-                        }
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "top_left" : [-74.1, 40.73],
+                        "bottom_right" : [-71.12, 40.01]
                     }
                 }
+            }
         }
     }
 }
@@ -169,16 +169,16 @@ GET /_search
             "must" : {
                 "match_all" : {}
             },
-                "filter" : {
-                    "geo_bounding_box" : {
-                        "pin.location" : {
-                            "top_left" : "40.73, -74.1",
-                            "bottom_right" : "40.01, -71.12"
-                        }
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "top_left" : "40.73, -74.1",
+                        "bottom_right" : "40.01, -71.12"
                     }
                 }
-        }
+            }
     }
+}
 }
 --------------------------------------------------
 // CONSOLE
@@ -195,14 +195,14 @@ GET /_search
             "must" : {
                 "match_all" : {}
             },
-                "filter" : {
-                    "geo_bounding_box" : {
-                        "pin.location" : {
-                            "top_left" : "dr5r9ydj2y73",
-                            "bottom_right" : "drj7teegpus6"
-                        }
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "top_left" : "dr5r9ydj2y73",
+                        "bottom_right" : "drj7teegpus6"
                     }
                 }
+            }
         }
     }
 }
@@ -228,16 +228,16 @@ GET /_search
             "must" : {
                 "match_all" : {}
             },
-                "filter" : {
-                    "geo_bounding_box" : {
-                        "pin.location" : {
-                            "top" : 40.73,
-                            "left" : -74.1,
-                            "bottom" : 40.01,
-                            "right" : -71.12
-                        }
+            "filter" : {
+                "geo_bounding_box" : {
+                    "pin.location" : {
+                        "top" : 40.73,
+                        "left" : -74.1,
+                        "bottom" : 40.01,
+                        "right" : -71.12
                     }
                 }
+            }
         }
     }
 }

@@ -17,12 +17,12 @@ GET /_search
                     "field1" : "value1"
                 }
             },
-                "negative" : {
-                    "term" : {
-                        "field2" : "value2"
-                    }
-                },
-                "negative_boost" : 0.2
+            "negative" : {
+                 "term" : {
+                     "field2" : "value2"
+                }
+            },
+            "negative_boost" : 0.2
         }
     }
 }

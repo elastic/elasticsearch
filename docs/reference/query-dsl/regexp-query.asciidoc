@@ -36,7 +36,7 @@ GET /_search
         "regexp":{
             "name.first":{
                 "value":"s.*y",
-                    "boost":1.2
+                "boost":1.2
             }
         }
     }
@@ -54,7 +54,7 @@ GET /_search
         "regexp":{
             "name.first": {
                 "value": "s.*y",
-                    "flags" : "INTERSECTION|COMPLEMENT|EMPTY"
+                "flags" : "INTERSECTION|COMPLEMENT|EMPTY"
             }
         }
     }

@@ -52,16 +52,16 @@ GET /_search
             "must" : {
                 "match_all" : {}
             },
-                "filter" : {
-                    "geohash_cell": {
-                        "pin": {
-                            "lat": 13.4080,
-                            "lon": 52.5186
-                        },
-                        "precision": 3,
-                        "neighbors": true
-                    }
+            "filter" : {
+                "geohash_cell": {
+                    "pin": {
+                        "lat": 13.4080,
+                        "lon": 52.5186
+                    },
+                    "precision": 3,
+                    "neighbors": true
                 }
+            }
         }
     }
 }

@@ -174,7 +174,7 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\nPUT blog\n/]
+// TEST[s/^/PUT twitter\nPUT blog\nGET _cluster\/health?wait_for_status=yellow\n/]
 
 It's also possible to limit the number of processed documents by setting
 `size`. This will only copy a single document from `twitter` to
@@ -299,7 +299,7 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT source\n/]
+// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
 
 By default `_reindex` uses scroll batches of 100. You can change the
 batch size with the `size` field in the `source` element:
@@ -319,7 +319,7 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT source\n/]
+// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
 
 Reindex can also use the <<ingest>> feature by specifying a
 `pipeline` like this:
@@ -338,7 +338,7 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT source\n/]
+// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
 
 [float]
 === URL Parameters
@@ -435,7 +435,7 @@ While Reindex is running you can fetch their status using the
 
 [source,js]
 --------------------------------------------------
-GET _tasks/?pretty&detailed=true&actions=*reindex
+GET _tasks?detailed=true&actions=*reindex
 --------------------------------------------------
 // CONSOLE
 
@@ -534,7 +534,7 @@ create an index containing documents that look like this:
 
 [source,js]
 --------------------------------------------------
-POST test/test/1?refresh&pretty
+POST test/test/1?refresh
 {
   "text": "words words",
   "flag": "foo"
@@ -547,7 +547,7 @@ But you don't like the name `flag` and want to replace it with `tag`.
 
 [source,js]
 --------------------------------------------------
-POST _reindex?pretty
+POST _reindex
 {
   "source": {
     "index": "test"
@@ -567,7 +567,7 @@ Now you can get the new document:
 
 [source,js]
 --------------------------------------------------
-GET test2/test/1?pretty
+GET test2/test/1
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

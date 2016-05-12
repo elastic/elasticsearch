@@ -316,7 +316,7 @@ public class ClusterChangedEventTests extends ESTestCase {
 
     // Create a new DiscoveryNode
     private static DiscoveryNode newNode(final String id, Set<DiscoveryNode.Role> roles) {
-        return new DiscoveryNode(id, id, new LocalTransportAddress("addr_" + id), Collections.emptyMap(), roles, Version.CURRENT);
+        return new DiscoveryNode(id, new LocalTransportAddress("addr_" + id), Collections.emptyMap(), roles, Version.CURRENT);
     }
 
     // Create the metadata for a cluster state.

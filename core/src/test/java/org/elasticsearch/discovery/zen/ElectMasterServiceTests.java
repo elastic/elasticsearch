@@ -49,7 +49,7 @@ public class ElectMasterServiceTests extends ESTestCase {
             if (randomBoolean()) {
                 roles.add(DiscoveryNode.Role.MASTER);
             }
-            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+            DiscoveryNode node = new DiscoveryNode("n_" + i, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                     roles, Version.CURRENT);
             nodes.add(node);
         }

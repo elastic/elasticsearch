@@ -75,9 +75,9 @@ public class NettyScheduledPingTests extends ESTestCase {
         serviceB.acceptIncomingRequests();
 
         DiscoveryNode nodeA =
-            new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), emptySet(), Version.CURRENT);
+            new DiscoveryNode("TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode nodeB =
-            new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), Version.CURRENT);
+            new DiscoveryNode("TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
         serviceA.connectToNode(nodeB);
         serviceB.connectToNode(nodeA);

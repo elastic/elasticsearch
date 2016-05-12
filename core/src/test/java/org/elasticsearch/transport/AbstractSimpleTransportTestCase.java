@@ -1308,7 +1308,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 });
 
         DiscoveryNode node =
-            new DiscoveryNode("TS_TEST", "TS_TEST", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
+            new DiscoveryNode("TS_TEST", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
         serviceA.connectToNode(node);
 
         CountDownLatch latch = new CountDownLatch(1);

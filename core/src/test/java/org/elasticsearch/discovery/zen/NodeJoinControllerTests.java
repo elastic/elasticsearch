@@ -420,7 +420,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         String nodeId = randomFrom("other_node", localNode.getId());
         // consider case where node id and ephemeral id are not both identical
         String ephemeralId = nodeId.equals("other_node") ? randomFrom(localNode.getEphemeralId(), "other_id") : localNode.getEphemeralId();
-        final DiscoveryNode other_node = new DiscoveryNode(nodeId, ephemeralId, localNode.getAddress(),
+        final DiscoveryNode other_node = new DiscoveryNode(localNode.getName(), nodeId, ephemeralId, localNode.getAddress(),
             localNode.getAttributes(), localNode.getRoles(), localNode.getVersion());
 
         joinNode(other_node);
@@ -431,8 +431,8 @@ public class NodeJoinControllerTests extends ESTestCase {
 
     public void testRejectingJoinWithSameNodeIdButDifferentEphemeralIdAndAddress() throws InterruptedException, ExecutionException {
         ClusterState state = clusterService.state();
-        final DiscoveryNode other_node = new DiscoveryNode(state.nodes().getLocalNode().getId(), UUIDs.randomBase64UUID(),
-            LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode other_node = new DiscoveryNode(state.nodes().getLocalNode().getName(), state.nodes().getLocalNode().getId(),
+            UUIDs.randomBase64UUID(), LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
 
         ExecutionException e = expectThrows(ExecutionException.class, () -> joinNode(other_node));
         assertThat(e.getMessage(), both(containsString("found existing node")).and(
@@ -645,6 +645,6 @@ public class NodeJoinControllerTests extends ESTestCase {
             roles.add(DiscoveryNode.Role.MASTER);
         }
         final String prefix = master ? "master_" : "data_";
-        return new DiscoveryNode(prefix + i, i + "", new LocalTransportAddress("test_" + i), emptyMap(), roles, Version.CURRENT);
+        return new DiscoveryNode(prefix + i, new LocalTransportAddress("test_" + i), emptyMap(), roles, Version.CURRENT);
     }
 }

@@ -161,8 +161,7 @@ public class TransportNodesActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNode.Role> roles) {
-        String node = "node_" + nodeId;
-        return new DiscoveryNode(node, node, LocalTransportAddress.buildUnique(), attributes, roles, Version.CURRENT);
+        return new DiscoveryNode("node_" + nodeId, LocalTransportAddress.buildUnique(), attributes, roles, Version.CURRENT);
     }
 
     private static class TestTransportNodesAction extends TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest,

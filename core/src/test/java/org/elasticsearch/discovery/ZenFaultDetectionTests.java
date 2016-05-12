@@ -72,9 +72,9 @@ public class ZenFaultDetectionTests extends ESTestCase {
         clusterService = createClusterService(threadPool);
         circuitBreakerService = new NoneCircuitBreakerService();
         serviceA = build(Settings.builder().put("name", "TS_A").build(), version0);
-        nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
+        nodeA = new DiscoveryNode("TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
         serviceB = build(Settings.builder().put("name", "TS_B").build(), version1);
-        nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
+        nodeB = new DiscoveryNode("TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
 
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
         // will not get this callback called on the connections done in this setup

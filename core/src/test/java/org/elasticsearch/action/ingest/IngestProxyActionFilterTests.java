@@ -78,7 +78,7 @@ public class IngestProxyActionFilterTests extends ESTestCase {
             if (i < ingestNodes) {
                 roles.add(DiscoveryNode.Role.INGEST);
             }
-            DiscoveryNode node = new DiscoveryNode(nodeId, nodeId, LocalTransportAddress.buildUnique(), attributes, roles, VersionUtils.randomVersion(random()));
+            DiscoveryNode node = new DiscoveryNode(nodeId, LocalTransportAddress.buildUnique(), attributes, roles, VersionUtils.randomVersion(random()));
             builder.put(node);
             if (i == totalNodes - 1) {
                 localNode = node;

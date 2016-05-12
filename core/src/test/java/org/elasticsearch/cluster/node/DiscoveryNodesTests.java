@@ -121,7 +121,8 @@ public class DiscoveryNodesTests extends ESTestCase {
                 // change an attribute
                 Map<String, String> attrs = new HashMap<>(node.getAttributes());
                 attrs.put("new", "new");
-                node = new DiscoveryNode(node.getName(), node.getId(), node.getAddress(), attrs, node.getRoles(), node.getVersion());
+                node = new DiscoveryNode(node.getName(), node.getId(), node.getEphemeralId(), node.getAddress(), attrs, node.getRoles(),
+                    node.getVersion());
             }
             nodesB.add(node);
         }

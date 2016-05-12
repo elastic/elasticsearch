@@ -10,7 +10,7 @@ GET /_search
 {
     "query": {
         "bool" : {
-            "query" : {
+            "must" : {
                 "match_all" : {}
             },
             "filter" : {
@@ -61,7 +61,7 @@ GET /_search
 {
     "query": {
         "bool" : {
-            "query" : {
+            "must" : {
                 "match_all" : {}
             },
             "filter" : {
@@ -92,7 +92,7 @@ GET /_search
 {
     "query": {
         "bool" : {
-            "query" : {
+            "must" : {
                 "match_all" : {}
             },
             "filter" : {
@@ -121,7 +121,7 @@ GET /_search
 {
     "query": {
         "bool" : {
-            "query" : {
+            "must" : {
                 "match_all" : {}
             },
             "filter" : {

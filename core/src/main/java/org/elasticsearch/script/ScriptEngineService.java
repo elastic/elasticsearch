@@ -33,7 +33,7 @@ public interface ScriptEngineService extends Closeable {
 
     String getType();
 
-    List<String> getExtensions();
+    String getExtension();
 
     Object compile(String script, Map<String, String> params);
 

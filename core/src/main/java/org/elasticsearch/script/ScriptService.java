@@ -170,9 +170,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         for (ScriptEngineService scriptEngine : scriptEngines) {
             String language = scriptEngineRegistry.getLanguage(scriptEngine.getClass());
             enginesByLangBuilder.put(language, scriptEngine);
-            for (String ext : scriptEngine.getExtensions()) {
-                enginesByExtBuilder.put(ext, scriptEngine);
-            }
+            enginesByExtBuilder.put(scriptEngine.getExtension(), scriptEngine);
         }
         this.scriptEnginesByLang = unmodifiableMap(enginesByLangBuilder);
         this.scriptEnginesByExt = unmodifiableMap(enginesByExtBuilder);

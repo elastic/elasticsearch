@@ -241,8 +241,8 @@ public class ScriptModesTests extends ESTestCase {
         }
 
         @Override
-        public List<String> getExtensions() {
-            return Collections.unmodifiableList(Arrays.asList("custom", "test"));
+        public String getExtension() {
+            return NAME;
         }
 
         @Override

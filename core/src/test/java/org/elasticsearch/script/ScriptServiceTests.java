@@ -145,7 +145,7 @@ public class ScriptServiceTests extends ESTestCase {
     public void testScriptsWithoutExtensions() throws IOException {
         buildScriptService(Settings.EMPTY);
         Path testFileNoExt = scriptsFilePath.resolve("test_no_ext");
-        Path testFileWithExt = scriptsFilePath.resolve("test_script.tst");
+        Path testFileWithExt = scriptsFilePath.resolve("test_script.test");
         Streams.copy("test_file_no_ext".getBytes("UTF-8"), Files.newOutputStream(testFileNoExt));
         Streams.copy("test_file".getBytes("UTF-8"), Files.newOutputStream(testFileWithExt));
         resourceWatcherService.notifyNow();
@@ -173,7 +173,7 @@ public class ScriptServiceTests extends ESTestCase {
         Path testHiddenFile = scriptsFilePath.resolve(".hidden_file");
         Streams.copy("test_hidden_file".getBytes("UTF-8"), Files.newOutputStream(testHiddenFile));
 
-        Path testFileScript = scriptsFilePath.resolve("file_script.tst");
+        Path testFileScript = scriptsFilePath.resolve("file_script.test");
         Streams.copy("test_file_script".getBytes("UTF-8"), Files.newOutputStream(testFileScript));
         resourceWatcherService.notifyNow();
 
@@ -510,16 +510,14 @@ public class ScriptServiceTests extends ESTestCase {
 
         public static final String NAME = "test";
 
-        public static final List<String> EXTENSIONS = Collections.unmodifiableList(Arrays.asList("test", "tst"));
-
         @Override
         public String getType() {
             return NAME;
         }
 
         @Override
-        public List<String> getExtensions() {
-            return EXTENSIONS;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override
@@ -560,8 +558,8 @@ public class ScriptServiceTests extends ESTestCase {
         }
 
         @Override
-        public List<String> getExtensions() {
-            return EXTENSIONS;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override

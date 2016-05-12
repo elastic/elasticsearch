@@ -73,16 +73,14 @@ public class ScriptSettingsTests extends ESTestCase {
 
         public static final String NAME = "custom";
 
-        public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("test"));
-
         @Override
         public String getType() {
             return NAME;
         }
 
         @Override
-        public List<String> getExtensions() {
-            return Collections.unmodifiableList(Arrays.asList("test"));
+        public String getExtension() {
+            return NAME;
         }
 
         @Override

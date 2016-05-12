@@ -54,21 +54,6 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
     public static final String NAME = "painless";
 
     /**
-     * Standard list of names for the Painless language.  (There is only one.)
-     */
-    public static final List<String> TYPES = Collections.singletonList(NAME);
-
-    /**
-     * Standard extension of the Painless language.
-     */
-    public static final String EXTENSION = "painless";
-
-    /**
-     * Standard list of extensions for the Painless language.  (There is only one.)
-     */
-    public static final List<String> EXTENSIONS = Collections.singletonList(EXTENSION);
-
-    /**
      * Default compiler settings to be used.
      */
     private static final CompilerSettings DEFAULT_COMPILER_SETTINGS = new CompilerSettings();
@@ -112,8 +97,8 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
      * @return Always contains only the single extension of the language.
      */
     @Override
-    public List<String> getExtensions() {
-        return EXTENSIONS;
+    public String getExtension() {
+        return NAME;
     }
 
     /**

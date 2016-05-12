@@ -134,7 +134,7 @@ types at once, just like the search API:
 POST twitter,blog/tweet,post/_update_by_query
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\nPUT blog\n/]
+// TEST[s/^/PUT twitter\nPUT blog\nGET _cluster\/health?wait_for_status=yellow\n/]
 
 If you provide `routing` then the routing is copied to the scroll query,
 limiting the process to the shards that match that routing value:
@@ -266,7 +266,7 @@ While Update By Query is running you can fetch their status using the
 
 [source,js]
 --------------------------------------------------
-GET _tasks/?pretty&detailed=true&action=*byquery
+GET _tasks?detailed=true&action=*byquery
 --------------------------------------------------
 // CONSOLE
 

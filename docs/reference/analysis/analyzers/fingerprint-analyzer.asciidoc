@@ -17,11 +17,11 @@ It consists of:
 Tokenizer::
 * <<analysis-standard-tokenizer,Standard Tokenizer>>
 
-Token Filters::
-* <<analysis-lowercase-tokenfilter,Lower Case Token Filter>>
-* <<analysis-stop-tokenfilter,Stop Token Filter>> (disabled by default)
-* <<analysis-fingerprint-tokenfilter>>
-* <<analysis-asciifolding-tokenfilter>>
+Token Filters (in order)::
+1. <<analysis-lowercase-tokenfilter,Lower Case Token Filter>>
+2. <<analysis-asciifolding-tokenfilter>>
+3. <<analysis-stop-tokenfilter,Stop Token Filter>> (disabled by default)
+4. <<analysis-fingerprint-tokenfilter>>
 
 [float]
 === Example output
@@ -68,7 +68,6 @@ The `fingerprint` analyzer accepts the following parameters:
 
     A pre-defined stop words list like `_english_` or an array  containing a
     list of stop words.  Defaults to `_none_`.
-
 `stopwords_path`::
 
     The path to a file containing stop words.

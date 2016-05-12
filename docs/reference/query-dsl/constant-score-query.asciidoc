@@ -14,7 +14,7 @@ GET /_search
             "filter" : {
                 "term" : { "user" : "kimchy"}
             },
-                "boost" : 1.2
+            "boost" : 1.2
         }
     }
 }

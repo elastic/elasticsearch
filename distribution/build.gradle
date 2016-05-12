@@ -317,7 +317,11 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     preUninstall file("${scripts}/prerm")
     postUninstall file("${scripts}/postrm")
 
-    requires('/bin/bash')
+    if (project.name == 'rpm') {
+      requires('/bin/bash')
+    } else if (project.name == 'deb') {
+      requires('bash')
+    }
 
     into '/usr/share/elasticsearch'
     fileMode 0644

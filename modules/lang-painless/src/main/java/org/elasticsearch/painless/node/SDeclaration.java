@@ -38,8 +38,8 @@ public final class SDeclaration extends AStatement {
 
     Variable variable;
 
-    public SDeclaration(final String location, final String type, final String name, final AExpression expression) {
-        super(location);
+    public SDeclaration(final int line, final String location, final String type, final String name, final AExpression expression) {
+        super(line, location);
 
         this.type = type;
         this.name = name;

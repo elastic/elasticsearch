@@ -36,8 +36,8 @@ final class LDefField extends ALink {
 
     final String value;
 
-    LDefField(final String location, final String value) {
-        super(location, 1);
+    LDefField(final int line, final String location, final String value) {
+        super(line, location, 1);
 
         this.value = value;
     }

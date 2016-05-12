@@ -31,8 +31,8 @@ public final class SThrow extends AStatement {
 
     AExpression expression;
 
-    public SThrow(final String location, final AExpression expression) {
-        super(location);
+    public SThrow(final int line, final String location, final AExpression expression) {
+        super(line, location);
 
         this.expression = expression;
     }

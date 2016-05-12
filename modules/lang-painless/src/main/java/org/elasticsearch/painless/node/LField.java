@@ -39,8 +39,8 @@ public final class LField extends ALink {
 
     Field field;
 
-    public LField(final String location, final String value) {
-        super(location, 1);
+    public LField(final int line, final String location, final String value) {
+        super(line, location, 1);
 
         this.value = value;
     }
@@ -54,9 +54,9 @@ public final class LField extends ALink {
         final Sort sort = before.sort;
 
         if (sort == Sort.ARRAY) {
-            return new LArrayLength(location, value).copy(this).analyze(settings, definition, variables);
+            return new LArrayLength(line, location, value).copy(this).analyze(settings, definition, variables);
         } else if (sort == Sort.DEF) {
-            return new LDefField(location, value).copy(this).analyze(settings, definition, variables);
+            return new LDefField(line, location, value).copy(this).analyze(settings, definition, variables);
         }
 
         final Struct struct = before.struct;
@@ -77,15 +77,15 @@ public final class LField extends ALink {
                 struct.methods.containsKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1));
 
             if (shortcut) {
-                return new LShortcut(location, value).copy(this).analyze(settings, definition, variables);
+                return new LShortcut(line, location, value).copy(this).analyze(settings, definition, variables);
             } else {
-                final EConstant index = new EConstant(location, value);
+                final EConstant index = new EConstant(line, location, value);
                 index.analyze(settings, definition, variables);
 
                 try {
                     before.clazz.asSubclass(Map.class);
 
-                    return new LMapShortcut(location, index).copy(this).analyze(settings, definition, variables);
+                    return new LMapShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
                 } catch (final ClassCastException exception) {
                     // Do nothing.
                 }
@@ -93,7 +93,7 @@ public final class LField extends ALink {
                 try {
                     before.clazz.asSubclass(List.class);
 
-                    return new LListShortcut(location, index).copy(this).analyze(settings, definition, variables);
+                    return new LListShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
                 } catch (final ClassCastException exception) {
                     // Do nothing.
                 }

@@ -34,8 +34,8 @@ public final class SDo extends AStatement {
     final AStatement block;
     AExpression condition;
 
-    public SDo(final String location, final AStatement block, final AExpression condition) {
-        super(location);
+    public SDo(final int line, final String location, final AStatement block, final AExpression condition) {
+        super(line, location);
 
         this.condition = condition;
         this.block = block;

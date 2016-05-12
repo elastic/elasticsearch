@@ -31,8 +31,8 @@ public final class EDecimal extends AExpression {
 
     final String value;
 
-    public EDecimal(final String location, final String value) {
-        super(location);
+    public EDecimal(final int line, final String location, final String value) {
+        super(line, location);
 
         this.value = value;
     }

@@ -29,8 +29,8 @@ import org.objectweb.asm.commons.GeneratorAdapter;
  */
 public final class EBoolean extends AExpression {
 
-    public EBoolean(final String location, final boolean constant) {
-        super(location);
+    public EBoolean(final int line, final String location, final boolean constant) {
+        super(line, location);
 
         this.constant = constant;
     }

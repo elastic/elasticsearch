@@ -34,8 +34,8 @@ public final class SWhile extends AStatement {
     AExpression condition;
     final AStatement block;
 
-    public SWhile(final String location, final AExpression condition, final AStatement block) {
-        super(location);
+    public SWhile(final int line, final String location, final AExpression condition, final AStatement block) {
+        super(line, location);
 
         this.condition = condition;
         this.block = block;

@@ -35,8 +35,8 @@ public final class EExplicit extends AExpression {
 
     Cast cast = null;
 
-    public EExplicit(final String location, final String type, final AExpression child) {
-        super(location);
+    public EExplicit(final int line, final String location, final String type, final AExpression child) {
+        super(line, location);
 
         this.type = type;
         this.child = child;

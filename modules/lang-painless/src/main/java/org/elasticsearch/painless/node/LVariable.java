@@ -36,8 +36,8 @@ public final class LVariable extends ALink {
 
     int slot;
 
-    public LVariable(final String location, final String name) {
-        super(location, 0);
+    public LVariable(final int line, final String location, final String name) {
+        super(line, location, 0);
 
         this.name = name;
     }

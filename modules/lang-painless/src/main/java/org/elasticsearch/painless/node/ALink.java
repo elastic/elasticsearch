@@ -75,8 +75,8 @@ public abstract class ALink extends ANode {
      */
     String string = null;
 
-    ALink(final String location, final int size) {
-        super(location);
+    ALink(final int line, final String location, final int size) {
+        super(line, location);
 
         this.size = size;
     }

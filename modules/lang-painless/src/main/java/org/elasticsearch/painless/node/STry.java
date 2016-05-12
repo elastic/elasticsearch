@@ -36,8 +36,8 @@ public final class STry extends AStatement {
     final AStatement block;
     final List<STrap> traps;
 
-    public STry(final String location, final AStatement block, final List<STrap> traps) {
-        super(location);
+    public STry(final int line, final String location, final AStatement block, final List<STrap> traps) {
+        super(line, location);
 
         this.block = block;
         this.traps = Collections.unmodifiableList(traps);

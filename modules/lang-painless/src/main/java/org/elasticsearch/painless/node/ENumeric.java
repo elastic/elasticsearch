@@ -33,8 +33,8 @@ public final class ENumeric extends AExpression {
     final String value;
     int radix;
 
-    public ENumeric(final String location, final String value, final int radix) {
-        super(location);
+    public ENumeric(final int line, final String location, final String value, final int radix) {
+        super(line, location);
 
         this.value = value;
         this.radix = radix;

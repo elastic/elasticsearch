@@ -39,6 +39,10 @@ setup() {
     export_elasticsearch_paths
 }
 
+@test "[RPM] package depends on bash" {
+    rpm -qpR elasticsearch-$(cat version).rpm | grep '/bin/bash'
+}
+
 ##################################
 # Install RPM package
 ##################################

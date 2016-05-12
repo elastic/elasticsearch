@@ -94,7 +94,7 @@ public class FixedThreadPoolTests extends ESThreadPoolTestCase {
             threadPool.setClusterSettings(clusterSettings);
             clusterSettings.applySettings(
                 Settings.builder()
-                    .put("threadpool." + threadPoolName + ".queue_size", 1)
+                    .put("threadpool." + threadPoolName + ".queue_size", queueSize + 1)
                     .build());
             assertThat(stats(threadPool, threadPoolName).getRejected(), equalTo(0L));
 

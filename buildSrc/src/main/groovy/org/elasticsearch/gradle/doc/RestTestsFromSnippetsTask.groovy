@@ -199,7 +199,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
 
             // Now setup the writer
             Files.createDirectories(dest.parent)
-            current = dest.newPrintWriter()
+            current = dest.newPrintWriter('UTF-8')
         }
 
         void finishLastTest() {

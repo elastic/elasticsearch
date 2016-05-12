@@ -33,6 +33,7 @@ import java.util.Map;
  * to run a previously compiled Painless script.
  */
 final class ScriptImpl implements ExecutableScript, LeafSearchScript {
+
     /**
      * The Painless Executable script that can be run.
      */
@@ -47,7 +48,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      * The lookup is used to access search field values at run-time.
      */
     private final LeafSearchLookup lookup;
-    
+
     /**
      * the 'doc' object accessed by the script, if available.
      */
@@ -97,7 +98,11 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     public void setNextVar(final String name, final Object value) {
         variables.put(name, value);
     }
-    
+
+    /**
+     * Set the next aggregation value.
+     * @param value Per-document value, typically a String, Long, or Double.
+     */
     @Override
     public void setNextAggregationValue(Object value) {
         this.aggregationValue = value;

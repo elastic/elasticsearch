@@ -98,7 +98,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             exec("try { int x } catch (PainlessError error) {}");
             fail("should have hit ParseException");
         });
-        assertTrue(parseException.getMessage().contains("Invalid type [PainlessError]."));
+        assertTrue(parseException.getMessage().contains("Not a type [PainlessError]."));
     }
 
     public void testLoopLimits() {
@@ -126,20 +126,20 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         // ok
         assertEquals(0, exec(new String(exactlyAtLimit)));
     }
-    
+
     public void testIllegalDynamicMethod() {
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
             exec("def x = 'test'; return x.getClass().toString()");
         });
         assertTrue(expected.getMessage().contains("Unable to find dynamic method"));
     }
-    
+
     public void testDynamicNPE() {
         expectThrows(NullPointerException.class, () -> {
             exec("def x = null; return x.toString()");
         });
     }
-    
+
     public void testDynamicWrongArgs() {
         expectThrows(WrongMethodTypeException.class, () -> {
             exec("def x = new ArrayList(); return x.get('bogus');");

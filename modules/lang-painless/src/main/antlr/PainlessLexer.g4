@@ -63,7 +63,7 @@ EQR:     '===';
 NE:      '!=';
 NER:     '!==';
 BWAND:   '&';
-BWXOR:   '^';
+XOR:     '^';
 BWOR:    '|';
 BOOLAND: '&&';
 BOOLOR:  '||';

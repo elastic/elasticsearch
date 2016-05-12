@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -85,7 +86,34 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
         read(in);
     }
 
-    protected abstract void read(StreamInput in) throws IOException;
+    protected void read(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            valueType = ValueType.readFromStream(in);
+        }
+        format = in.readOptionalString();
+        missing = in.readGenericValue();
+        if (in.readBoolean()) {
+            timeZone = DateTimeZone.forID(in.readString());
+        }
+    }
+
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        if (serializeTargetValueType()) {
+            out.writeOptionalWriteable(targetValueType);
+        }
+        boolean hasValueType = valueType != null;
+        out.writeBoolean(hasValueType);
+        if (hasValueType) {
+            valueType.writeTo(out);
+        }
+        out.writeOptionalString(format);
+        out.writeGenericValue(missing);
+        boolean hasTimeZone = timeZone != null;
+        out.writeBoolean(hasTimeZone);
+        if (hasTimeZone) {
+            out.writeString(timeZone.getID());
+        }
+    }
 
     /**
      * Write subclass's state to the stream.
@@ -264,16 +292,16 @@ public abstract class ValuesSourceAggregatorBuilder<VS extends ValuesSource, AB 
     @Override
     public XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         if (missing != null) {
-            builder.field("missing", missing);
+            builder.field(ParseField.MISSING_FIELD.getPreferredName(), missing);
         }
         if (format != null) {
-            builder.field("format", format);
+            builder.field(ParseField.FORMAT_FIELD.getPreferredName(), format);
         }
         if (timeZone != null) {
-            builder.field("time_zone", timeZone);
+            builder.field(ParseField.TIME_ZONE_FIELD.getPreferredName(), timeZone);
         }
         if (valueType != null) {
-            builder.field("value_type", valueType.getPreferredName());
+            builder.field(ParseField.VALUE_TYPE_FIELD.getPreferredName(), valueType.getPreferredName());
         }
         doXContentBody(builder, params);
         builder.endObject();

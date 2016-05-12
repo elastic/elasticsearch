@@ -155,18 +155,6 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> extends V
         if (scripts != null) {
             factory.scripts(scripts);
         }
-        if (parsedValueType != null) {
-            factory.valueType(parsedValueType);
-        }
-        if (parsedFormat != null) {
-            factory.format(parsedFormat);
-        }
-        if (parsedMissing != null) {
-            factory.missing(parsedMissing);
-        }
-        if (parsedTimeZone != null) {
-            factory.timeZone(parsedTimeZone);
-        }
         return factory;
     }
 
@@ -192,7 +180,7 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> extends V
                         return false;
                     }
                 }
-            } else if ("field".equals(currentFieldName)) {
+            } else if (parseFieldMatcher.match(currentFieldName, ParseField.FIELD_FIELD)) {
                 fields = new ArrayList<>();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     if (token == XContentParser.Token.VALUE_STRING) {

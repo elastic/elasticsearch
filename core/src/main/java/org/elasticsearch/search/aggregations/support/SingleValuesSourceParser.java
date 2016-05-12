@@ -109,18 +109,6 @@ public abstract class SingleValuesSourceParser<VS extends ValuesSource> extends 
         if (script != null) {
             factory.script(script);
         }
-        if (parsedValueType != null) {
-            factory.valueType(parsedValueType);
-        }
-        if (parsedFormat != null) {
-            factory.format(parsedFormat);
-        }
-        if (parsedMissing != null) {
-            factory.missing(parsedMissing);
-        }
-        if (parsedTimeZone != null) {
-            factory.timeZone(parsedTimeZone);
-        }
         return factory;
     }
 }

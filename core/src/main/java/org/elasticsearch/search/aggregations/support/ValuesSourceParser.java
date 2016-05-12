@@ -35,8 +35,6 @@ import java.util.Map;
  *
  */
 public abstract class ValuesSourceParser<VS extends ValuesSource> implements Aggregator.Parser {
-    static final ParseField TIME_ZONE = new ParseField("time_zone");
-
     protected boolean scriptable = true;
     protected boolean formattable = false;
     protected boolean timezoneAware = false;
@@ -67,9 +65,9 @@ public abstract class ValuesSourceParser<VS extends ValuesSource> implements Agg
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if ("missing".equals(currentFieldName) && token.isValue()) {
+            } else if (context.getParseFieldMatcher().match(currentFieldName, ParseField.MISSING_FIELD) && token.isValue()) {
                 missing = parser.objectText();
-            } else if (timezoneAware && context.getParseFieldMatcher().match(currentFieldName, TIME_ZONE)) {
+            } else if (timezoneAware && context.getParseFieldMatcher().match(currentFieldName, ParseField.TIME_ZONE_FIELD)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     timezone = DateTimeZone.forID(parser.text());
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
@@ -79,12 +77,12 @@ public abstract class ValuesSourceParser<VS extends ValuesSource> implements Agg
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("field".equals(currentFieldName)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, ParseField.FIELD_FIELD)) {
                     parseField(parser);
-                } else if (formattable && "format".equals(currentFieldName)) {
+                } else if (formattable && context.getParseFieldMatcher().match(currentFieldName, ParseField.FORMAT_FIELD)) {
                     format = parser.text();
                 } else if (scriptable) {
-                    if ("value_type".equals(currentFieldName) || "valueType".equals(currentFieldName)) {
+                    if (context.getParseFieldMatcher().match(currentFieldName, ParseField.VALUE_TYPE_FIELD)) {
                         valueType = ValueType.resolveForScript(parser.text());
                         if (targetValueType != null && valueType.isNotA(targetValueType)) {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -114,7 +112,21 @@ public abstract class ValuesSourceParser<VS extends ValuesSource> implements Agg
             }
         }
 
-        return createBuilder(aggregationName, valueType, format, missing, timezone, otherOptions);
+        final ValuesSourceAggregatorBuilder<VS, ?> builder = createBuilder(aggregationName, valueType, format, missing, timezone, otherOptions);
+        if (valueType != null) {
+            builder.valueType(valueType);
+        }
+        if (format != null) {
+            builder.format(format);
+        }
+        if (missing != null) {
+            builder.missing(missing);
+        }
+        if (timezone != null) {
+            builder.timeZone(timezone);
+        }
+
+        return builder;
     }
 
     protected abstract void parseField(XContentParser parser) throws IOException;

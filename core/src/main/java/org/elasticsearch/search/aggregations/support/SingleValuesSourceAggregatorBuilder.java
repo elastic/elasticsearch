@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -92,43 +93,23 @@ public abstract class SingleValuesSourceAggregatorBuilder<VS extends ValuesSourc
     /**
      * Read from a stream.
      */
+    @Override
     protected void read(StreamInput in) throws IOException {
+        super.read(in);
         field = in.readOptionalString();
         if (in.readBoolean()) {
             script = new Script(in);
         }
-        if (in.readBoolean()) {
-            valueType = ValueType.readFromStream(in);
-        }
-        format = in.readOptionalString();
-        missing = in.readGenericValue();
-        if (in.readBoolean()) {
-            timeZone = DateTimeZone.forID(in.readString());
-        }
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        if (serializeTargetValueType()) {
-            out.writeOptionalWriteable(targetValueType);
-        }
+    protected final void doWriteTo(StreamOutput out) throws IOException {
+        super.doWriteTo(out);
         out.writeOptionalString(field);
         boolean hasScript = script != null;
         out.writeBoolean(hasScript);
         if (hasScript) {
             script.writeTo(out);
-        }
-        boolean hasValueType = valueType != null;
-        out.writeBoolean(hasValueType);
-        if (hasValueType) {
-            valueType.writeTo(out);
-        }
-        out.writeOptionalString(format);
-        out.writeGenericValue(missing);
-        boolean hasTimeZone = timeZone != null;
-        out.writeBoolean(hasTimeZone);
-        if (hasTimeZone) {
-            out.writeString(timeZone.getID());
         }
         innerWriteTo(out);
     }
@@ -191,10 +172,10 @@ public abstract class SingleValuesSourceAggregatorBuilder<VS extends ValuesSourc
     public XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (field != null) {
-            builder.field("field", field);
+            builder.field(ParseField.FIELD_FIELD.getPreferredName(), field);
         }
         if (script != null) {
-            builder.field("script", script);
+            builder.field(Script.ScriptField.SCRIPT.getPreferredName(), script);
         }
         return super.internalXContent(builder, params);
     }

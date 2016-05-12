@@ -29,6 +29,12 @@ import java.util.Set;
  * Holds a field that can be found in a request while parsing and its different variants, which may be deprecated.
  */
 public class ParseField {
+    // todo reuse these commonly used ParseField objects instead of duplicating them in other classes
+    public static final ParseField FIELD_FIELD = new ParseField("field");
+    public static final ParseField FORMAT_FIELD = new ParseField("format");
+    public static final ParseField MISSING_FIELD = new ParseField("missing");
+    public static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
+    public static final ParseField VALUE_TYPE_FIELD = new ParseField("value_type", "valueType");
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ParseField.class));
 

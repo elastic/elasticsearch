@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -99,6 +100,7 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
      */
     @Override
     protected void read(StreamInput in) throws IOException {
+        super.read(in);
         if (in.readBoolean()) {
             int size = in.readVInt();
             fields = new ArrayList<>(size);
@@ -117,21 +119,11 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
         } else {
             scripts = Collections.emptyMap();
         }
-        if (in.readBoolean()) {
-            valueType = ValueType.readFromStream(in);
-        }
-        format = in.readOptionalString();
-        missing = in.readGenericValue();
-        if (in.readBoolean()) {
-            timeZone = DateTimeZone.forID(in.readString());
-        }
     }
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (serializeTargetValueType()) {
-            out.writeOptionalWriteable(targetValueType);
-        }
+        super.doWriteTo(out);
         boolean hasFields = fields != null;
         out.writeBoolean(hasFields);
         if (hasFields) {
@@ -148,18 +140,6 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
                 out.writeString(script.getKey());
                 script.getValue().writeTo(out);
             }
-        }
-        boolean hasValueType = valueType != null;
-        out.writeBoolean(hasValueType);
-        if (hasValueType) {
-            valueType.writeTo(out);
-        }
-        out.writeOptionalString(format);
-        out.writeGenericValue(missing);
-        boolean hasTimeZone = timeZone != null;
-        out.writeBoolean(hasTimeZone);
-        if (hasTimeZone) {
-            out.writeString(timeZone.getID());
         }
         innerWriteTo(out);
     }
@@ -231,14 +211,12 @@ public abstract class MultiValuesSourceAggregatorBuilder<VS extends ValuesSource
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (fields != null) {
-            builder.field("field", fields);
+            builder.field(ParseField.FIELD_FIELD.getPreferredName(), fields);
         }
         if (scripts != null) {
-            builder.field("script", scripts);
+            builder.field(Script.ScriptField.SCRIPT.getPreferredName(), scripts);
         }
-        doXContentBody(builder, params);
-        builder.endObject();
-        return builder;
+        return super.internalXContent(builder, params);
     }
 
     @Override

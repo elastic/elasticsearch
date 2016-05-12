@@ -10,7 +10,7 @@ GET /_search
 {
     "query": {
         "bool" : {
-            "query" : {
+            "must": {
                 "geo_polygon" : {
                     "person.location" : {
                         "points" : [
@@ -59,9 +59,6 @@ GET /_search
     "query": {
         "bool" : {
             "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
                 "geo_polygon" : {
                     "person.location" : {
                         "points" : [
@@ -90,19 +87,16 @@ GET /_search
     "query": {
         "bool" : {
             "must" : {
-                "match_all" : {}
-            },
-                "filter" : {
-                    "geo_polygon" : {
-                        "person.location" : {
-                            "points" : [
-                                "40, -70",
+                "geo_polygon" : {
+                    "person.location" : {
+                        "points" : [
+                            "40, -70",
                             "30, -80",
                             "20, -90"
-                            ]
-                        }
+                        ]
                     }
                 }
+            }
         }
     }
 }
@@ -119,19 +113,16 @@ GET /_search
     "query": {
         "bool" : {
             "must" : {
-                "match_all" : {}
-            },
-                "filter" : {
-                    "geo_polygon" : {
-                        "person.location" : {
-                            "points" : [
-                                "drn5x1g8cu2y",
+                "geo_polygon" : {
+                    "person.location" : {
+                        "points" : [
+                            "drn5x1g8cu2y",
                             "30, -80",
                             "20, -90"
-                            ]
-                        }
+                        ]
                     }
                 }
+            }
         }
     }
 }

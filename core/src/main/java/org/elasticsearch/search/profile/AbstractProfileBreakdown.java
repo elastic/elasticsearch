@@ -21,6 +21,7 @@ package org.elasticsearch.search.profile;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -34,6 +35,8 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
      * The accumulated timings for this query node
      */
     private final long[] timings;
+
+    private final long[] counts;
 
     /** Scratch to store the current timing type. */
     private T currentTimingType;
@@ -58,6 +61,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     public void startTime(T timing) {
         assert currentTimingType == null;
         assert scratch == 0;
+        counts[timing.ordinal()] += 1;
         currentTimingType = timing;
         scratch = System.nanoTime();
     }
@@ -83,6 +87,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
         Map<String, Long> map = new HashMap<>();
         for (T timingType : timingTypes) {
             map.put(timingType.toString(), timings[timingType.ordinal()]);
+            map.put(timingType.toString() + "_count", counts[timingType.ordinal()]);
         }
         return Collections.unmodifiableMap(map);
     }
@@ -95,6 +100,10 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
         assert(timings.length == other.timings.length);
         for (int i = 0; i < timings.length; ++i) {
             timings[i] += other.timings[i];
+        }
+        assert(counts.length == other.counts.length);
+        for (int i = 0; i < counts.length; ++i) {
+            counts[i] += other.counts[i];
         }
     }
 }

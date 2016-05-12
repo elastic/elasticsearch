@@ -61,6 +61,12 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     private Scorer scorer;
 
     /**
+     * Current _value for aggregation
+     * @see #setNextAggregationValue(Object)
+     */
+    private Object aggregationValue;
+
+    /**
      * Creates a ScriptImpl for the a previously compiled Painless script.
      * @param executable The previously compiled Painless script.
      * @param vars The initial variables to run the script with.
@@ -94,12 +100,21 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     }
 
     /**
+     * Set the next aggregation value.
+     * @param value Per-document value, typically a String, Long, or Double.
+     */
+    @Override
+    public void setNextAggregationValue(Object value) {
+        this.aggregationValue = value;
+    }
+
+    /**
      * Run the script.
      * @return The script result.
      */
     @Override
     public Object run() {
-        return executable.execute(variables, scorer, doc);
+        return executable.execute(variables, scorer, doc, aggregationValue);
     }
 
     /**

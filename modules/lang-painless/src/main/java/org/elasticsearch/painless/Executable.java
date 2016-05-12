@@ -45,8 +45,6 @@ public abstract class Executable {
         return source;
     }
 
-    /**
-     * This method will be defined in a subclass during the writing phase.  See {@link Writer}.
-     */
-    public abstract Object execute(final Map<String, Object> input, final Scorer scorer, final LeafDocLookup doc);
+    public abstract Object execute(
+        final Map<String, Object> input, final Scorer scorer, final LeafDocLookup doc, final Object value);
 }

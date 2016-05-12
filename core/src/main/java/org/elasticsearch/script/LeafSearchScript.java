@@ -31,6 +31,18 @@ public interface LeafSearchScript extends ScorerAware, ExecutableScript {
     void setDocument(int doc);
 
     void setSource(Map<String, Object> source);
+    
+    /**
+     * Sets per-document aggregation {@code _value}.
+     * <p>
+     * The default implementation just calls {@code setNextVar("_value", value)} but
+     * some engines might want to handle this differently for better performance.
+     * <p>
+     * @param value per-document value, typically a String, Long, or Double
+     */
+    default void setNextAggregationValue(Object value) {
+        setNextVar("_value", value);
+    }
 
     float runAsFloat();
 

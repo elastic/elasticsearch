@@ -42,7 +42,8 @@ public final class WriterConstants {
     public final static Type CLASS_TYPE        = Type.getType("L" + CLASS_NAME.replace(".", "/") + ";");
 
     public final static Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", String.class, String.class);
-    public final static Method EXECUTE     = getAsmMethod(Object.class, "execute", Map.class, Scorer.class, LeafDocLookup.class);
+    public final static Method EXECUTE     =
+        getAsmMethod(Object.class, "execute", Map.class, Scorer.class, LeafDocLookup.class, Object.class);
 
     public final static Type PAINLESS_ERROR_TYPE = Type.getType(PainlessError.class);
 

@@ -41,6 +41,7 @@ public final class Variables {
         public static final String INPUT  = "input";
         public static final String SCORER = "#scorer";
         public static final String DOC    = "doc";
+        public static final String VALUE  = "_value";
         public static final String SCORE  = "_score";
         public static final String CTX    = "ctx";
         public static final String LOOP   = "#loop";
@@ -59,7 +60,7 @@ public final class Variables {
 
         public boolean isReserved(final String name) {
             return name.equals(THIS) || name.equals(INPUT) || name.equals(SCORER) || name.equals(DOC) ||
-                name.equals(SCORE) || name.equals(CTX) || name.equals(LOOP);
+                name.equals(VALUE) || name.equals(SCORE) || name.equals(CTX) || name.equals(LOOP);
          }
 
         public void usesLoop() {
@@ -97,21 +98,36 @@ public final class Variables {
 
         incrementScope();
 
-        // method variables
+        // Method variables.
+
+        // This reference.  Internal use only.
         addVariable("[" + Reserved.THIS + "]"  , definition.execType.name, Reserved.THIS  , true, true);
+
+        // Input map of variables passed to the script.  TODO: Rename to 'params' since that will be its use.
         addVariable("[" + Reserved.INPUT + "]" , definition.smapType.name, Reserved.INPUT , true, true);
+
+        // Scorer parameter passed to the script.  Internal use only.
         addVariable("[" + Reserved.SCORER + "]", definition.defType.name , Reserved.SCORER, true, true);
+
+        // Doc parameter passed to the script. TODO: Currently working as a Map<String,Def>, we can do better?
         addVariable("[" + Reserved.DOC + "]"   , definition.smapType.name, Reserved.DOC   , true, true);
 
-        // shortcut variables
+        // Aggregation _value parameter passed to the script.
+        addVariable("[" + Reserved.VALUE + "]" , definition.defType.name , Reserved.VALUE , true, true);
+
+        // Shortcut variables.
+
+        // Document's score as a read-only double.
         if (reserved.score) {
             addVariable("[" + Reserved.SCORE + "]", definition.doubleType.name, Reserved.SCORE, true, true);
         }
 
+        // The ctx map set by executable scripts as a read-only map.
         if (reserved.ctx) {
             addVariable("[" + Reserved.CTX + "]", definition.smapType.name, Reserved.CTX, true, true);
         }
 
+        // Loop counter to catch infinite loops.  Internal use only.
         if (reserved.loop && settings.getMaxLoopCounter() > 0) {
             addVariable("[" + Reserved.LOOP + "]", definition.intType.name, Reserved.LOOP, true, true);
         }

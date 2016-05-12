@@ -37,8 +37,8 @@ final class ECast extends AExpression {
 
     Cast cast = null;
 
-    ECast(final String location, final AExpression child, final Cast cast) {
-        super(location);
+    ECast(final int line, final String location, final AExpression child, final Cast cast) {
+        super(line, location);
 
         this.type = null;
         this.child = child;

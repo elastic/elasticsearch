@@ -33,8 +33,8 @@ public final class SExpression extends AStatement {
 
     AExpression expression;
 
-    public SExpression(final String location, final AExpression expression) {
-        super(location);
+    public SExpression(final int line, final String location, final AExpression expression) {
+        super(line, location);
 
         this.expression = expression;
     }

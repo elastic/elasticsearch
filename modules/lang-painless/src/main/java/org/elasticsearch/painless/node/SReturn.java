@@ -31,8 +31,8 @@ public final class SReturn extends AStatement {
 
     AExpression expression;
 
-    public SReturn(final String location, final AExpression expression) {
-        super(location);
+    public SReturn(final int line, final String location, final AExpression expression) {
+        super(line, location);
 
         this.expression = expression;
     }

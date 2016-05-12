@@ -36,9 +36,9 @@ public final class SFor extends AStatement {
     AExpression afterthought;
     final AStatement block;
 
-    public SFor(final String location,
+    public SFor(final int line, final String location,
                 final ANode initializer, final AExpression condition, final AExpression afterthought, final AStatement block) {
-        super(location);
+        super(line, location);
 
         this.initializer = initializer;
         this.condition = condition;

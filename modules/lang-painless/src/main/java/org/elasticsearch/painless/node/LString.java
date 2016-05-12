@@ -29,8 +29,8 @@ import org.objectweb.asm.commons.GeneratorAdapter;
  */
 public final class LString extends ALink {
 
-    public LString(final String location, final String string) {
-        super(location, -1);
+    public LString(final int line, final String location, final String string) {
+        super(line, location, -1);
 
         this.string = string;
     }

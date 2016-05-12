@@ -25,11 +25,17 @@ package org.elasticsearch.painless.node;
 public abstract class ANode {
 
     /**
+     * The line number in the original source used for debug messages.
+     */
+    final int line;
+
+    /**
      * The location in the original source to be printed in error messages.
      */
     final String location;
 
-    ANode(final String location) {
+    ANode(final int line, final String location) {
+        this.line = line;
         this.location = location;
     }
 

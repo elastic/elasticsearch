@@ -35,8 +35,8 @@ public final class LBrace extends ALink {
 
     AExpression index;
 
-    public LBrace(final String location, final AExpression index) {
-        super(location, 2);
+    public LBrace(final int line, final String location, final AExpression index) {
+        super(line, location, 2);
 
         this.index = index;
     }
@@ -58,12 +58,12 @@ public final class LBrace extends ALink {
 
             return this;
         } else if (sort == Sort.DEF) {
-            return new LDefArray(location, index).copy(this).analyze(settings, definition, variables);
+            return new LDefArray(line, location, index).copy(this).analyze(settings, definition, variables);
         } else {
             try {
                 before.clazz.asSubclass(Map.class);
 
-                return new LMapShortcut(location, index).copy(this).analyze(settings, definition, variables);
+                return new LMapShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
             } catch (final ClassCastException exception) {
                 // Do nothing.
             }
@@ -71,7 +71,7 @@ public final class LBrace extends ALink {
             try {
                 before.clazz.asSubclass(List.class);
 
-                return new LListShortcut(location, index).copy(this).analyze(settings, definition, variables);
+                return new LListShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
             } catch (final ClassCastException exception) {
                 // Do nothing.
             }

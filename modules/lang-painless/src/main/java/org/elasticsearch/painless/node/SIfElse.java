@@ -34,8 +34,9 @@ public final class SIfElse extends AStatement {
     final AStatement ifblock;
     final AStatement elseblock;
 
-    public SIfElse(final String location, final AExpression condition, final AStatement ifblock, final AStatement elseblock) {
-        super(location);
+    public SIfElse(final int line, final String location,
+                   final AExpression condition, final AStatement ifblock, final AStatement elseblock) {
+        super(line, location);
 
         this.condition = condition;
         this.ifblock = ifblock;

@@ -31,8 +31,8 @@ public final class LArrayLength extends ALink {
 
     final String value;
 
-    LArrayLength(final String location, final String value) {
-        super(location, -1);
+    LArrayLength(final int line, final String location, final String value) {
+        super(line, location, -1);
 
         this.value = value;
     }

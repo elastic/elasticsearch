@@ -36,8 +36,8 @@ final class LListShortcut extends ALink {
     Method getter;
     Method setter;
 
-    LListShortcut(final String location, final AExpression index) {
-        super(location, 2);
+    LListShortcut(final int line, final String location, final AExpression index) {
+        super(line, location, 2);
 
         this.index = index;
     }

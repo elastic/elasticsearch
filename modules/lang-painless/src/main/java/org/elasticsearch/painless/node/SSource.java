@@ -35,8 +35,8 @@ public final class SSource extends AStatement {
 
     final List<AStatement> statements;
 
-    public SSource(final String location, final List<AStatement> statements) {
-        super(location);
+    public SSource(final int line, final String location, final List<AStatement> statements) {
+        super(line, location);
 
         this.statements = Collections.unmodifiableList(statements);
     }

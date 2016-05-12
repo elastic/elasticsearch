@@ -35,8 +35,8 @@ public final class EBool extends AExpression {
     AExpression left;
     AExpression right;
 
-    public EBool(final String location, final Operation operation, final AExpression left, final AExpression right) {
-        super(location);
+    public EBool(final int line, final String location, final Operation operation, final AExpression left, final AExpression right) {
+        super(line, location);
 
         this.operation = operation;
         this.left = left;

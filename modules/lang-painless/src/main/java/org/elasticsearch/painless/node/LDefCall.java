@@ -37,8 +37,8 @@ final class LDefCall extends ALink {
     final String name;
     final List<AExpression> arguments;
 
-    LDefCall(final String location, final String name, final List<AExpression> arguments) {
-        super(location, -1);
+    LDefCall(final int line, final String location, final String name, final List<AExpression> arguments) {
+        super(line, location, -1);
 
         this.name = name;
         this.arguments = arguments;

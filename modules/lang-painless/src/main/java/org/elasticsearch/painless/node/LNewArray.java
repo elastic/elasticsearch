@@ -35,8 +35,8 @@ public final class LNewArray extends ALink {
     final String type;
     final List<AExpression> arguments;
 
-    public LNewArray(final String location, final String type, final List<AExpression> arguments) {
-        super(location, -1);
+    public LNewArray(final int line, final String location, final String type, final List<AExpression> arguments) {
+        super(line, location, -1);
 
         this.type = type;
         this.arguments = arguments;

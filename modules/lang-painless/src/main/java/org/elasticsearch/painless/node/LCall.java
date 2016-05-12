@@ -38,8 +38,8 @@ public final class LCall extends ALink {
 
     Method method = null;
 
-    public LCall(final String location, final String name, final List<AExpression> arguments) {
-        super(location, -1);
+    public LCall(final int line, final String location, final String name, final List<AExpression> arguments) {
+        super(line, location, -1);
 
         this.name = name;
         this.arguments = arguments;
@@ -80,7 +80,7 @@ public final class LCall extends ALink {
 
             return this;
         } else if (before.sort == Definition.Sort.DEF) {
-            final ALink link = new LDefCall(location, name, arguments);
+            final ALink link = new LDefCall(line, location, name, arguments);
             link.copy(this);
 
             return link.analyze(settings, definition, variables);

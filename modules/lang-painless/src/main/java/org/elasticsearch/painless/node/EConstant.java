@@ -32,8 +32,8 @@ import org.objectweb.asm.commons.GeneratorAdapter;
  */
 final class EConstant extends AExpression {
 
-    EConstant(final String location, final Object constant) {
-        super(location);
+    EConstant(final int line, final String location, final Object constant) {
+        super(line, location);
 
         this.constant = constant;
     }

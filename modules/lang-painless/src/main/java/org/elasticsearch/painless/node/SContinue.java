@@ -29,8 +29,8 @@ import org.objectweb.asm.commons.GeneratorAdapter;
  */
 public final class SContinue extends AStatement {
 
-    public SContinue(final String location) {
-        super(location);
+    public SContinue(final int line, final String location) {
+        super(line, location);
     }
 
     @Override

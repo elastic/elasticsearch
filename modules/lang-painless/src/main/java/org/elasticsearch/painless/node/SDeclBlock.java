@@ -34,8 +34,8 @@ public final class SDeclBlock extends AStatement {
 
     final List<SDeclaration> declarations;
 
-    public SDeclBlock(final String location, final List<SDeclaration> declarations) {
-        super(location);
+    public SDeclBlock(final int line, final String location, final List<SDeclaration> declarations) {
+        super(line, location);
 
         this.declarations = Collections.unmodifiableList(declarations);
     }

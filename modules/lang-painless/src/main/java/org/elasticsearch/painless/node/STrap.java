@@ -42,8 +42,8 @@ public final class STrap extends AStatement {
     Label end;
     Label exception;
 
-    public STrap(final String location, final String type, final String name, final AStatement block) {
-        super(location);
+    public STrap(final int line, final String location, final String type, final String name, final AStatement block) {
+        super(line, location);
 
         this.type = type;
         this.name = name;

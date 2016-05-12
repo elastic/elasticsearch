@@ -29,8 +29,8 @@ import org.objectweb.asm.commons.GeneratorAdapter;
  */
 public final class SBreak extends AStatement {
 
-    public SBreak(final String location) {
-        super(location);
+    public SBreak(final int line, final String location) {
+        super(line, location);
     }
 
     @Override

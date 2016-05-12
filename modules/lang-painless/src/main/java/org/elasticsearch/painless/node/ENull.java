@@ -30,8 +30,8 @@ import org.objectweb.asm.commons.GeneratorAdapter;
  */
 public final class ENull extends AExpression {
 
-    public ENull(final String location) {
-        super(location);
+    public ENull(final int line, final String location) {
+        super(line, location);
     }
 
     @Override

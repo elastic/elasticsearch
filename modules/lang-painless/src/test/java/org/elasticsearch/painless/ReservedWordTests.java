@@ -77,15 +77,15 @@ public class ReservedWordTests extends ScriptTestCase {
     public void testCtxStoreMap() {
         assertEquals(5, exec("ctx.foo = 5; return ctx.foo;", Collections.singletonMap("ctx", new HashMap<String,Object>())));
     }
-    
+
     /** check that we can't declare a variable of _value, its really reserved! */
     public void testAggregationValueVar() {
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
             exec("int _value = 5; return _value;");
         });
-        assertTrue(expected.getMessage().contains("Variable name [_value] already defined"));
+        assertTrue(expected.getMessage().contains("Variable name [_value] is reserved"));
     }
-    
+
     /** check that we can't write to _value, its read-only! */
     public void testAggregationValueStore() {
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {

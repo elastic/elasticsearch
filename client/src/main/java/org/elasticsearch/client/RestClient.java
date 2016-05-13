@@ -148,7 +148,7 @@ public final class RestClient implements Closeable {
      */
     private Iterator<Connection> nextConnection() {
         if (this.connections.isEmpty()) {
-            throw new IllegalStateException("no connections available in the connection pool");
+            throw new IllegalStateException("no connections available");
         }
 
         List<Connection> rotatedConnections = new ArrayList<>(connections);
@@ -157,7 +157,7 @@ public final class RestClient implements Closeable {
         Iterator<Connection> connectionIterator = rotatedConnections.iterator();
         while (connectionIterator.hasNext()) {
             Connection connection = connectionIterator.next();
-            if (connection.isAlive() == false && connection.shouldBeRetried() == false) {
+            if (connection.isBlacklisted()) {
                 connectionIterator.remove();
             }
         }
@@ -170,8 +170,7 @@ public final class RestClient implements Closeable {
                 }
             });
             Connection connection = sortedConnections.get(0);
-            connection.markResurrected();
-            logger.trace("marked connection resurrected for " + connection.getHost());
+            logger.trace("trying to resurrect connection for " + connection.getHost());
             return Collections.singleton(connection).iterator();
         }
         return rotatedConnections.iterator();
@@ -307,8 +306,7 @@ public final class RestClient implements Closeable {
         }
 
         /**
-         * Sets the hosts that the client will send requests to. Mandatory if no connection pool is specified,
-         * as the provided hosts will be used to create the default static connection pool.
+         * Sets the hosts that the client will send requests to.
          */
         public Builder setHosts(HttpHost... hosts) {
             if (hosts == null || hosts.length == 0) {

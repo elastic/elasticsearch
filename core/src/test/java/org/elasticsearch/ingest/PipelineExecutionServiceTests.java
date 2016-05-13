@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -188,6 +189,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
 
     public void testExecuteSuccessWithOnFailure() throws Exception {
         Processor processor = mock(Processor.class);
+        when(processor.getType()).thenReturn("mock_processor_type");
+        when(processor.getTag()).thenReturn("mock_processor_tag");
         Processor onFailureProcessor = mock(Processor.class);
         CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.singletonList(processor), Collections.singletonList(new CompoundProcessor(onFailureProcessor)));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", compoundProcessor));
@@ -198,7 +201,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Consumer<Boolean> completionHandler = mock(Consumer.class);
         executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
-        verify(failureHandler, never()).accept(any(RuntimeException.class));
+        verify(failureHandler, never()).accept(any(ElasticsearchException.class));
         verify(completionHandler, times(1)).accept(true);
     }
 

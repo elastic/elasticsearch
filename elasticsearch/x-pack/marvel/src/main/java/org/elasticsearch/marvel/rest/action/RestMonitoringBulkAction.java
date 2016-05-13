@@ -38,8 +38,6 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
         controller.registerHandler(PUT, URI_BASE + "/_bulk", this);
         controller.registerHandler(POST, URI_BASE + "/{type}/_bulk", this);
         controller.registerHandler(PUT, URI_BASE + "/{type}/_bulk", this);
-        controller.registerHandler(POST, URI_BASE + "/{index}/{type}/_bulk", this);
-        controller.registerHandler(PUT, URI_BASE + "/{index}/{type}/_bulk", this);
     }
 
     @Override

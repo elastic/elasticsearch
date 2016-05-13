@@ -4,12 +4,8 @@
     "methods": ["POST", "PUT"],
     "url": {
       "path": "/_x-pack/monitoring/_bulk",
-      "paths": ["/_x-pack/monitoring/_bulk", "/_x-pack/monitoring/{index}/_bulk", "/_x-pack/monitoring/{index}/{type}/_bulk"],
+      "paths": ["/_x-pack/monitoring/_bulk", "/_x-pack/monitoring/{type}/_bulk"],
       "parts": {
-        "index": {
-          "type" : "string",
-          "description" : "Default index for items which don't provide one"
-        },
         "type": {
           "type" : "string",
           "description" : "Default document type for items which don't provide one"

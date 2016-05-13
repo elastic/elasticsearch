@@ -23,11 +23,10 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
-import static org.elasticsearch.painless.WriterConstants.DEF_DYNAMIC_ARRAY_LOAD_DESC;
-import static org.elasticsearch.painless.WriterConstants.DEF_DYNAMIC_ARRAY_STORE_DESC;
 
 /**
  * Represents an array load/store or shortcut on a def type.  (Internal only.)
@@ -45,8 +44,8 @@ final class LDefArray extends ALink {
 
     @Override
     ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        index.expected = definition.objectType;
         index.analyze(settings, definition, variables);
+        index.expected = index.actual;
         index = index.cast(settings, definition, variables);
 
         after = definition.defType;
@@ -61,14 +60,16 @@ final class LDefArray extends ALink {
 
     @Override
     void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        final String desc = Type.getMethodDescriptor(after.type, definition.defType.type, index.actual.type);
         adapter.visitInvokeDynamicInsn(
-            "arrayLoad", DEF_DYNAMIC_ARRAY_LOAD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.ARRAY_LOAD });
-
+            "arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.ARRAY_LOAD });
     }
 
     @Override
     void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type,
+            index.actual.type, definition.defType.type);
         adapter.visitInvokeDynamicInsn(
-            "arrayStore", DEF_DYNAMIC_ARRAY_STORE_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.ARRAY_STORE });
+            "arrayStore", desc, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.ARRAY_STORE });
     }
 }

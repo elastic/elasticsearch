@@ -42,6 +42,10 @@ subprojects {
             license.appendNode('name', 'The Apache Software License, Version 2.0')
             license.appendNode('url', 'http://www.apache.org/licenses/LICENSE-2.0.txt')
             license.appendNode('distribution', 'repo')
+
+            Node developer = node.appendNode('developers').appendNode('developer')
+            developer.appendNode('name', 'Elastic')
+            developer.appendNode('url', 'http://www.elastic.co')
           }
         }
       }

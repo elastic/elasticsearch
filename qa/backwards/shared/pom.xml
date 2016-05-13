@@ -17,8 +17,6 @@
         <!-- The tests in this project are meant to be used by the backwards
             compatibility tests for each version. -->
         <skipTests>true</skipTests>
-        <es.logger.level>DEBUG</es.logger.level>
-        <es.logger._root>DEBUG</es.logger._root>
     </properties>
 
     <dependencies>

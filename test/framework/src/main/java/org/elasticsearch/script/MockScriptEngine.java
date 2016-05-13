@@ -93,7 +93,7 @@ public class MockScriptEngine implements ScriptEngineService {
     @Override
     public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
         assert compiledScript.compiled() instanceof MockCompiledScript 
-          : "do NOT pass compiled scripts from other engines to me, I will fail your test, got: " + compiledScript.getClass();
+          : "do NOT pass compiled scripts from other engines to me, I will fail your test, got: " + compiledScript;
         return new AbstractExecutableScript() {
             @Override
             public Object run() {

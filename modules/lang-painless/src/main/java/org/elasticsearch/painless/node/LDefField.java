@@ -23,11 +23,10 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
+import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
-import static org.elasticsearch.painless.WriterConstants.DEF_DYNAMIC_LOAD_FIELD_DESC;
-import static org.elasticsearch.painless.WriterConstants.DEF_DYNAMIC_STORE_FIELD_DESC;
 
 /**
  * Represents a field load/store or shortcut on a def type.  (Internal only.)
@@ -57,11 +56,13 @@ final class LDefField extends ALink {
 
     @Override
     void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        adapter.visitInvokeDynamicInsn(value, DEF_DYNAMIC_LOAD_FIELD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.LOAD });
+        final String desc = Type.getMethodDescriptor(definition.defType.type, definition.defType.type);
+        adapter.visitInvokeDynamicInsn(value, desc, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.LOAD });
     }
 
     @Override
     void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        adapter.visitInvokeDynamicInsn(value, DEF_DYNAMIC_STORE_FIELD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.STORE });
+        final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type, definition.defType.type);
+        adapter.visitInvokeDynamicInsn(value, desc, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.STORE });
     }
 }

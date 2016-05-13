@@ -40,6 +40,19 @@ public class MockScriptEngine implements ScriptEngineService {
     public static final String NAME = "mockscript";
 
     public static final List<String> TYPES = Collections.singletonList(NAME);
+
+    /** A compiled script, just holds the scripts name, source, and params that were passed in */
+    public static class MockCompiledScript {
+        public final String name;
+        public final String source;
+        public final Map<String,String> params;
+
+        MockCompiledScript(String name, String source, Map<String,String> params) {
+            this.name = name;
+            this.source = source;
+            this.params = params;
+        }
+    }
     
     public static class TestPlugin extends Plugin {
 
@@ -79,7 +92,7 @@ public class MockScriptEngine implements ScriptEngineService {
 
     @Override
     public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
-        return scriptSource;
+        return new MockCompiledScript(scriptName, scriptSource, params);
     }
 
     @Override
@@ -87,7 +100,7 @@ public class MockScriptEngine implements ScriptEngineService {
         return new AbstractExecutableScript() {
             @Override
             public Object run() {
-                return new BytesArray((String)compiledScript.compiled());
+                return new BytesArray(((MockCompiledScript)compiledScript.compiled()).source);
             }
         };
     }
@@ -101,7 +114,7 @@ public class MockScriptEngine implements ScriptEngineService {
 
                     @Override
                     public Object run() {
-                        return compiledScript.compiled();
+                        return ((MockCompiledScript)compiledScript.compiled()).source;
                     }
 
                 };

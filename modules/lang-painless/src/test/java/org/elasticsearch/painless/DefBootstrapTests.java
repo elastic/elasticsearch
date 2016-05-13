@@ -26,14 +26,14 @@ import java.lang.invoke.MethodType;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class DynamicCallSiteTests extends ESTestCase {
+public class DefBootstrapTests extends ESTestCase {
     
     /** calls toString() on integers, twice */
     public void testOneType() throws Throwable {
-        CallSite site = DynamicCallSite.bootstrap(MethodHandles.publicLookup(), 
+        CallSite site = DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
                                                   "toString", 
                                                   MethodType.methodType(String.class, Object.class), 
-                                                  DynamicCallSite.METHOD_CALL);
+                                                  DefBootstrap.METHOD_CALL);
         MethodHandle handle = site.dynamicInvoker();
         assertDepthEquals(site, 0);
 
@@ -47,10 +47,10 @@ public class DynamicCallSiteTests extends ESTestCase {
     }
     
     public void testTwoTypes() throws Throwable {
-        CallSite site = DynamicCallSite.bootstrap(MethodHandles.publicLookup(), 
+        CallSite site = DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
                                                   "toString", 
                                                   MethodType.methodType(String.class, Object.class), 
-                                                  DynamicCallSite.METHOD_CALL);
+                                                  DefBootstrap.METHOD_CALL);
         MethodHandle handle = site.dynamicInvoker();
         assertDepthEquals(site, 0);
 
@@ -68,11 +68,11 @@ public class DynamicCallSiteTests extends ESTestCase {
     
     public void testTooManyTypes() throws Throwable {
         // if this changes, test must be rewritten
-        assertEquals(5, DynamicCallSite.InliningCacheCallSite.MAX_DEPTH);
-        CallSite site = DynamicCallSite.bootstrap(MethodHandles.publicLookup(), 
+        assertEquals(5, DefBootstrap.PIC.MAX_DEPTH);
+        CallSite site = DefBootstrap.bootstrap(MethodHandles.publicLookup(), 
                                                   "toString", 
                                                   MethodType.methodType(String.class, Object.class), 
-                                                  DynamicCallSite.METHOD_CALL);
+                                                  DefBootstrap.METHOD_CALL);
         MethodHandle handle = site.dynamicInvoker();
         assertDepthEquals(site, 0);
 
@@ -91,7 +91,7 @@ public class DynamicCallSiteTests extends ESTestCase {
     }
     
     static void assertDepthEquals(CallSite site, int expected) {
-        DynamicCallSite.InliningCacheCallSite dsite = (DynamicCallSite.InliningCacheCallSite) site;
+        DefBootstrap.PIC dsite = (DefBootstrap.PIC) site;
         assertEquals(expected, dsite.depth);
     }
 }

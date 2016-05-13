@@ -107,11 +107,11 @@ public class ShieldServerTransportService extends TransportService {
 
     @Override
     public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor,
-                                                                          boolean forceExecution,
+                                                                          boolean forceExecution, boolean canTripCircuitBreaker,
                                                                           TransportRequestHandler<Request> handler) {
         TransportRequestHandler<Request> wrappedHandler = new ProfileSecuredRequestHandler<>(action, handler, profileFilters,
                 licenseState, threadPool.getThreadContext());
-        super.registerRequestHandler(action, request, executor, forceExecution, wrappedHandler);
+        super.registerRequestHandler(action, request, executor, forceExecution, canTripCircuitBreaker, wrappedHandler);
     }
 
     protected Map<String, ServerTransportFilter> initializeProfileFilters() {

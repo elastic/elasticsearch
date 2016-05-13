@@ -10,7 +10,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.marvel.MonitoredSystem;
-import org.elasticsearch.marvel.agent.resolver.bulk.MonitoringBulkResolver;
+import org.elasticsearch.marvel.agent.resolver.bulk.MonitoringBulkTimestampedResolver;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -58,9 +58,9 @@ public class MonitoringBulkTests extends MarvelIntegTestCase {
 
         for (SearchHit searchHit : searchResponse.getHits()) {
             Map<String, Object> source = searchHit.sourceAsMap();
-            assertNotNull(source.get(MonitoringBulkResolver.Fields.CLUSTER_UUID));
-            assertNotNull(source.get(MonitoringBulkResolver.Fields.TIMESTAMP));
-            assertNotNull(source.get(MonitoringBulkResolver.Fields.SOURCE_NODE));
+            assertNotNull(source.get(MonitoringBulkTimestampedResolver.Fields.CLUSTER_UUID));
+            assertNotNull(source.get(MonitoringBulkTimestampedResolver.Fields.TIMESTAMP));
+            assertNotNull(source.get(MonitoringBulkTimestampedResolver.Fields.SOURCE_NODE));
         }
     }
 

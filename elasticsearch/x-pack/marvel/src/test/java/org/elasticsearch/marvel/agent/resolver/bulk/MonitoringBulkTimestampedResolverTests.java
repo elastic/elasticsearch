@@ -12,6 +12,7 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.marvel.MonitoredSystem;
 import org.elasticsearch.marvel.action.MonitoringBulkDoc;
+import org.elasticsearch.marvel.action.MonitoringIndex;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolverTestCase;
 
 import static java.util.Collections.emptyMap;
@@ -19,16 +20,28 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MonitoringBulkResolverTests extends MonitoringIndexNameResolverTestCase<MonitoringBulkDoc, MonitoringBulkResolver> {
+/**
+ * Tests {@link MonitoringBulkTimestampedResolver}.
+ */
+public class MonitoringBulkTimestampedResolverTests
+        extends MonitoringIndexNameResolverTestCase<MonitoringBulkDoc, MonitoringBulkTimestampedResolver> {
 
     @Override
     protected MonitoringBulkDoc newMarvelDoc() {
-        MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), Version.CURRENT.toString());
+        MonitoringBulkDoc doc = new MonitoringBulkDoc(MonitoredSystem.KIBANA.getSystem(), Version.CURRENT.toString(),
+                                                      MonitoringIndex.TIMESTAMPED, "kibana_stats", null,
+                                                      new BytesArray("{\"field1\" : \"value1\"}"));
+
+        doc.setTimestamp(1437580442979L);
+        if (randomBoolean()) {
+            doc.setId(randomAsciiOfLength(35));
+        }
+        if (randomBoolean()) {
+            doc.setClusterUUID(randomAsciiOfLength(5));
+        }
+
         doc.setClusterUUID(randomAsciiOfLength(5));
-        doc.setTimestamp(Math.abs(randomLong()));
         doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
-        doc.setType("kibana_stats");
-        doc.setSource(new BytesArray("{\"field1\" : \"value1\"}"));
         return doc;
     }
 
@@ -44,18 +57,8 @@ public class MonitoringBulkResolverTests extends MonitoringIndexNameResolverTest
 
     public void testMonitoringBulkResolver() throws Exception {
         MonitoringBulkDoc doc = newMarvelDoc();
-        doc.setTimestamp(1437580442979L);
-        if (randomBoolean()) {
-            doc.setIndex(randomAsciiOfLength(5));
-        }
-        if (randomBoolean()) {
-            doc.setId(randomAsciiOfLength(35));
-        }
-        if (randomBoolean()) {
-            doc.setClusterUUID(randomAsciiOfLength(5));
-        }
 
-        MonitoringBulkResolver resolver = newResolver();
+        MonitoringBulkTimestampedResolver resolver = newResolver(doc);
         assertThat(resolver.index(doc), equalTo(".monitoring-kibana-2-2015.07.22"));
         assertThat(resolver.type(doc), equalTo(doc.getType()));
         assertThat(resolver.id(doc), nullValue());

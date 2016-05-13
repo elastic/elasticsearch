@@ -133,7 +133,12 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
         private final String index;
 
         public Data() {
-            this.index = String.join(DELIMITER, PREFIX, DATA, String.valueOf(MarvelTemplateUtils.TEMPLATE_VERSION));
+            this(MarvelTemplateUtils.TEMPLATE_VERSION);
+        }
+
+        // Used in tests
+        protected Data(Integer version) {
+            this.index = String.join(DELIMITER, PREFIX, DATA, String.valueOf(version));
         }
 
         @Override
@@ -163,7 +168,7 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
      */
     public static abstract class Timestamped<T extends MonitoringDoc> extends MonitoringIndexNameResolver<T> {
 
-        public static final Setting<String> INDEX_NAME_TIME_FORMAT_SETTING = new Setting<>("index.name.time_format","YYYY.MM.dd",
+        public static final Setting<String> INDEX_NAME_TIME_FORMAT_SETTING = new Setting<>("index.name.time_format", "YYYY.MM.dd",
                 Function.identity(), Setting.Property.NodeScope);
 
         private final MonitoredSystem system;
@@ -171,8 +176,13 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
         private final String index;
 
         public Timestamped(MonitoredSystem system, Settings settings) {
+            this(system, settings, MarvelTemplateUtils.TEMPLATE_VERSION);
+        }
+
+        // Used in tests
+        protected Timestamped(MonitoredSystem system, Settings settings, Integer version) {
             this.system = system;
-            this.index = String.join(DELIMITER, PREFIX, system.getSystem(), String.valueOf(MarvelTemplateUtils.TEMPLATE_VERSION));
+            this.index = String.join(DELIMITER, PREFIX, system.getSystem(), String.valueOf(version));
             String format = INDEX_NAME_TIME_FORMAT_SETTING.get(settings);
             try {
                 this.formatter = DateTimeFormat.forPattern(format).withZoneUTC();

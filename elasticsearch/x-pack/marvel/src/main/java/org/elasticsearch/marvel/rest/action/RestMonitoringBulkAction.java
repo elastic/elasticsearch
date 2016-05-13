@@ -23,6 +23,9 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
+
 public class RestMonitoringBulkAction extends MonitoringRestHandler {
 
     public static final String MONITORING_ID = "system_id";
@@ -31,12 +34,12 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
     @Inject
     public RestMonitoringBulkAction(Settings settings, RestController controller, Client client) {
         super(settings, client);
-        controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/_bulk", this);
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/_bulk", this);
-        controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/{index}/_bulk", this);
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/{index}/_bulk", this);
-        controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/{index}/{type}/_bulk", this);
-        controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/{index}/{type}/_bulk", this);
+        controller.registerHandler(POST, URI_BASE + "/_bulk", this);
+        controller.registerHandler(PUT, URI_BASE + "/_bulk", this);
+        controller.registerHandler(POST, URI_BASE + "/{type}/_bulk", this);
+        controller.registerHandler(PUT, URI_BASE + "/{type}/_bulk", this);
+        controller.registerHandler(POST, URI_BASE + "/{index}/{type}/_bulk", this);
+        controller.registerHandler(PUT, URI_BASE + "/{index}/{type}/_bulk", this);
     }
 
     @Override

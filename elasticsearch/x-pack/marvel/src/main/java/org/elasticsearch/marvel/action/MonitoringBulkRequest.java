@@ -95,11 +95,14 @@ public class MonitoringBulkRequest extends ActionRequest<MonitoringBulkRequest> 
                 IndexRequest indexRequest = (IndexRequest) request;
 
                 // builds a new monitoring document based on the index request
-                MonitoringBulkDoc doc = new MonitoringBulkDoc(defaultMonitoringId, defaultMonitoringVersion);
-                doc.setIndex(indexRequest.index());
-                doc.setType(indexRequest.type());
-                doc.setId(indexRequest.id());
-                doc.setSource(indexRequest.source());
+                MonitoringBulkDoc doc =
+                        new MonitoringBulkDoc(defaultMonitoringId,
+                                              defaultMonitoringVersion,
+                                              MonitoringIndex.from(indexRequest.index()),
+                                              indexRequest.type(),
+                                              indexRequest.id(),
+                                              indexRequest.source());
+
                 add(doc);
             } else {
                 throw new IllegalArgumentException("monitoring bulk requests should only contain index requests");

@@ -82,7 +82,7 @@ final class LDefCall extends ALink {
 
         signature.append(')');
         // return value
-        signature.append(definition.defType.type.getDescriptor());
+        signature.append(after.type.getDescriptor());
 
         adapter.visitInvokeDynamicInsn(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.METHOD_CALL });
     }

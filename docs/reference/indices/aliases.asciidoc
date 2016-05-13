@@ -408,6 +408,7 @@ Response:
  }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 All aliases with the name 2016 in any index:
 
@@ -436,6 +437,7 @@ Response:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 All aliases that start with 20 in any index:
 
@@ -464,6 +466,7 @@ Response:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 There is also a HEAD variant of the get indices aliases api to check if
 index aliases exist. The indices aliases exists api supports the same

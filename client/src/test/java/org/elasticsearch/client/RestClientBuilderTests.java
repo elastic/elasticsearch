@@ -21,10 +21,15 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import org.apache.http.HttpHost;
+import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.message.BasicHeader;
 import org.apache.lucene.util.LuceneTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.logging.LogManager;
 
 public class RestClientBuilderTests extends LuceneTestCase {
@@ -56,10 +61,25 @@ public class RestClientBuilderTests extends LuceneTestCase {
         }
 
         try {
-            RestClient.builder();
+            RestClient.builder().build();
             fail("should have failed");
         } catch(IllegalArgumentException e) {
             assertEquals(e.getMessage(), "no hosts provided");
+        }
+
+        try {
+            RestClient.builder().setHosts(new HttpHost[]{new HttpHost("localhost", 9200), null}).build();
+            fail("should have failed");
+        } catch(NullPointerException e) {
+            assertEquals(e.getMessage(), "host cannot be null");
+        }
+
+        try (CloseableHttpClient httpClient = HttpClientBuilder.create().build()) {
+            RestClient.builder().setHttpClient(httpClient)
+                    .setDefaultHeaders(Collections.singleton(new BasicHeader("header", "value"))).build();
+            fail("should have failed");
+        } catch(IllegalArgumentException e) {
+            assertEquals(e.getMessage(), "defaultHeaders need to be set to the HttpClient directly when manually provided");
         }
 
         RestClient.Builder builder = RestClient.builder();
@@ -70,11 +90,19 @@ public class RestClientBuilderTests extends LuceneTestCase {
         }
         builder.setHosts(hosts);
 
-        //TODO test one host is null among others
-
         if (random().nextBoolean()) {
             builder.setHttpClient(HttpClientBuilder.create().build());
+        } else {
+            if (random().nextBoolean()) {
+                int numHeaders = RandomInts.randomIntBetween(random(), 1, 5);
+                Collection<BasicHeader> headers = new ArrayList<>(numHeaders);
+                for (int i = 0; i < numHeaders; i++) {
+                    headers.add(new BasicHeader("header" + i, "value"));
+                }
+                builder.setDefaultHeaders(headers);
+            }
         }
+
         if (random().nextBoolean()) {
             builder.setMaxRetryTimeout(RandomInts.randomIntBetween(random(), 1, Integer.MAX_VALUE));
         }

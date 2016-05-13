@@ -20,6 +20,7 @@ package org.elasticsearch.client;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
@@ -40,6 +41,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -75,10 +77,15 @@ public final class RestClient implements Closeable {
         this.connections = Collections.unmodifiableList(connections);
     }
 
-    public ElasticsearchResponse performRequest(String method, String endpoint, Map<String, Object> params, HttpEntity entity)
-            throws IOException {
+    public ElasticsearchResponse performRequest(String method, String endpoint, Map<String, Object> params,
+                                                HttpEntity entity, Header... headers) throws IOException {
         URI uri = buildUri(endpoint, params);
         HttpRequestBase request = createHttpRequest(method, uri, entity);
+        if (headers.length > 0) {
+            for (Header header : headers) {
+                request.addHeader(header);
+            }
+        }
         //we apply a soft margin so that e.g. if a request took 59 seconds and timeout is set to 60 we don't do another attempt
         long retryTimeout = Math.round(this.maxRetryTimeout / (float)100 * 98);
         IOException lastSeenException = null;
@@ -276,13 +283,15 @@ public final class RestClient implements Closeable {
         private CloseableHttpClient httpClient;
         private int maxRetryTimeout = DEFAULT_MAX_RETRY_TIMEOUT;
         private HttpHost[] hosts;
+        private Collection<? extends Header> defaultHeaders;
 
         private Builder() {
 
         }
 
         /**
-         * Sets the http client. A new default one will be created if not specified, by calling {@link #createDefaultHttpClient()}.
+         * Sets the http client. A new default one will be created if not
+         * specified, by calling {@link #createDefaultHttpClient(Collection)}.
          *
          * @see CloseableHttpClient
          */
@@ -317,11 +326,28 @@ public final class RestClient implements Closeable {
         }
 
         /**
+         * Sets the default request headers, to be used when creating the default http client instance.
+         * In case the http client is set through {@link #setHttpClient(CloseableHttpClient)}, the default headers need to be
+         * set to it externally during http client construction.
+         */
+        public Builder setDefaultHeaders(Collection<? extends Header> defaultHeaders) {
+            this.defaultHeaders = defaultHeaders;
+            return this;
+        }
+
+        /**
          * Creates a new {@link RestClient} based on the provided configuration.
          */
         public RestClient build() {
             if (httpClient == null) {
-                httpClient = createDefaultHttpClient();
+                httpClient = createDefaultHttpClient(defaultHeaders);
+            } else {
+                if (defaultHeaders != null) {
+                    throw new IllegalArgumentException("defaultHeaders need to be set to the HttpClient directly when manually provided");
+                }
+            }
+            if (hosts == null || hosts.length == 0) {
+                throw new IllegalArgumentException("no hosts provided");
             }
             return new RestClient(httpClient, maxRetryTimeout, hosts);
         }
@@ -331,7 +357,7 @@ public final class RestClient implements Closeable {
          *
          * @see CloseableHttpClient
          */
-        public static CloseableHttpClient createDefaultHttpClient() {
+        public static CloseableHttpClient createDefaultHttpClient(Collection<? extends Header> defaultHeaders) {
             PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
             //default settings may be too constraining
             connectionManager.setDefaultMaxPerRoute(10);
@@ -342,7 +368,11 @@ public final class RestClient implements Closeable {
                     .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT)
                     .setConnectionRequestTimeout(DEFAULT_CONNECTION_REQUEST_TIMEOUT).build();
 
-            return HttpClientBuilder.create().setConnectionManager(connectionManager).setDefaultRequestConfig(requestConfig).build();
+            HttpClientBuilder httpClientBuilder = HttpClientBuilder.create();
+            if (defaultHeaders != null) {
+                httpClientBuilder.setDefaultHeaders(defaultHeaders);
+            }
+            return httpClientBuilder.setConnectionManager(connectionManager).setDefaultRequestConfig(requestConfig).build();
         }
     }
 

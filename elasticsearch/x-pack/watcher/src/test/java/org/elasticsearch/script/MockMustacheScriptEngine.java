@@ -41,8 +41,8 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
     }
 
     @Override
-    public List<String> getExtensions() {
-        return Collections.singletonList(NAME);
+    public String getExtension() {
+        return NAME;
     }
 
     @Override

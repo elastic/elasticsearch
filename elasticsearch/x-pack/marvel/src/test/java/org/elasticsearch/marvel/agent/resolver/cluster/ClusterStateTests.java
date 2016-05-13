@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
+import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
@@ -107,7 +108,8 @@ public class ClusterStateTests extends MarvelIntegTestCase {
     public void testClusterStateNodes() throws Exception {
         final long nbNodes = internalCluster().size();
 
-        MonitoringIndexNameResolver.Timestamped timestampedResolver = new MockTimestampedIndexNameResolver(ES);
+        MonitoringIndexNameResolver.Timestamped timestampedResolver =
+                new MockTimestampedIndexNameResolver(ES, Settings.EMPTY, MarvelTemplateUtils.TEMPLATE_VERSION);
         assertNotNull(timestampedResolver);
 
         String timestampedIndex = timestampedResolver.indexPattern();
@@ -152,7 +154,7 @@ public class ClusterStateTests extends MarvelIntegTestCase {
     public void testDiscoveryNodes() throws Exception {
         final long nbNodes = internalCluster().size();
 
-        MonitoringIndexNameResolver.Data dataResolver = new MockDataIndexNameResolver();
+        MonitoringIndexNameResolver.Data dataResolver = new MockDataIndexNameResolver(MarvelTemplateUtils.TEMPLATE_VERSION);
         assertNotNull(dataResolver);
 
         String dataIndex = dataResolver.indexPattern();

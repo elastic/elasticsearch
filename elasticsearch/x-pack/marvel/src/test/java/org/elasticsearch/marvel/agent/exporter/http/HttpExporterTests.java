@@ -31,7 +31,7 @@ import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryMonitoringD
 import org.elasticsearch.marvel.agent.exporter.Exporters;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.exporter.MonitoringDoc;
-import org.elasticsearch.marvel.agent.resolver.bulk.MonitoringBulkResolver;
+import org.elasticsearch.marvel.agent.resolver.bulk.MonitoringBulkTimestampedResolver;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -229,7 +229,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
             enqueueGetClusterVersionResponse(secondWebServer, Version.CURRENT);
             for (String template : monitoringTemplates().keySet()) {
-                if (template.contains(MonitoringBulkResolver.Data.DATA)) {
+                if (template.contains(MonitoringBulkTimestampedResolver.Data.DATA)) {
                     enqueueResponse(secondWebServer, 200, "template [" + template + "] exist");
                 } else {
                     enqueueResponse(secondWebServer, 404, "template [" + template + "] does not exist");
@@ -252,7 +252,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
                 assertThat(recordedRequest.getMethod(), equalTo("GET"));
                 assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));
 
-                if (template.getKey().contains(MonitoringBulkResolver.Data.DATA) == false) {
+                if (template.getKey().contains(MonitoringBulkTimestampedResolver.Data.DATA) == false) {
                     recordedRequest = secondWebServer.takeRequest();
                     assertThat(recordedRequest.getMethod(), equalTo("PUT"));
                     assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));

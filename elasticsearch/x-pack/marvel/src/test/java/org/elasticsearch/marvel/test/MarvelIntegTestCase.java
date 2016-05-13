@@ -440,6 +440,10 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
     public class MockDataIndexNameResolver extends MonitoringIndexNameResolver.Data<MonitoringDoc> {
 
+        public MockDataIndexNameResolver(Integer version) {
+            super(version);
+        }
+
         @Override
         public String type(MonitoringDoc document) {
             throw new UnsupportedOperationException("MockDataIndexNameResolver does not support resolving type");
@@ -458,12 +462,8 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
     protected class MockTimestampedIndexNameResolver extends MonitoringIndexNameResolver.Timestamped<MonitoringDoc> {
 
-        public MockTimestampedIndexNameResolver(MonitoredSystem id, Settings settings) {
-            super(id, settings);
-        }
-
-        public MockTimestampedIndexNameResolver(MonitoredSystem id) {
-            this(id, Settings.EMPTY);
+        public MockTimestampedIndexNameResolver(MonitoredSystem system, Settings settings, Integer version) {
+            super(system, settings, version);
         }
 
         @Override

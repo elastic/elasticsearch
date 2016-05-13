@@ -67,10 +67,16 @@ public class RestGraphAction extends BaseRestHandler {
     @Inject
     public RestGraphAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
         super(settings, client);
+        // @deprecated TODO need to add deprecation support as per https://github.com/elastic/x-plugins/issues/1760#issuecomment-217507517
         controller.registerHandler(GET, "/{index}/_graph/explore", this);
         controller.registerHandler(POST, "/{index}/_graph/explore", this);
         controller.registerHandler(GET, "/{index}/{type}/_graph/explore", this);
         controller.registerHandler(POST, "/{index}/{type}/_graph/explore", this);
+        // new REST endpoint
+        controller.registerHandler(GET, "/{index}/_xpack/graph/_explore", this);
+        controller.registerHandler(POST, "/{index}/_xpack/graph/_explore", this);
+        controller.registerHandler(GET, "/{index}/{type}/_xpack/graph/_explore", this);
+        controller.registerHandler(POST, "/{index}/{type}/_xpack/graph/_explore", this);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
     }
 

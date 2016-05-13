@@ -125,7 +125,7 @@ bundlePlugin {
 
 integTest {
   // TODO: fix this rest test to not depend on a hardcoded port!
-  systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*'
+  systemProperty 'tests.rest.blacklist', 'getting_started/10_monitor_cluster_health/*,bulk/10_basic/*'
   cluster {
     setting 'xpack.monitoring.agent.interval', '3s'
     setupCommand 'setupDummyUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'

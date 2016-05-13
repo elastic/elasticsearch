@@ -8,11 +8,11 @@ package org.elasticsearch.marvel.agent.resolver.shards;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingTestUtils;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.marvel.agent.collector.shards.ShardMonitoringDoc;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.resolver.MonitoringIndexNameResolverTestCase;
@@ -33,11 +33,11 @@ public class ShardsResolverTests extends MonitoringIndexNameResolverTestCase<Sha
         doc.setClusterStateUUID(UUID.randomUUID().toString());
         doc.setSourceNode(new DiscoveryNode("id", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT));
 
-        ShardRouting shardRouting = ShardRouting.newUnassigned(new Index(randomAsciiOfLength(5), UUID.randomUUID().toString()),
-                randomIntBetween(0, 5), null, randomBoolean(), new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
-        ShardRoutingTestUtils.initialize(shardRouting, "node-0");
-        ShardRoutingTestUtils.moveToStarted(shardRouting);
-        ShardRoutingTestUtils.relocate(shardRouting, "node-1");
+        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(new Index(randomAsciiOfLength(5), UUID.randomUUID().toString()),
+                randomIntBetween(0, 5)), null, randomBoolean(), new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        shardRouting = shardRouting.moveToStarted();
+        shardRouting = shardRouting.relocate("node-1", ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         doc.setShardRouting(shardRouting);
         return doc;
     }
@@ -72,11 +72,11 @@ public class ShardsResolverTests extends MonitoringIndexNameResolverTestCase<Sha
         final String sourceNode = "node-" + randomIntBetween(0, 5);
         final String relocationNode = "node-" + randomIntBetween(6, 10);
 
-        final ShardRouting shardRouting = ShardRouting.newUnassigned(new Index(index, ""), shardId, null, primary,
+        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(new Index(index, ""), shardId), null, primary,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
-        ShardRoutingTestUtils.initialize(shardRouting, sourceNode);
-        ShardRoutingTestUtils.moveToStarted(shardRouting);
-        ShardRoutingTestUtils.relocate(shardRouting, relocationNode);
+        shardRouting = shardRouting.initialize(sourceNode, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        shardRouting = shardRouting.moveToStarted();
+        shardRouting = shardRouting.relocate(relocationNode, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         doc.setShardRouting(shardRouting);
 
         assertThat(resolver.index(doc), equalTo(".monitoring-es-" + MarvelTemplateUtils.TEMPLATE_VERSION + "-2015.07.22"));
@@ -99,11 +99,11 @@ public class ShardsResolverTests extends MonitoringIndexNameResolverTestCase<Sha
     }
 
     public void testShardId() {
-        ShardRouting shardRouting = ShardRouting.newUnassigned(new Index("bar", ""), 42, null, false,
+        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(new Index("bar", ""), 42), null, false,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
         assertThat(ShardsResolver.id("foo", shardRouting), equalTo("foo:_na:bar:42:r"));
-        ShardRoutingTestUtils.initialize(shardRouting, "node1");
-        ShardRoutingTestUtils.moveToStarted(shardRouting);
+        shardRouting = shardRouting.initialize("node1", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        shardRouting = shardRouting.moveToStarted();
         assertThat(ShardsResolver.id("foo", shardRouting), equalTo("foo:node1:bar:42:r"));
     }
 }

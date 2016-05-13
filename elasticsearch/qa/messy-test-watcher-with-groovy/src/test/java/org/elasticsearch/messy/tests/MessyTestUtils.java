@@ -42,7 +42,7 @@ public final class MessyTestUtils {
         engineServiceSet.add(groovyScriptEngineService);
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(
                 Arrays.asList(
-                        new ScriptEngineRegistry.ScriptEngineRegistration(GroovyScriptEngineService.class, GroovyScriptEngineService.TYPES)
+                        new ScriptEngineRegistry.ScriptEngineRegistration(GroovyScriptEngineService.class, GroovyScriptEngineService.NAME)
                 )
         );
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Arrays.asList(ScriptServiceProxy.INSTANCE));

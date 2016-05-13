@@ -126,17 +126,18 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
     }
 
     private String dataTemplateName() {
-        MockDataIndexNameResolver resolver = new MockDataIndexNameResolver();
+        MockDataIndexNameResolver resolver = new MockDataIndexNameResolver(MarvelTemplateUtils.TEMPLATE_VERSION);
         return resolver.templateName();
     }
 
     private String indexTemplateName() {
-        MockTimestampedIndexNameResolver resolver = new MockTimestampedIndexNameResolver(MonitoredSystem.ES, exporterSettings());
+        MockTimestampedIndexNameResolver resolver =
+                new MockTimestampedIndexNameResolver(MonitoredSystem.ES, exporterSettings(), MarvelTemplateUtils.TEMPLATE_VERSION);
         return resolver.templateName();
     }
 
     private String currentDataIndexName() {
-        MockDataIndexNameResolver resolver = new MockDataIndexNameResolver();
+        MockDataIndexNameResolver resolver = new MockDataIndexNameResolver(MarvelTemplateUtils.TEMPLATE_VERSION);
         return resolver.index(null);
     }
 
@@ -144,7 +145,8 @@ public abstract class AbstractExporterTemplateTestCase extends MarvelIntegTestCa
         MonitoringDoc doc = new MonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
         doc.setTimestamp(System.currentTimeMillis());
 
-        MockTimestampedIndexNameResolver resolver = new MockTimestampedIndexNameResolver(MonitoredSystem.ES, exporterSettings());
+        MockTimestampedIndexNameResolver resolver =
+                new MockTimestampedIndexNameResolver(MonitoredSystem.ES, exporterSettings(), MarvelTemplateUtils.TEMPLATE_VERSION);
         return resolver.index(doc);
     }
 

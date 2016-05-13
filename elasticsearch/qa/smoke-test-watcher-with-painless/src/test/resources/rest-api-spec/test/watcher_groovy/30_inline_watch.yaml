@@ -51,7 +51,7 @@
               },
               "condition" : {
                 "script" : {
-                  "inline" : "input.ctx.payload.hits.total > 1",
+                  "inline" : "ctx.payload.hits.total > 1",
                   "lang" : "painless"
                 }
               },

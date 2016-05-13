@@ -19,7 +19,7 @@
             },
             "condition" : {
               "script" : {
-                "inline" : "input.ctx.payload.count == 1",
+                "inline" : "ctx.payload.count == 1",
                 "lang" : "painless"
               }
             },

@@ -73,7 +73,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
     private final transient AtomicLong nonceCounter = new AtomicLong();
 
-    private transient long version = Versions.NOT_SET;
+    private transient long version = Versions.MATCH_ANY;
 
     public Watch(String id, Trigger trigger, ExecutableInput input, ExecutableCondition condition, @Nullable ExecutableTransform transform,
                  @Nullable TimeValue throttlePeriod, ExecutableActions actions, @Nullable Map<String, Object> metadata,

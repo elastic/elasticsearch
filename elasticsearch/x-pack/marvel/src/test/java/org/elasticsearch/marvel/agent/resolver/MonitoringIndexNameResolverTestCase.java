@@ -30,7 +30,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
@@ -48,7 +47,15 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
      * @return the {@link MonitoringIndexNameResolver} to test
      */
     protected R newResolver() {
-        return (R) resolversRegistry.getResolver(newMarvelDoc());
+        return newResolver(newMarvelDoc());
+    }
+
+    /**
+     * @return the {@link MonitoringIndexNameResolver} to test
+     */
+    @SuppressWarnings("unchecked")
+    protected R newResolver(M doc) {
+        return (R) resolversRegistry.getResolver(doc);
     }
 
     /**

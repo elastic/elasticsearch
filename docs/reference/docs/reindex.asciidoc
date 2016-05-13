@@ -30,7 +30,7 @@ That will return something like this:
   "timed_out": false,
   "created": 120,
   "updated": 0,
-  "batches": 2,
+  "batches": 1,
   "version_conflicts": 0,
   "noops": 0,
   "retries": 0,
@@ -301,7 +301,7 @@ POST _reindex
 // CONSOLE
 // TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
 
-By default `_reindex` uses scroll batches of 100. You can change the
+By default `_reindex` uses scroll batches of 1000. You can change the
 batch size with the `size` field in the `source` element:
 
 [source,js]
@@ -310,7 +310,7 @@ POST _reindex
 {
   "source": {
     "index": "source",
-    "size": 1000
+    "size": 100
   },
   "dest": {
     "index": "dest",
@@ -465,7 +465,7 @@ The responses looks like:
             "updated" : 3500,
             "created" : 0,
             "deleted" : 0,
-            "batches" : 36,
+            "batches" : 4,
             "version_conflicts" : 0,
             "noops" : 0,
             "retries": 0,

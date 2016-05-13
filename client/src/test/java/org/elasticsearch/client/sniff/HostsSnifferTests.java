@@ -29,11 +29,9 @@ import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.apache.http.HttpHost;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.RestClient;
 import org.junit.After;
 import org.junit.Before;
 
@@ -57,7 +55,7 @@ import java.util.logging.LogManager;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class SnifferTests extends LuceneTestCase {
+public class HostsSnifferTests extends LuceneTestCase {
 
     static {
         //prevent MockWebServer from logging to stdout and stderr
@@ -88,34 +86,36 @@ public class SnifferTests extends LuceneTestCase {
     }
 
     public void testSniffNodes() throws IOException, URISyntaxException {
-        CloseableHttpClient client = HttpClientBuilder.create().build();
-        Sniffer sniffer = new Sniffer(client, RequestConfig.DEFAULT, sniffRequestTimeout, scheme);
         HttpHost httpHost = new HttpHost(server.getHostName(), server.getPort());
-        try {
-            List<HttpHost> sniffedHosts = sniffer.sniffNodes(httpHost);
-            if (sniffResponse.isFailure) {
-                fail("sniffNodes should have failed");
-            }
-            assertThat(sniffedHosts.size(), equalTo(sniffResponse.hosts.size()));
-            Iterator<HttpHost> responseHostsIterator = sniffResponse.hosts.iterator();
-            for (HttpHost sniffedHost : sniffedHosts) {
-                assertEquals(sniffedHost, responseHostsIterator.next());
-            }
-        } catch(ElasticsearchResponseException e) {
-            if (sniffResponse.isFailure) {
-                assertThat(e.getMessage(), containsString("GET http://localhost:" + server.getPort() +
-                        "/_nodes/http?timeout=" + sniffRequestTimeout));
-                assertThat(e.getMessage(), containsString(Integer.toString(sniffResponse.nodesInfoResponseCode)));
-                assertThat(e.getHost(), equalTo(httpHost));
-                assertThat(e.getStatusLine().getStatusCode(), equalTo(sniffResponse.nodesInfoResponseCode));
-                assertThat(e.getRequestLine().toString(), equalTo("GET /_nodes/http?timeout=" + sniffRequestTimeout + "ms HTTP/1.1"));
-            } else {
-                fail("sniffNodes should have succeeded: " + e.getStatusLine());
+        try (RestClient restClient = RestClient.builder().setHosts(httpHost).build()) {
+            HostsSniffer sniffer = new HostsSniffer(restClient, sniffRequestTimeout, scheme);
+            try {
+                List<HttpHost> sniffedHosts = sniffer.sniffHosts();
+                if (sniffResponse.isFailure) {
+                    fail("sniffNodes should have failed");
+                }
+                assertThat(sniffedHosts.size(), equalTo(sniffResponse.hosts.size()));
+                Iterator<HttpHost> responseHostsIterator = sniffResponse.hosts.iterator();
+                for (HttpHost sniffedHost : sniffedHosts) {
+                    assertEquals(sniffedHost, responseHostsIterator.next());
+                }
+            } catch(ElasticsearchResponseException e) {
+                if (sniffResponse.isFailure) {
+                    assertThat(e.getMessage(), containsString("GET http://localhost:" + server.getPort() +
+                            "/_nodes/http?timeout=" + sniffRequestTimeout));
+                    assertThat(e.getMessage(), containsString(Integer.toString(sniffResponse.nodesInfoResponseCode)));
+                    assertThat(e.getHost(), equalTo(httpHost));
+                    assertThat(e.getStatusLine().getStatusCode(), equalTo(sniffResponse.nodesInfoResponseCode));
+                    assertThat(e.getRequestLine().toString(), equalTo("GET /_nodes/http?timeout=" + sniffRequestTimeout + "ms HTTP/1.1"));
+                } else {
+                    fail("sniffNodes should have succeeded: " + e.getStatusLine());
+                }
             }
         }
     }
 
-    private static MockWebServer buildMockWebServer(final SniffResponse sniffResponse, final int sniffTimeout) throws UnsupportedEncodingException {
+    private static MockWebServer buildMockWebServer(final SniffResponse sniffResponse, final int sniffTimeout)
+            throws UnsupportedEncodingException {
         MockWebServer server = new MockWebServer();
         final Dispatcher dispatcher = new Dispatcher() {
             @Override

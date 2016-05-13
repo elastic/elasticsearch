@@ -25,8 +25,6 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.lucene.util.LuceneTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.logging.LogManager;
 
 public class RestClientBuilderTests extends LuceneTestCase {
@@ -57,38 +55,23 @@ public class RestClientBuilderTests extends LuceneTestCase {
             assertEquals(e.getMessage(), "no hosts provided");
         }
 
-        RestClient.Builder builder = RestClient.builder();
-        if (random().nextBoolean()) {
-            ConnectionPool connectionPool = new ConnectionPool() {
-                @Override
-                protected List<Connection> getConnections() {
-                    return Collections.emptyList();
-                }
-
-                @Override
-                public void onSuccess(Connection connection) {
-
-                }
-
-                @Override
-                public void onFailure(Connection connection) throws IOException {
-
-                }
-
-                @Override
-                public void close() throws IOException {
-
-                }
-            };
-            builder.setConnectionPool(connectionPool);
-        } else {
-            int numNodes = RandomInts.randomIntBetween(random(), 1, 5);
-            HttpHost[] hosts = new HttpHost[numNodes];
-            for (int i = 0; i < numNodes; i++) {
-                hosts[i] = new HttpHost("localhost", 9200 + i);
-            }
-            builder.setHosts(hosts);
+        try {
+            RestClient.builder();
+            fail("should have failed");
+        } catch(IllegalArgumentException e) {
+            assertEquals(e.getMessage(), "no hosts provided");
         }
+
+        RestClient.Builder builder = RestClient.builder();
+        int numNodes = RandomInts.randomIntBetween(random(), 1, 5);
+        HttpHost[] hosts = new HttpHost[numNodes];
+        for (int i = 0; i < numNodes; i++) {
+            hosts[i] = new HttpHost("localhost", 9200 + i);
+        }
+        builder.setHosts(hosts);
+
+        //TODO test one host is null among others
+
         if (random().nextBoolean()) {
             builder.setHttpClient(HttpClientBuilder.create().build());
         }

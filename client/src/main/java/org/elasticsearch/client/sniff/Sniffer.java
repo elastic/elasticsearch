@@ -19,130 +19,228 @@
 
 package org.elasticsearch.client.sniff;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.apache.http.StatusLine;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.ElasticsearchResponseException;
-import org.elasticsearch.client.RequestLogger;
+import org.elasticsearch.client.Connection;
+import org.elasticsearch.client.RestClient;
 
+import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Calls nodes info api and returns a list of http hosts extracted from it.
  */
 //TODO This could potentially be using _cat/nodes which wouldn't require jackson as a dependency, but we'd have bw comp problems with 2.x
-final class Sniffer {
+public final class Sniffer extends RestClient.FailureListener implements Closeable {
 
     private static final Log logger = LogFactory.getLog(Sniffer.class);
 
-    private final CloseableHttpClient client;
-    private final RequestConfig sniffRequestConfig;
-    private final int sniffRequestTimeout;
-    private final String scheme;
-    private final JsonFactory jsonFactory;
+    private final boolean sniffOnFailure;
+    private final Task task;
 
-    Sniffer(CloseableHttpClient client, RequestConfig sniffRequestConfig, int sniffRequestTimeout, String scheme) {
-        this.client = client;
-        this.sniffRequestConfig = sniffRequestConfig;
-        this.sniffRequestTimeout = sniffRequestTimeout;
-        this.scheme = scheme;
-        this.jsonFactory = new JsonFactory();
+    public Sniffer(RestClient restClient, int sniffRequestTimeout, String scheme, int sniffInterval,
+                   boolean sniffOnFailure, int sniffAfterFailureDelay) {
+        HostsSniffer hostsSniffer = new HostsSniffer(restClient, sniffRequestTimeout, scheme);
+        this.task = new Task(hostsSniffer, restClient, sniffInterval, sniffAfterFailureDelay);
+        this.sniffOnFailure = sniffOnFailure;
+        restClient.setFailureListener(this);
     }
 
-    List<HttpHost> sniffNodes(HttpHost host) throws IOException {
-        HttpGet httpGet = new HttpGet("/_nodes/http?timeout=" + sniffRequestTimeout + "ms");
-        httpGet.setConfig(sniffRequestConfig);
-
-        try (CloseableHttpResponse response = client.execute(host, httpGet)) {
-            StatusLine statusLine = response.getStatusLine();
-            if (statusLine.getStatusCode() >= 300) {
-                RequestLogger.log(logger, "sniff failed", httpGet, host, response);
-                String responseBody = null;
-                if (response.getEntity() != null) {
-                    responseBody = EntityUtils.toString(response.getEntity());
-                }
-                throw new ElasticsearchResponseException(httpGet.getRequestLine(), host, response.getStatusLine(), responseBody);
-            } else {
-                List<HttpHost> nodes = readHosts(response.getEntity());
-                RequestLogger.log(logger, "sniff succeeded", httpGet, host, response);
-                return nodes;
-            }
-        } catch(IOException e) {
-            RequestLogger.log(logger, "sniff failed", httpGet, host, e);
-            throw e;
+    @Override
+    public void onFailure(Connection connection) throws IOException {
+        if (sniffOnFailure) {
+            //re-sniff immediately but take out the node that failed
+            task.sniffOnFailure(connection.getHost());
         }
     }
 
-    private List<HttpHost> readHosts(HttpEntity entity) throws IOException {
-        try (InputStream inputStream = entity.getContent()) {
-            JsonParser parser = jsonFactory.createParser(inputStream);
-            if (parser.nextToken() != JsonToken.START_OBJECT) {
-                throw new IOException("expected data to start with an object");
-            }
-            List<HttpHost> hosts = new ArrayList<>();
-            while (parser.nextToken() != JsonToken.END_OBJECT) {
-                if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
-                    if ("nodes".equals(parser.getCurrentName())) {
-                        while (parser.nextToken() != JsonToken.END_OBJECT) {
-                            JsonToken token = parser.nextToken();
-                            assert token == JsonToken.START_OBJECT;
-                            String nodeId = parser.getCurrentName();
-                            HttpHost sniffedHost = readNode(nodeId, parser, this.scheme);
-                            if (sniffedHost != null) {
-                                logger.trace("adding node [" + nodeId + "]");
-                                hosts.add(sniffedHost);
-                            }
-                        }
-                    } else {
-                        parser.skipChildren();
+    @Override
+    public void close() throws IOException {
+        task.shutdown();
+    }
+
+    private static class Task implements Runnable {
+        private final HostsSniffer hostsSniffer;
+        private final RestClient restClient;
+
+        private final int sniffInterval;
+        private final int sniffAfterFailureDelay;
+        private final ScheduledExecutorService scheduledExecutorService;
+        private final AtomicBoolean running = new AtomicBoolean(false);
+        private volatile int nextSniffDelay;
+        private volatile ScheduledFuture<?> scheduledFuture;
+
+        private Task(HostsSniffer hostsSniffer, RestClient restClient, int sniffInterval, int sniffAfterFailureDelay) {
+            this.hostsSniffer = hostsSniffer;
+            this.restClient = restClient;
+            this.sniffInterval = sniffInterval;
+            this.sniffAfterFailureDelay = sniffAfterFailureDelay;
+            this.scheduledExecutorService = Executors.newScheduledThreadPool(1);
+            this.scheduledFuture = this.scheduledExecutorService.schedule(this, 0, TimeUnit.MILLISECONDS);
+            this.nextSniffDelay = sniffInterval;
+        }
+
+        @Override
+        public void run() {
+            sniff(null);
+        }
+
+        void sniffOnFailure(HttpHost failedHost) {
+            this.nextSniffDelay = sniffAfterFailureDelay;
+            sniff(failedHost);
+        }
+
+        void sniff(HttpHost excludeHost) {
+            if (running.compareAndSet(false, true)) {
+                try {
+                    List<HttpHost> sniffedNodes = hostsSniffer.sniffHosts();
+                    if (excludeHost != null) {
+                        sniffedNodes.remove(excludeHost);
+                    }
+                    logger.debug("sniffed nodes: " + sniffedNodes);
+                    this.restClient.setNodes(sniffedNodes.toArray(new HttpHost[sniffedNodes.size()]));
+                } catch (Throwable t) {
+                    logger.error("error while sniffing nodes", t);
+                } finally {
+                    try {
+                        //regardless of whether and when the next sniff is scheduled, cancel it and schedule a new one with updated delay
+                        this.scheduledFuture.cancel(false);
+                        logger.debug("scheduling next sniff in " + nextSniffDelay + " ms");
+                        this.scheduledFuture = this.scheduledExecutorService.schedule(this, nextSniffDelay, TimeUnit.MILLISECONDS);
+                    } catch (Throwable t) {
+                        logger.error("error while scheduling next sniffer task", t);
+                    } finally {
+                        this.nextSniffDelay = sniffInterval;
+                        running.set(false);
                     }
                 }
             }
-            return hosts;
+        }
+
+        void shutdown() {
+            scheduledExecutorService.shutdown();
+            try {
+                if (scheduledExecutorService.awaitTermination(1000, TimeUnit.MILLISECONDS)) {
+                    return;
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            scheduledExecutorService.shutdownNow();
         }
     }
 
-    private static HttpHost readNode(String nodeId, JsonParser parser, String scheme) throws IOException {
-        HttpHost httpHost = null;
-        String fieldName = null;
-        while (parser.nextToken() != JsonToken.END_OBJECT) {
-            if (parser.getCurrentToken() == JsonToken.FIELD_NAME) {
-                fieldName = parser.getCurrentName();
-            } else if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
-                if ("http".equals(fieldName)) {
-                    while (parser.nextToken() != JsonToken.END_OBJECT) {
-                        if (parser.getCurrentToken() == JsonToken.VALUE_STRING && "publish_address".equals(parser.getCurrentName())) {
-                            URI boundAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());
-                            httpHost = new HttpHost(boundAddressAsURI.getHost(), boundAddressAsURI.getPort(),
-                                    boundAddressAsURI.getScheme());
-                        } else if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
-                            parser.skipChildren();
-                        }
-                    }
-                } else {
-                    parser.skipChildren();
-                }
+    /**
+     * Returns a new {@link Builder} to help with {@link Sniffer} creation.
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * Sniffer builder. Helps creating a new {@link Sniffer}.
+     */
+    public static final class Builder {
+        public static final int DEFAULT_SNIFF_INTERVAL = 60000 * 5; //5 minutes
+        public static final int DEFAULT_SNIFF_AFTER_FAILURE_DELAY = 60000; //1 minute
+        public static final int DEFAULT_SNIFF_REQUEST_TIMEOUT = 1000; //1 second
+
+        private int sniffRequestTimeout = DEFAULT_SNIFF_REQUEST_TIMEOUT;
+        private int sniffInterval = DEFAULT_SNIFF_INTERVAL;
+        private boolean sniffOnFailure = true;
+        private int sniffAfterFailureDelay = DEFAULT_SNIFF_AFTER_FAILURE_DELAY;
+        private String scheme = "http";
+        private RestClient restClient;
+
+        private Builder() {
+
+        }
+
+        /**
+         * Sets the interval between consecutive ordinary sniff executions. Will be honoured when sniffOnFailure is disabled or
+         * when there are no failures between consecutive sniff executions.
+         * @throws IllegalArgumentException if sniffInterval is not greater than 0
+         */
+        public Builder setSniffInterval(int sniffInterval) {
+            if (sniffInterval <= 0) {
+                throw new IllegalArgumentException("sniffInterval must be greater than 0");
             }
+            this.sniffInterval = sniffInterval;
+            return this;
         }
-        //http section is not present if http is not enabled on the node, ignore such nodes
-        if (httpHost == null) {
-            logger.debug("skipping node [" + nodeId + "] with http disabled");
-            return null;
+
+        /**
+         * Enables/disables sniffing on failure. If enabled, at each failure nodes will be reloaded, and a new sniff execution will
+         * be scheduled after a shorter time than usual (sniffAfterFailureDelay).
+         */
+        public Builder setSniffOnFailure(boolean sniffOnFailure) {
+            this.sniffOnFailure = sniffOnFailure;
+            return this;
         }
-        return httpHost;
+
+        /**
+         * Sets the delay of a sniff execution scheduled after a failure.
+         */
+        public Builder setSniffAfterFailureDelay(int sniffAfterFailureDelay) {
+            if (sniffAfterFailureDelay <= 0) {
+                throw new IllegalArgumentException("sniffAfterFailureDelay must be greater than 0");
+            }
+            this.sniffAfterFailureDelay = sniffAfterFailureDelay;
+            return this;
+        }
+
+        /**
+         * Sets the http client. Mandatory argument. Best practice is to use the same client used
+         * within {@link org.elasticsearch.client.RestClient} which can be created manually or
+         * through {@link RestClient.Builder#createDefaultHttpClient()}.
+         * @see CloseableHttpClient
+         */
+        public Builder setRestClient(RestClient restClient) {
+            this.restClient = restClient;
+            return this;
+        }
+
+        /**
+         * Sets the sniff request timeout to be passed in as a query string parameter to elasticsearch.
+         * Allows to halt the request without any failure, as only the nodes that have responded
+         * within this timeout will be returned.
+         */
+        public Builder setSniffRequestTimeout(int sniffRequestTimeout) {
+            if (sniffRequestTimeout <=0) {
+                throw new IllegalArgumentException("sniffRequestTimeout must be greater than 0");
+            }
+            this.sniffRequestTimeout = sniffRequestTimeout;
+            return this;
+        }
+
+        /**
+         * Sets the scheme to be used for sniffed nodes. This information is not returned by elasticsearch,
+         * default is http but should be customized if https is needed/enabled.
+         */
+        public Builder setScheme(String scheme) {
+            Objects.requireNonNull(scheme, "scheme cannot be null");
+            if (scheme.equals("http") == false && scheme.equals("https") == false) {
+                throw new IllegalArgumentException("scheme must be either http or https");
+            }
+            this.scheme = scheme;
+            return this;
+        }
+
+        /**
+         * Creates the {@link Sniffer} based on the provided configuration.
+         */
+        public Sniffer build() {
+            Objects.requireNonNull(restClient, "restClient cannot be null");
+            return new Sniffer(restClient, sniffRequestTimeout, scheme, sniffInterval, sniffOnFailure, sniffAfterFailureDelay);
+        }
     }
 }

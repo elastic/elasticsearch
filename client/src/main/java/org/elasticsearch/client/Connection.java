@@ -29,7 +29,6 @@ import java.util.concurrent.TimeUnit;
  * Any change to the state of a connection should be made through the connection pool.
  */
 public class Connection {
-    //TODO make these values configurable through the connection pool?
     private static final long DEFAULT_CONNECTION_TIMEOUT_MILLIS = TimeUnit.MINUTES.toMillis(1);
     private static final long MAX_CONNECTION_TIMEOUT_MILLIS = TimeUnit.MINUTES.toMillis(30);
     private final HttpHost host;

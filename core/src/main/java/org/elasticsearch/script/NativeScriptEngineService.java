@@ -66,12 +66,12 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public Object compile(String script, Map<String, String> params) {
-        NativeScriptFactory scriptFactory = scripts.get(script);
+    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+        NativeScriptFactory scriptFactory = scripts.get(scriptSource);
         if (scriptFactory != null) {
             return scriptFactory;
         }
-        throw new IllegalArgumentException("Native script [" + script + "] not found");
+        throw new IllegalArgumentException("Native script [" + scriptSource + "] not found");
     }
 
     @Override

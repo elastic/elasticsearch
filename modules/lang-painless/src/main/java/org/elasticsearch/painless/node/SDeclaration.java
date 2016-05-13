@@ -59,6 +59,7 @@ public final class SDeclaration extends AStatement {
 
     @Override
     void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        writeDebugInfo(adapter);
         final org.objectweb.asm.Type type = variable.type.type;
         final Sort sort = variable.type.sort;
 

@@ -138,7 +138,7 @@ public class GroovySecurityTests extends ESTestCase {
         vars.put("myarray", Arrays.asList("foo"));
         vars.put("myobject", new MyObject());
 
-        se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "test", "js", se.compile(script, Collections.emptyMap())), vars).run();
+        se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "test", "js", se.compile(null, script, Collections.emptyMap())), vars).run();
     }
 
     public static class MyObject {

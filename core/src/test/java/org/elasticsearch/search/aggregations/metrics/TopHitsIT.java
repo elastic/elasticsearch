@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -84,6 +85,7 @@ import static org.hamcrest.Matchers.sameInstance;
  *
  */
 @ESIntegTestCase.SuiteScopeTestCase()
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18314")
 public class TopHitsIT extends ESIntegTestCase {
 
     private static final String TERMS_AGGS_FIELD = "terms";

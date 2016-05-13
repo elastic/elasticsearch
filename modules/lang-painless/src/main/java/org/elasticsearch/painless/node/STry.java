@@ -84,6 +84,7 @@ public final class STry extends AStatement {
 
     @Override
     void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        writeDebugInfo(adapter);
         final Label begin = new Label();
         final Label end = new Label();
         final Label exception = new Label();

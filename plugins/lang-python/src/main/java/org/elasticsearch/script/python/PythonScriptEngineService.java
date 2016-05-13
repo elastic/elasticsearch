@@ -111,7 +111,7 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public Object compile(String script, Map<String, String> params) {
+    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
         // classloader created here
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -120,7 +120,7 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         return AccessController.doPrivileged(new PrivilegedAction<PyCode>() {
             @Override
             public PyCode run() {
-                return interp.compile(script);
+                return interp.compile(scriptSource);
             }
         });
     }

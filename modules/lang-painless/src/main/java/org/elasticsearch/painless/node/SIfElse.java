@@ -85,6 +85,7 @@ public final class SIfElse extends AStatement {
 
     @Override
     void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        writeDebugInfo(adapter);
         final Label end = new Label();
         final Label fals = elseblock != null ? new Label() : end;
 

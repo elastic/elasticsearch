@@ -124,15 +124,14 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
     public boolean isSandboxed() {
         return true;
     }
-
+    
     /**
-     * Compiles a Painless script with the specified parameters.
-     * @param script The code to be compiled.
-     * @param params The params used to modify the compiler settings on a per script basis.
-     * @return Compiled script object represented by an {@link Executable}.
+     * When a script is anonymous (inline), we give it this name.
      */
+    static final String INLINE_NAME = "<inline>";
+
     @Override
-    public Object compile(final String script, final Map<String, String> params) {
+    public Object compile(String scriptName, final String scriptSource, final Map<String, String> params) {
         final CompilerSettings compilerSettings;
 
         if (params.isEmpty()) {
@@ -178,7 +177,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
         return AccessController.doPrivileged(new PrivilegedAction<Executable>() {
             @Override
             public Executable run() {
-                return Compiler.compile(loader, "unknown", script, compilerSettings);
+                return Compiler.compile(loader, scriptName == null ? INLINE_NAME : scriptName, scriptSource, compilerSettings);
             }
         }, COMPILATION_CONTEXT);
     }

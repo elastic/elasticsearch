@@ -37,7 +37,15 @@ public interface ScriptEngineService extends Closeable {
 
     boolean isSandboxed();
 
-    Object compile(String script, Map<String, String> params);
+    /**
+     * Compiles a script.
+     * @param scriptName name of the script. {@code null} if it is anonymous (inline). 
+     *                                        For a file script, its the file name (with extension).
+     *                                        For a stored script, its the identifier.
+     * @param scriptSource actual source of the script
+     * @param params compile-time parameters (such as flags to the compiler)
+     */
+    Object compile(String scriptName, String scriptSource, Map<String, String> params);
 
     ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars);
 

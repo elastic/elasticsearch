@@ -81,7 +81,7 @@ public class ScriptEngineTests extends ScriptTestCase {
         Map<String, Object> ctx = new HashMap<>();
         vars.put("ctx", ctx);
 
-        Object compiledScript = scriptEngine.compile(
+        Object compiledScript = scriptEngine.compile(null,
                 "return ctx.value;", Collections.emptyMap());
         ExecutableScript script = scriptEngine.executable(new CompiledScript(ScriptService.ScriptType.INLINE,
                 "testChangingVarsCrossExecution1", "painless", compiledScript), vars);
@@ -97,7 +97,7 @@ public class ScriptEngineTests extends ScriptTestCase {
 
     public void testChangingVarsCrossExecution2() {
         Map<String, Object> vars = new HashMap<>();
-        Object compiledScript = scriptEngine.compile("return params['value'];", Collections.emptyMap());
+        Object compiledScript = scriptEngine.compile(null, "return params['value'];", Collections.emptyMap());
 
         ExecutableScript script = scriptEngine.executable(new CompiledScript(ScriptService.ScriptType.INLINE,
                 "testChangingVarsCrossExecution2", "painless", compiledScript), vars);

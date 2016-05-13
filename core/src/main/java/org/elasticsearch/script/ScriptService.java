@@ -304,7 +304,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
             //Either an un-cached inline script or indexed script
             //If the script type is inline the name will be the same as the code for identification in exceptions
             try {
-                compiledScript = new CompiledScript(type, name, lang, scriptEngineService.compile(code, params));
+                // but give the script engine the chance to be better, give it separate name + source code
+                // for the inline case, then its anonymous: null.
+                String actualName = (type == ScriptType.INLINE) ? null : name;
+                compiledScript = new CompiledScript(type, name, lang, scriptEngineService.compile(actualName, code, params));
             } catch (Exception exception) {
                 throw new ScriptException("Failed to compile " + type + " script [" + name + "] using lang [" + lang + "]", exception);
             }
@@ -353,7 +356,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     //we don't know yet what the script will be used for, but if all of the operations for this lang with
                     //indexed scripts are disabled, it makes no sense to even compile it.
                     if (isAnyScriptContextEnabled(scriptLang, scriptEngineService, ScriptType.STORED)) {
-                        Object compiled = scriptEngineService.compile(template.getScript(), Collections.emptyMap());
+                        Object compiled = scriptEngineService.compile(id, template.getScript(), Collections.emptyMap());
                         if (compiled == null) {
                             throw new IllegalArgumentException("Unable to parse [" + template.getScript() +
                                     "] lang [" + scriptLang + "] (ScriptService.compile returned null)");
@@ -563,8 +566,12 @@ public class ScriptService extends AbstractComponent implements Closeable {
                         logger.info("compiling script file [{}]", file.toAbsolutePath());
                         try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
                             String script = Streams.copyToString(reader);
-                            CacheKey cacheKey = new CacheKey(engineService, scriptNameExt.v1(), null, Collections.emptyMap());
-                            staticCache.put(cacheKey, new CompiledScript(ScriptType.FILE, scriptNameExt.v1(), engineService.getTypes().get(0), engineService.compile(script, Collections.emptyMap())));
+                            String name = scriptNameExt.v1();
+                            CacheKey cacheKey = new CacheKey(engineService, name, null, Collections.emptyMap());
+                            // pass the actual file name to the compiler (for script engines that care about this)
+                            Object executable = engineService.compile(file.getFileName().toString(), script, Collections.emptyMap());
+                            CompiledScript compiledScript = new CompiledScript(ScriptType.FILE, name, engineService.getTypes().get(0), executable);
+                            staticCache.put(cacheKey, compiledScript);
                             scriptMetrics.onCompilation();
                         }
                     } else {

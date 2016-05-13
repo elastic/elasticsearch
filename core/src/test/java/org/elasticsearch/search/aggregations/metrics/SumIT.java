@@ -399,8 +399,8 @@ public class SumIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public Object compile(String script, Map<String, String> params) {
-            return script;
+        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+            return scriptSource;
         }
 
         @Override
@@ -533,8 +533,8 @@ public class SumIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public Object compile(String script, Map<String, String> params) {
-            return script;
+        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+            return scriptSource;
         }
 
         @Override

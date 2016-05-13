@@ -116,7 +116,7 @@ public class ScriptSettingsTests extends ESTestCase {
         }
 
         @Override
-        public Object compile(String script, Map<String, String> params) {
+        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
             return null;
         }
 

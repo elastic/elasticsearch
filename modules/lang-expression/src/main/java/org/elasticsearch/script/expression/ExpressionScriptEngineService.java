@@ -85,7 +85,7 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public Object compile(String script, Map<String, String> params) {
+    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
         // classloader created here
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -112,9 +112,9 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                         };
                     }
                     // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
-                    return JavascriptCompiler.compile(script, JavascriptCompiler.DEFAULT_FUNCTIONS, loader);
+                    return JavascriptCompiler.compile(scriptSource, JavascriptCompiler.DEFAULT_FUNCTIONS, loader);
                 } catch (ParseException e) {
-                    throw new ScriptException("Failed to parse expression: " + script, e);
+                    throw new ScriptException("Failed to parse expression: " + scriptSource, e);
                 }
             }
         });

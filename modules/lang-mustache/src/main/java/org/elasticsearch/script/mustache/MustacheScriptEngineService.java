@@ -88,12 +88,12 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
      * Compile a template string to (in this case) a Mustache object than can
      * later be re-used for execution to fill in missing parameter values.
      *
-     * @param template
+     * @param templateSource
      *            a string representing the template to compile.
      * @return a compiled template object for later execution.
      * */
     @Override
-    public Object compile(String template, Map<String, String> params) {
+    public Object compile(String templateName, String templateSource, Map<String, String> params) {
         String contentType = params.getOrDefault(CONTENT_TYPE_PARAM, JSON_CONTENT_TYPE);
         final DefaultMustacheFactory mustacheFactory;
         switch (contentType){
@@ -107,7 +107,7 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
                 break;
         }
         mustacheFactory.setObjectHandler(new CustomReflectionObjectHandler());
-        Reader reader = new FastStringReader(template);
+        Reader reader = new FastStringReader(templateSource);
         return mustacheFactory.compile(reader, "query-template");
     }
 

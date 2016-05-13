@@ -378,8 +378,6 @@ public class SumIT extends AbstractNumericTestCase {
 
         public static final String NAME = "extract_field";
 
-        public static final List<String> TYPES = Collections.singletonList(NAME);
-
         @Override
         public void close() throws IOException {
         }
@@ -390,8 +388,8 @@ public class SumIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public List<String> getExtensions() {
-            return TYPES;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override
@@ -507,8 +505,6 @@ public class SumIT extends AbstractNumericTestCase {
 
         public static final String NAME = "field_value";
 
-        public static final List<String> TYPES = Collections.singletonList(NAME);
-
         @Override
         public void close() throws IOException {
         }
@@ -519,8 +515,8 @@ public class SumIT extends AbstractNumericTestCase {
         }
 
         @Override
-        public List<String> getExtensions() {
-            return TYPES;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override

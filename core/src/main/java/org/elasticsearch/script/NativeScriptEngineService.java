@@ -54,8 +54,8 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public List<String> getExtensions() {
-        return Collections.emptyList();
+    public String getExtension() {
+        return ""; // Native scripts have no extensions
     }
 
     @Override

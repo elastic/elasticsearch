@@ -236,8 +236,6 @@ public class ValueCountIT extends ESIntegTestCase {
 
         public static final String NAME = "field_value";
 
-        public static final List<String> TYPES = Collections.singletonList(NAME);
-
         @Override
         public void close() throws IOException {
         }
@@ -248,8 +246,8 @@ public class ValueCountIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<String> getExtensions() {
-            return TYPES;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override

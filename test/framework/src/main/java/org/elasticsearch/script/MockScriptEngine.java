@@ -38,8 +38,6 @@ public class MockScriptEngine implements ScriptEngineService {
 
     public static final String NAME = "mockscript";
 
-    public static final List<String> TYPES = Collections.singletonList(NAME);
-
     public static class TestPlugin extends Plugin {
 
         public TestPlugin() {
@@ -68,8 +66,8 @@ public class MockScriptEngine implements ScriptEngineService {
     }
 
     @Override
-    public List<String> getExtensions() {
-        return TYPES;
+    public String getExtension() {
+        return NAME;
     }
 
     @Override

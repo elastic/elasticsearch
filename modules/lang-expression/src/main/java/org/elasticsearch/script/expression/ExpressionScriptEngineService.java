@@ -62,8 +62,6 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
 
     public static final String NAME = "expression";
 
-    public static final List<String> TYPES = Collections.singletonList(NAME);
-
     @Inject
     public ExpressionScriptEngineService(Settings settings) {
         super(settings);
@@ -75,8 +73,8 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public List<String> getExtensions() {
-        return TYPES;
+    public String getExtension() {
+        return NAME;
     }
 
     @Override

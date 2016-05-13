@@ -103,8 +103,6 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "put_values";
 
-        public static final List<String> TYPES = Collections.singletonList(NAME);
-
         @Override
         public void close() throws IOException {
         }
@@ -115,8 +113,8 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<String> getExtensions() {
-            return TYPES;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override
@@ -192,8 +190,6 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "field_inc";
 
-        public static final List<String> TYPES = Collections.singletonList(NAME);
-
         @Override
         public void close() throws IOException {
         }
@@ -204,8 +200,8 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<String> getExtensions() {
-            return TYPES;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override
@@ -274,8 +270,6 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "scripted_upsert";
 
-        public static final List<String> TYPES = Collections.singletonList(NAME);
-
         @Override
         public void close() throws IOException {
         }
@@ -286,8 +280,8 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<String> getExtensions() {
-            return TYPES;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override
@@ -356,8 +350,6 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "extract_ctx";
 
-        public static final List<String> TYPES = Collections.singletonList(NAME);
-
         @Override
         public void close() throws IOException {
         }
@@ -368,8 +360,8 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<String> getExtensions() {
-            return TYPES;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override

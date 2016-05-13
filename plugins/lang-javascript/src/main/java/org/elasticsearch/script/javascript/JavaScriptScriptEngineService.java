@@ -70,7 +70,7 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
     public static final String NAME = "javascript";
 
-    public static final List<String> EXTENSIONS = Collections.unmodifiableList(Arrays.asList("js", "javascript"));
+    public static final String EXTENSION = "js";
 
     private final AtomicLong counter = new AtomicLong();
 
@@ -166,8 +166,8 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public List<String> getExtensions() {
-        return EXTENSIONS;
+    public String getExtension() {
+        return EXTENSION;
     }
 
     @Override

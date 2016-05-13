@@ -256,13 +256,4 @@ public class IpRangeIT extends ESIntegTestCase {
         }
     }
 
-    public static void main(String[] args) {
-        AggregatorBuilder<?> aggregation =
-                AggregationBuilders
-                        .ipRange("agg")
-                        .field("ip")
-                        .addUnboundedTo("192.168.1.0")             // from -infinity to 192.168.1.0 (excluded)
-                        .addRange("192.168.1.0", "192.168.2.0")    // from 192.168.1.0 to 192.168.2.0 (excluded)
-                        .addUnboundedFrom("192.168.2.0");          // from 192.168.2.0 to +infinity
-    }
 }

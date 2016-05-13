@@ -19,16 +19,15 @@
 package org.elasticsearch.test.rest.client;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.conn.ssl.SSLContexts;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.http.ssl.SSLContexts;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -134,7 +133,8 @@ public class RestClient implements Closeable {
      * @throws RestException if the obtained status code is non ok, unless the specific error code needs to be ignored
      * according to the ignore parameter received as input (which won't get sent to elasticsearch)
      */
-    public RestResponse callApi(String apiName, Map<String, String> params, String body, Map<String, String> headers) throws IOException, RestException {
+    public RestResponse callApi(String apiName, Map<String, String> params, String body, Map<String, String> headers)
+            throws IOException, RestException {
 
         List<Integer> ignores = new ArrayList<>();
         Map<String, String> requestParams = null;
@@ -220,7 +220,8 @@ public class RestClient implements Closeable {
                     if (restApi.getParams().contains(entry.getKey()) || ALWAYS_ACCEPTED_QUERY_STRING_PARAMS.contains(entry.getKey())) {
                         httpRequestBuilder.addParam(entry.getKey(), entry.getValue());
                     } else {
-                        throw new IllegalArgumentException("param [" + entry.getKey() + "] not supported in [" + restApi.getName() + "] api");
+                        throw new IllegalArgumentException("param [" + entry.getKey() +
+                                "] not supported in [" + restApi.getName() + "] api");
                     }
                 }
             }
@@ -293,10 +294,8 @@ public class RestClient implements Closeable {
                 try (InputStream is = Files.newInputStream(path)) {
                     keyStore.load(is, keystorePass.toCharArray());
                 }
-                SSLContext sslcontext = SSLContexts.custom()
-                        .loadTrustMaterial(keyStore, null)
-                        .build();
-                sslsf = new SSLConnectionSocketFactory(sslcontext, StrictHostnameVerifier.INSTANCE);
+                SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
+                sslsf = new SSLConnectionSocketFactory(sslcontext);
             } catch (KeyStoreException|NoSuchAlgorithmException|KeyManagementException|CertificateException e) {
                 throw new RuntimeException(e);
             }
@@ -308,7 +307,8 @@ public class RestClient implements Closeable {
                 .register("http", PlainConnectionSocketFactory.getSocketFactory())
                 .register("https", sslsf)
                 .build();
-        return HttpClients.createMinimal(new PoolingHttpClientConnectionManager(socketFactoryRegistry, null, null, null, 15, TimeUnit.SECONDS));
+        return HttpClients.createMinimal(
+                new PoolingHttpClientConnectionManager(socketFactoryRegistry, null, null, null, 15, TimeUnit.SECONDS));
     }
 
     /**

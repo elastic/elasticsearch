@@ -112,7 +112,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
 
     @Override
     public final void doReadFrom(StreamInput in) throws IOException {
-        format = in.readValueFormat();
+        format = in.readNamedWriteable(DocValueFormat.class);
         gapPolicy = GapPolicy.readFrom(in);
         innerReadFrom(in);
     }
@@ -122,7 +122,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
 
     @Override
     public final void doWriteTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(format);
+        out.writeNamedWriteable(format);
         gapPolicy.writeTo(out);
         innerWriteTo(out);
     }

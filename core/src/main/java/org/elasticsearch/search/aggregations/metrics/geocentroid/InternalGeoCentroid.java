@@ -24,7 +24,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
@@ -147,7 +146,7 @@ public class InternalGeoCentroid extends InternalMetricsAggregation implements G
     }
 
     static class Fields {
-        public static final XContentBuilderString CENTROID = new XContentBuilderString("location");
+        public static final String CENTROID = "location";
     }
 
     @Override

@@ -20,7 +20,6 @@ package org.elasticsearch.search.fetch.script;
 
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.SearchHitField;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
@@ -32,26 +31,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-
-import static java.util.Collections.unmodifiableMap;
 
 /**
  *
  */
 public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
-    private static final Map<String, SearchParseElement> PARSE_ELEMENTS;
-    static {
-        Map<String, SearchParseElement> parseElements = new HashMap<>();
-        parseElements.put("script_fields", new ScriptFieldsParseElement());
-        parseElements.put("scriptFields", new ScriptFieldsParseElement());
-        PARSE_ELEMENTS = unmodifiableMap(parseElements);
-    }
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        return PARSE_ELEMENTS;
-    }
 
     @Override
     public boolean hitsExecutionNeeded(SearchContext context) {

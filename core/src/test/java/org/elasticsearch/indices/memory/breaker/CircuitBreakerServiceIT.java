@@ -62,8 +62,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Integration tests for InternalCircuitBreakerService
@@ -84,6 +86,8 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
                 .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(),
                         HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getDefaultRaw(null))
                 .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.0)
+                .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(),
+                    HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getDefaultRaw(null))
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
     }
@@ -101,7 +105,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     /** Returns true if any of the nodes used a noop breaker */
     private boolean noopBreakerUsed() {
         NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().setBreaker(true).get();
-        for (NodeStats nodeStats : stats) {
+        for (NodeStats nodeStats : stats.getNodes()) {
             if (nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getLimit() == NoopCircuitBreaker.LIMIT) {
                 return true;
             }
@@ -210,7 +214,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
      * Test that a breaker correctly redistributes to a different breaker, in
      * this case, the fielddata breaker borrows space from the request breaker
      */
-    @AwaitsFix(bugUrl = "way too unstable request size. Needs a proper and more stable fix.")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18325")
     public void testParentChecking() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
@@ -227,10 +231,6 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", "value" + id));
         }
         indexRandom(true, reqs);
-
-        // We need the request limit beforehand, just from a single node because the limit should always be the same
-        long beforeReqLimit = client.admin().cluster().prepareNodesStats().setBreaker(true).get()
-                .getNodes()[0].getBreaker().getStats(CircuitBreaker.REQUEST).getLimit();
 
         Settings resetSettings = Settings.builder()
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b")
@@ -252,11 +252,11 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
                 RestStatus.INTERNAL_SERVER_ERROR,
                 containsString("Data too large, data for [test] would be larger than limit of [10/10b]"));
 
+        reset();
+
         // Adjust settings so the parent breaker will fail, but neither the fielddata breaker nor the node request breaker will fail
-        // There is no "one size fits all" breaker size as internal request size will vary based on doc count.
-        int parentBreakerSize = docCount * 3;
         resetSettings = Settings.builder()
-                .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), parentBreakerSize + "b")
+                .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "500b")
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "90%")
                 .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.0)
                 .build();
@@ -267,9 +267,16 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get();
             fail("should have thrown an exception");
         } catch (Exception e) {
-            String errMsg = "[parent] Data too large, data for [test] would be larger than limit of [" + parentBreakerSize;
-            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException",
-                    e.toString(), containsString(errMsg));
+            final Throwable cause = ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
+            assertNotNull("CircuitBreakingException is not the cause of " + e, cause);
+            String errMsg = "would be larger than limit of [500/500b]]";
+            assertThat("Exception: [" + cause.toString() + "] should contain a CircuitBreakingException",
+                cause.toString(), startsWith("CircuitBreakingException[[parent] Data too large"));
+            assertThat("Exception: [" + cause.toString() + "] should contain a CircuitBreakingException",
+                cause.toString(), endsWith(errMsg));
+        } finally {
+            // reset before teardown as it requires properly set up breakers
+            reset();
         }
     }
 

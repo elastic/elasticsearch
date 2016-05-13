@@ -34,7 +34,7 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
     }
 
     @Override
-    <C extends NamedWriteable<?>> C readNamedWriteable(Class<C> categoryClass) throws IOException {
+    public <C extends NamedWriteable> C readNamedWriteable(Class<C> categoryClass) throws IOException {
         String name = readString();
         Writeable.Reader<? extends C> reader = namedWriteableRegistry.getReader(categoryClass, name);
         C c = reader.read(this);

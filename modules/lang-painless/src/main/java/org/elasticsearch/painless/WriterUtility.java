@@ -19,31 +19,14 @@
 
 package org.elasticsearch.painless;
 
-import org.antlr.v4.runtime.ParserRuleContext;
+import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Sort;
+import org.elasticsearch.painless.Definition.Transform;
 import org.elasticsearch.painless.Definition.Type;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
-import static org.elasticsearch.painless.PainlessParser.ADD;
-import static org.elasticsearch.painless.PainlessParser.BWAND;
-import static org.elasticsearch.painless.PainlessParser.BWOR;
-import static org.elasticsearch.painless.PainlessParser.BWXOR;
-import static org.elasticsearch.painless.PainlessParser.DIV;
-import static org.elasticsearch.painless.PainlessParser.LSH;
-import static org.elasticsearch.painless.PainlessParser.MUL;
-import static org.elasticsearch.painless.PainlessParser.REM;
-import static org.elasticsearch.painless.PainlessParser.RSH;
-import static org.elasticsearch.painless.PainlessParser.SUB;
-import static org.elasticsearch.painless.PainlessParser.USH;
 import static org.elasticsearch.painless.WriterConstants.ADDEXACT_INT;
 import static org.elasticsearch.painless.WriterConstants.ADDEXACT_LONG;
 import static org.elasticsearch.painless.WriterConstants.ADDWOOVERLOW_DOUBLE;
@@ -67,6 +50,7 @@ import static org.elasticsearch.painless.WriterConstants.MULEXACT_INT;
 import static org.elasticsearch.painless.WriterConstants.MULEXACT_LONG;
 import static org.elasticsearch.painless.WriterConstants.MULWOOVERLOW_DOUBLE;
 import static org.elasticsearch.painless.WriterConstants.MULWOOVERLOW_FLOAT;
+import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.REMWOOVERLOW_DOUBLE;
 import static org.elasticsearch.painless.WriterConstants.REMWOOVERLOW_FLOAT;
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_BOOLEAN;
@@ -84,304 +68,369 @@ import static org.elasticsearch.painless.WriterConstants.SUBEXACT_INT;
 import static org.elasticsearch.painless.WriterConstants.SUBEXACT_LONG;
 import static org.elasticsearch.painless.WriterConstants.SUBWOOVERLOW_DOUBLE;
 import static org.elasticsearch.painless.WriterConstants.SUBWOOVERLOW_FLOAT;
+import static org.elasticsearch.painless.WriterConstants.TOBYTEEXACT_INT;
+import static org.elasticsearch.painless.WriterConstants.TOBYTEEXACT_LONG;
+import static org.elasticsearch.painless.WriterConstants.TOBYTEWOOVERFLOW_DOUBLE;
+import static org.elasticsearch.painless.WriterConstants.TOBYTEWOOVERFLOW_FLOAT;
+import static org.elasticsearch.painless.WriterConstants.TOCHAREXACT_INT;
+import static org.elasticsearch.painless.WriterConstants.TOCHAREXACT_LONG;
+import static org.elasticsearch.painless.WriterConstants.TOCHARWOOVERFLOW_DOUBLE;
+import static org.elasticsearch.painless.WriterConstants.TOCHARWOOVERFLOW_FLOAT;
+import static org.elasticsearch.painless.WriterConstants.TOFLOATWOOVERFLOW_DOUBLE;
+import static org.elasticsearch.painless.WriterConstants.TOINTEXACT_LONG;
+import static org.elasticsearch.painless.WriterConstants.TOINTWOOVERFLOW_DOUBLE;
+import static org.elasticsearch.painless.WriterConstants.TOINTWOOVERFLOW_FLOAT;
+import static org.elasticsearch.painless.WriterConstants.TOLONGWOOVERFLOW_DOUBLE;
+import static org.elasticsearch.painless.WriterConstants.TOLONGWOOVERFLOW_FLOAT;
+import static org.elasticsearch.painless.WriterConstants.TOSHORTEXACT_INT;
+import static org.elasticsearch.painless.WriterConstants.TOSHORTEXACT_LONG;
+import static org.elasticsearch.painless.WriterConstants.TOSHORTWOOVERFLOW_DOUBLE;
+import static org.elasticsearch.painless.WriterConstants.TOSHORTWOOVERFLOW_FLOAT;
 
-class WriterUtility {
-    static class Branch {
-        final ParserRuleContext source;
+/**
+ * Set of methods used during the writing phase of compilation
+ * shared by the nodes of the Painless tree.
+ */
+public final class WriterUtility {
 
-        Label begin = null;
-        Label end = null;
-        Label tru = null;
-        Label fals = null;
+    public static void writeLoopCounter(final GeneratorAdapter adapter, final int slot, final int count) {
+        if (slot > -1) {
+            final Label end = new Label();
 
-        private Branch(final ParserRuleContext source) {
-            this.source = source;
+            adapter.iinc(slot, -count);
+            adapter.visitVarInsn(Opcodes.ILOAD, slot);
+            adapter.push(0);
+            adapter.ifICmp(GeneratorAdapter.GT, end);
+            adapter.throwException(PAINLESS_ERROR_TYPE,
+                "The maximum number of statements that can be executed in a loop has been reached.");
+            adapter.mark(end);
         }
     }
 
-    /**
-     * A utility method to output consistent error messages.
-     * @param ctx The ANTLR node the error occurred in.
-     * @return The error message with tacked on line number and character position.
-     */
-    static String error(final ParserRuleContext ctx) {
-        return "Writer Error [" + ctx.getStart().getLine() + ":" + ctx.getStart().getCharPositionInLine() + "]: ";
-    }
+    public static void writeCast(final GeneratorAdapter adapter, final Cast cast) {
+        if (cast instanceof Transform) {
+            final Transform transform = (Transform)cast;
 
-    private final Definition definition;
-    private final CompilerSettings settings;
-
-    private final GeneratorAdapter execute;
-
-    private final Map<ParserRuleContext, Branch> branches = new HashMap<>();
-    private final Deque<Branch> jumps = new ArrayDeque<>();
-    private final Set<ParserRuleContext> strings = new HashSet<>();
-
-    WriterUtility(final Metadata metadata, final GeneratorAdapter execute) {
-        definition = metadata.definition;
-        settings = metadata.settings;
-
-        this.execute = execute;
-    }
-
-    Branch markBranch(final ParserRuleContext source, final ParserRuleContext... nodes) {
-        final Branch branch = new Branch(source);
-
-        for (final ParserRuleContext node : nodes) {
-            branches.put(node, branch);
-        }
-
-        return branch;
-    }
-
-    void copyBranch(final Branch branch, final ParserRuleContext... nodes) {
-        for (final ParserRuleContext node : nodes) {
-            branches.put(node, branch);
-        }
-    }
-
-    Branch getBranch(final ParserRuleContext source) {
-        return branches.get(source);
-    }
-
-    void checkWriteBranch(final ParserRuleContext source) {
-        final Branch branch = getBranch(source);
-
-        if (branch != null) {
-            if (branch.tru != null) {
-                execute.visitJumpInsn(Opcodes.IFNE, branch.tru);
-            } else if (branch.fals != null) {
-                execute.visitJumpInsn(Opcodes.IFEQ, branch.fals);
+            if (transform.upcast != null) {
+                adapter.checkCast(transform.upcast.type);
             }
-        }
-    }
 
-    void pushJump(final Branch branch) {
-        jumps.push(branch);
-    }
-
-    Branch peekJump() {
-        return jumps.peek();
-    }
-
-    void popJump() {
-        jumps.pop();
-    }
-
-    void addStrings(final ParserRuleContext source) {
-        strings.add(source);
-    }
-
-    boolean containsStrings(final ParserRuleContext source) {
-        return strings.contains(source);
-    }
-
-    void removeStrings(final ParserRuleContext source) {
-        strings.remove(source);
-    }
-
-    void writeDup(final int size, final boolean x1, final boolean x2) {
-        if (size == 1) {
-            if (x2) {
-                execute.dupX2();
-            } else if (x1) {
-                execute.dupX1();
+            if (java.lang.reflect.Modifier.isStatic(transform.method.reflect.getModifiers())) {
+                adapter.invokeStatic(transform.method.owner.type, transform.method.method);
+            } else if (java.lang.reflect.Modifier.isInterface(transform.method.owner.clazz.getModifiers())) {
+                adapter.invokeInterface(transform.method.owner.type, transform.method.method);
             } else {
-                execute.dup();
+                adapter.invokeVirtual(transform.method.owner.type, transform.method.method);
             }
-        } else if (size == 2) {
-            if (x2) {
-                execute.dup2X2();
-            } else if (x1) {
-                execute.dup2X1();
+
+            if (transform.downcast != null) {
+                adapter.checkCast(transform.downcast.type);
+            }
+        } else if (cast != null) {
+            final Type from = cast.from;
+            final Type to = cast.to;
+
+            if (from.equals(to)) {
+                return;
+            }
+
+            if (from.sort.numeric && from.sort.primitive && to.sort.numeric && to.sort.primitive) {
+                adapter.cast(from.type, to.type);
             } else {
-                execute.dup2();
+                try {
+                    from.clazz.asSubclass(to.clazz);
+                } catch (ClassCastException exception) {
+                    adapter.checkCast(to.type);
+                }
             }
         }
     }
 
-    void writePop(final int size) {
-        if (size == 1) {
-            execute.pop();
-        } else if (size == 2) {
-            execute.pop2();
+    public static void writeBranch(final GeneratorAdapter adapter, final Label tru, final Label fals) {
+        if (tru != null) {
+            adapter.visitJumpInsn(Opcodes.IFNE, tru);
+        } else if (fals != null) {
+            adapter.visitJumpInsn(Opcodes.IFEQ, fals);
         }
     }
 
-    void writeConstant(final ParserRuleContext source, final Object constant) {
-        if (constant instanceof Number) {
-            writeNumeric(source, constant);
-        } else if (constant instanceof Character) {
-            writeNumeric(source, (int)(char)constant);
-        } else if (constant instanceof String) {
-            writeString(source, constant);
-        } else if (constant instanceof Boolean) {
-            writeBoolean(source, constant);
-        } else if (constant != null) {
-            throw new IllegalStateException(WriterUtility.error(source) + "Unexpected state.");
-        }
+    public static void writeNewStrings(final GeneratorAdapter adapter) {
+        adapter.newInstance(STRINGBUILDER_TYPE);
+        adapter.dup();
+        adapter.invokeConstructor(STRINGBUILDER_TYPE, STRINGBUILDER_CONSTRUCTOR);
     }
 
-    void writeNumeric(final ParserRuleContext source, final Object numeric) {
-        if (numeric instanceof Double) {
-            execute.push((double)numeric);
-        } else if (numeric instanceof Float) {
-            execute.push((float)numeric);
-        } else if (numeric instanceof Long) {
-            execute.push((long)numeric);
-        } else if (numeric instanceof Number) {
-            execute.push(((Number)numeric).intValue());
-        } else {
-            throw new IllegalStateException(WriterUtility.error(source) + "Unexpected state.");
-        }
-    }
-
-    void writeString(final ParserRuleContext source, final Object string) {
-        if (string instanceof String) {
-            execute.push((String)string);
-        } else {
-            throw new IllegalStateException(WriterUtility.error(source) + "Unexpected state.");
-        }
-    }
-
-    void writeBoolean(final ParserRuleContext source, final Object bool) {
-        if (bool instanceof Boolean) {
-            execute.push((boolean)bool);
-        } else {
-            throw new IllegalStateException(WriterUtility.error(source) + "Unexpected state.");
-        }
-    }
-
-    void writeNewStrings() {
-        execute.newInstance(STRINGBUILDER_TYPE);
-        execute.dup();
-        execute.invokeConstructor(STRINGBUILDER_TYPE, STRINGBUILDER_CONSTRUCTOR);
-    }
-
-    void writeAppendStrings(final Sort sort) {
+    public static void writeAppendStrings(final GeneratorAdapter adapter, final Sort sort) {
         switch (sort) {
-            case BOOL:   execute.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_BOOLEAN); break;
-            case CHAR:   execute.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_CHAR);    break;
+            case BOOL:   adapter.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_BOOLEAN); break;
+            case CHAR:   adapter.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_CHAR);    break;
             case BYTE:
             case SHORT:
-            case INT:    execute.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_INT);     break;
-            case LONG:   execute.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_LONG);    break;
-            case FLOAT:  execute.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_FLOAT);   break;
-            case DOUBLE: execute.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_DOUBLE);  break;
-            case STRING: execute.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_STRING);  break;
-            default:     execute.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_OBJECT);
+            case INT:    adapter.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_INT);     break;
+            case LONG:   adapter.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_LONG);    break;
+            case FLOAT:  adapter.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_FLOAT);   break;
+            case DOUBLE: adapter.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_DOUBLE);  break;
+            case STRING: adapter.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_STRING);  break;
+            default:     adapter.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_OBJECT);
         }
     }
 
-    void writeToStrings() {
-        execute.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_TOSTRING);
+    public static void writeToStrings(final GeneratorAdapter adapter) {
+        adapter.invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_TOSTRING);
     }
 
-    void writeBinaryInstruction(final ParserRuleContext source, final Type type, final int token) {
+    public static void writeBinaryInstruction(final CompilerSettings settings, final Definition definition,
+                                              final GeneratorAdapter adapter, final String location,
+                                              final Type type, final Operation operation) {
         final Sort sort = type.sort;
-        final boolean exact = !settings.getNumericOverflow() &&
+        boolean exact = !settings.getNumericOverflow() &&
             ((sort == Sort.INT || sort == Sort.LONG) &&
-                (token == MUL || token == DIV || token == ADD || token == SUB) ||
+                (operation == Operation.MUL || operation == Operation.DIV ||
+                    operation == Operation.ADD || operation == Operation.SUB) ||
                 (sort == Sort.FLOAT || sort == Sort.DOUBLE) &&
-                    (token == MUL || token == DIV || token == REM || token == ADD || token == SUB));
-
-        // If it's a 64-bit shift, fix-up the last argument to truncate to 32-bits.
-        // Note that unlike java, this means we still do binary promotion of shifts,
-        // but it keeps things simple, and this check works because we promote shifts.
-        if (sort == Sort.LONG && (token == LSH || token == USH || token == RSH)) {
-            execute.cast(org.objectweb.asm.Type.LONG_TYPE, org.objectweb.asm.Type.INT_TYPE);
-        }
+                    (operation == Operation.MUL || operation == Operation.DIV || operation == Operation.REM ||
+                        operation == Operation.ADD || operation == Operation.SUB));
 
         if (exact) {
             switch (sort) {
                 case INT:
-                    switch (token) {
-                        case MUL: execute.invokeStatic(definition.mathType.type,    MULEXACT_INT);     break;
-                        case DIV: execute.invokeStatic(definition.utilityType.type, DIVWOOVERLOW_INT); break;
-                        case ADD: execute.invokeStatic(definition.mathType.type,    ADDEXACT_INT);     break;
-                        case SUB: execute.invokeStatic(definition.mathType.type,    SUBEXACT_INT);     break;
-                        default:
-                            throw new IllegalStateException(WriterUtility.error(source) + "Unexpected state.");
+                    switch (operation) {
+                        case MUL: adapter.invokeStatic(definition.mathType.type,    MULEXACT_INT);     break;
+                        case DIV: adapter.invokeStatic(definition.utilityType.type, DIVWOOVERLOW_INT); break;
+                        case ADD: adapter.invokeStatic(definition.mathType.type,    ADDEXACT_INT);     break;
+                        case SUB: adapter.invokeStatic(definition.mathType.type,    SUBEXACT_INT);     break;
                     }
 
                     break;
                 case LONG:
-                    switch (token) {
-                        case MUL: execute.invokeStatic(definition.mathType.type,    MULEXACT_LONG);     break;
-                        case DIV: execute.invokeStatic(definition.utilityType.type, DIVWOOVERLOW_LONG); break;
-                        case ADD: execute.invokeStatic(definition.mathType.type,    ADDEXACT_LONG);     break;
-                        case SUB: execute.invokeStatic(definition.mathType.type,    SUBEXACT_LONG);     break;
-                        default:
-                            throw new IllegalStateException(WriterUtility.error(source) + "Unexpected state.");
+                    switch (operation) {
+                        case MUL: adapter.invokeStatic(definition.mathType.type,    MULEXACT_LONG);     break;
+                        case DIV: adapter.invokeStatic(definition.utilityType.type, DIVWOOVERLOW_LONG); break;
+                        case ADD: adapter.invokeStatic(definition.mathType.type,    ADDEXACT_LONG);     break;
+                        case SUB: adapter.invokeStatic(definition.mathType.type,    SUBEXACT_LONG);     break;
                     }
 
                     break;
                 case FLOAT:
-                    switch (token) {
-                        case MUL: execute.invokeStatic(definition.utilityType.type, MULWOOVERLOW_FLOAT); break;
-                        case DIV: execute.invokeStatic(definition.utilityType.type, DIVWOOVERLOW_FLOAT); break;
-                        case REM: execute.invokeStatic(definition.utilityType.type, REMWOOVERLOW_FLOAT); break;
-                        case ADD: execute.invokeStatic(definition.utilityType.type, ADDWOOVERLOW_FLOAT); break;
-                        case SUB: execute.invokeStatic(definition.utilityType.type, SUBWOOVERLOW_FLOAT); break;
+                    switch (operation) {
+                        case MUL: adapter.invokeStatic(definition.utilityType.type, MULWOOVERLOW_FLOAT); break;
+                        case DIV: adapter.invokeStatic(definition.utilityType.type, DIVWOOVERLOW_FLOAT); break;
+                        case REM: adapter.invokeStatic(definition.utilityType.type, REMWOOVERLOW_FLOAT); break;
+                        case ADD: adapter.invokeStatic(definition.utilityType.type, ADDWOOVERLOW_FLOAT); break;
+                        case SUB: adapter.invokeStatic(definition.utilityType.type, SUBWOOVERLOW_FLOAT); break;
                         default:
-                            throw new IllegalStateException(WriterUtility.error(source) + "Unexpected state.");
+                            throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
                     }
 
                     break;
                 case DOUBLE:
-                    switch (token) {
-                        case MUL: execute.invokeStatic(definition.utilityType.type, MULWOOVERLOW_DOUBLE); break;
-                        case DIV: execute.invokeStatic(definition.utilityType.type, DIVWOOVERLOW_DOUBLE); break;
-                        case REM: execute.invokeStatic(definition.utilityType.type, REMWOOVERLOW_DOUBLE); break;
-                        case ADD: execute.invokeStatic(definition.utilityType.type, ADDWOOVERLOW_DOUBLE); break;
-                        case SUB: execute.invokeStatic(definition.utilityType.type, SUBWOOVERLOW_DOUBLE); break;
+                    switch (operation) {
+                        case MUL: adapter.invokeStatic(definition.utilityType.type, MULWOOVERLOW_DOUBLE); break;
+                        case DIV: adapter.invokeStatic(definition.utilityType.type, DIVWOOVERLOW_DOUBLE); break;
+                        case REM: adapter.invokeStatic(definition.utilityType.type, REMWOOVERLOW_DOUBLE); break;
+                        case ADD: adapter.invokeStatic(definition.utilityType.type, ADDWOOVERLOW_DOUBLE); break;
+                        case SUB: adapter.invokeStatic(definition.utilityType.type, SUBWOOVERLOW_DOUBLE); break;
                         default:
-                            throw new IllegalStateException(WriterUtility.error(source) + "Unexpected state.");
+                            throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
                     }
 
                     break;
                 default:
-                    throw new IllegalStateException(WriterUtility.error(source) + "Unexpected state.");
+                    throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
             }
         } else {
             if ((sort == Sort.FLOAT || sort == Sort.DOUBLE) &&
-                (token == LSH || token == USH || token == RSH || token == BWAND || token == BWXOR || token == BWOR)) {
-                throw new IllegalStateException(WriterUtility.error(source) + "Unexpected state.");
+                (operation == Operation.LSH || operation == Operation.USH ||
+                    operation == Operation.RSH || operation == Operation.BWAND ||
+                    operation == Operation.XOR || operation == Operation.BWOR)) {
+                throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
             }
 
             if (sort == Sort.DEF) {
-                switch (token) {
-                    case MUL:   execute.invokeStatic(definition.defobjType.type, DEF_MUL_CALL); break;
-                    case DIV:   execute.invokeStatic(definition.defobjType.type, DEF_DIV_CALL); break;
-                    case REM:   execute.invokeStatic(definition.defobjType.type, DEF_REM_CALL); break;
-                    case ADD:   execute.invokeStatic(definition.defobjType.type, DEF_ADD_CALL); break;
-                    case SUB:   execute.invokeStatic(definition.defobjType.type, DEF_SUB_CALL); break;
-                    case LSH:   execute.invokeStatic(definition.defobjType.type, DEF_LSH_CALL); break;
-                    case USH:   execute.invokeStatic(definition.defobjType.type, DEF_RSH_CALL); break;
-                    case RSH:   execute.invokeStatic(definition.defobjType.type, DEF_USH_CALL); break;
-                    case BWAND: execute.invokeStatic(definition.defobjType.type, DEF_AND_CALL); break;
-                    case BWXOR: execute.invokeStatic(definition.defobjType.type, DEF_XOR_CALL); break;
-                    case BWOR:  execute.invokeStatic(definition.defobjType.type, DEF_OR_CALL);  break;
+                switch (operation) {
+                    case MUL:   adapter.invokeStatic(definition.defobjType.type, DEF_MUL_CALL); break;
+                    case DIV:   adapter.invokeStatic(definition.defobjType.type, DEF_DIV_CALL); break;
+                    case REM:   adapter.invokeStatic(definition.defobjType.type, DEF_REM_CALL); break;
+                    case ADD:   adapter.invokeStatic(definition.defobjType.type, DEF_ADD_CALL); break;
+                    case SUB:   adapter.invokeStatic(definition.defobjType.type, DEF_SUB_CALL); break;
+                    case LSH:   adapter.invokeStatic(definition.defobjType.type, DEF_LSH_CALL); break;
+                    case USH:   adapter.invokeStatic(definition.defobjType.type, DEF_RSH_CALL); break;
+                    case RSH:   adapter.invokeStatic(definition.defobjType.type, DEF_USH_CALL); break;
+                    case BWAND: adapter.invokeStatic(definition.defobjType.type, DEF_AND_CALL); break;
+                    case XOR:   adapter.invokeStatic(definition.defobjType.type, DEF_XOR_CALL); break;
+                    case BWOR:  adapter.invokeStatic(definition.defobjType.type, DEF_OR_CALL);  break;
                     default:
-                        throw new IllegalStateException(WriterUtility.error(source) + "Unexpected state.");
+                        throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
                 }
             } else {
-                switch (token) {
-                    case MUL:   execute.math(GeneratorAdapter.MUL,  type.type); break;
-                    case DIV:   execute.math(GeneratorAdapter.DIV,  type.type); break;
-                    case REM:   execute.math(GeneratorAdapter.REM,  type.type); break;
-                    case ADD:   execute.math(GeneratorAdapter.ADD,  type.type); break;
-                    case SUB:   execute.math(GeneratorAdapter.SUB,  type.type); break;
-                    case LSH:   execute.math(GeneratorAdapter.SHL,  type.type); break;
-                    case USH:   execute.math(GeneratorAdapter.USHR, type.type); break;
-                    case RSH:   execute.math(GeneratorAdapter.SHR,  type.type); break;
-                    case BWAND: execute.math(GeneratorAdapter.AND,  type.type); break;
-                    case BWXOR: execute.math(GeneratorAdapter.XOR,  type.type); break;
-                    case BWOR:  execute.math(GeneratorAdapter.OR,   type.type); break;
+                switch (operation) {
+                    case MUL:   adapter.math(GeneratorAdapter.MUL,  type.type); break;
+                    case DIV:   adapter.math(GeneratorAdapter.DIV,  type.type); break;
+                    case REM:   adapter.math(GeneratorAdapter.REM,  type.type); break;
+                    case ADD:   adapter.math(GeneratorAdapter.ADD,  type.type); break;
+                    case SUB:   adapter.math(GeneratorAdapter.SUB,  type.type); break;
+                    case LSH:   adapter.math(GeneratorAdapter.SHL,  type.type); break;
+                    case USH:   adapter.math(GeneratorAdapter.USHR, type.type); break;
+                    case RSH:   adapter.math(GeneratorAdapter.SHR,  type.type); break;
+                    case BWAND: adapter.math(GeneratorAdapter.AND,  type.type); break;
+                    case XOR:   adapter.math(GeneratorAdapter.XOR,  type.type); break;
+                    case BWOR:  adapter.math(GeneratorAdapter.OR,   type.type); break;
                     default:
-                        throw new IllegalStateException(WriterUtility.error(source) + "Unexpected state.");
+                        throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
                 }
             }
         }
     }
+
+    /**
+     * Called for any compound assignment (including increment/decrement instructions).
+     * We have to be stricter than writeBinary and do overflow checks against the original type's size
+     * instead of the promoted type's size, since the result will be implicitly cast back.
+     *
+     * @return This will be true if an instruction is written, false otherwise.
+     */
+    public static boolean writeExactInstruction(
+        final Definition definition, final GeneratorAdapter adapter, final Sort fsort, final Sort tsort) {
+        if (fsort == Sort.DOUBLE) {
+            if (tsort == Sort.FLOAT) {
+                adapter.invokeStatic(definition.utilityType.type, TOFLOATWOOVERFLOW_DOUBLE);
+            } else if (tsort == Sort.FLOAT_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOFLOATWOOVERFLOW_DOUBLE);
+                adapter.checkCast(definition.floatobjType.type);
+            } else if (tsort == Sort.LONG) {
+                adapter.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_DOUBLE);
+            } else if (tsort == Sort.LONG_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_DOUBLE);
+                adapter.checkCast(definition.longobjType.type);
+            } else if (tsort == Sort.INT) {
+                adapter.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_DOUBLE);
+            } else if (tsort == Sort.INT_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_DOUBLE);
+                adapter.checkCast(definition.intobjType.type);
+            } else if (tsort == Sort.CHAR) {
+                adapter.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_DOUBLE);
+            } else if (tsort == Sort.CHAR_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_DOUBLE);
+                adapter.checkCast(definition.charobjType.type);
+            } else if (tsort == Sort.SHORT) {
+                adapter.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_DOUBLE);
+            } else if (tsort == Sort.SHORT_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_DOUBLE);
+                adapter.checkCast(definition.shortobjType.type);
+            } else if (tsort == Sort.BYTE) {
+                adapter.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_DOUBLE);
+            } else if (tsort == Sort.BYTE_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_DOUBLE);
+                adapter.checkCast(definition.byteobjType.type);
+            } else {
+                return false;
+            }
+        } else if (fsort == Sort.FLOAT) {
+            if (tsort == Sort.LONG) {
+                adapter.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_FLOAT);
+            } else if (tsort == Sort.LONG_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_FLOAT);
+                adapter.checkCast(definition.longobjType.type);
+            } else if (tsort == Sort.INT) {
+                adapter.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_FLOAT);
+            } else if (tsort == Sort.INT_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_FLOAT);
+                adapter.checkCast(definition.intobjType.type);
+            } else if (tsort == Sort.CHAR) {
+                adapter.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_FLOAT);
+            } else if (tsort == Sort.CHAR_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_FLOAT);
+                adapter.checkCast(definition.charobjType.type);
+            } else if (tsort == Sort.SHORT) {
+                adapter.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_FLOAT);
+            } else if (tsort == Sort.SHORT_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_FLOAT);
+                adapter.checkCast(definition.shortobjType.type);
+            } else if (tsort == Sort.BYTE) {
+                adapter.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_FLOAT);
+            } else if (tsort == Sort.BYTE_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_FLOAT);
+                adapter.checkCast(definition.byteobjType.type);
+            } else {
+                return false;
+            }
+        } else if (fsort == Sort.LONG) {
+            if (tsort == Sort.INT) {
+                adapter.invokeStatic(definition.mathType.type, TOINTEXACT_LONG);
+            } else if (tsort == Sort.INT_OBJ) {
+                adapter.invokeStatic(definition.mathType.type, TOINTEXACT_LONG);
+                adapter.checkCast(definition.intobjType.type);
+            } else if (tsort == Sort.CHAR) {
+                adapter.invokeStatic(definition.utilityType.type, TOCHAREXACT_LONG);
+            } else if (tsort == Sort.CHAR_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOCHAREXACT_LONG);
+                adapter.checkCast(definition.charobjType.type);
+            } else if (tsort == Sort.SHORT) {
+                adapter.invokeStatic(definition.utilityType.type, TOSHORTEXACT_LONG);
+            } else if (tsort == Sort.SHORT_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOSHORTEXACT_LONG);
+                adapter.checkCast(definition.shortobjType.type);
+            } else if (tsort == Sort.BYTE) {
+                adapter.invokeStatic(definition.utilityType.type, TOBYTEEXACT_LONG);
+            } else if (tsort == Sort.BYTE_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOBYTEEXACT_LONG);
+                adapter.checkCast(definition.byteobjType.type);
+            } else {
+                return false;
+            }
+        } else if (fsort == Sort.INT) {
+            if (tsort == Sort.CHAR) {
+                adapter.invokeStatic(definition.utilityType.type, TOCHAREXACT_INT);
+            } else if (tsort == Sort.CHAR_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOCHAREXACT_INT);
+                adapter.checkCast(definition.charobjType.type);
+            } else if (tsort == Sort.SHORT) {
+                adapter.invokeStatic(definition.utilityType.type, TOSHORTEXACT_INT);
+            } else if (tsort == Sort.SHORT_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOSHORTEXACT_INT);
+                adapter.checkCast(definition.shortobjType.type);
+            } else if (tsort == Sort.BYTE) {
+                adapter.invokeStatic(definition.utilityType.type, TOBYTEEXACT_INT);
+            } else if (tsort == Sort.BYTE_OBJ) {
+                adapter.invokeStatic(definition.utilityType.type, TOBYTEEXACT_INT);
+                adapter.checkCast(definition.byteobjType.type);
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        return true;
+    }
+
+    public static void writeDup(final GeneratorAdapter adapter, final int size, final int xsize) {
+        if (size == 1) {
+            if (xsize == 2) {
+                adapter.dupX2();
+            } else if (xsize == 1) {
+                adapter.dupX1();
+            } else {
+                adapter.dup();
+            }
+        } else if (size == 2) {
+            if (xsize == 2) {
+                adapter.dup2X2();
+            } else if (xsize == 1) {
+                adapter.dup2X1();
+            } else {
+                adapter.dup2();
+            }
+        }
+    }
+
+    public static void writePop(final GeneratorAdapter adapter, final int size) {
+        if (size == 1) {
+            adapter.pop();
+        } else if (size == 2) {
+            adapter.pop2();
+        }
+    }
+
+    private WriterUtility() {}
 }

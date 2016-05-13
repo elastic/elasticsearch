@@ -19,7 +19,18 @@
 
 package org.elasticsearch.search;
 
-import com.carrotsearch.hppc.ObjectFloatHashMap;
+import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
@@ -51,8 +62,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.support.InnerHitBuilder;
-import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -77,7 +87,6 @@ import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.DefaultSearchContext;
@@ -94,22 +103,12 @@ import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.atomic.AtomicLong;
-
-import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+import com.carrotsearch.hppc.ObjectFloatHashMap;
 
 /**
  *
@@ -186,7 +185,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         elementParsers.putAll(dfsPhase.parseElements());
         elementParsers.putAll(queryPhase.parseElements());
         elementParsers.putAll(fetchPhase.parseElements());
-        elementParsers.put("stats", new StatsGroupsParseElement());
         this.elementParsers = unmodifiableMap(elementParsers);
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
@@ -566,12 +564,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 context.scrollContext().scroll = request.scroll();
             }
             if (request.template() != null) {
-                ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH,
+                        Collections.emptyMap(), context.getQueryShardContext().getClusterState());
                 BytesReference run = (BytesReference) executable.run();
                 try (XContentParser parser = XContentFactory.xContent(run).createParser(run)) {
-                    QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry());
-                    queryParseContext.reset(parser);
-                    queryParseContext.parseFieldMatcher(parseFieldMatcher);
+                    QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry(), parser,
+                            parseFieldMatcher);
                     parseSource(context, SearchSourceBuilder.fromXContent(queryParseContext, aggParsers, suggesters));
                 }
             }
@@ -679,15 +677,27 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 context.queryBoost(indexBoost);
             }
         }
+        Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
         if (source.query() != null) {
+            InnerHitBuilder.extractInnerHits(source.query(), innerHitBuilders);
             context.parsedQuery(queryShardContext.toQuery(source.query()));
         }
         if (source.postFilter() != null) {
+            InnerHitBuilder.extractInnerHits(source.postFilter(), innerHitBuilders);
             context.parsedPostFilter(queryShardContext.toQuery(source.postFilter()));
+        }
+        if (innerHitBuilders.size() > 0) {
+            for (Map.Entry<String, InnerHitBuilder> entry : innerHitBuilders.entrySet()) {
+                try {
+                    entry.getValue().build(context, context.innerHits());
+                } catch (IOException e) {
+                    throw new SearchContextException(context, "failed to build inner_hits", e);
+                }
+            }
         }
         if (source.sorts() != null) {
             try {
-                Optional<Sort> optionalSort = SortBuilder.buildSort(source.sorts(), context.getQueryShardContext());
+                Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(source.sorts(), context.getQueryShardContext());
                 if (optionalSort.isPresent()) {
                     context.sort(optionalSort.get());
                 }
@@ -754,28 +764,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 throw new SearchContextException(context, "failed to create SearchContextHighlighter", e);
             }
         }
-        if (source.innerHits() != null) {
-            for (Map.Entry<String, InnerHitBuilder> entry : source.innerHits().getInnerHitsBuilders().entrySet()) {
-                try {
-                    // This is the same logic in QueryShardContext#toQuery() where we reset also twice.
-                    // Personally I think a reset at the end is sufficient, but I kept the logic consistent with this method.
-
-                    // The reason we need to invoke reset at all here is because inner hits may modify the QueryShardContext#nestedScope,
-                    // so we need to reset at the end.
-                    queryShardContext.reset();
-                    InnerHitBuilder innerHitBuilder = entry.getValue();
-                    InnerHitsContext innerHitsContext = context.innerHits();
-                    innerHitBuilder.buildTopLevel(context, queryShardContext, innerHitsContext);
-                } catch (IOException e) {
-                    throw new SearchContextException(context, "failed to create InnerHitsContext", e);
-                } finally {
-                    queryShardContext.reset();
-                }
-            }
-        }
         if (source.scriptFields() != null) {
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
-                SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                SearchScript searchScript = context.scriptService().search(context.lookup(), field.script(), ScriptContext.Standard.SEARCH,
+                        Collections.emptyMap(), context.getQueryShardContext().getClusterState());
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }
@@ -812,6 +804,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 }
                 XContentLocation location = extParser != null ? extParser.getTokenLocation() : null;
                 throw new SearchParseException(context, "failed to parse ext source [" + sSource + "]", location, e);
+            } finally {
+                if (extParser != null) {
+                    extParser.close();
+                }
             }
         }
         if (source.version() != null) {

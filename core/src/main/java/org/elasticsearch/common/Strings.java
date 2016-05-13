@@ -20,6 +20,7 @@
 package org.elasticsearch.common;
 
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -37,7 +38,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
-import java.util.Random;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
@@ -59,9 +59,6 @@ public class Strings {
     private static final String TOP_PATH = "src/test";
 
     private static final String CURRENT_PATH = ".";
-
-    private static final RandomBasedUUIDGenerator RANDOM_UUID_GENERATOR = new RandomBasedUUIDGenerator();
-    private static final UUIDGenerator TIME_UUID_GENERATOR = new TimeBasedUUIDGenerator();
 
     public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
         try (BufferedReader reader = new BufferedReader(new FastStringReader(from))) {
@@ -559,7 +556,8 @@ public class Strings {
     }
 
     public static String[] splitStringByCommaToArray(final String s) {
-        return splitStringToArray(s, ',');
+        if (s == null || s.isEmpty()) return Strings.EMPTY_ARRAY;
+        else return s.split(",");
     }
 
     public static Set<String> splitStringToSet(final String s, final char c) {
@@ -586,42 +584,6 @@ public class Strings {
         int size = pos - start;
         if (size > 0) {
             result.add(new String(chars, start, size));
-        }
-        return result;
-    }
-
-    public static String[] splitStringToArray(final CharSequence s, final char c) {
-        if (s == null || s.length() == 0) {
-            return Strings.EMPTY_ARRAY;
-        }
-        int count = 1;
-        for (int i = 0; i < s.length(); i++) {
-            if (s.charAt(i) == c) {
-                count++;
-            }
-        }
-        final String[] result = new String[count];
-        final StringBuilder builder = new StringBuilder();
-        int res = 0;
-        for (int i = 0; i < s.length(); i++) {
-            if (s.charAt(i) == c) {
-                if (builder.length() > 0) {
-                    result[res++] = builder.toString();
-                    builder.setLength(0);
-                }
-
-            } else {
-                builder.append(s.charAt(i));
-            }
-        }
-        if (builder.length() > 0) {
-            result[res++] = builder.toString();
-        }
-        if (res != count) {
-            // we have empty strings, copy over to a new array
-            String[] result1 = new String[res];
-            System.arraycopy(result, 0, result1, 0, res);
-            return result1;
         }
         return result;
     }
@@ -932,85 +894,6 @@ public class Strings {
         }
     }
 
-    public static String toCamelCase(String value) {
-        return toCamelCase(value, null);
-    }
-
-    public static String toCamelCase(String value, StringBuilder sb) {
-        boolean changed = false;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            //e.g. _name stays as-is, _first_name becomes _firstName
-            if (c == '_' && i > 0) {
-                if (!changed) {
-                    if (sb != null) {
-                        sb.setLength(0);
-                    } else {
-                        sb = new StringBuilder();
-                    }
-                    // copy it over here
-                    for (int j = 0; j < i; j++) {
-                        sb.append(value.charAt(j));
-                    }
-                    changed = true;
-                }
-                if (i < value.length() - 1) {
-                    sb.append(Character.toUpperCase(value.charAt(++i)));
-                }
-            } else {
-                if (changed) {
-                    sb.append(c);
-                }
-            }
-        }
-        if (!changed) {
-            return value;
-        }
-        return sb.toString();
-    }
-
-    public static String toUnderscoreCase(String value) {
-        return toUnderscoreCase(value, null);
-    }
-
-    public static String toUnderscoreCase(String value, StringBuilder sb) {
-        boolean changed = false;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (Character.isUpperCase(c)) {
-                if (!changed) {
-                    if (sb != null) {
-                        sb.setLength(0);
-                    } else {
-                        sb = new StringBuilder();
-                    }
-                    // copy it over here
-                    for (int j = 0; j < i; j++) {
-                        sb.append(value.charAt(j));
-                    }
-                    changed = true;
-                    if (i == 0) {
-                        sb.append(Character.toLowerCase(c));
-                    } else {
-                        sb.append('_');
-                        sb.append(Character.toLowerCase(c));
-                    }
-                } else {
-                    sb.append('_');
-                    sb.append(Character.toLowerCase(c));
-                }
-            } else {
-                if (changed) {
-                    sb.append(c);
-                }
-            }
-        }
-        if (!changed) {
-            return value;
-        }
-        return sb.toString();
-    }
-
     /**
      * Determine whether the given array is empty:
      * i.e. <code>null</code> or of zero length.
@@ -1060,35 +943,32 @@ public class Strings {
                data.length == 1 && ("_all".equals(data[0]) || "*".equals(data[0]));
     }
 
-    /** Returns a Base64 encoded version of a Version 4.0 compatible UUID as defined here: http://www.ietf.org/rfc/rfc4122.txt, using a
-     *  private {@code SecureRandom} instance */
-    public static String randomBase64UUID() {
-        return RANDOM_UUID_GENERATOR.getBase64UUID();
-    }
-
-    /** Returns a Base64 encoded version of a Version 4.0 compatible UUID as defined here: http://www.ietf.org/rfc/rfc4122.txt, using the
-     *  provided {@code Random} instance */
-    public static String randomBase64UUID(Random random) {
-        return RANDOM_UUID_GENERATOR.getBase64UUID(random);
-    }
-
-    /** Generates a time-based UUID (similar to Flake IDs), which is preferred when generating an ID to be indexed into a Lucene index as
-     *  primary key.  The id is opaque and the implementation is free to change at any time! */
-    public static String base64UUID() {
-        return TIME_UUID_GENERATOR.getBase64UUID();
-    }
-
     /**
      * Return a {@link String} that is the json representation of the provided
      * {@link ToXContent}.
      */
     public static String toString(ToXContent toXContent) {
+        return toString(toXContent, false);
+    }
+
+    /**
+     * Return a {@link String} that is the json representation of the provided
+     * {@link ToXContent}.
+     * @param wrapInObject set this to true if the ToXContent instance expects to be inside an object
+     */
+    public static String toString(ToXContent toXContent, boolean wrapInObject) {
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
+            if (wrapInObject) {
+                builder.startObject();
+            }
             toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            if (wrapInObject) {
+                builder.endObject();
+            }
             return builder.string();
         } catch (IOException e) {
-            throw new AssertionError("Cannot happen", e);
+            return "Error building toString out of XContent: " + ExceptionsHelper.stackTrace(e);
         }
     }
 

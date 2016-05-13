@@ -50,7 +50,7 @@ GET my_index/_search
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Querying on the `_uid` field (also see the <<query-dsl-ids-query,`ids` query>>)
 <2> Aggregating on the `_uid` field

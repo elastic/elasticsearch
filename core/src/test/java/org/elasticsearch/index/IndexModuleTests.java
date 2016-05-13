@@ -35,6 +35,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterServiceUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -122,7 +124,8 @@ public class IndexModuleTests extends ESTestCase {
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngines, new ResourceWatcherService(settings, threadPool), scriptEngineRegistry, scriptContextRegistry, scriptSettings);
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry();
-        return new NodeServicesProvider(threadPool, bigArrays, client, scriptService, indicesQueriesRegistry, circuitBreakerService);
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        return new NodeServicesProvider(threadPool, bigArrays, client, scriptService, indicesQueriesRegistry, circuitBreakerService, clusterService);
     }
 
     @Override
@@ -143,6 +146,7 @@ public class IndexModuleTests extends ESTestCase {
         super.tearDown();
         nodeEnvironment.close();
         indicesQueryCache.close();
+        nodeServicesProvider.getClusterService().close();
         ThreadPool.terminate(nodeServicesProvider.getThreadPool(), 10, TimeUnit.SECONDS);
     }
 

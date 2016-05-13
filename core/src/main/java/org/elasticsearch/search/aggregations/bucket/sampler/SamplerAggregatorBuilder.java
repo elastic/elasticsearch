@@ -59,11 +59,6 @@ public class SamplerAggregatorBuilder extends AggregatorBuilder<SamplerAggregato
         out.writeVInt(shardSize);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     /**
      * Set the max num docs to be returned from each shard.
      */

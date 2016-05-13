@@ -115,7 +115,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     builder.enabled(lenientNodeBooleanValue(fieldNode));
@@ -229,7 +229,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (!fieldType().stored()) {
             return;
         }
-        BytesReference source = context.source();
+        BytesReference source = context.sourceToParse().source();
         // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
         if (source == null) {
             return;

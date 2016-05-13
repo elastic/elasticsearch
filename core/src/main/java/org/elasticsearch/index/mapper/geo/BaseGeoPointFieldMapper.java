@@ -26,7 +26,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -157,7 +156,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
 
             context.path().add(name);
             if (enableLatLon) {
-                if (context.indexCreatedVersion().before(Version.V_5_0_0)) {
+                if (context.indexCreatedVersion().before(Version.V_5_0_0_alpha2)) {
                     LegacyNumberFieldMapper.Builder<?, ?> latMapperBuilder = new LegacyDoubleFieldMapper.Builder(Names.LAT).includeInAll(false);
                     LegacyNumberFieldMapper.Builder<?, ?> lonMapperBuilder = new LegacyDoubleFieldMapper.Builder(Names.LON).includeInAll(false);
                     if (precisionStep != null) {
@@ -200,7 +199,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String propName = Strings.toUnderscoreCase(entry.getKey());
+                String propName = entry.getKey();
                 Object propNode = entry.getValue();
                 if (propName.equals("lat_lon")) {
                     deprecationLogger.deprecated(CONTENT_TYPE + " lat_lon parameter is deprecated and will be removed "

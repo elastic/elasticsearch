@@ -9,7 +9,7 @@
             "processors": [
               {
                 "attachment" : {
-                  "source_field" : "field1"
+                  "field" : "field1"
                 }
               }
             ]
@@ -49,7 +49,7 @@
             "processors": [
               {
                 "attachment" : {
-                  "source_field" : "field1"
+                  "field" : "field1"
                 }
               }
             ]

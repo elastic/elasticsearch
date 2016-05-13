@@ -71,15 +71,6 @@ public abstract class AbstractRestChannel implements RestChannel {
         }
 
         builder.humanReadable(request.paramAsBoolean("human", builder.humanReadable()));
-
-        String casing = request.param("case");
-        if (casing != null && "camelCase".equals(casing)) {
-            builder.fieldCaseConversion(XContentBuilder.FieldCaseConversion.CAMELCASE);
-        } else {
-            // we expect all REST interfaces to write results in underscore casing, so
-            // no need for double casing
-            builder.fieldCaseConversion(XContentBuilder.FieldCaseConversion.NONE);
-        }
         return builder;
     }
 

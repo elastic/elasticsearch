@@ -34,7 +34,7 @@ import java.io.IOException;
 /**
  *
  */
-public enum ValueType implements Writeable<ValueType> {
+public enum ValueType implements Writeable {
 
     STRING((byte) 1, "string", "string", ValuesSourceType.BYTES,
             IndexFieldData.class, DocValueFormat.RAW),
@@ -96,8 +96,8 @@ public enum ValueType implements Writeable<ValueType> {
     private final byte id;
     private String preferredName;
 
-    private ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType, Class<? extends IndexFieldData> fieldDataType,
-            DocValueFormat defaultFormat) {
+    private ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType,
+            Class<? extends IndexFieldData> fieldDataType, DocValueFormat defaultFormat) {
         this.id = id;
         this.description = description;
         this.preferredName = preferredName;

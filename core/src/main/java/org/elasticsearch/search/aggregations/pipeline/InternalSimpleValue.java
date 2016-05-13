@@ -82,13 +82,13 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readValueFormat();
+        format = in.readNamedWriteable(DocValueFormat.class);
         value = in.readDouble();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(format);
+        out.writeNamedWriteable(format);
         out.writeDouble(value);
     }
 

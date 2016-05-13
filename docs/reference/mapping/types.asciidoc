@@ -29,7 +29,7 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 [float]
 === Specialised datatypes
 
-<<ip>>::            `ip` for IPv4 addresses
+<<ip>>::            `ip` for IPv4 and IPv6 addresses
 <<search-suggesters-completion,Completion datatype>>::
                     `completion` to provide auto-complete suggestions
 <<token-count>>::   `token_count` to count the number of tokens in a string
@@ -40,6 +40,8 @@ Attachment datatype::
     See the {plugins}/mapper-attachments.html[`mapper-attachments`] plugin
     which supports indexing `attachments` like Microsoft Office formats, Open
     Document formats, ePub, HTML, etc. into an `attachment` datatype.
+
+<<percolator>>::    Accepts queries from the query-dsl
 
 [float]
 === Multi-fields
@@ -82,6 +84,8 @@ include::types/string.asciidoc[]
 include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]
+
+include::types/percolator.asciidoc[]
 
 
 

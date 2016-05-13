@@ -86,11 +86,6 @@ public class DerivativePipelineAggregatorBuilder extends PipelineAggregatorBuild
         out.writeOptionalString(units);
     }
 
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
     public DerivativePipelineAggregatorBuilder format(String format) {
         if (format == null) {
             throw new IllegalArgumentException("[format] must not be null: [" + name + "]");
@@ -273,4 +268,8 @@ public class DerivativePipelineAggregatorBuilder extends PipelineAggregatorBuild
         return Objects.hash(format, gapPolicy, units);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

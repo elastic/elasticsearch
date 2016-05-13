@@ -1,13 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 #
 # /etc/init.d/elasticsearch -- startup script for Elasticsearch
-#
-# Written by Miquel van Smoorenburg <miquels@cistron.nl>.
-# Modified for Debian GNU/Linux	by Ian Murdock <imurdock@gnu.ai.mit.edu>.
-# Modified for Tomcat by Stefan Gybas <sgybas@debian.org>.
-# Modified for Tomcat6 by Thierry Carrez <thierry.carrez@ubuntu.com>.
-# Additional improvements by Jason Brittain <jason.brittain@mulesoft.com>.
-# Modified by Nicolas Huray for Elasticsearch <nicolas.huray@gmail.com>.
 #
 ### BEGIN INIT INFO
 # Provides:          elasticsearch
@@ -92,8 +85,10 @@ export ES_JAVA_OPTS
 export JAVA_HOME
 export ES_INCLUDE
 
-# Check DAEMON exists
-test -x $DAEMON || exit 0
+if [ ! -x "$DAEMON" ]; then
+	echo "The elasticsearch startup script does not exists or it is not executable, tried: $DAEMON"
+	exit 1
+fi
 
 checkJava() {
 	if [ -x "$JAVA_HOME/bin/java" ]; then
@@ -191,7 +186,6 @@ case "$1" in
   restart|force-reload)
 	if [ -f "$PID_FILE" ]; then
 		$0 stop
-		sleep 1
 	fi
 	$0 start
 	;;

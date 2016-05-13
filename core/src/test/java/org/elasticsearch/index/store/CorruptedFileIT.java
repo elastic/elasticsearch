@@ -86,7 +86,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -622,7 +624,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         String nodeId = shardRouting.currentNodeId();
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
         Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
-        for (FsInfo.Path info : nodeStatses.getNodes()[0].getFs()) {
+        for (FsInfo.Path info : nodeStatses.getNodes().get(0).getFs()) {
             String path = info.getPath();
             Path file = PathUtils.get(path).resolve("indices").resolve(test.getUUID()).resolve(Integer.toString(shardRouting.getId())).resolve("index");
             if (Files.exists(file)) { // multi data path might only have one path in use
@@ -685,9 +687,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(routing.currentNodeId()).setFs(true).get();
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         final Index test = state.metaData().index("test").getIndex();
-        assertThat(routing.toString(), nodeStatses.getNodes().length, equalTo(1));
+        assertThat(routing.toString(), nodeStatses.getNodes().size(), equalTo(1));
         List<Path> files = new ArrayList<>();
-        for (FsInfo.Path info : nodeStatses.getNodes()[0].getFs()) {
+        for (FsInfo.Path info : nodeStatses.getNodes().get(0).getFs()) {
             String path = info.getPath();
             Path file = PathUtils.get(path).resolve("indices/" + test.getUUID() + "/" + Integer.toString(routing.getId()) + "/index");
             if (Files.exists(file)) { // multi data path might only have one path in use

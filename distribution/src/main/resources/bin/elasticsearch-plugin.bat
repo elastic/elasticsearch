@@ -48,7 +48,7 @@ GOTO loop
 
 SET HOSTNAME=%COMPUTERNAME%
 
-"%JAVA_HOME%\bin\java" -client -Des.path.home="%ES_HOME%" !properties! -cp "%ES_HOME%/lib/*;" "org.elasticsearch.plugins.PluginCli" !args!
+"%JAVA_HOME%\bin\java" %ES_JAVA_OPTS% -Des.path.home="%ES_HOME%" !properties! -cp "%ES_HOME%/lib/*;" "org.elasticsearch.plugins.PluginCli" !args!
 goto finally
 
 

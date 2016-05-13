@@ -46,8 +46,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
  * This abstract class holds parameters shared by {@link HighlightBuilder} and {@link HighlightBuilder.Field}
  * and provides the common setters, equality, hashCode calculation and common serialization
  */
-public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> extends ToXContentToBytes
-        implements Writeable<HB> {
+public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> extends ToXContentToBytes implements Writeable {
     public static final ParseField PRE_TAGS_FIELD = new ParseField("pre_tags");
     public static final ParseField POST_TAGS_FIELD = new ParseField("post_tags");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
@@ -81,7 +80,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     protected String fragmenter;
 
-    protected QueryBuilder<?> highlightQuery;
+    protected QueryBuilder highlightQuery;
 
     protected Order order;
 
@@ -115,7 +114,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         highlighterType(in.readOptionalString());
         fragmenter(in.readOptionalString());
         if (in.readBoolean()) {
-            highlightQuery(in.readQuery());
+            highlightQuery(in.readNamedWriteable(QueryBuilder.class));
         }
         order(in.readOptionalWriteable(Order::readFromStream));
         highlightFilter(in.readOptionalBoolean());
@@ -146,7 +145,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         boolean hasQuery = highlightQuery != null;
         out.writeBoolean(hasQuery);
         if (hasQuery) {
-            out.writeQuery(highlightQuery);
+            out.writeNamedWriteable(highlightQuery);
         }
         out.writeOptionalWriteable(order);
         out.writeOptionalBoolean(highlightFilter);
@@ -276,7 +275,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
      * Sets a query to be used for highlighting instead of the search query.
      */
     @SuppressWarnings("unchecked")
-    public HB highlightQuery(QueryBuilder<?> highlightQuery) {
+    public HB highlightQuery(QueryBuilder highlightQuery) {
         this.highlightQuery = highlightQuery;
         return (HB) this;
     }
@@ -284,7 +283,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     /**
      * @return the value set by {@link #highlightQuery(QueryBuilder)}
      */
-    public QueryBuilder<?> highlightQuery() {
+    public QueryBuilder highlightQuery() {
         return this.highlightQuery;
     }
 

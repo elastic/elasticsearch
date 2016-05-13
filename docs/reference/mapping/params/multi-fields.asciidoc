@@ -8,7 +8,7 @@ search, and as a `keyword` field for sorting or aggregations:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index
+PUT my_index
 {
   "mappings": {
     "my_type": {
@@ -26,17 +26,17 @@ PUT /my_index
   }
 }
 
-PUT /my_index/my_type/1
+PUT my_index/my_type/1
 {
   "city": "New York"
 }
 
-PUT /my_index/my_type/2
+PUT my_index/my_type/2
 {
   "city": "York"
 }
 
-GET /my_index/_search
+GET my_index/_search
 {
   "query": {
     "match": {
@@ -55,7 +55,7 @@ GET /my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `city.raw` field is a `keyword` version of the `city` field.
 <2> The `city` field can be used for full text search.
 <3> The `city.raw` field can be used for sorting and aggregations
@@ -115,7 +115,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `text` field uses the `standard` analyzer.
 <2> The `text.english` field uses the `english` analyzer.
@@ -132,4 +132,3 @@ stemmed field allows a query for `foxes` to also match the document containing
 just `fox`.  This allows us to match as many documents as possible.  By also
 querying the unstemmed `text` field, we improve the relevance score of the
 document which matches `foxes` exactly.
-

@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -36,14 +35,14 @@ import java.util.Objects;
  * parsing and conversion from similarities to edit distances
  * etc.
  */
-public final class Fuzziness implements ToXContent, Writeable<Fuzziness> {
+public final class Fuzziness implements ToXContent, Writeable {
 
-    public static final XContentBuilderString X_FIELD_NAME = new XContentBuilderString("fuzziness");
+    public static final String X_FIELD_NAME = "fuzziness";
     public static final Fuzziness ZERO = new Fuzziness(0);
     public static final Fuzziness ONE = new Fuzziness(1);
     public static final Fuzziness TWO = new Fuzziness(2);
     public static final Fuzziness AUTO = new Fuzziness("AUTO");
-    public static final ParseField FIELD = new ParseField(X_FIELD_NAME.camelCase().getValue());
+    public static final ParseField FIELD = new ParseField(X_FIELD_NAME);
 
     private final String fuzziness;
 

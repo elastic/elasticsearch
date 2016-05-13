@@ -22,7 +22,7 @@
               {
                 "rename" : {
                   "field" : "field_to_rename",
-                  "to": "renamed_field"
+                  "target_field": "renamed_field"
                 }
               },
               {

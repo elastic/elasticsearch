@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,7 +28,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
@@ -70,7 +71,8 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         }
 
         /**
-         * @return The name of the type (mainly used for registering the parser for the aggregator (see {@link org.elasticsearch.search.aggregations.Aggregator.Parser#type()}).
+         * @return The name of the type of aggregation.  This is the key for parsing the aggregation from XContent and is the name of the
+         * aggregation's builder when serialized.
          */
         public String name() {
             return name;
@@ -93,11 +95,13 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     public static class ReduceContext {
 
         private final BigArrays bigArrays;
-        private ScriptService scriptService;
+        private final ScriptService scriptService;
+        private final ClusterState clusterState;
 
-        public ReduceContext(BigArrays bigArrays, ScriptService scriptService) {
+        public ReduceContext(BigArrays bigArrays, ScriptService scriptService, ClusterState clusterState) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
+            this.clusterState = clusterState;
         }
 
         public BigArrays bigArrays() {
@@ -106,6 +110,10 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
         public ScriptService scriptService() {
             return scriptService;
+        }
+
+        public ClusterState clusterState() {
+            return clusterState;
         }
     }
 
@@ -243,18 +251,18 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      * Common xcontent fields that are shared among addAggregation
      */
     public static final class CommonFields {
-        public static final XContentBuilderString META = new XContentBuilderString("meta");
-        public static final XContentBuilderString BUCKETS = new XContentBuilderString("buckets");
-        public static final XContentBuilderString VALUE = new XContentBuilderString("value");
-        public static final XContentBuilderString VALUES = new XContentBuilderString("values");
-        public static final XContentBuilderString VALUE_AS_STRING = new XContentBuilderString("value_as_string");
-        public static final XContentBuilderString DOC_COUNT = new XContentBuilderString("doc_count");
-        public static final XContentBuilderString KEY = new XContentBuilderString("key");
-        public static final XContentBuilderString KEY_AS_STRING = new XContentBuilderString("key_as_string");
-        public static final XContentBuilderString FROM = new XContentBuilderString("from");
-        public static final XContentBuilderString FROM_AS_STRING = new XContentBuilderString("from_as_string");
-        public static final XContentBuilderString TO = new XContentBuilderString("to");
-        public static final XContentBuilderString TO_AS_STRING = new XContentBuilderString("to_as_string");
+        public static final String META = "meta";
+        public static final String BUCKETS = "buckets";
+        public static final String VALUE = "value";
+        public static final String VALUES = "values";
+        public static final String VALUE_AS_STRING = "value_as_string";
+        public static final String DOC_COUNT = "doc_count";
+        public static final String KEY = "key";
+        public static final String KEY_AS_STRING = "key_as_string";
+        public static final String FROM = "from";
+        public static final String FROM_AS_STRING = "from_as_string";
+        public static final String TO = "to";
+        public static final String TO_AS_STRING = "to_as_string";
     }
 
 }

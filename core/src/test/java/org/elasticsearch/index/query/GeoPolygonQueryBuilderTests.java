@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.locationtech.spatial4j.shape.jts.JtsGeometry;
-
 import com.vividsolutions.jts.geom.Coordinate;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -36,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -208,7 +207,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
             parseQuery(builder.string());
             fail("normalize is deprecated");
         } catch (IllegalArgumentException ex) {
-            assertEquals("Deprecated field [normalize] used, expected [coerce] instead", ex.getMessage());
+            assertEquals("Deprecated field [normalize] used, replaced by [use validation_method instead]", ex.getMessage());
         }
     }
 
@@ -343,8 +342,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                 "    \"person.location\" : {\n" +
                 "      \"points\" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]\n" +
                 "    },\n" +
-                "    \"coerce\" : false,\n" +
-                "    \"ignore_malformed\" : false,\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
@@ -352,6 +350,38 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         GeoPolygonQueryBuilder parsed = (GeoPolygonQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 4, parsed.points().size());
+    }
+
+    public void testFromJsonIgnoreMalformedDeprecated() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_polygon\" : {\n" +
+                "    \"person.location\" : {\n" +
+                "      \"points\" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]\n" +
+                "    },\n" +
+                "    \"ignore_malformed\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+
+    }
+
+    public void testFromJsonCoerceDeprecated() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_polygon\" : {\n" +
+                "    \"person.location\" : {\n" +
+                "      \"points\" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]\n" +
+                "    },\n" +
+                "    \"coerce\" : false,\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
     }
 
     @Override
@@ -364,13 +394,13 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         List<GeoPoint> polygon = randomPolygon(randomIntBetween(4, 50));
         final GeoPolygonQueryBuilder queryBuilder = new GeoPolygonQueryBuilder("unmapped", polygon);
         queryBuilder.ignoreUnmapped(true);
-        Query query = queryBuilder.toQuery(queryShardContext());
+        Query query = queryBuilder.toQuery(createShardContext());
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final GeoPolygonQueryBuilder failingQueryBuilder = new GeoPolygonQueryBuilder("unmapped", polygon);
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("failed to find geo_point field [unmapped]"));
     }
 }

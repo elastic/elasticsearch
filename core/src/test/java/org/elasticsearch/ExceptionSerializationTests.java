@@ -23,14 +23,13 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
-import org.elasticsearch.cluster.routing.RoutingTableValidation;
-import org.elasticsearch.cluster.routing.RoutingValidationException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -383,14 +382,6 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals(id, ex.id());
     }
 
-    public void testRoutingValidationException() throws IOException {
-        RoutingTableValidation validation = new RoutingTableValidation();
-        validation.addIndexFailure("foo", "bar");
-        RoutingValidationException ex = serialize(new RoutingValidationException(validation));
-        assertEquals("[Index [foo]: bar]", ex.getMessage());
-        assertEquals(validation.toString(), ex.validation().toString());
-    }
-
     public void testCircuitBreakingException() throws IOException {
         CircuitBreakingException ex = serialize(new CircuitBreakingException("I hate to say I told you so...", 0, 100));
         assertEquals("I hate to say I told you so...", ex.getMessage());
@@ -708,7 +699,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(58, org.elasticsearch.transport.SendRequestTransportException.class);
         ids.put(59, org.elasticsearch.common.util.concurrent.EsRejectedExecutionException.class);
         ids.put(60, org.elasticsearch.common.lucene.Lucene.EarlyTerminationException.class);
-        ids.put(61, org.elasticsearch.cluster.routing.RoutingValidationException.class);
+        ids.put(61, null); // RoutingValidationException was removed in 5.0
         ids.put(62, org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class);
         ids.put(63, org.elasticsearch.indices.AliasFilterParsingException.class);
         ids.put(64, null); // DeleteByQueryFailedEngineException was removed in 3.0
@@ -761,7 +752,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(114, org.elasticsearch.index.shard.IndexShardRecoveringException.class);
         ids.put(115, org.elasticsearch.index.translog.TranslogException.class);
         ids.put(116, org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException.class);
-        ids.put(117, org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnPrimaryException.class);
+        ids.put(117, ReplicationOperation.RetryOnPrimaryException.class);
         ids.put(118, org.elasticsearch.ElasticsearchTimeoutException.class);
         ids.put(119, org.elasticsearch.search.query.QueryPhaseExecutionException.class);
         ids.put(120, org.elasticsearch.repositories.RepositoryVerificationException.class);

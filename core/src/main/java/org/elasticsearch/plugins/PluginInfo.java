@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,11 +38,11 @@ public class PluginInfo implements Streamable, ToXContent {
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
     static final class Fields {
-        static final XContentBuilderString NAME = new XContentBuilderString("name");
-        static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
-        static final XContentBuilderString URL = new XContentBuilderString("url");
-        static final XContentBuilderString VERSION = new XContentBuilderString("version");
-        static final XContentBuilderString CLASSNAME = new XContentBuilderString("classname");
+        static final String NAME = "name";
+        static final String DESCRIPTION = "description";
+        static final String URL = "url";
+        static final String VERSION = "version";
+        static final String CLASSNAME = "classname";
     }
 
     private String name;

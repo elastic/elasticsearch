@@ -249,6 +249,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         adminExecutionContext = new RestTestExecutionContext(restSpec);
     }
 
+    protected RestTestExecutionContext getAdminExecutionContext() {
+        return adminExecutionContext;
+    }
+
     private static void validateSpec(RestSpec restSpec) {
         boolean validateSpec = RandomizedTest.systemPropertyAsBoolean(REST_TESTS_VALIDATE_SPEC, true);
         if (validateSpec) {

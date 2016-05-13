@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder>
-        implements SpanQueryBuilder<FieldMaskingSpanQueryBuilder>{
+        implements SpanQueryBuilder {
 
     public static final String NAME = "field_masking_span";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
@@ -43,7 +43,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField QUERY_FIELD = new ParseField("query");
 
-    private final SpanQueryBuilder<?> queryBuilder;
+    private final SpanQueryBuilder queryBuilder;
 
     private final String fieldName;
 
@@ -53,7 +53,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
      * @param queryBuilder inner {@link SpanQueryBuilder}
      * @param fieldName the field name
      */
-    public FieldMaskingSpanQueryBuilder(SpanQueryBuilder<?> queryBuilder, String fieldName) {
+    public FieldMaskingSpanQueryBuilder(SpanQueryBuilder queryBuilder, String fieldName) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name is null or empty");
         }
@@ -69,13 +69,13 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
      */
     public FieldMaskingSpanQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        queryBuilder = (SpanQueryBuilder<?>) in.readQuery();
+        queryBuilder = (SpanQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
         fieldName = in.readString();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(queryBuilder);
+        out.writeNamedWriteable(queryBuilder);
         out.writeString(fieldName);
     }
 

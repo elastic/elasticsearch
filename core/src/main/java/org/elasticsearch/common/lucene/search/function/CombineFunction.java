@@ -27,7 +27,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Locale;
 
-public enum CombineFunction implements Writeable<CombineFunction> {
+public enum CombineFunction implements Writeable {
     MULTIPLY {
         @Override
         public float combine(double queryScore, double funcScore, double maxBoost) {

@@ -31,6 +31,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper.BooleanFieldType;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -204,9 +206,8 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
     private Mapper parse(DocumentMapper mapper, DocumentMapperParser parser, XContentBuilder builder) throws Exception {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext(settings, parser, mapper, new ContentPath(0));
-        SourceToParse source = SourceToParse.source(builder.bytes());
-        ctx.reset(XContentHelper.createParser(source.source()), new ParseContext.Document(), source);
+        SourceToParse source = SourceToParse.source("test", mapper.type(), "some_id", builder.bytes());
+        ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext(settings, parser, mapper, source, XContentHelper.createParser(source.source()));
         assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());
         ctx.parser().nextToken();
         DocumentParser.parseObjectOrNested(ctx, mapper.root(), true);
@@ -429,7 +430,8 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 "my_field3", "type=long,doc_values=false",
                 "my_field4", "type=float,index=false",
                 "my_field5", "type=double,store=true",
-                "my_field6", "type=date,doc_values=false");
+                "my_field6", "type=date,doc_values=false",
+                "my_field7", "type=boolean,doc_values=false");
 
         // Even if the dynamic type of our new field is long, we already have a mapping for the same field
         // of type string so it should be mapped as a string
@@ -442,6 +444,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                     .field("my_field4", 45)
                     .field("my_field5", 46)
                     .field("my_field6", 47)
+                    .field("my_field7", true)
                 .endObject());
         Mapper myField1Mapper = null;
         Mapper myField2Mapper = null;
@@ -449,6 +452,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         Mapper myField4Mapper = null;
         Mapper myField5Mapper = null;
         Mapper myField6Mapper = null;
+        Mapper myField7Mapper = null;
         for (Mapper m : update) {
             switch (m.name()) {
             case "my_field1":
@@ -468,6 +472,9 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 break;
             case "my_field6":
                 myField6Mapper = m;
+                break;
+            case "my_field7":
+                myField7Mapper = m;
                 break;
             }
         }
@@ -501,6 +508,10 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertNotNull(myField6Mapper);
         assertTrue(myField6Mapper instanceof DateFieldMapper);
         assertFalse(((DateFieldType) ((DateFieldMapper) myField6Mapper).fieldType()).hasDocValues());
+
+        assertNotNull(myField7Mapper);
+        assertTrue(myField7Mapper instanceof BooleanFieldMapper);
+        assertFalse(((BooleanFieldType) ((BooleanFieldMapper) myField7Mapper).fieldType()).hasDocValues());
 
         // This can't work
         try {
@@ -546,7 +557,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         XContentBuilder json = XContentFactory.jsonBuilder().startObject()
                     .field("field", "foo")
                 .endObject();
-        SourceToParse source = SourceToParse.source(json.bytes()).id("1");
+        SourceToParse source = SourceToParse.source("test", "type1", "1", json.bytes());
         DocumentMapper mapper = indexService.mapperService().documentMapper("type1");
         assertNull(mapper.mappers().getMapper("field.raw"));
         ParsedDocument parsed = mapper.parse(source);

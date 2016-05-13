@@ -19,387 +19,338 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Definition.Transform;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Definition.RuntimeClass;
 
 import java.lang.invoke.MethodHandle;
-import java.lang.reflect.Array;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
+import java.lang.invoke.MethodType;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-public class Def {
-    public static Object methodCall(final Object owner, final String name, final Definition definition,
-                                    final Object[] arguments, final boolean[] typesafe) {
-        final Method method = getMethod(owner, name, definition);
+/**
+ * Support for dynamic type (def).
+ * <p>
+ * Dynamic types can invoke methods, load/store fields, and be passed as parameters to operators without
+ * compile-time type information.
+ * <p>
+ * Dynamic methods, loads, stores, and array/list/map load/stores involve locating the appropriate field
+ * or method depending on the receiver's class. For these, we emit an {@code invokedynamic} instruction that,
+ * for each new type encountered will query a corresponding {@code lookupXXX} method to retrieve the appropriate
+ * method. In most cases, the {@code lookupXXX} methods here will only be called once for a given call site, because
+ * caching ({@link DynamicCallSite}) generally works: usually all objects at any call site will be consistently
+ * the same type (or just a few types).  In extreme cases, if there is type explosion, they may be called every
+ * single time, but simplicity is still more valuable than performance in this code.
+ */
+public final class Def {
 
-        if (method == null) {
-            throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] " +
-                    "for class [" + owner.getClass().getCanonicalName() + "].");
+    // TODO: Once Java has a factory for those in java.lang.invoke.MethodHandles, use it:
+
+    /** Helper class for isolating MethodHandles and methods to get the length of arrays
+     * (to emulate a "arraystore" byteoode using MethodHandles).
+     * This should really be a method in {@link MethodHandles} class!
+     */
+    private static final class ArrayLengthHelper {
+        private static final Lookup PRIV_LOOKUP = MethodHandles.lookup();
+
+        private static final Map<Class<?>,MethodHandle> ARRAY_TYPE_MH_MAPPING = Collections.unmodifiableMap(
+            Stream.of(boolean[].class, byte[].class, short[].class, int[].class, long[].class,
+                char[].class, float[].class, double[].class, Object[].class)
+                .collect(Collectors.toMap(Function.identity(), type -> {
+                    try {
+                        return PRIV_LOOKUP.findStatic(PRIV_LOOKUP.lookupClass(), "getArrayLength", MethodType.methodType(int.class, type));
+                    } catch (ReflectiveOperationException e) {
+                        throw new AssertionError(e);
+                    }
+                }))
+        );
+
+        private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
+
+        static int getArrayLength(final boolean[] array) { return array.length; }
+        static int getArrayLength(final byte[] array)    { return array.length; }
+        static int getArrayLength(final short[] array)   { return array.length; }
+        static int getArrayLength(final int[] array)     { return array.length; }
+        static int getArrayLength(final long[] array)    { return array.length; }
+        static int getArrayLength(final char[] array)    { return array.length; }
+        static int getArrayLength(final float[] array)   { return array.length; }
+        static int getArrayLength(final double[] array)  { return array.length; }
+        static int getArrayLength(final Object[] array)  { return array.length; }
+
+        static MethodHandle arrayLengthGetter(Class<?> arrayType) {
+            if (!arrayType.isArray()) {
+                throw new IllegalArgumentException("type must be an array");
+            }
+            return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
+                ARRAY_TYPE_MH_MAPPING.get(arrayType) :
+                OBJECT_ARRAY_MH.asType(OBJECT_ARRAY_MH.type().changeParameterType(0, arrayType));
         }
 
-        final MethodHandle handle = method.handle;
-        final List<Type> types = method.arguments;
-        final Object[] parameters = new Object[arguments.length + 1];
+        private ArrayLengthHelper() {}
+    }
 
-        parameters[0] = owner;
+    /** pointer to Map.get(Object) */
+    private static final MethodHandle MAP_GET;
+    /** pointer to Map.put(Object,Object) */
+    private static final MethodHandle MAP_PUT;
+    /** pointer to List.get(int) */
+    private static final MethodHandle LIST_GET;
+    /** pointer to List.set(int,Object) */
+    private static final MethodHandle LIST_SET;
 
-        if (types.size() != arguments.length) {
-            throw new IllegalArgumentException("When dynamically calling [" + name + "] from class " +
-                    "[" + owner.getClass() + "] expected [" + types.size() + "] arguments," +
-                    " but found [" + arguments.length + "].");
-        }
+    static {
+        final Lookup lookup = MethodHandles.publicLookup();
 
         try {
-            for (int count = 0; count < arguments.length; ++count) {
-                if (typesafe[count]) {
-                    parameters[count + 1] = arguments[count];
-                } else {
-                    final Transform transform = getTransform(arguments[count].getClass(), types.get(count).clazz, definition);
-                    parameters[count + 1] = transform == null ? arguments[count] : transform.method.handle.invoke(arguments[count]);
-                }
-            }
-
-            return handle.invokeWithArguments(parameters);
-        } catch (Throwable throwable) {
-            throw new IllegalArgumentException("Error invoking method [" + name + "] " +
-                    "with owner class [" + owner.getClass().getCanonicalName() + "].", throwable);
+            MAP_GET  = lookup.findVirtual(Map.class , "get", MethodType.methodType(Object.class, Object.class));
+            MAP_PUT  = lookup.findVirtual(Map.class , "put", MethodType.methodType(Object.class, Object.class, Object.class));
+            LIST_GET = lookup.findVirtual(List.class, "get", MethodType.methodType(Object.class, int.class));
+            LIST_SET = lookup.findVirtual(List.class, "set", MethodType.methodType(Object.class, int.class, Object.class));
+        } catch (final ReflectiveOperationException roe) {
+            throw new AssertionError(roe);
         }
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public static void fieldStore(final Object owner, Object value, final String name,
-                                  final Definition definition, final boolean typesafe) {
-        final Field field = getField(owner, name, definition);
-        MethodHandle handle = null;
+    /** Returns an array length getter MethodHandle for the given array type */
+    static MethodHandle arrayLengthGetter(Class<?> arrayType) {
+        return ArrayLengthHelper.arrayLengthGetter(arrayType);
+    }
 
-        if (field == null) {
-            final String set = "set" + Character.toUpperCase(name.charAt(0)) + name.substring(1);
-            final Method method = getMethod(owner, set, definition);
+    /**
+     * Looks up handle for a dynamic method call.
+     * <p>
+     * A dynamic method call for variable {@code x} of type {@code def} looks like:
+     * {@code x.method(args...)}
+     * <p>
+     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
+     * until it finds a matching whitelisted method. If one is not found, it throws an exception.
+     * Otherwise it returns a handle to the matching method.
+     * <p>
+     * @param receiverClass Class of the object to invoke the method on.
+     * @param name Name of the method.
+     * @param definition Whitelist to check.
+     * @return pointer to matching method to invoke. never returns null.
+     * @throws IllegalArgumentException if no matching whitelisted method was found.
+     */
+     static MethodHandle lookupMethod(Class<?> receiverClass, String name, Definition definition) {
+        // check whitelist for matching method
+        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
+            RuntimeClass struct = definition.runtimeMap.get(clazz);
 
-            if (method != null) {
-                handle = method.handle;
+            if (struct != null) {
+                Method method = struct.methods.get(name);
+                if (method != null) {
+                    return method.handle;
+                }
             }
-        } else {
-            handle = field.setter;
-        }
 
-        if (handle != null) {
-            try {
-                if (!typesafe) {
-                    final Transform transform = getTransform(value.getClass(), handle.type().parameterType(1), definition);
+            for (final Class<?> iface : clazz.getInterfaces()) {
+                struct = definition.runtimeMap.get(iface);
 
-                    if (transform != null) {
-                        value = transform.method.handle.invoke(value);
+                if (struct != null) {
+                    Method method = struct.methods.get(name);
+                    if (method != null) {
+                        return method.handle;
                     }
                 }
-
-                handle.invoke(owner, value);
-            } catch (Throwable throwable) {
-                throw new IllegalArgumentException("Error storing value [" + value + "] " +
-                        "in field [" + name + "] with owner class [" + owner.getClass() + "].", throwable);
             }
-        } else if (owner instanceof Map) {
-            ((Map)owner).put(name, value);
-        } else if (owner instanceof List) {
+        }
+
+        // no matching methods in whitelist found
+        throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] " +
+                                           "for class [" + receiverClass.getCanonicalName() + "].");
+    }
+
+    /**
+     * Looks up handle for a dynamic field getter (field load)
+     * <p>
+     * A dynamic field load for variable {@code x} of type {@code def} looks like:
+     * {@code y = x.field}
+     * <p>
+     * The following field loads are allowed:
+     * <ul>
+     *   <li>Whitelisted {@code field} from receiver's class or any superclasses.
+     *   <li>Whitelisted method named {@code getField()} from receiver's class/superclasses/interfaces.
+     *   <li>Whitelisted method named {@code isField()} from receiver's class/superclasses/interfaces.
+     *   <li>The {@code length} field of an array.
+     *   <li>The value corresponding to a map key named {@code field} when the receiver is a Map.
+     *   <li>The value in a list at element {@code field} (integer) when the receiver is a List.
+     * </ul>
+     * <p>
+     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
+     * until it finds a matching whitelisted getter. If one is not found, it throws an exception.
+     * Otherwise it returns a handle to the matching getter.
+     * <p>
+     * @param receiverClass Class of the object to retrieve the field from.
+     * @param name Name of the field.
+     * @param definition Whitelist to check.
+     * @return pointer to matching field. never returns null.
+     * @throws IllegalArgumentException if no matching whitelisted field was found.
+     */
+    static MethodHandle lookupGetter(Class<?> receiverClass, String name, Definition definition) {
+        // first try whitelist
+        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
+            RuntimeClass struct = definition.runtimeMap.get(clazz);
+
+            if (struct != null) {
+                MethodHandle handle = struct.getters.get(name);
+                if (handle != null) {
+                    return handle;
+                }
+            }
+
+            for (final Class<?> iface : clazz.getInterfaces()) {
+                struct = definition.runtimeMap.get(iface);
+
+                if (struct != null) {
+                    MethodHandle handle = struct.getters.get(name);
+                    if (handle != null) {
+                        return handle;
+                    }
+                }
+            }
+        }
+        // special case: arrays, maps, and lists
+        if (receiverClass.isArray() && "length".equals(name)) {
+            // arrays expose .length as a read-only getter
+            return arrayLengthGetter(receiverClass);
+        } else if (Map.class.isAssignableFrom(receiverClass)) {
+            // maps allow access like mymap.key
+            // wire 'key' as a parameter, its a constant in painless
+            return MethodHandles.insertArguments(MAP_GET, 1, name);
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            // lists allow access like mylist.0
+            // wire '0' (index) as a parameter, its a constant. this also avoids
+            // parsing the same integer millions of times!
             try {
-                final int index = Integer.parseInt(name);
-                ((List)owner).set(index, value);
+                int index = Integer.parseInt(name);
+                return MethodHandles.insertArguments(LIST_GET, 1, index);
             } catch (NumberFormatException exception) {
                 throw new IllegalArgumentException( "Illegal list shortcut value [" + name + "].");
             }
-        } else {
-            throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
-                    "for class [" + owner.getClass().getCanonicalName() + "].");
         }
+
+        throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
+                                           "for class [" + receiverClass.getCanonicalName() + "].");
     }
 
-    @SuppressWarnings("rawtypes")
-    public static Object fieldLoad(final Object owner, final String name, final Definition definition) {
-        if (owner.getClass().isArray() && "length".equals(name)) {
-            return Array.getLength(owner);
-        } else {
-            final Field field = getField(owner, name, definition);
-            MethodHandle handle;
-
-            if (field == null) {
-                final String get = "get" + Character.toUpperCase(name.charAt(0)) + name.substring(1);
-                final Method method = getMethod(owner, get, definition);
-
-                if (method != null) {
-                    handle = method.handle;
-                } else if (owner instanceof Map) {
-                    return ((Map)owner).get(name);
-                } else if (owner instanceof List) {
-                    try {
-                        final int index = Integer.parseInt(name);
-
-                        return ((List)owner).get(index);
-                    } catch (NumberFormatException exception) {
-                        throw new IllegalArgumentException( "Illegal list shortcut value [" + name + "].");
-                    }
-                } else {
-                    throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
-                            "for class [" + owner.getClass().getCanonicalName() + "].");
-                }
-            } else {
-                handle = field.getter;
-            }
-
-            if (handle == null) {
-                throw new IllegalArgumentException(
-                        "Unable to read from field [" + name + "] with owner class [" + owner.getClass() + "].");
-            } else {
-                try {
-                    return handle.invoke(owner);
-                } catch (final Throwable throwable) {
-                    throw new IllegalArgumentException("Error loading value from " +
-                            "field [" + name + "] with owner class [" + owner.getClass() + "].", throwable);
-                }
-            }
-        }
-    }
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    public static void arrayStore(final Object array, Object index, Object value, final Definition definition,
-                                  final boolean indexsafe, final boolean valuesafe) {
-        if (array instanceof Map) {
-            ((Map)array).put(index, value);
-        } else {
-            try {
-                if (!indexsafe) {
-                    final Transform transform = getTransform(index.getClass(), Integer.class, definition);
-
-                    if (transform != null) {
-                        index = transform.method.handle.invoke(index);
-                    }
-                }
-            } catch (final Throwable throwable) {
-                throw new IllegalArgumentException(
-                        "Error storing value [" + value + "] in list using index [" + index + "].", throwable);
-            }
-
-            if (array.getClass().isArray()) {
-                try {
-                    if (!valuesafe) {
-                        final Transform transform = getTransform(value.getClass(), array.getClass().getComponentType(), definition);
-
-                        if (transform != null) {
-                            value = transform.method.handle.invoke(value);
-                        }
-                    }
-
-                    Array.set(array, (int)index, value);
-                } catch (final Throwable throwable) {
-                    throw new IllegalArgumentException("Error storing value [" + value + "] " +
-                            "in array class [" + array.getClass().getCanonicalName() + "].", throwable);
-                }
-            } else if (array instanceof List) {
-                ((List)array).set((int)index, value);
-            } else {
-                throw new IllegalArgumentException("Attempting to address a non-array type " +
-                        "[" + array.getClass().getCanonicalName() + "] as an array.");
-            }
-        }
-    }
-
-    @SuppressWarnings("rawtypes")
-    public static Object arrayLoad(final Object array, Object index,
-                                   final Definition definition, final boolean indexsafe) {
-        if (array instanceof Map) {
-            return ((Map)array).get(index);
-        } else {
-            try {
-                if (!indexsafe) {
-                    final Transform transform = getTransform(index.getClass(), Integer.class, definition);
-
-                    if (transform != null) {
-                        index = transform.method.handle.invoke(index);
-                    }
-                }
-            } catch (final Throwable throwable) {
-                throw new IllegalArgumentException(
-                        "Error loading value using index [" + index + "].", throwable);
-            }
-
-            if (array.getClass().isArray()) {
-                try {
-                    return Array.get(array, (int)index);
-                } catch (final Throwable throwable) {
-                    throw new IllegalArgumentException("Error loading value from " +
-                            "array class [" + array.getClass().getCanonicalName() + "].", throwable);
-                }
-            } else if (array instanceof List) {
-                return ((List)array).get((int)index);
-            } else {
-                throw new IllegalArgumentException("Attempting to address a non-array type " +
-                        "[" + array.getClass().getCanonicalName() + "] as an array.");
-            }
-        }
-    }
-
-    public static Method getMethod(final Object owner, final String name, final Definition definition) {
-        Struct struct = null;
-        Class<?> clazz = owner.getClass();
-        Method method = null;
-
-        while (clazz != null) {
-            struct = definition.classes.get(clazz);
+    /**
+     * Looks up handle for a dynamic field setter (field store)
+     * <p>
+     * A dynamic field store for variable {@code x} of type {@code def} looks like:
+     * {@code x.field = y}
+     * <p>
+     * The following field stores are allowed:
+     * <ul>
+     *   <li>Whitelisted {@code field} from receiver's class or any superclasses.
+     *   <li>Whitelisted method named {@code setField()} from receiver's class/superclasses/interfaces.
+     *   <li>The value corresponding to a map key named {@code field} when the receiver is a Map.
+     *   <li>The value in a list at element {@code field} (integer) when the receiver is a List.
+     * </ul>
+     * <p>
+     * This method traverses {@code recieverClass}'s class hierarchy (including interfaces)
+     * until it finds a matching whitelisted setter. If one is not found, it throws an exception.
+     * Otherwise it returns a handle to the matching setter.
+     * <p>
+     * @param receiverClass Class of the object to retrieve the field from.
+     * @param name Name of the field.
+     * @param definition Whitelist to check.
+     * @return pointer to matching field. never returns null.
+     * @throws IllegalArgumentException if no matching whitelisted field was found.
+     */
+    static MethodHandle lookupSetter(Class<?> receiverClass, String name, Definition definition) {
+        // first try whitelist
+        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
+            RuntimeClass struct = definition.runtimeMap.get(clazz);
 
             if (struct != null) {
-                method = struct.methods.get(name);
-
-                if (method != null) {
-                    break;
+                MethodHandle handle = struct.setters.get(name);
+                if (handle != null) {
+                    return handle;
                 }
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.classes.get(iface);
+                struct = definition.runtimeMap.get(iface);
 
                 if (struct != null) {
-                    method = struct.methods.get(name);
-
-                    if (method != null) {
-                        break;
+                    MethodHandle handle = struct.setters.get(name);
+                    if (handle != null) {
+                        return handle;
                     }
                 }
             }
-
-            if (struct != null) {
-                method = struct.methods.get(name);
-
-                if (method != null) {
-                    break;
-                }
+        }
+        // special case: maps, and lists
+        if (Map.class.isAssignableFrom(receiverClass)) {
+            // maps allow access like mymap.key
+            // wire 'key' as a parameter, its a constant in painless
+            return MethodHandles.insertArguments(MAP_PUT, 1, name);
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            // lists allow access like mylist.0
+            // wire '0' (index) as a parameter, its a constant. this also avoids
+            // parsing the same integer millions of times!
+            try {
+                int index = Integer.parseInt(name);
+                return MethodHandles.insertArguments(LIST_SET, 1, index);
+            } catch (final NumberFormatException exception) {
+                throw new IllegalArgumentException( "Illegal list shortcut value [" + name + "].");
             }
-
-            clazz = clazz.getSuperclass();
         }
 
-        if (struct == null) {
-            throw new IllegalArgumentException("Unable to find a dynamic struct for class [" + owner.getClass() + "].");
-        }
-
-        return method;
+        throw new IllegalArgumentException("Unable to find dynamic field [" + name + "] " +
+                                           "for class [" + receiverClass.getCanonicalName() + "].");
     }
 
-    public static Field getField(final Object owner, final String name, final Definition definition) {
-        Struct struct = null;
-        Class<?> clazz = owner.getClass();
-        Field field = null;
-
-        while (clazz != null) {
-            struct = definition.classes.get(clazz);
-
-            if (struct != null) {
-                field = struct.members.get(name);
-
-                if (field != null) {
-                    break;
-                }
-            }
-
-            for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.classes.get(iface);
-
-                if (struct != null) {
-                    field = struct.members.get(name);
-
-                    if (field != null) {
-                        break;
-                    }
-                }
-            }
-
-            if (struct != null) {
-                field = struct.members.get(name);
-
-                if (field != null) {
-                    break;
-                }
-            }
-
-            clazz = clazz.getSuperclass();
+    /**
+     * Returns a method handle to do an array store.
+     * @param receiverClass Class of the array to store the value in
+     * @return a MethodHandle that accepts the receiver as first argument, the index as second argument,
+     *   and the value to set as 3rd argument. Return value is undefined and should be ignored.
+     */
+    static MethodHandle lookupArrayStore(Class<?> receiverClass) {
+        if (receiverClass.isArray()) {
+            return MethodHandles.arrayElementSetter(receiverClass);
+        } else if (Map.class.isAssignableFrom(receiverClass)) {
+            // maps allow access like mymap[key]
+            return MAP_PUT;
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            return LIST_SET;
         }
-
-        if (struct == null) {
-            throw new IllegalArgumentException("Unable to find a dynamic struct for class [" + owner.getClass() + "].");
-        }
-
-        return field;
+        throw new IllegalArgumentException("Attempting to address a non-array type " +
+                                           "[" + receiverClass.getCanonicalName() + "] as an array.");
     }
 
-    public static Transform getTransform(Class<?> fromClass, Class<?> toClass, final Definition definition) {
-        Struct fromStruct = null;
-        Struct toStruct = null;
-
-        if (fromClass.equals(toClass)) {
-            return null;
+    /**
+     * Returns a method handle to do an array load.
+     * @param receiverClass Class of the array to load the value from
+     * @return a MethodHandle that accepts the receiver as first argument, the index as second argument.
+     *   It returns the loaded value.
+     */
+    static MethodHandle lookupArrayLoad(Class<?> receiverClass) {
+        if (receiverClass.isArray()) {
+            return MethodHandles.arrayElementGetter(receiverClass);
+        } else if (Map.class.isAssignableFrom(receiverClass)) {
+            // maps allow access like mymap[key]
+            return MAP_GET;
+        } else if (List.class.isAssignableFrom(receiverClass)) {
+            return LIST_GET;
         }
-
-        while (fromClass != null) {
-            fromStruct = definition.classes.get(fromClass);
-
-            if (fromStruct != null) {
-                break;
-            }
-
-            for (final Class<?> iface : fromClass.getInterfaces()) {
-                fromStruct = definition.classes.get(iface);
-
-                if (fromStruct != null) {
-                    break;
-                }
-            }
-
-            if (fromStruct != null) {
-                break;
-            }
-
-            fromClass = fromClass.getSuperclass();
-        }
-
-        if (fromStruct != null) {
-            while (toClass != null) {
-                toStruct = definition.classes.get(toClass);
-
-                if (toStruct != null) {
-                    break;
-                }
-
-                for (final Class<?> iface : toClass.getInterfaces()) {
-                    toStruct = definition.classes.get(iface);
-
-                    if (toStruct != null) {
-                        break;
-                    }
-                }
-
-                if (toStruct != null) {
-                    break;
-                }
-
-                toClass = toClass.getSuperclass();
-            }
-        }
-
-        if (toStruct != null) {
-            final Type fromType = definition.getType(fromStruct.name);
-            final Type toType = definition.getType(toStruct.name);
-            final Cast cast = new Cast(fromType, toType);
-
-            return definition.transforms.get(cast);
-        }
-
-        return null;
+        throw new IllegalArgumentException("Attempting to address a non-array type " +
+                                           "[" + receiverClass.getCanonicalName() + "] as an array.");
     }
+
+    // NOTE: Below methods are not cached, instead invoked directly because they are performant.
+    //       We also check for Long values first when possible since the type is more
+    //       likely to be a Long than a Float.
 
     public static Object not(final Object unary) {
-        if (unary instanceof Double || unary instanceof Float || unary instanceof Long) {
+        if (unary instanceof Double || unary instanceof Long || unary instanceof Float) {
             return ~((Number)unary).longValue();
         } else if (unary instanceof Number) {
             return ~((Number)unary).intValue();
@@ -443,10 +394,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() * (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() * (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() * (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() * (char)right;
                 } else {
                     return ((Number)left).intValue() * (char)right;
                 }
@@ -455,10 +406,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left * ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left * ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left * ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left * ((Number)right).floatValue();
                 } else {
                     return (char)left * ((Number)right).intValue();
                 }
@@ -486,10 +437,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() / (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() / (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() / (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() / (char)right;
                 } else {
                     return ((Number)left).intValue() / (char)right;
                 }
@@ -498,10 +449,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left / ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left / ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left / ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left / ((Number)right).floatValue();
                 } else {
                     return (char)left / ((Number)right).intValue();
                 }
@@ -529,10 +480,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() % (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() % (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() % (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() % (char)right;
                 } else {
                     return ((Number)left).intValue() % (char)right;
                 }
@@ -541,10 +492,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left % ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left % ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left % ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left % ((Number)right).floatValue();
                 } else {
                     return (char)left % ((Number)right).intValue();
                 }
@@ -574,10 +525,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() + (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() + (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() + (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() + (char)right;
                 } else {
                     return ((Number)left).intValue() + (char)right;
                 }
@@ -586,10 +537,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left + ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left + ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left + ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left + ((Number)right).floatValue();
                 } else {
                     return (char)left + ((Number)right).intValue();
                 }
@@ -617,10 +568,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() - (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() - (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() - (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() - (char)right;
                 } else {
                     return ((Number)left).intValue() - (char)right;
                 }
@@ -629,10 +580,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left - ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left - ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left - ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left - ((Number)right).floatValue();
                 } else {
                     return (char)left - ((Number)right).intValue();
                 }
@@ -645,103 +596,40 @@ public class Def {
                 "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
     }
 
-    public static Object lsh(final Object left, final Object right) {
-        if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double ||
-                        left instanceof Float || right instanceof Float ||
-                        left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() << ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() << ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double || left instanceof Float || left instanceof Long) {
-                    return ((Number)left).longValue() << (char)right;
-                } else {
-                    return ((Number)left).intValue() << (char)right;
-                }
-            }
+    public static Object lsh(final Object left, final int right) {
+        if (left instanceof Double || left instanceof Long || left instanceof Float) {
+            return ((Number)left).longValue() << right;
+        } else if (left instanceof Number) {
+            return ((Number)left).intValue() << right;
         } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double || right instanceof Float || right instanceof Long) {
-                    return (long)(char)left << ((Number)right).longValue();
-                } else {
-                    return (char)left << ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left << (char)right;
-            }
+            return (char)left << right;
         }
 
-        throw new ClassCastException("Cannot apply [<<] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
+        throw new ClassCastException("Cannot apply [<<] operation to types [" + left.getClass().getCanonicalName() + "] and [int].");
     }
 
-    public static Object rsh(final Object left, final Object right) {
-        if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double ||
-                        left instanceof Float || right instanceof Float ||
-                        left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() >> ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() >> ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double || left instanceof Float || left instanceof Long) {
-                    return ((Number)left).longValue() >> (char)right;
-                } else {
-                    return ((Number)left).intValue() >> (char)right;
-                }
-            }
+    public static Object rsh(final Object left, final int right) {
+        if (left instanceof Double || left instanceof Long || left instanceof Float) {
+            return ((Number)left).longValue() >> right;
+        } else if (left instanceof Number) {
+            return ((Number)left).intValue() >> right;
         } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double || right instanceof Float || right instanceof Long) {
-                    return (long)(char)left >> ((Number)right).longValue();
-                } else {
-                    return (char)left >> ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left >> (char)right;
-            }
+            return (char)left >> right;
         }
 
-        throw new ClassCastException("Cannot apply [>>] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
+        throw new ClassCastException("Cannot apply [>>] operation to types [" + left.getClass().getCanonicalName() + "] and [int].");
     }
 
-    public static Object ush(final Object left, final Object right) {
-        if (left instanceof Number) {
-            if (right instanceof Number) {
-                if (left instanceof Double || right instanceof Double ||
-                        left instanceof Float || right instanceof Float ||
-                        left instanceof Long || right instanceof Long) {
-                    return ((Number)left).longValue() >>> ((Number)right).longValue();
-                } else {
-                    return ((Number)left).intValue() >>> ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                if (left instanceof Double || left instanceof Float || left instanceof Long) {
-                    return ((Number)left).longValue() >>> (char)right;
-                } else {
-                    return ((Number)left).intValue() >>> (char)right;
-                }
-            }
+    public static Object ush(final Object left, final int right) {
+        if (left instanceof Double || left instanceof Long || left instanceof Float) {
+            return ((Number)left).longValue() >>> right;
+        } else if (left instanceof Number) {
+            return ((Number)left).intValue() >>> right;
         } else if (left instanceof Character) {
-            if (right instanceof Number) {
-                if (right instanceof Double || right instanceof Float || right instanceof Long) {
-                    return (long)(char)left >>> ((Number)right).longValue();
-                } else {
-                    return (char)left >>> ((Number)right).intValue();
-                }
-            } else if (right instanceof Character) {
-                return (char)left >>> (char)right;
-            }
+            return (char)left >>> right;
         }
 
-        throw new ClassCastException("Cannot apply [>>>] operation to types " +
-                "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
+        throw new ClassCastException("Cannot apply [>>>] operation to types [" + left.getClass().getCanonicalName() + "] and [int].");
     }
 
     public static Object and(final Object left, final Object right) {
@@ -750,14 +638,14 @@ public class Def {
         } else if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double ||
-                        left instanceof Float || right instanceof Float ||
-                        left instanceof Long || right instanceof Long) {
+                    left instanceof Long || right instanceof Long ||
+                    left instanceof Float || right instanceof Float) {
                     return ((Number)left).longValue() & ((Number)right).longValue();
                 } else {
                     return ((Number)left).intValue() & ((Number)right).intValue();
                 }
             } else if (right instanceof Character) {
-                if (left instanceof Double || left instanceof Float || left instanceof Long) {
+                if (left instanceof Double || left instanceof Long || left instanceof Float) {
                     return ((Number)left).longValue() & (char)right;
                 } else {
                     return ((Number)left).intValue() & (char)right;
@@ -765,7 +653,7 @@ public class Def {
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
-                if (right instanceof Double || right instanceof Float || right instanceof Long) {
+                if (right instanceof Double || right instanceof Long || right instanceof Float) {
                     return (char)left & ((Number)right).longValue();
                 } else {
                     return (char)left & ((Number)right).intValue();
@@ -785,14 +673,14 @@ public class Def {
         } else if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double ||
-                        left instanceof Float || right instanceof Float ||
-                        left instanceof Long || right instanceof Long) {
+                    left instanceof Long || right instanceof Long ||
+                    left instanceof Float || right instanceof Float) {
                     return ((Number)left).longValue() ^ ((Number)right).longValue();
                 } else {
                     return ((Number)left).intValue() ^ ((Number)right).intValue();
                 }
             } else if (right instanceof Character) {
-                if (left instanceof Double || left instanceof Float || left instanceof Long) {
+                if (left instanceof Double || left instanceof Long || left instanceof Float) {
                     return ((Number)left).longValue() ^ (char)right;
                 } else {
                     return ((Number)left).intValue() ^ (char)right;
@@ -800,7 +688,7 @@ public class Def {
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
-                if (right instanceof Double || right instanceof Float || right instanceof Long) {
+                if (right instanceof Double || right instanceof Long || right instanceof Float) {
                     return (char)left ^ ((Number)right).longValue();
                 } else {
                     return (char)left ^ ((Number)right).intValue();
@@ -820,14 +708,14 @@ public class Def {
         } else if (left instanceof Number) {
             if (right instanceof Number) {
                 if (left instanceof Double || right instanceof Double ||
-                        left instanceof Float || right instanceof Float ||
-                        left instanceof Long || right instanceof Long) {
+                    left instanceof Long || right instanceof Long ||
+                    left instanceof Float || right instanceof Float) {
                     return ((Number)left).longValue() | ((Number)right).longValue();
                 } else {
                     return ((Number)left).intValue() | ((Number)right).intValue();
                 }
             } else if (right instanceof Character) {
-                if (left instanceof Double || left instanceof Float || left instanceof Long) {
+                if (left instanceof Double || left instanceof Long || left instanceof Float) {
                     return ((Number)left).longValue() | (char)right;
                 } else {
                     return ((Number)left).intValue() | (char)right;
@@ -835,7 +723,7 @@ public class Def {
             }
         } else if (left instanceof Character) {
             if (right instanceof Number) {
-                if (right instanceof Double || right instanceof Float || right instanceof Long) {
+                if (right instanceof Double || right instanceof Long || right instanceof Float) {
                     return (char)left | ((Number)right).longValue();
                 } else {
                     return (char)left | ((Number)right).intValue();
@@ -920,10 +808,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() < (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() < (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() < (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() < (char)right;
                 } else {
                     return ((Number)left).intValue() < (char)right;
                 }
@@ -932,10 +820,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left < ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left < ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left < ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left < ((Number)right).floatValue();
                 } else {
                     return (char)left < ((Number)right).intValue();
                 }
@@ -963,10 +851,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() <= (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() <= (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() <= (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() <= (char)right;
                 } else {
                     return ((Number)left).intValue() <= (char)right;
                 }
@@ -975,10 +863,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left <= ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left <= ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left <= ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left <= ((Number)right).floatValue();
                 } else {
                     return (char)left <= ((Number)right).intValue();
                 }
@@ -1006,10 +894,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() > (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() > (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() > (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() > (char)right;
                 } else {
                     return ((Number)left).intValue() > (char)right;
                 }
@@ -1018,10 +906,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left > ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left > ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left > ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left > ((Number)right).floatValue();
                 } else {
                     return (char)left > ((Number)right).intValue();
                 }
@@ -1049,10 +937,10 @@ public class Def {
             } else if (right instanceof Character) {
                 if (left instanceof Double) {
                     return ((Number)left).doubleValue() >= (char)right;
-                } else if (left instanceof Float) {
-                    return ((Number)left).floatValue() >= (char)right;
                 } else if (left instanceof Long) {
                     return ((Number)left).longValue() >= (char)right;
+                } else if (left instanceof Float) {
+                    return ((Number)left).floatValue() >= (char)right;
                 } else {
                     return ((Number)left).intValue() >= (char)right;
                 }
@@ -1061,10 +949,10 @@ public class Def {
             if (right instanceof Number) {
                 if (right instanceof Double) {
                     return (char)left >= ((Number)right).doubleValue();
-                } else if (right instanceof Float) {
-                    return (char)left >= ((Number)right).floatValue();
                 } else if (right instanceof Long) {
                     return (char)left >= ((Number)right).longValue();
+                } else if (right instanceof Float) {
+                    return (char)left >= ((Number)right).floatValue();
                 } else {
                     return (char)left >= ((Number)right).intValue();
                 }
@@ -1076,6 +964,8 @@ public class Def {
         throw new ClassCastException("Cannot apply [>] operation to types " +
                 "[" + left.getClass().getCanonicalName() + "] and [" + right.getClass().getCanonicalName() + "].");
     }
+
+    // Conversion methods for Def to primitive types.
 
     public static boolean DefToboolean(final Object value) {
         if (value instanceof Boolean) {

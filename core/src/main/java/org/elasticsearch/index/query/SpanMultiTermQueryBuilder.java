@@ -39,16 +39,16 @@ import java.util.Objects;
  * as a {@link SpanQueryBuilder} so it can be nested.
  */
 public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTermQueryBuilder>
-        implements SpanQueryBuilder<SpanMultiTermQueryBuilder> {
+        implements SpanQueryBuilder {
 
     public static final String NAME = "span_multi";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField MATCH_FIELD = new ParseField("match");
 
-    private final MultiTermQueryBuilder<?> multiTermQueryBuilder;
+    private final MultiTermQueryBuilder multiTermQueryBuilder;
 
-    public SpanMultiTermQueryBuilder(MultiTermQueryBuilder<?> multiTermQueryBuilder) {
+    public SpanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder) {
         if (multiTermQueryBuilder == null) {
             throw new IllegalArgumentException("inner multi term query cannot be null");
         }
@@ -60,15 +60,15 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
      */
     public SpanMultiTermQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        multiTermQueryBuilder = (MultiTermQueryBuilder<?>) in.readQuery();
+        multiTermQueryBuilder = (MultiTermQueryBuilder) in.readNamedWriteable(QueryBuilder.class);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(multiTermQueryBuilder);
+        out.writeNamedWriteable(multiTermQueryBuilder);
     }
 
-    public MultiTermQueryBuilder<?> innerQuery() {
+    public MultiTermQueryBuilder innerQuery() {
         return this.multiTermQueryBuilder;
     }
 

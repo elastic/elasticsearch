@@ -57,7 +57,7 @@ public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuild
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
         if (in.readBoolean()) {
-            extendedBounds = ExtendedBounds.readFrom(in);
+            extendedBounds = new ExtendedBounds(in);
         }
     }
 
@@ -77,11 +77,6 @@ public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuild
         if (hasExtendedBounds) {
             extendedBounds.writeTo(out);
         }
-    }
-
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
     }
 
     public long interval() {

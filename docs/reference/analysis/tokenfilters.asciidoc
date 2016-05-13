@@ -86,3 +86,5 @@ include::tokenfilters/classic-tokenfilter.asciidoc[]
 include::tokenfilters/apostrophe-tokenfilter.asciidoc[]
 
 include::tokenfilters/decimal-digit-tokenfilter.asciidoc[]
+
+include::tokenfilters/fingerprint-tokenfilter.asciidoc[]

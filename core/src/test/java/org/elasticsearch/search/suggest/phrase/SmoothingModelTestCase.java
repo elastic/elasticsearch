@@ -36,7 +36,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -93,9 +92,6 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
      * Test that creates new smoothing model from a random test smoothing model and checks both for equality
      */
     public void testFromXContent() throws IOException {
-        QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry());
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
-
         SmoothingModel testModel = createTestModel();
         XContentBuilder contentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {
@@ -104,8 +100,8 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         contentBuilder.startObject();
         testModel.innerToXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
         contentBuilder.endObject();
-        XContentParser parser = XContentHelper.createParser(contentBuilder.bytes());
-        context.reset(parser);
+        XContentParser parser = XContentHelper.createParser(shuffleXContent(contentBuilder).bytes());
+        QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
         parser.nextToken();  // go to start token, real parsing would do that in the outer element parser
         SmoothingModel parsedModel = fromXContent(context);
         assertNotSame(testModel, parsedModel);

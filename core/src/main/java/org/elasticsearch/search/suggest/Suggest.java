@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -35,6 +34,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -46,7 +46,7 @@ import java.util.Map;
  */
 public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Streamable, ToXContent {
 
-    private static final XContentBuilderString NAME = new XContentBuilderString("suggest");
+    private static final String NAME = "suggest";
 
     private static final Comparator<Option> COMPARATOR = new Comparator<Suggest.Suggestion.Entry.Option>() {
         @Override
@@ -64,6 +64,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
     public Suggest() {
+        this(Collections.emptyList());
     }
 
     public Suggest(List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
@@ -110,6 +111,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 break;
             case CompletionSuggestion.TYPE:
                 suggestion = new CompletionSuggestion();
+                break;
+            case org.elasticsearch.search.suggest.completion2x.CompletionSuggestion.TYPE:
+                suggestion = new org.elasticsearch.search.suggest.completion2x.CompletionSuggestion();
                 break;
             case PhraseSuggestion.TYPE:
                 suggestion = new PhraseSuggestion();
@@ -172,6 +176,16 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<>(groupedSuggestions.size());
         for (java.util.Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
             List<Suggestion> value = unmergedResults.getValue();
+            Class<? extends Suggestion> suggestionClass = null;
+            for (Suggestion suggestion : value) {
+                if (suggestionClass == null) {
+                    suggestionClass = suggestion.getClass();
+                } else if (suggestionClass != suggestion.getClass()) {
+                    throw new IllegalArgumentException(
+                        "detected mixed suggestion results, due to querying on old and new completion suggester," +
+                        " query on a single completion suggester version");
+                }
+            }
             Suggestion reduce = value.get(0).reduce(value);
             reduce.trim();
             reduced.add(reduce);
@@ -325,10 +339,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
             static class Fields {
 
-                static final XContentBuilderString TEXT = new XContentBuilderString("text");
-                static final XContentBuilderString OFFSET = new XContentBuilderString("offset");
-                static final XContentBuilderString LENGTH = new XContentBuilderString("length");
-                static final XContentBuilderString OPTIONS = new XContentBuilderString("options");
+                static final String TEXT = "text";
+                static final String OFFSET = "offset";
+                static final String LENGTH = "length";
+                static final String OPTIONS = "options";
 
             }
 
@@ -508,10 +522,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
                 static class Fields {
 
-                    static final XContentBuilderString TEXT = new XContentBuilderString("text");
-                    static final XContentBuilderString HIGHLIGHTED = new XContentBuilderString("highlighted");
-                    static final XContentBuilderString SCORE = new XContentBuilderString("score");
-                    static final XContentBuilderString COLLATE_MATCH = new XContentBuilderString("collate_match");
+                    static final String TEXT = "text";
+                    static final String HIGHLIGHTED = "highlighted";
+                    static final String SCORE = "score";
+                    static final String COLLATE_MATCH = "collate_match";
 
                 }
 

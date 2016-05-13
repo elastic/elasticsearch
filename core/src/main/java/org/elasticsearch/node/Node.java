@@ -47,6 +47,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -60,6 +61,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -173,6 +175,12 @@ public class Node implements Closeable {
         if (logger.isDebugEnabled()) {
             logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
                     tmpEnv.configFile(), Arrays.toString(tmpEnv.dataFiles()), tmpEnv.logsFile(), tmpEnv.pluginsFile());
+        }
+        // TODO: Remove this in Elasticsearch 6.0.0
+        if (JsonXContent.unquotedFieldNamesSet) {
+            DeprecationLogger dLogger = new DeprecationLogger(logger);
+            dLogger.deprecated("[{}] has been set, but will be removed in Elasticsearch 6.0.0",
+                    JsonXContent.JSON_ALLOW_UNQUOTED_FIELD_NAMES);
         }
 
         this.pluginsService = new PluginsService(tmpSettings, tmpEnv.modulesFile(), tmpEnv.pluginsFile(), classpathPlugins);

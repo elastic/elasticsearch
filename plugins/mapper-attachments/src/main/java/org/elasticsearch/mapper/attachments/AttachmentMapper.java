@@ -206,7 +206,6 @@ public class AttachmentMapper extends FieldMapper {
                 if (contentBuilder instanceof FieldMapper.Builder == false) {
                     throw new IllegalStateException("content field for attachment must be a field mapper");
                 }
-                ((FieldMapper.Builder<?, ?>)contentBuilder).indexName(name);
                 contentBuilder.name = name + "." + FieldNames.CONTENT;
                 contentMapper = (FieldMapper) contentBuilder.build(context);
                 context.path().add(name);

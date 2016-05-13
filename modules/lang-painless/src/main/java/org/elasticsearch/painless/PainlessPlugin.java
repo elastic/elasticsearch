@@ -23,6 +23,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptModule;
 
+/**
+ * Registers Painless as a plugin.
+ */
 public final class PainlessPlugin extends Plugin {
 
     @Override

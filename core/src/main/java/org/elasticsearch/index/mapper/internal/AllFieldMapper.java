@@ -102,7 +102,6 @@ public class AllFieldMapper extends MetadataFieldMapper {
         public Builder(MappedFieldType existing) {
             super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
             builder = this;
-            indexName = Defaults.INDEX_NAME;
         }
 
         public Builder enabled(EnabledAttributeMapper enabled) {
@@ -161,7 +160,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
             parseTextField(builder, builder.name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     builder.enabled(lenientNodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED :

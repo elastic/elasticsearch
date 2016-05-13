@@ -24,6 +24,7 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
@@ -45,7 +46,7 @@ import java.util.Map;
 /**
  * Implementation of a ScriptEngine for the Painless language.
  */
-public class PainlessScriptEngineService extends AbstractComponent implements ScriptEngineService {
+public final class PainlessScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     /**
      * Standard name of the Painless language.
@@ -60,7 +61,7 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
     /**
      * Standard extension of the Painless language.
      */
-    public static final String EXTENSION = "pain";
+    public static final String EXTENSION = "painless";
 
     /**
      * Standard list of extensions for the Painless language.  (There is only one.)
@@ -86,18 +87,6 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
         COMPILATION_CONTEXT = new AccessControlContext(new ProtectionDomain[] {
             new ProtectionDomain(null, none)
         });
-    }
-
-    /**
-     * Used only for testing.
-     */
-    private Definition definition = null;
-
-    /**
-     * Used only for testing.
-     */
-    void setDefinition(final Definition definition) {
-        this.definition = definition;
     }
 
     /**
@@ -178,10 +167,10 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
         }
 
         // Create our loader (which loads compiled code with no permissions).
-        final Compiler.Loader loader = AccessController.doPrivileged(new PrivilegedAction<Compiler.Loader>() {
+        final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
             @Override
-            public Compiler.Loader run() {
-                return new Compiler.Loader(getClass().getClassLoader());
+            public Loader run() {
+                return new Loader(getClass().getClassLoader());
             }
         });
 
@@ -189,7 +178,7 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
         return AccessController.doPrivileged(new PrivilegedAction<Executable>() {
             @Override
             public Executable run() {
-                return Compiler.compile(loader, "unknown", script, definition, compilerSettings);
+                return Compiler.compile(loader, "unknown", script, compilerSettings);
             }
         }, COMPILATION_CONTEXT);
     }
@@ -227,11 +216,10 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
 
             /**
              * Whether or not the score is needed.
-             * @return Always true as it's assumed score is needed.
              */
             @Override
             public boolean needsScores() {
-                return true;
+                return compiledScript.compiled() instanceof NeedsScore;
             }
         };
     }

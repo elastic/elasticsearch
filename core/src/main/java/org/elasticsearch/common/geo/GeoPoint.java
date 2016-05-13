@@ -38,7 +38,7 @@ public final class GeoPoint {
     }
 
     /**
-     * Create a new Geopointform a string. This String must either be a geohash
+     * Create a new Geopoint from a string. This String must either be a geohash
      * or a lat-lon tuple.
      *
      * @param value String to create the point from

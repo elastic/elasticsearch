@@ -120,7 +120,8 @@ public class AllocationService extends AbstractComponent {
                                                           RoutingExplanations explanations) {
         final RoutingTable newRoutingTable = new RoutingTable.Builder().updateNodes(newRoutingNodes).build();
         MetaData newMetaData = updateMetaDataWithRoutingTable(oldMetaData, oldRoutingTable, newRoutingTable);
-        return new RoutingAllocation.Result(true, newRoutingTable.validateRaiseException(newMetaData), newMetaData, explanations);
+        assert newRoutingTable.validate(newMetaData); // validates the routing table is coherent with the cluster state metadata
+        return new RoutingAllocation.Result(true, newRoutingTable, newMetaData, explanations);
     }
 
     /**
@@ -352,10 +353,17 @@ public class AllocationService extends AbstractComponent {
 
     // public for testing
     public static void updateLeftDelayOfUnassignedShards(RoutingAllocation allocation, Settings settings) {
-        for (ShardRouting shardRouting : allocation.routingNodes().unassigned()) {
-            final MetaData metaData = allocation.metaData();
+        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
+        final MetaData metaData = allocation.metaData();
+        while (unassignedIterator.hasNext()) {
+            ShardRouting shardRouting = unassignedIterator.next();
             final IndexMetaData indexMetaData = metaData.getIndexSafe(shardRouting.index());
-            shardRouting.unassignedInfo().updateDelay(allocation.getCurrentNanoTime(), settings, indexMetaData.getSettings());
+            UnassignedInfo previousUnassignedInfo = shardRouting.unassignedInfo();
+            UnassignedInfo updatedUnassignedInfo = previousUnassignedInfo.updateDelay(allocation.getCurrentNanoTime(), settings,
+                indexMetaData.getSettings());
+            if (updatedUnassignedInfo != previousUnassignedInfo) { // reference equality!
+                unassignedIterator.updateUnassignedInfo(updatedUnassignedInfo);
+            }
         }
     }
 
@@ -368,29 +376,32 @@ public class AllocationService extends AbstractComponent {
         }
         // now, go over and elect a new primary if possible, not, from this code block on, if one is elected,
         // routingNodes.hasUnassignedPrimaries() will potentially be false
-        for (ShardRouting shardEntry : routingNodes.unassigned()) {
+        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
+        while (unassignedIterator.hasNext()) {
+            ShardRouting shardEntry = unassignedIterator.next();
             if (shardEntry.primary()) {
                 // remove dangling replicas that are initializing for primary shards
                 changed |= failReplicasForUnassignedPrimary(allocation, shardEntry);
                 ShardRouting candidate = allocation.routingNodes().activeReplica(shardEntry);
                 if (candidate != null) {
-                    routingNodes.swapPrimaryFlag(shardEntry, candidate);
-                    if (candidate.relocatingNodeId() != null) {
+                    shardEntry = unassignedIterator.demotePrimaryToReplicaShard();
+                    ShardRouting primarySwappedCandidate = routingNodes.promoteAssignedReplicaShardToPrimary(candidate);
+                    if (primarySwappedCandidate.relocatingNodeId() != null) {
                         changed = true;
                         // its also relocating, make sure to move the other routing to primary
-                        RoutingNode node = routingNodes.node(candidate.relocatingNodeId());
+                        RoutingNode node = routingNodes.node(primarySwappedCandidate.relocatingNodeId());
                         if (node != null) {
                             for (ShardRouting shardRouting : node) {
-                                if (shardRouting.shardId().equals(candidate.shardId()) && !shardRouting.primary()) {
-                                    routingNodes.swapPrimaryFlag(shardRouting);
+                                if (shardRouting.shardId().equals(primarySwappedCandidate.shardId()) && !shardRouting.primary()) {
+                                    routingNodes.promoteAssignedReplicaShardToPrimary(shardRouting);
                                     break;
                                 }
                             }
                         }
                     }
-                    IndexMetaData index = allocation.metaData().getIndexSafe(candidate.index());
+                    IndexMetaData index = allocation.metaData().getIndexSafe(primarySwappedCandidate.index());
                     if (IndexMetaData.isIndexUsingShadowReplicas(index.getSettings())) {
-                        routingNodes.reinitShadowPrimary(candidate);
+                        routingNodes.reinitShadowPrimary(primarySwappedCandidate);
                         changed = true;
                     }
                 }
@@ -465,24 +476,26 @@ public class AllocationService extends AbstractComponent {
             }
 
 
-            RoutingNodes.RoutingNodeIterator currentRoutingNode = routingNodes.routingNodeIter(startedShard.currentNodeId());
+            RoutingNode currentRoutingNode = routingNodes.node(startedShard.currentNodeId());
             if (currentRoutingNode == null) {
                 logger.debug("{} failed to find shard in order to start it [failed to find node], ignoring (routing: {})", startedShard.shardId(), startedShard);
                 continue;
             }
 
-            for (ShardRouting shard : currentRoutingNode) {
-                if (shard.isSameAllocation(startedShard)) {
-                    if (shard.active()) {
-                        logger.trace("{} shard is already started, ignoring (routing: {})", startedShard.shardId(), startedShard);
-                    } else {
-                        dirty = true;
-                        // override started shard with the latest copy. Capture it now , before starting the shard destroys it...
-                        startedShard = new ShardRouting(shard);
-                        routingNodes.started(shard);
-                        logger.trace("{} marked shard as started (routing: {})", startedShard.shardId(), startedShard);
-                    }
-                    break;
+            ShardRouting matchingShard = currentRoutingNode.getByShardId(startedShard.shardId());
+            if (matchingShard == null) {
+                logger.debug("{} failed to find shard in order to start it [failed to find shard], ignoring (routing: {})", startedShard.shardId(), startedShard);
+            } else if (matchingShard.isSameAllocation(startedShard) == false) {
+                logger.debug("{} failed to find shard with matching allocation id in order to start it [failed to find matching shard], ignoring (routing: {}, matched shard routing: {})", startedShard.shardId(), startedShard, matchingShard);
+            } else {
+                if (matchingShard.active()) {
+                    logger.trace("{} shard is already started, ignoring (routing: {})", startedShard.shardId(), startedShard);
+                } else {
+                    dirty = true;
+                    // override started shard with the latest copy.
+                    startedShard = matchingShard;
+                    routingNodes.started(matchingShard);
+                    logger.trace("{} marked shard as started (routing: {})", startedShard.shardId(), startedShard);
                 }
             }
 
@@ -544,8 +557,8 @@ public class AllocationService extends AbstractComponent {
             // fail replicas first otherwise we move RoutingNodes into an inconsistent state
             failReplicasForUnassignedPrimary(allocation, failedShard);
         }
-        // replace incoming instance to make sure we work on the latest one. Copy it to maintain information during modifications.
-        failedShard = new ShardRouting(matchedNode.current());
+        // replace incoming instance to make sure we work on the latest one
+        failedShard = matchedNode.current();
 
         // remove the current copy of the shard
         matchedNode.remove();

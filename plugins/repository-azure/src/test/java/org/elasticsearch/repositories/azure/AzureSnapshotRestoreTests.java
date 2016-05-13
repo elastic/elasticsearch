@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.greaterThan;
         transportClientRatio = 0.0)
 public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCase {
     private String getRepositoryPath() {
-        String testName = "it-".concat(Strings.toUnderscoreCase(getTestName()).replaceAll("_", "-"));
+        String testName = "it-" + getTestName();
         return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
     }
 

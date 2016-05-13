@@ -42,7 +42,7 @@ public class IpRangeParser extends RangeParser {
 
     @Override
     protected Range parseRange(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return IPv4RangeAggregatorBuilder.Range.PROTOTYPE.fromXContent(parser, parseFieldMatcher);
+        return IPv4RangeAggregatorBuilder.Range.fromXContent(parser, parseFieldMatcher);
     }
 
     @Override

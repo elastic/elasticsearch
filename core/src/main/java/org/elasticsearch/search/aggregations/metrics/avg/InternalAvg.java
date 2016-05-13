@@ -92,14 +92,14 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readValueFormat();
+        format = in.readNamedWriteable(DocValueFormat.class);
         sum = in.readDouble();
         count = in.readVLong();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(format);
+        out.writeNamedWriteable(format);
         out.writeDouble(sum);
         out.writeVLong(count);
     }

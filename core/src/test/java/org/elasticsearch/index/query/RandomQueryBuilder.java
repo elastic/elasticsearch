@@ -36,7 +36,7 @@ public class RandomQueryBuilder {
      * @param r random seed
      * @return a random {@link QueryBuilder}
      */
-    public static QueryBuilder<?> createQuery(Random r) {
+    public static QueryBuilder createQuery(Random r) {
         switch (RandomInts.randomIntBetween(r, 0, 4)) {
             case 0:
                 return new MatchAllQueryBuilderTests().createTestQueryBuilder();
@@ -61,7 +61,7 @@ public class RandomQueryBuilder {
     public static MultiTermQueryBuilder createMultiTermQuery(Random r) {
         // for now, only use String Rangequeries for MultiTerm test, numeric and date makes little sense
         // see issue #12123 for discussion
-        MultiTermQueryBuilder<?> multiTermQueryBuilder;
+        MultiTermQueryBuilder multiTermQueryBuilder;
         switch(RandomInts.randomIntBetween(r, 0, 3)) {
             case 0:
                 RangeQueryBuilder stringRangeQuery = new RangeQueryBuilder(AbstractQueryTestCase.STRING_FIELD_NAME);

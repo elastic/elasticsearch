@@ -102,12 +102,6 @@ Removed setters for mandatory big/little inner span queries. Both arguments now 
 to be supplied at construction time already and have to be non-null. Updated
 static factory methods in QueryBuilders accordingly.
 
-===== QueryFilterBuilder
-
-Removed the setter `queryName(String queryName)` since this field is not supported
-in this type of query. Use `FQueryFilterBuilder.queryName(String queryName)` instead
-when in need to wrap a named query as a filter.
-
 ===== WrapperQueryBuilder
 
 Removed `wrapperQueryBuilder(byte[] source, int offset, int length)`. Instead simply
@@ -276,6 +270,10 @@ at call time which results in much clearer errors.
 
 All `extraSource` methods have been removed.
 
+==== SearchResponse
+
+Sort values for `string` fields are now return as `java.lang.String` objects rather than `org.elasticsearch.common.text.Text`.
+
 ==== AggregationBuilder
 
 All methods which take an `XContentBuilder`, `BytesReference` `Map<String, Object>` or `bytes[]` have been removed in favor of providing the
@@ -285,20 +283,20 @@ requests can now be validated at call time which results in much clearer errors.
 ==== ValidateQueryRequest
 
 `source(QuerySourceBuilder)`, `source(Map)`, `source(XContentBuilder)`, `source(String)`, `source(byte[])`, `source(byte[], int, int)`,
-`source(BytesReference)` and `source()` have been removed in favor of using `query(QueryBuilder<?>)` and `query()`
+`source(BytesReference)` and `source()` have been removed in favor of using `query(QueryBuilder)` and `query()`
 
 ==== ValidateQueryRequestBuilder
 
-`setSource()` methods have been removed in favor of using `setQuery(QueryBuilder<?>)`
+`setSource()` methods have been removed in favor of using `setQuery(QueryBuilder)`
 
 ==== ExplainRequest
 
 `source(QuerySourceBuilder)`, `source(Map)`, `source(BytesReference)` and `source()` have been removed in favor of using
-`query(QueryBuilder<?>)` and `query()`
+`query(QueryBuilder)` and `query()`
 
 ==== ExplainRequestBuilder
 
-The `setQuery(BytesReference)` method have been removed in favor of using `setQuery(QueryBuilder<?>)`
+The `setQuery(BytesReference)` method have been removed in favor of using `setQuery(QueryBuilder)`
 
 === ClusterStatsResponse
 

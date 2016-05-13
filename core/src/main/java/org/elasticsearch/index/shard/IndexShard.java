@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
@@ -84,7 +85,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -105,6 +105,7 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.search.suggest.completion2x.Completion090PostingsFormat;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -476,7 +477,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             doc.addDynamicMappingsUpdate(docMapper.getMapping());
         }
         MappedFieldType uidFieldType = docMapper.getDocumentMapper().uidMapper().fieldType();
-        Query uidQuery = uidFieldType.termQuery(doc.uid().stringValue(), null);
+        Query uidQuery = uidFieldType.termQuery(doc.uid(), null);
         Term uid = MappedFieldType.extractTerm(uidQuery);
         return new Engine.Index(uid, doc, version, versionType, origin, startTime);
     }
@@ -678,6 +679,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         CompletionStats completionStats = new CompletionStats();
         try (final Engine.Searcher currentSearcher = acquireSearcher("completion_stats")) {
             completionStats.add(CompletionFieldStats.completionStats(currentSearcher.reader(), fields));
+            // Necessary for 2.x shards:
+            Completion090PostingsFormat postingsFormat = ((Completion090PostingsFormat)
+                PostingsFormat.forName(Completion090PostingsFormat.CODEC_NAME));
+            completionStats.add(postingsFormat.completionStats(currentSearcher.reader(), fields));
         }
         return completionStats;
     }

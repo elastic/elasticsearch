@@ -21,23 +21,30 @@ package org.elasticsearch.ingest.core;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class ProcessorInfo implements Writeable<ProcessorInfo>, ToXContent, Comparable<ProcessorInfo> {
+public class ProcessorInfo implements Writeable, ToXContent, Comparable<ProcessorInfo> {
 
     private final String type;
 
+    public ProcessorInfo(String type) {
+        this.type = type;
+    }
+
+    /**
+     * Read from a stream.
+     */
     public ProcessorInfo(StreamInput input) throws IOException {
         type = input.readString();
     }
 
-    public ProcessorInfo(String type) {
-        this.type = type;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(this.type);
     }
 
     /**
@@ -45,16 +52,6 @@ public class ProcessorInfo implements Writeable<ProcessorInfo>, ToXContent, Comp
      */
     public String getType() {
         return type;
-    }
-
-    @Override
-    public ProcessorInfo readFrom(StreamInput in) throws IOException {
-        return new ProcessorInfo(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(this.type);
     }
 
     @Override

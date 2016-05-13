@@ -284,10 +284,11 @@ public class AsyncShardFetchTests extends ESTestCase {
                             assert entry != null;
                             entry.executeLatch.await();
                             if (entry.failure != null) {
-                                processAsyncFetch(shardId, null, new FailedNodeException[]{new FailedNodeException(nodeId,
-                                        "unexpected", entry.failure)});
+                                processAsyncFetch(shardId, null, Collections.singletonList(new FailedNodeException(nodeId,
+                                                                                                                   "unexpected",
+                                                                                                                   entry.failure)));
                             } else {
-                                processAsyncFetch(shardId, new Response[]{entry.response}, null);
+                                processAsyncFetch(shardId, Collections.singletonList(entry.response), null);
                             }
                         } catch (Throwable e) {
                             logger.error("unexpected failure", e);

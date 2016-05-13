@@ -22,6 +22,8 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -35,24 +37,27 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     protected final ScriptService scriptService;
     protected final IndexSettings indexSettings;
     protected final IndicesQueriesRegistry indicesQueriesRegistry;
-    protected final QueryParseContext parseContext;
+    protected final Client client;
     protected final IndexReader reader;
+    protected final ClusterState clusterState;
 
     public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
-            IndicesQueriesRegistry indicesQueriesRegistry, IndexReader reader) {
+                               IndicesQueriesRegistry indicesQueriesRegistry, Client client, IndexReader reader,
+                               ClusterState clusterState) {
         this.mapperService = mapperService;
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
         this.indicesQueriesRegistry = indicesQueriesRegistry;
-        this.parseContext = new QueryParseContext(indicesQueriesRegistry);
+        this.client = client;
         this.reader = reader;
+        this.clusterState = clusterState;
     }
 
     /**
      * Returns a clients to fetch resources from local or remove nodes.
      */
     public final Client getClient() {
-        return scriptService.getClient();
+        return client;
     }
 
     /**
@@ -82,21 +87,23 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
         return reader;
     }
 
-    public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
-        this.parseContext.parseFieldMatcher(parseFieldMatcher);
-    }
-
     @Override
     public ParseFieldMatcher getParseFieldMatcher() {
-        return parseContext.getParseFieldMatcher();
+        return this.indexSettings.getParseFieldMatcher();
     }
 
     /**
-     * Returns a new {@link QueryParseContext} to parse template or wrapped queries.
+     * Returns the cluster state as is when the operation started.
      */
-    public QueryParseContext newParseContext() {
-        QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry);
-        queryParseContext.parseFieldMatcher(parseContext.getParseFieldMatcher());
-        return queryParseContext;
+    public ClusterState getClusterState() {
+        return clusterState;
+    }
+
+    /**
+     * Returns a new {@link QueryParseContext} that wraps the provided parser, using the ParseFieldMatcher settings that
+     * are configured in the index settings
+     */
+    public QueryParseContext newParseContext(XContentParser parser) {
+        return new QueryParseContext(indicesQueriesRegistry, parser, indexSettings.getParseFieldMatcher());
     }
 }

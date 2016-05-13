@@ -89,7 +89,7 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("script.indexed", "true")
+                .put("script.stored", "true")
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
@@ -219,10 +219,11 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
 
     public void testThatPercolatingExistingDocumentGetRequestContainsContextAndHeaders() throws Exception {
         Client client = transportClient();
-        client.prepareIndex(lookupIndex, ".percolator", "1")
-            .setSource(
-                jsonBuilder()
-                    .startObject().startObject("query").startObject("match").field("name", "star wars").endObject().endObject().endObject())
+        client.admin().indices().preparePutMapping(lookupIndex).setType("query").setSource("query", "type=percolator").get();
+        client.prepareIndex(lookupIndex, "query", "1")
+            .setSource(jsonBuilder().startObject()
+                        .startObject("query").startObject("match").field("name", "star wars").endObject().endObject()
+                    .endObject())
             .get();
         client.prepareIndex(lookupIndex, "type", "1")
             .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())

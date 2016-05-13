@@ -45,24 +45,35 @@ import java.util.Set;
 
 public abstract class TermsAggregator extends BucketsAggregator {
 
-    public static class BucketCountThresholds implements Writeable<BucketCountThresholds>, ToXContent {
-
-        private static final BucketCountThresholds PROTOTYPE = new BucketCountThresholds(-1, -1, -1, -1);
-
+    public static class BucketCountThresholds implements Writeable, ToXContent {
         private long minDocCount;
         private long shardMinDocCount;
         private int requiredSize;
         private int shardSize;
-
-        public static BucketCountThresholds readFromStream(StreamInput in) throws IOException {
-            return PROTOTYPE.readFrom(in);
-        }
 
         public BucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {
             this.minDocCount = minDocCount;
             this.shardMinDocCount = shardMinDocCount;
             this.requiredSize = requiredSize;
             this.shardSize = shardSize;
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public BucketCountThresholds(StreamInput in) throws IOException {
+            requiredSize = in.readInt();
+            shardSize = in.readInt();
+            minDocCount = in.readLong();
+            shardMinDocCount = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeInt(requiredSize);
+            out.writeInt(shardSize);
+            out.writeLong(minDocCount);
+            out.writeLong(shardMinDocCount);
         }
 
         public BucketCountThresholds(BucketCountThresholds bucketCountThresholds) {
@@ -136,23 +147,6 @@ public abstract class TermsAggregator extends BucketsAggregator {
         }
 
         @Override
-        public BucketCountThresholds readFrom(StreamInput in) throws IOException {
-            int requiredSize = in.readInt();
-            int shardSize = in.readInt();
-            long minDocCount = in.readLong();
-            long shardMinDocCount = in.readLong();
-            return new BucketCountThresholds(minDocCount, shardMinDocCount, requiredSize, shardSize);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeInt(requiredSize);
-            out.writeInt(shardSize);
-            out.writeLong(minDocCount);
-            out.writeLong(shardMinDocCount);
-        }
-
-        @Override
         public int hashCode() {
             return Objects.hash(requiredSize, shardSize, minDocCount, shardMinDocCount);
         }
@@ -205,7 +199,6 @@ public abstract class TermsAggregator extends BucketsAggregator {
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
         return collectMode == SubAggCollectionMode.BREADTH_FIRST
-                && aggregator.needsScores() == false
                 && !aggsUsedForSorting.contains(aggregator);
     }
 

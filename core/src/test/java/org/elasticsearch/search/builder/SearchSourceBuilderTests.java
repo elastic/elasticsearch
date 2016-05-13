@@ -52,8 +52,6 @@ import org.elasticsearch.index.query.AbstractQueryTestCase;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.support.InnerHitBuilderTests;
-import org.elasticsearch.index.query.support.InnerHitsBuilder;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -411,14 +409,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
             builder.suggest(SuggestBuilderTests.randomSuggestBuilder());
         }
         if (randomBoolean()) {
-            InnerHitsBuilder innerHitsBuilder = new InnerHitsBuilder();
-            int num = randomIntBetween(0, 3);
-            for (int i = 0; i < num; i++) {
-                innerHitsBuilder.addInnerHit(randomAsciiOfLengthBetween(5, 20), InnerHitBuilderTests.randomInnerHits());
-            }
-            builder.innerHits(innerHitsBuilder);
-        }
-        if (randomBoolean()) {
             int numRescores = randomIntBetween(1, 5);
             for (int i = 0; i < numRescores; i++) {
                 builder.addRescorer(QueryRescoreBuilderTests.randomRescoreBuilder());
@@ -450,7 +440,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
     private void assertParseSearchSource(SearchSourceBuilder testBuilder, BytesReference searchSourceAsBytes) throws IOException {
         XContentParser parser = XContentFactory.xContent(searchSourceAsBytes).createParser(searchSourceAsBytes);
         QueryParseContext parseContext = createParseContext(parser);
-        parseContext.reset(parser);
         if (randomBoolean()) {
             parser.nextToken(); // sometimes we move it on the START_OBJECT to test the embedded case
         }
@@ -461,9 +450,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
     }
 
     private static QueryParseContext createParseContext(XContentParser parser) {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.reset(parser);
-        context.parseFieldMatcher(parseFieldMatcher);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, parseFieldMatcher);
         return context;
     }
 

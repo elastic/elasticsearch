@@ -39,18 +39,9 @@ public abstract class PipelineAggregator implements Streamable {
      */
     @FunctionalInterface
     public static interface Parser {
-
         public static final ParseField BUCKETS_PATH = new ParseField("buckets_path");
-
         public static final ParseField FORMAT = new ParseField("format");
         public static final ParseField GAP_POLICY = new ParseField("gap_policy");
-
-        /**
-         * @return The aggregation type this parser is associated with.
-         */
-        default String type() {
-            throw new UnsupportedOperationException(); // NORELEASE remove before 5.0.0GA
-        }
 
         /**
          * Returns the pipeline aggregator factory with which this parser is
@@ -66,15 +57,6 @@ public abstract class PipelineAggregator implements Streamable {
          */
         PipelineAggregatorBuilder<?> parse(String pipelineAggregatorName, QueryParseContext context)
                 throws IOException;
-
-        /**
-         * @return an empty {@link PipelineAggregatorBuilder} instance for this
-         *         parser that can be used for deserialization
-         */
-        default PipelineAggregatorBuilder<?> getFactoryPrototype() {
-            throw new UnsupportedOperationException(); // NORELEASE remove before 5.0.0GA
-        }
-
     }
 
     private String name;

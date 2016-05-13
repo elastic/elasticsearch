@@ -52,6 +52,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -80,7 +81,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     private SortMode sortMode;
 
-    private QueryBuilder<?> nestedFilter;
+    private QueryBuilder nestedFilter;
 
     private String nestedPath;
 
@@ -113,12 +114,12 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      * Read from a stream.
      */
     public ScriptSortBuilder(StreamInput in) throws IOException {
-        script = Script.readScript(in);
+        script = new Script(in);
         type = ScriptSortType.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         nestedPath = in.readOptionalString();
-        nestedFilter = in.readOptionalQuery();
+        nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
     }
 
     @Override
@@ -128,7 +129,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(nestedPath);
-        out.writeOptionalQuery(nestedFilter);
+        out.writeOptionalNamedWriteable(nestedFilter);
     }
 
     /**
@@ -170,7 +171,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      * Sets the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
      */
-    public ScriptSortBuilder setNestedFilter(QueryBuilder<?> nestedFilter) {
+    public ScriptSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
     }
@@ -178,7 +179,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     /**
      * Gets the nested filter.
      */
-    public QueryBuilder<?> getNestedFilter() {
+    public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
 
@@ -236,7 +237,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         ScriptSortType type = null;
         SortMode sortMode = null;
         SortOrder order = null;
-        QueryBuilder<?> nestedFilter = null;
+        QueryBuilder nestedFilter = null;
         String nestedPath = null;
         Map<String, Object> params = new HashMap<>();
 
@@ -302,9 +303,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
 
     @Override
-    public SortField build(QueryShardContext context) throws IOException {
+    public SortFieldAndFormat build(QueryShardContext context) throws IOException {
         final SearchScript searchScript = context.getScriptService().search(
-                context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap(), context.getClusterState());
 
         MultiValueMode valueMode = null;
         if (sortMode != null) {
@@ -366,7 +367,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             throw new QueryShardException(context, "custom script sort type [" + type + "] not supported");
         }
 
-        return new SortField("_script", fieldComparatorSource, reverse);
+        return new SortFieldAndFormat(new SortField("_script", fieldComparatorSource, reverse), DocValueFormat.RAW);
     }
 
     @Override
@@ -396,7 +397,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return NAME;
     }
 
-    public enum ScriptSortType implements Writeable<ScriptSortType> {
+    public enum ScriptSortType implements Writeable {
         /** script sort for a string value **/
         STRING,
         /** script sort for a numeric value **/

@@ -37,4 +37,9 @@ from the tar or zip distributions, and /etc/elasticsearch/jvm.options if install
 from the Debian or RPM packages. You can specify an alternative location by setting
 the environment variable `ES_JVM_OPTIONS` to the path to the file.
 
+==== /bin/bash is now required
 
+Previously, the scripts used to start Elasticsearch and run plugin
+commands only required a Bourne-compatible shell. Starting in
+Elasticsearch 5.0.0, the bash shell is now required and `/bin/bash` is a
+hard-dependency for the RPM and Debian packages.

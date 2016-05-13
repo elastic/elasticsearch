@@ -147,12 +147,12 @@ import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.action.get.TransportShardMultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.TransportIndexAction;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptAction;
-import org.elasticsearch.action.indexedscripts.delete.TransportDeleteIndexedScriptAction;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptAction;
-import org.elasticsearch.action.indexedscripts.get.TransportGetIndexedScriptAction;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptAction;
-import org.elasticsearch.action.indexedscripts.put.TransportPutIndexedScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportGetStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.elasticsearch.action.ingest.IngestActionFilter;
 import org.elasticsearch.action.ingest.IngestProxyActionFilter;
 import org.elasticsearch.action.ingest.DeletePipelineAction;
@@ -340,9 +340,9 @@ public class ActionModule extends AbstractModule {
         registerAction(RenderSearchTemplateAction.INSTANCE, TransportRenderSearchTemplateAction.class);
 
         //Indexed scripts
-        registerAction(PutIndexedScriptAction.INSTANCE, TransportPutIndexedScriptAction.class);
-        registerAction(GetIndexedScriptAction.INSTANCE, TransportGetIndexedScriptAction.class);
-        registerAction(DeleteIndexedScriptAction.INSTANCE, TransportDeleteIndexedScriptAction.class);
+        registerAction(PutStoredScriptAction.INSTANCE, TransportPutStoredScriptAction.class);
+        registerAction(GetStoredScriptAction.INSTANCE, TransportGetStoredScriptAction.class);
+        registerAction(DeleteStoredScriptAction.INSTANCE, TransportDeleteStoredScriptAction.class);
 
         registerAction(FieldStatsAction.INSTANCE, TransportFieldStatsTransportAction.class);
 

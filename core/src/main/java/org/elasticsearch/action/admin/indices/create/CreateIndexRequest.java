@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -49,9 +48,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
@@ -305,8 +304,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the aliases that will be associated with the index when it gets created
      */
     public CreateIndexRequest aliases(BytesReference source) {
-        try {
-            XContentParser parser = XContentHelper.createParser(source);
+        try (XContentParser parser = XContentHelper.createParser(source)) {
             //move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {

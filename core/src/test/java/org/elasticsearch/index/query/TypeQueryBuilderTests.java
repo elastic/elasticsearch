@@ -35,7 +35,7 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
 
     @Override
     protected void doAssertLuceneQuery(TypeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (queryShardContext().getMapperService().documentMapper(queryBuilder.type()) == null) {
+        if (createShardContext().getMapperService().documentMapper(queryBuilder.type()) == null) {
             assertEquals(new MatchNoDocsQuery(), query);
         } else {
             assertEquals(new TypeFieldMapper.TypeQuery(new BytesRef(queryBuilder.type())), query);
@@ -53,11 +53,11 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"type\" : {\n" + 
-                "    \"value\" : \"my_type\",\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"type\" : {\n" +
+                "    \"value\" : \"my_type\",\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         TypeQueryBuilder parsed = (TypeQueryBuilder) parseQuery(json);

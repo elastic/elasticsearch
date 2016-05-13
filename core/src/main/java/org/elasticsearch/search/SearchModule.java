@@ -60,7 +60,7 @@ import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.ParentIdQueryBuilder;
-import org.elasticsearch.index.query.PercolatorQueryBuilder;
+import org.elasticsearch.index.query.PercolateQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
@@ -95,8 +95,6 @@ import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.aggregations.AggregationBinaryParseElement;
-import org.elasticsearch.search.aggregations.AggregationParseElement;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
@@ -110,7 +108,7 @@ import org.elasticsearch.search.aggregations.bucket.filters.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridParser;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalParser;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramParser;
@@ -118,6 +116,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregato
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
+import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingParser;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNested;
@@ -145,8 +144,14 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantStrin
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsParser;
 import org.elasticsearch.search.aggregations.bucket.significant.UnmappedSignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -156,6 +161,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgParser;
 import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
+import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityParser;
 import org.elasticsearch.search.aggregations.metrics.cardinality.InternalCardinality;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregatorBuilder;
@@ -165,10 +171,14 @@ import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggr
 import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidParser;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxParser;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.min.MinAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinParser;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksParser;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesParser;
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentiles;
@@ -177,48 +187,57 @@ import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.Interna
 import org.elasticsearch.search.aggregations.metrics.scripted.InternalScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
+import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.StatsParser;
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsParser;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.sum.SumAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumParser;
 import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
+import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregatorBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountParser;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg.AvgBucketPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivative;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelParserMapper;
-import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffParser;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregatorBuilder;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -262,10 +281,12 @@ public class SearchModule extends AbstractModule {
     private final ParseFieldRegistry<PipelineAggregator.Parser> pipelineAggregationParserRegistry = new ParseFieldRegistry<>(
             "pipline_aggregation");
     private final AggregatorParsers aggregatorParsers = new AggregatorParsers(aggregationParserRegistry, pipelineAggregationParserRegistry);
+    private final ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry = new ParseFieldRegistry<>(
+            "significance_heuristic");
+    private final ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageModelParserRegistry = new ParseFieldRegistry<>(
+            "moving_avg_model");
 
     private final Set<Class<? extends FetchSubPhase>> fetchSubPhases = new HashSet<>();
-    private final Set<SignificanceHeuristicParser> heuristicParsers = new HashSet<>();
-    private final Set<MovAvgModel.AbstractModelParser> modelParsers = new HashSet<>();
 
     private final Settings settings;
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -283,6 +304,8 @@ public class SearchModule extends AbstractModule {
         registerBuiltinRescorers();
         registerBuiltinSorts();
         registerBuiltinValueFormats();
+        registerBuiltinSignificanceHeuristics();
+        registerBuiltinMovingAverageModels();
     }
 
     public void registerHighlighter(String key, Class<? extends Highlighter> clazz) {
@@ -334,7 +357,7 @@ public class SearchModule extends AbstractModule {
      *        is the name by under which the reader is registered. So it is the name that the query should use as its
      *        {@link NamedWriteable#getWriteableName()} too.
      */
-    public <QB extends QueryBuilder<QB>> void registerQuery(Writeable.Reader<QB> reader, QueryParser<QB> queryParser,
+    public <QB extends QueryBuilder> void registerQuery(Writeable.Reader<QB> reader, QueryParser<QB> queryParser,
                                                                          ParseField queryName) {
         queryParserRegistry.register(queryParser, queryName);
         namedWriteableRegistry.register(QueryBuilder.class, queryName.getPreferredName(), reader);
@@ -348,12 +371,46 @@ public class SearchModule extends AbstractModule {
         fetchSubPhases.add(subPhase);
     }
 
-    public void registerHeuristicParser(SignificanceHeuristicParser parser) {
-        heuristicParsers.add(parser);
+    /**
+     * Register a {@link SignificanceHeuristic}.
+     *
+     * @param heuristicName the name(s) at which the heuristic is parsed and streamed. The {@link ParseField#getPreferredName()} is the name
+     *        under which it is streamed. All names work for the parser.
+     * @param reader reads the heuristic from a stream
+     * @param parser reads the heuristic from an XContentParser
+     */
+    public void registerSignificanceHeuristic(ParseField heuristicName, Writeable.Reader<SignificanceHeuristic> reader,
+            SignificanceHeuristicParser parser) {
+        significanceHeuristicParserRegistry.register(parser, heuristicName);
+        namedWriteableRegistry.register(SignificanceHeuristic.class, heuristicName.getPreferredName(), reader);
     }
 
-    public void registerModelParser(MovAvgModel.AbstractModelParser parser) {
-        modelParsers.add(parser);
+    /**
+     * The registry of {@link SignificanceHeuristic}s.
+     */
+    public ParseFieldRegistry<SignificanceHeuristicParser> getSignificanceHeuristicParserRegistry() {
+        return significanceHeuristicParserRegistry;
+    }
+
+    /**
+     * Register a {@link MovAvgModel}.
+     *
+     * @param modelName the name(s) at which the model is parsed and streamed. The {@link ParseField#getPreferredName()} is the name under
+     *        which it is streamed. All named work for the parser.
+     * @param reader reads the model from a stream
+     * @param parser reads the model from an XContentParser
+     */
+    public void registerMovingAverageModel(ParseField modelName, Writeable.Reader<MovAvgModel> reader,
+            MovAvgModel.AbstractModelParser parser) {
+        movingAverageModelParserRegistry.register(parser, modelName);
+        namedWriteableRegistry.register(MovAvgModel.class, modelName.getPreferredName(), reader);
+    }
+
+    /**
+     * The registry of {@link MovAvgModel}s.
+     */
+    public ParseFieldRegistry<MovAvgModel.AbstractModelParser> getMovingAverageMdelParserRegistry() {
+        return movingAverageModelParserRegistry;
     }
 
     /**
@@ -371,18 +428,6 @@ public class SearchModule extends AbstractModule {
     }
 
     /**
-     * Register an aggregation.
-     *
-     * @deprecated prefer {@link #registerPipelineAggregation(Writeable.Reader, PipelineAggregator.Parser, ParseField)}. Will be removed
-     *             before 5.0.0GA.
-     */
-    @Deprecated // NORELEASE remove this before 5.0.0GA
-    public void registerAggregatorParser(Aggregator.Parser parser) {
-        aggregationParserRegistry.register(parser, new ParseField(parser.type()));
-        namedWriteableRegistry.registerPrototype(AggregatorBuilder.class, parser.getFactoryPrototypes());
-    }
-
-    /**
      * Register a pipeline aggregation.
      *
      * @param reader reads the aggregation builder from a stream
@@ -394,18 +439,6 @@ public class SearchModule extends AbstractModule {
             PipelineAggregator.Parser aggregationParser, ParseField aggregationName) {
         pipelineAggregationParserRegistry.register(aggregationParser, aggregationName);
         namedWriteableRegistry.register(PipelineAggregatorBuilder.class, aggregationName.getPreferredName(), reader);
-    }
-
-    /**
-     * Register a pipeline aggregation.
-     *
-     * @deprecated prefer {@link #registerPipelineAggregation(Writeable.Reader, PipelineAggregator.Parser, ParseField)}. Will be removed
-     *             before 5.0.0GA.
-     */
-    @Deprecated // NORELEASE remove this before 5.0.0GA
-    public void registerPipelineParser(PipelineAggregator.Parser parser) {
-        pipelineAggregationParserRegistry.register(parser, new ParseField(parser.type()));
-        namedWriteableRegistry.registerPrototype(PipelineAggregatorBuilder.class, parser.getFactoryPrototype());
     }
 
     public AggregatorParsers getAggregatorParsers() {
@@ -445,25 +478,24 @@ public class SearchModule extends AbstractModule {
     }
 
     protected void configureAggs() {
-
-        MovAvgModelParserMapper movAvgModelParserMapper = new MovAvgModelParserMapper(modelParsers);
-
-        SignificanceHeuristicParserMapper significanceHeuristicParserMapper = new SignificanceHeuristicParserMapper(heuristicParsers);
-
         registerAggregation(AvgAggregatorBuilder::new, new AvgParser(), AvgAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregatorParser(new SumParser());
-        registerAggregatorParser(new MinParser());
-        registerAggregatorParser(new MaxParser());
-        registerAggregatorParser(new StatsParser());
-        registerAggregatorParser(new ExtendedStatsParser());
-        registerAggregatorParser(new ValueCountParser());
-        registerAggregatorParser(new PercentilesParser());
-        registerAggregatorParser(new PercentileRanksParser());
-        registerAggregatorParser(new CardinalityParser());
-        registerAggregatorParser(new GlobalParser());
-        registerAggregatorParser(new MissingParser());
+        registerAggregation(SumAggregatorBuilder::new, new SumParser(), SumAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(MinAggregatorBuilder::new, new MinParser(), MinAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(MaxAggregatorBuilder::new, new MaxParser(), MaxAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(StatsAggregatorBuilder::new, new StatsParser(), StatsAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(ExtendedStatsAggregatorBuilder::new, new ExtendedStatsParser(),
+        ExtendedStatsAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(ValueCountAggregatorBuilder::new, new ValueCountParser(), ValueCountAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(PercentilesAggregatorBuilder::new, new PercentilesParser(),
+                PercentilesAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(PercentileRanksAggregatorBuilder::new, new PercentileRanksParser(),
+                PercentileRanksAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(CardinalityAggregatorBuilder::new, new CardinalityParser(),
+                CardinalityAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(GlobalAggregatorBuilder::new, GlobalAggregatorBuilder::parse, GlobalAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(MissingAggregatorBuilder::new, new MissingParser(), MissingAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(FilterAggregatorBuilder::new, FilterAggregatorBuilder::parse, FilterAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(FiltersAggregatorBuilder::new, (n, c) -> FiltersAggregatorBuilder.parse(queryParserRegistry, n, c),
+        registerAggregation(FiltersAggregatorBuilder::new, FiltersAggregatorBuilder::parse,
                 FiltersAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(SamplerAggregatorBuilder::new, SamplerAggregatorBuilder::parse,
                 SamplerAggregatorBuilder.AGGREGATION_NAME_FIELD);
@@ -471,7 +503,7 @@ public class SearchModule extends AbstractModule {
                 DiversifiedAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(TermsAggregatorBuilder::new, new TermsParser(), TermsAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(SignificantTermsAggregatorBuilder::new,
-                new SignificantTermsParser(significanceHeuristicParserMapper, queryParserRegistry),
+                new SignificantTermsParser(significanceHeuristicParserRegistry, queryParserRegistry),
                 SignificantTermsAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(RangeAggregatorBuilder::new, new RangeParser(), RangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(DateRangeAggregatorBuilder::new, new DateRangeParser(), DateRangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
@@ -497,24 +529,34 @@ public class SearchModule extends AbstractModule {
 
         registerPipelineAggregation(DerivativePipelineAggregatorBuilder::new, DerivativePipelineAggregatorBuilder::parse,
                 DerivativePipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerPipelineParser(new MaxBucketParser());
-        registerPipelineParser(new MinBucketParser());
-        registerPipelineParser(new AvgBucketParser());
-        registerPipelineParser(new SumBucketParser());
-        registerPipelineParser(new StatsBucketParser());
-        registerPipelineParser(new ExtendedStatsBucketParser());
-        registerPipelineParser(new PercentilesBucketParser());
-        registerPipelineParser(new MovAvgParser(movAvgModelParserMapper));
-        registerPipelineParser(new CumulativeSumParser());
-        registerPipelineParser(new BucketScriptParser());
-        registerPipelineParser(new BucketSelectorParser());
-        registerPipelineParser(new SerialDiffParser());
+        registerPipelineAggregation(MaxBucketPipelineAggregatorBuilder::new, MaxBucketPipelineAggregatorBuilder.PARSER,
+                MaxBucketPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerPipelineAggregation(MinBucketPipelineAggregatorBuilder::new, MinBucketPipelineAggregatorBuilder.PARSER,
+                MinBucketPipelineAggregatorBuilder.AGGREGATION_FIELD_NAME);
+        registerPipelineAggregation(AvgBucketPipelineAggregatorBuilder::new, AvgBucketPipelineAggregatorBuilder.PARSER,
+                AvgBucketPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerPipelineAggregation(SumBucketPipelineAggregatorBuilder::new, SumBucketPipelineAggregatorBuilder.PARSER,
+                SumBucketPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerPipelineAggregation(StatsBucketPipelineAggregatorBuilder::new, StatsBucketPipelineAggregatorBuilder.PARSER,
+                StatsBucketPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerPipelineAggregation(ExtendedStatsBucketPipelineAggregatorBuilder::new, new ExtendedStatsBucketParser(),
+                ExtendedStatsBucketPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerPipelineAggregation(PercentilesBucketPipelineAggregatorBuilder::new, PercentilesBucketPipelineAggregatorBuilder.PARSER,
+                PercentilesBucketPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerPipelineAggregation(MovAvgPipelineAggregatorBuilder::new,
+                (n, c) -> MovAvgPipelineAggregatorBuilder.parse(movingAverageModelParserRegistry, n, c),
+                MovAvgPipelineAggregatorBuilder.AGGREGATION_FIELD_NAME);
+        registerPipelineAggregation(CumulativeSumPipelineAggregatorBuilder::new, CumulativeSumPipelineAggregatorBuilder::parse,
+                CumulativeSumPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerPipelineAggregation(BucketScriptPipelineAggregatorBuilder::new, BucketScriptPipelineAggregatorBuilder::parse,
+                BucketScriptPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerPipelineAggregation(BucketSelectorPipelineAggregatorBuilder::new, BucketSelectorPipelineAggregatorBuilder::parse,
+                BucketSelectorPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerPipelineAggregation(SerialDiffPipelineAggregatorBuilder::new, SerialDiffPipelineAggregatorBuilder::parse,
+                SerialDiffPipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
 
-        AggregationParseElement aggParseElement = new AggregationParseElement(aggregatorParsers, queryParserRegistry);
-        AggregationBinaryParseElement aggBinaryParseElement = new AggregationBinaryParseElement(aggregatorParsers, queryParserRegistry);
-        AggregationPhase aggPhase = new AggregationPhase(aggParseElement, aggBinaryParseElement);
+        AggregationPhase aggPhase = new AggregationPhase();
         bind(AggregatorParsers.class).toInstance(aggregatorParsers);
-        bind(AggregationParseElement.class).toInstance(aggParseElement);
         bind(AggregationPhase.class).toInstance(aggPhase);
     }
 
@@ -577,6 +619,23 @@ public class SearchModule extends AbstractModule {
         registerValueFormat(DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
     }
 
+    private void registerBuiltinSignificanceHeuristics() {
+        registerSignificanceHeuristic(ChiSquare.NAMES_FIELD, ChiSquare::new, ChiSquare.PARSER);
+        registerSignificanceHeuristic(GND.NAMES_FIELD, GND::new, GND.PARSER);
+        registerSignificanceHeuristic(JLHScore.NAMES_FIELD, JLHScore::new, JLHScore::parse);
+        registerSignificanceHeuristic(MutualInformation.NAMES_FIELD, MutualInformation::new, MutualInformation.PARSER);
+        registerSignificanceHeuristic(PercentageScore.NAMES_FIELD, PercentageScore::new, PercentageScore::parse);
+        registerSignificanceHeuristic(ScriptHeuristic.NAMES_FIELD, ScriptHeuristic::new, ScriptHeuristic::parse);
+    }
+
+    private void registerBuiltinMovingAverageModels() {
+        registerMovingAverageModel(SimpleModel.NAME_FIELD, SimpleModel::new, SimpleModel.PARSER);
+        registerMovingAverageModel(LinearModel.NAME_FIELD, LinearModel::new, LinearModel.PARSER);
+        registerMovingAverageModel(EwmaModel.NAME_FIELD, EwmaModel::new, EwmaModel.PARSER);
+        registerMovingAverageModel(HoltLinearModel.NAME_FIELD, HoltLinearModel::new, HoltLinearModel.PARSER);
+        registerMovingAverageModel(HoltWintersModel.NAME_FIELD, HoltWintersModel::new, HoltWintersModel.PARSER);
+    }
+
     private void registerBuiltinQueryParsers() {
         registerQuery(MatchQueryBuilder::new, MatchQueryBuilder::fromXContent, MatchQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(MatchPhraseQueryBuilder::new, MatchPhraseQueryBuilder::fromXContent, MatchPhraseQueryBuilder.QUERY_NAME_FIELD);
@@ -634,7 +693,7 @@ public class SearchModule extends AbstractModule {
         registerQuery(ExistsQueryBuilder::new, ExistsQueryBuilder::fromXContent, ExistsQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(MatchNoneQueryBuilder::new, MatchNoneQueryBuilder::fromXContent, MatchNoneQueryBuilder.QUERY_NAME_FIELD);
         registerQuery(ParentIdQueryBuilder::new, ParentIdQueryBuilder::fromXContent, ParentIdQueryBuilder.QUERY_NAME_FIELD);
-        registerQuery(PercolatorQueryBuilder::new, PercolatorQueryBuilder::fromXContent, PercolatorQueryBuilder.QUERY_NAME_FIELD);
+        registerQuery(PercolateQueryBuilder::new, PercolateQueryBuilder::fromXContent, PercolateQueryBuilder.QUERY_NAME_FIELD);
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent, GeoShapeQueryBuilder.QUERY_NAME_FIELD);
         }

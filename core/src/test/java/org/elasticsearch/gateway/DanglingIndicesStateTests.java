@@ -19,6 +19,7 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class DanglingIndicesStateTests extends ESTestCase {
+
     private static Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -137,6 +139,22 @@ public class DanglingIndicesStateTests extends ESTestCase {
 
             danglingState.cleanupAllocatedDangledIndices(metaData);
             assertTrue(danglingState.getDanglingIndices().isEmpty());
+        }
+    }
+
+    public void testDanglingIndicesNotImportedWhenTombstonePresent() throws Exception {
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
+            DanglingIndicesState danglingState = new DanglingIndicesState(Settings.EMPTY, env, metaStateService, null);
+
+            final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetaData.SETTING_INDEX_UUID, "test1UUID");
+            IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(settings).build();
+            metaStateService.writeIndex("test_write", dangledIndex);
+
+            final IndexGraveyard graveyard = IndexGraveyard.builder().addTombstone(dangledIndex.getIndex()).build();
+            final MetaData metaData = MetaData.builder().indexGraveyard(graveyard).build();
+            assertThat(danglingState.findNewDanglingIndices(metaData).size(), equalTo(0));
+
         }
     }
 }

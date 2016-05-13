@@ -19,12 +19,14 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 
 import java.io.IOException;
@@ -32,15 +34,23 @@ import java.util.List;
 import java.util.Map;
 
 public class AvgBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAggregatorBuilder<AvgBucketPipelineAggregatorBuilder> {
-
-    static final AvgBucketPipelineAggregatorBuilder PROTOTYPE = new AvgBucketPipelineAggregatorBuilder("", "");
+    public static final String NAME = AvgBucketPipelineAggregator.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public AvgBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
-        this(name, new String[] { bucketsPath });
+        super(name, AvgBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
-    private AvgBucketPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
-        super(name, AvgBucketPipelineAggregator.TYPE.name(), bucketsPaths);
+    /**
+     * Read from a stream.
+     */
+    public AvgBucketPipelineAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, NAME);
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        // Do nothing, no extra state to write to stream
     }
 
     @Override
@@ -62,15 +72,13 @@ public class AvgBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAgg
         return builder;
     }
 
-    @Override
-    protected AvgBucketPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
-        return new AvgBucketPipelineAggregatorBuilder(name, bucketsPaths);
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        // Do nothing, no extra state to write to stream
-    }
+    public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
+        @Override
+        protected AvgBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+                String bucketsPath, Map<String, Object> params) {
+            return new AvgBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+        }
+    };
 
     @Override
     protected int innerHashCode() {
@@ -82,4 +90,8 @@ public class AvgBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAgg
         return true;
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

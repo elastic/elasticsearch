@@ -303,26 +303,6 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         public abstract long valueAt(int index);
 
         /**
-         * Return a {@link MurmurHash3Values} instance that returns each value as its hash.
-         */
-        public static MurmurHash3Values cast(final SortedNumericDocValues values) {
-            return new MurmurHash3Values() {
-                @Override
-                public void setDocument(int docId) {
-                    values.setDocument(docId);
-                }
-                @Override
-                public int count() {
-                    return values.count();
-                }
-                @Override
-                public long valueAt(int index) {
-                    return values.valueAt(index);
-                }
-            };
-        }
-
-        /**
          * Return a {@link MurmurHash3Values} instance that computes hashes on the fly for each double value.
          */
         public static MurmurHash3Values hash(SortedNumericDoubleValues values) {

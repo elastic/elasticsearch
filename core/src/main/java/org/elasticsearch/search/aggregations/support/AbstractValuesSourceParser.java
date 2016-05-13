@@ -122,8 +122,8 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
                         valueType = ValueType.resolveForScript(parser.text());
                         if (targetValueType != null && valueType.isNotA(targetValueType)) {
                             throw new ParsingException(parser.getTokenLocation(),
-                                    type() + " aggregation [" + aggregationName + "] was configured with an incompatible value type ["
-                                            + valueType + "]. [" + type() + "] aggregation can only work on value of type ["
+                                    "Aggregation [" + aggregationName + "] was configured with an incompatible value type ["
+                                            + valueType + "]. It can only work on value of type ["
                                             + targetValueType + "]");
                         }
                     } else if (!token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {

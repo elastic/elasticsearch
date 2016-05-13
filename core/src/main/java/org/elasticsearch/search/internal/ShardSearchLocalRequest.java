@@ -183,7 +183,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         types = in.readStringArray();
         filteringAliases = in.readStringArray();
         nowInMillis = in.readVLong();
-        template = in.readOptionalStreamable(Template::new);
+        template = in.readOptionalWriteable(Template::new);
         requestCache = in.readOptionalBoolean();
     }
 
@@ -212,7 +212,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
             out.writeVLong(nowInMillis);
         }
 
-        out.writeOptionalStreamable(template);
+        out.writeOptionalWriteable(template);
         out.writeOptionalBoolean(requestCache);
     }
 

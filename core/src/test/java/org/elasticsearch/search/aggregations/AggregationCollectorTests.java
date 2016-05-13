@@ -63,9 +63,7 @@ public class AggregationCollectorTests extends ESSingleNodeTestCase {
         AggregatorParsers parser = getInstanceFromNode(AggregatorParsers.class);
         IndicesQueriesRegistry queriesRegistry = getInstanceFromNode(IndicesQueriesRegistry.class);
         XContentParser aggParser = JsonXContent.jsonXContent.createParser(agg);
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
-        parseContext.reset(aggParser);
-        parseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, aggParser, ParseFieldMatcher.STRICT);
         aggParser.nextToken();
         SearchContext searchContext = createSearchContext(index);
         AggregationContext aggContext = new AggregationContext(searchContext);

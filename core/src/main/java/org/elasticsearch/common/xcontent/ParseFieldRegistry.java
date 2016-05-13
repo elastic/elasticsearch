@@ -68,15 +68,14 @@ public class ParseFieldRegistry<T> {
      * Lookup a value from the registry by name while checking that the name matches the ParseField.
      *
      * @param name The name of the thing to look up.
-     * @param parser The parser from which the name was looked up.
      * @param parseFieldMatcher to build nice error messages.
      * @return The value being looked up. Never null.
      * @throws ParsingException if the named thing isn't in the registry or the name was deprecated and deprecated names aren't supported.
      */
-    public T lookup(String name, XContentParser parser, ParseFieldMatcher parseFieldMatcher) {
+    public T lookup(String name, ParseFieldMatcher parseFieldMatcher, XContentLocation xContentLocation) {
         T value = lookupReturningNullIfNotFound(name, parseFieldMatcher);
         if (value == null) {
-            throw new ParsingException(parser.getTokenLocation(), "no [" + registryName + "] registered for [" + name + "]");
+            throw new ParsingException(xContentLocation, "no [" + registryName + "] registered for [" + name + "]");
         }
         return value;
     }

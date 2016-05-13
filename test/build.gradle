@@ -25,6 +25,8 @@ subprojects {
 
   group = 'org.elasticsearch.test'
   apply plugin: 'elasticsearch.build'
+  apply plugin: 'nebula.maven-base-publish'
+  apply plugin: 'nebula.maven-scm'
 
   
   // the main files are actually test files, so use the appropriate forbidden api sigs

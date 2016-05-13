@@ -20,11 +20,15 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -43,6 +47,7 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -52,24 +57,28 @@ import static java.util.Collections.emptyMap;
  * Abstract base for scrolling across a search and executing bulk indexes on all
  * results.
  */
-public abstract class AbstractAsyncBulkIndexByScrollAction<
-                Request extends AbstractBulkIndexByScrollRequest<Request>,
-                Response extends BulkIndexByScrollResponse>
-        extends AbstractAsyncBulkByScrollAction<Request, Response> {
+public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends AbstractBulkIndexByScrollRequest<Request>>
+        extends AbstractAsyncBulkByScrollAction<Request, BulkIndexByScrollResponse> {
 
     private final ScriptService scriptService;
     private final CompiledScript script;
 
-    public AbstractAsyncBulkIndexByScrollAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService,
-            Client client, ThreadPool threadPool, Request mainRequest, SearchRequest firstSearchRequest,
-            ActionListener<Response> listener) {
+    public AbstractAsyncBulkIndexByScrollAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService, ClusterState state,
+            ParentTaskAssigningClient client, ThreadPool threadPool, Request mainRequest, SearchRequest firstSearchRequest,
+            ActionListener<BulkIndexByScrollResponse> listener) {
         super(task, logger, client, threadPool, mainRequest, firstSearchRequest, listener);
         this.scriptService = scriptService;
         if (mainRequest.getScript() == null) {
             script = null;
         } else {
-            script = scriptService.compile(mainRequest.getScript(), ScriptContext.Standard.UPDATE, emptyMap());
+            script = scriptService.compile(mainRequest.getScript(), ScriptContext.Standard.UPDATE, emptyMap(), state);
         }
+    }
+
+    @Override
+    protected BulkIndexByScrollResponse buildResponse(TimeValue took, List<BulkItemResponse.Failure> indexingFailures,
+                                     List<ShardSearchFailure> searchFailures, boolean timedOut) {
+        return new BulkIndexByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
     }
 
     /**

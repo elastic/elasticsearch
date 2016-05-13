@@ -56,11 +56,6 @@ public class AvgAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly
     }
 
     @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
-    }
-
-    @Override
     protected AvgAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         return new AvgAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);

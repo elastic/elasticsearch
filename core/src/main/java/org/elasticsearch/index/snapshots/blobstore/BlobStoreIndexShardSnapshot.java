@@ -31,7 +31,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.store.StoreFileMetaData;
 
@@ -220,13 +219,13 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
         }
 
         static final class Fields {
-            static final XContentBuilderString NAME = new XContentBuilderString("name");
-            static final XContentBuilderString PHYSICAL_NAME = new XContentBuilderString("physical_name");
-            static final XContentBuilderString LENGTH = new XContentBuilderString("length");
-            static final XContentBuilderString CHECKSUM = new XContentBuilderString("checksum");
-            static final XContentBuilderString PART_SIZE = new XContentBuilderString("part_size");
-            static final XContentBuilderString WRITTEN_BY = new XContentBuilderString("written_by");
-            static final XContentBuilderString META_HASH = new XContentBuilderString("meta_hash");
+            static final String NAME = "name";
+            static final String PHYSICAL_NAME = "physical_name";
+            static final String LENGTH = "length";
+            static final String CHECKSUM = "checksum";
+            static final String PART_SIZE = "part_size";
+            static final String WRITTEN_BY = "written_by";
+            static final String META_HASH = "meta_hash";
         }
 
         /**
@@ -426,13 +425,13 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
     }
 
     static final class Fields {
-        static final XContentBuilderString NAME = new XContentBuilderString("name");
-        static final XContentBuilderString INDEX_VERSION = new XContentBuilderString("index_version");
-        static final XContentBuilderString START_TIME = new XContentBuilderString("start_time");
-        static final XContentBuilderString TIME = new XContentBuilderString("time");
-        static final XContentBuilderString NUMBER_OF_FILES = new XContentBuilderString("number_of_files");
-        static final XContentBuilderString TOTAL_SIZE = new XContentBuilderString("total_size");
-        static final XContentBuilderString FILES = new XContentBuilderString("files");
+        static final String NAME = "name";
+        static final String INDEX_VERSION = "index_version";
+        static final String START_TIME = "start_time";
+        static final String TIME = "time";
+        static final String NUMBER_OF_FILES = "number_of_files";
+        static final String TOTAL_SIZE = "total_size";
+        static final String FILES = "files";
     }
 
     static final class ParseFields {

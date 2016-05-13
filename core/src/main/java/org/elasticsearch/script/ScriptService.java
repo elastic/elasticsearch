@@ -20,17 +20,17 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequest;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
@@ -45,15 +45,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -77,9 +76,6 @@ import java.util.concurrent.ConcurrentMap;
 
 import static java.util.Collections.unmodifiableMap;
 
-/**
- *
- */
 public class ScriptService extends AbstractComponent implements Closeable {
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
@@ -88,9 +84,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
         Setting.intSetting("script.cache.max_size", 100, 0, Property.NodeScope);
     public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
         Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope);
-    public static final String SCRIPT_INDEX = ".scripts";
     public static final Setting<Boolean> SCRIPT_AUTO_RELOAD_ENABLED_SETTING =
         Setting.boolSetting("script.auto_reload_enabled", true, Property.NodeScope);
+    public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
+        Setting.intSetting("script.max_size_in_bytes", 65535, Property.NodeScope);
 
     private final String defaultLang;
 
@@ -107,9 +104,6 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private final ScriptContextRegistry scriptContextRegistry;
 
     private final ParseFieldMatcher parseFieldMatcher;
-
-    private Client client = null;
-
     private final ScriptMetrics scriptMetrics = new ScriptMetrics();
 
     /**
@@ -139,7 +133,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     @Inject
     public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
-                         ResourceWatcherService resourceWatcherService, ScriptEngineRegistry scriptEngineRegistry, ScriptContextRegistry scriptContextRegistry, ScriptSettings scriptSettings) throws IOException {
+                         ResourceWatcherService resourceWatcherService, ScriptEngineRegistry scriptEngineRegistry,
+                         ScriptContextRegistry scriptContextRegistry, ScriptSettings scriptSettings) throws IOException {
         super(settings);
         Objects.requireNonNull(scriptEngineRegistry);
         Objects.requireNonNull(scriptContextRegistry);
@@ -147,7 +142,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings. \n" +
-                    "Dynamic scripts can be enabled for all languages and all operations by replacing `script.disable_dynamic: false` with `script.inline: true` and `script.indexed: true` in elasticsearch.yml");
+                    "Dynamic scripts can be enabled for all languages and all operations by replacing `script.disable_dynamic: false` with `script.inline: true` and `script.stored: true` in elasticsearch.yml");
         }
 
         this.scriptEngines = scriptEngines;
@@ -201,12 +196,6 @@ public class ScriptService extends AbstractComponent implements Closeable {
         }
     }
 
-    //This isn't set in the ctor because doing so creates a guice circular
-    @Inject(optional=true)
-    public void setClient(Client client) {
-        this.client = client;
-    }
-
     @Override
     public void close() throws IOException {
         IOUtils.close(scriptEngines);
@@ -233,7 +222,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
      */
-    public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
+    public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params, ClusterState state) {
         if (script == null) {
             throw new IllegalArgumentException("The parameter script (Script) must not be null.");
         }
@@ -261,14 +250,14 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     " operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are not supported");
         }
 
-        return compileInternal(script, params);
+        return compileInternal(script, params, state);
     }
 
     /**
      * Compiles a script straight-away, or returns the previously compiled and cached script,
      * without checking if it can be executed based on settings.
      */
-    public CompiledScript compileInternal(Script script, Map<String, String> params) {
+    CompiledScript compileInternal(Script script, Map<String, String> params, ClusterState state) {
         if (script == null) {
             throw new IllegalArgumentException("The parameter script (Script) must not be null.");
         }
@@ -300,12 +289,12 @@ public class ScriptService extends AbstractComponent implements Closeable {
         //script.getScript() will be code if the script type is inline
         String code = script.getScript();
 
-        if (type == ScriptType.INDEXED) {
+        if (type == ScriptType.STORED) {
             //The look up for an indexed script must be done every time in case
             //the script has been updated in the index since the last look up.
             final IndexedScript indexedScript = new IndexedScript(lang, name);
             name = indexedScript.id;
-            code = getScriptFromIndex(indexedScript.lang, indexedScript.id);
+            code = getScriptFromClusterState(state, indexedScript.lang, indexedScript.id);
         }
 
         CacheKey cacheKey = new CacheKey(scriptEngineService, type == ScriptType.INLINE ? null : name, code, params);
@@ -329,14 +318,6 @@ public class ScriptService extends AbstractComponent implements Closeable {
         return compiledScript;
     }
 
-    public void queryScriptIndex(GetIndexedScriptRequest request, final ActionListener<GetResponse> listener) {
-        String scriptLang = validateScriptLanguage(request.scriptLang());
-        GetRequest getRequest = new GetRequest(SCRIPT_INDEX).type(scriptLang).id(request.id())
-                .version(request.version()).versionType(request.versionType())
-                .preference("_local"); //Set preference for no forking
-        client.get(getRequest, listener);
-    }
-
     private String validateScriptLanguage(String scriptLang) {
         if (scriptLang == null) {
             scriptLang = defaultLang;
@@ -346,23 +327,23 @@ public class ScriptService extends AbstractComponent implements Closeable {
         return scriptLang;
     }
 
-    String getScriptFromIndex(String scriptLang, String id) {
-        if (client == null) {
-            throw new IllegalArgumentException("Got an indexed script with no Client registered.");
-        }
+    String getScriptFromClusterState(ClusterState state, String scriptLang, String id) {
         scriptLang = validateScriptLanguage(scriptLang);
-        GetRequest getRequest = new GetRequest(SCRIPT_INDEX, scriptLang, id);
-        GetResponse responseFields = client.get(getRequest).actionGet();
-        if (responseFields.isExists()) {
-            return getScriptFromResponse(responseFields);
+        ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
+        if (scriptMetadata == null) {
+            throw new ResourceNotFoundException("Unable to find script [" + scriptLang + "/" + id + "] in cluster state");
         }
-        throw new IllegalArgumentException("Unable to find script [" + SCRIPT_INDEX + "/"
-                + scriptLang + "/" + id + "]");
+
+        String script = scriptMetadata.getScript(scriptLang, id);
+        if (script == null) {
+            throw new ResourceNotFoundException("Unable to find script [" + scriptLang + "/" + id + "] in cluster state");
+        }
+        return script;
     }
 
-    private void validate(BytesReference scriptBytes, String scriptLang) {
-        try {
-            XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
+    void validate(String id, String scriptLang, BytesReference scriptBytes) {
+        validateScriptSize(id, scriptBytes.length());
+        try (XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes)) {
             parser.nextToken();
             Template template = TemplateQueryBuilder.parse(scriptLang, parser, parseFieldMatcher, "params", "script", "template");
             if (Strings.hasLength(template.getScript())) {
@@ -371,7 +352,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(scriptLang);
                     //we don't know yet what the script will be used for, but if all of the operations for this lang with
                     //indexed scripts are disabled, it makes no sense to even compile it.
-                    if (isAnyScriptContextEnabled(scriptLang, scriptEngineService, ScriptType.INDEXED)) {
+                    if (isAnyScriptContextEnabled(scriptLang, scriptEngineService, ScriptType.STORED)) {
                         Object compiled = scriptEngineService.compile(template.getScript(), Collections.emptyMap());
                         if (compiled == null) {
                             throw new IllegalArgumentException("Unable to parse [" + template.getScript() +
@@ -394,58 +375,72 @@ public class ScriptService extends AbstractComponent implements Closeable {
         }
     }
 
-    public void putScriptToIndex(PutIndexedScriptRequest request, ActionListener<IndexResponse> listener) {
+    public void storeScript(ClusterService clusterService, PutStoredScriptRequest request, ActionListener<PutStoredScriptResponse> listener) {
         String scriptLang = validateScriptLanguage(request.scriptLang());
         //verify that the script compiles
-        validate(request.source(), scriptLang);
+        validate(request.id(), scriptLang, request.script());
+        clusterService.submitStateUpdateTask("put-script-" + request.id(), new AckedClusterStateUpdateTask<PutStoredScriptResponse>(request, listener) {
 
-        IndexRequest indexRequest = new IndexRequest().index(SCRIPT_INDEX).type(scriptLang).id(request.id())
-                .version(request.version()).versionType(request.versionType())
-                .source(request.source()).opType(request.opType()).refresh(true); //Always refresh after indexing a template
-        client.index(indexRequest, listener);
+            @Override
+            protected PutStoredScriptResponse newResponse(boolean acknowledged) {
+                return new PutStoredScriptResponse(acknowledged);
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                return innerStoreScript(currentState, scriptLang, request);
+            }
+        });
     }
 
-    public void deleteScriptFromIndex(DeleteIndexedScriptRequest request, ActionListener<DeleteResponse> listener) {
+    static ClusterState innerStoreScript(ClusterState currentState, String validatedScriptLang, PutStoredScriptRequest request) {
+        ScriptMetaData scriptMetadata = currentState.metaData().custom(ScriptMetaData.TYPE);
+        ScriptMetaData.Builder scriptMetadataBuilder = new ScriptMetaData.Builder(scriptMetadata);
+        scriptMetadataBuilder.storeScript(validatedScriptLang, request.id(), request.script());
+        MetaData.Builder metaDataBuilder = MetaData.builder(currentState.getMetaData())
+                .putCustom(ScriptMetaData.TYPE, scriptMetadataBuilder.build());
+        return ClusterState.builder(currentState).metaData(metaDataBuilder).build();
+    }
+
+    public void deleteStoredScript(ClusterService clusterService, DeleteStoredScriptRequest request, ActionListener<DeleteStoredScriptResponse> listener) {
         String scriptLang = validateScriptLanguage(request.scriptLang());
-        DeleteRequest deleteRequest = new DeleteRequest().index(SCRIPT_INDEX).type(scriptLang).id(request.id())
-                .refresh(true).version(request.version()).versionType(request.versionType());
-        client.delete(deleteRequest, listener);
+        clusterService.submitStateUpdateTask("delete-script-" + request.id(), new AckedClusterStateUpdateTask<DeleteStoredScriptResponse>(request, listener) {
+
+            @Override
+            protected DeleteStoredScriptResponse newResponse(boolean acknowledged) {
+                return new DeleteStoredScriptResponse(acknowledged);
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                return innerDeleteScript(currentState, scriptLang, request);
+            }
+        });
     }
 
-    @SuppressWarnings("unchecked")
-    public static String getScriptFromResponse(GetResponse responseFields) {
-        Map<String, Object> source = responseFields.getSourceAsMap();
-        if (source.containsKey("template")) {
-            try {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                Object template = source.get("template");
-                if (template instanceof Map ){
-                    builder.map((Map<String, Object>)template);
-                    return builder.string();
-                } else {
-                    return template.toString();
-                }
-            } catch (IOException | ClassCastException e) {
-                throw new IllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json", e);
-            }
-        } else  if (source.containsKey("script")) {
-            return source.get("script").toString();
+    static ClusterState innerDeleteScript(ClusterState currentState, String validatedLang, DeleteStoredScriptRequest request) {
+        ScriptMetaData scriptMetadata = currentState.metaData().custom(ScriptMetaData.TYPE);
+        ScriptMetaData.Builder scriptMetadataBuilder = new ScriptMetaData.Builder(scriptMetadata);
+        scriptMetadataBuilder.deleteScript(validatedLang, request.id());
+        MetaData.Builder metaDataBuilder = MetaData.builder(currentState.getMetaData())
+                .putCustom(ScriptMetaData.TYPE, scriptMetadataBuilder.build());
+        return ClusterState.builder(currentState).metaData(metaDataBuilder).build();
+    }
+
+    public String getStoredScript(ClusterState state, GetStoredScriptRequest request) {
+        ScriptMetaData scriptMetadata = state.metaData().custom(ScriptMetaData.TYPE);
+        if (scriptMetadata != null) {
+            return scriptMetadata.getScript(request.lang(), request.id());
         } else {
-            try {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                builder.map(responseFields.getSource());
-                return builder.string();
-            } catch (IOException|ClassCastException e) {
-                throw new IllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json", e);
-            }
+            return null;
         }
     }
 
     /**
      * Compiles (or retrieves from cache) and executes the provided script
      */
-    public ExecutableScript executable(Script script, ScriptContext scriptContext, Map<String, String> params) {
-        return executable(compile(script, scriptContext, params), script.getParams());
+    public ExecutableScript executable(Script script, ScriptContext scriptContext, Map<String, String> params, ClusterState state) {
+        return executable(compile(script, scriptContext, params, state), script.getParams());
     }
 
     /**
@@ -458,8 +453,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles (or retrieves from cache) and executes the provided search script
      */
-    public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext, Map<String, String> params) {
-        CompiledScript compiledScript = compile(script, scriptContext, params);
+    public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext, Map<String, String> params, ClusterState state) {
+        CompiledScript compiledScript = compile(script, scriptContext, params, state);
         return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript, lookup, script.getParams());
     }
 
@@ -494,8 +489,17 @@ public class ScriptService extends AbstractComponent implements Closeable {
         return scriptMetrics.stats();
     }
 
-    public Client getClient() {
-        return client;
+    private void validateScriptSize(String identifier, int scriptSizeInBytes) {
+        int allowedScriptSizeInBytes = SCRIPT_MAX_SIZE_IN_BYTES.get(settings);
+        if (scriptSizeInBytes > allowedScriptSizeInBytes) {
+            String message = LoggerMessageFormat.format(
+                    "Limit of script size in bytes [{}] has been exceeded for script [{}] with size [{}]",
+                    allowedScriptSizeInBytes,
+                    identifier,
+                    scriptSizeInBytes
+            );
+            throw new IllegalArgumentException(message);
+        }
     }
 
     /**
@@ -604,7 +608,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     public enum ScriptType {
 
         INLINE(0, "inline", "inline", ScriptMode.SANDBOX),
-        INDEXED(1, "id", "indexed", ScriptMode.SANDBOX),
+        STORED(1, "id", "stored", ScriptMode.SANDBOX),
         FILE(2, "file", "file", ScriptMode.ON);
 
         private final int val;
@@ -620,7 +624,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                 }
             }
             throw new IllegalArgumentException("Unexpected value read for ScriptType got [" + scriptTypeVal + "] expected one of ["
-                    + INLINE.val + "," + FILE.val + "," + INDEXED.val + "]");
+                    + INLINE.val + "," + FILE.val + "," + STORED.val + "]");
         }
 
         public static void writeTo(ScriptType scriptType, StreamOutput out) throws IOException{

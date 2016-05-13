@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder;
@@ -55,12 +54,13 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
 
     static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
             3, 0, 10, -1);
+    static final SignificanceHeuristic DEFAULT_SIGNIFICANCE_HEURISTIC = new JLHScore();
 
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
-    private QueryBuilder<?> filterBuilder = null;
+    private QueryBuilder filterBuilder = null;
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
-    private SignificanceHeuristic significanceHeuristic = JLHScore.PROTOTYPE;
+    private SignificanceHeuristic significanceHeuristic = DEFAULT_SIGNIFICANCE_HEURISTIC;
 
     public SignificantTermsAggregatorBuilder(String name, ValueType valueType) {
         super(name, SignificantStringTerms.TYPE, ValuesSourceType.ANY, valueType);
@@ -71,37 +71,20 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
      */
     public SignificantTermsAggregatorBuilder(StreamInput in) throws IOException {
         super(in, SignificantStringTerms.TYPE, ValuesSourceType.ANY);
-        bucketCountThresholds = BucketCountThresholds.readFromStream(in);
+        bucketCountThresholds = new BucketCountThresholds(in);
         executionHint = in.readOptionalString();
-        if (in.readBoolean()) {
-            filterBuilder = in.readQuery();
-        }
-        if (in.readBoolean()) {
-            includeExclude = IncludeExclude.readFromStream(in);
-        }
-        significanceHeuristic = SignificanceHeuristicStreams.read(in);
+        filterBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        includeExclude = in.readOptionalWriteable(IncludeExclude::new);
+        significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         bucketCountThresholds.writeTo(out);
         out.writeOptionalString(executionHint);
-        boolean hasfilterBuilder = filterBuilder != null;
-        out.writeBoolean(hasfilterBuilder);
-        if (hasfilterBuilder) {
-            out.writeQuery(filterBuilder);
-        }
-        boolean hasIncExc = includeExclude != null;
-        out.writeBoolean(hasIncExc);
-        if (hasIncExc) {
-            includeExclude.writeTo(out);
-        }
-        SignificanceHeuristicStreams.writeTo(significanceHeuristic, out);
-    }
-
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
+        out.writeOptionalNamedWriteable(filterBuilder);
+        out.writeOptionalWriteable(includeExclude);
+        out.writeNamedWriteable(significanceHeuristic);
     }
 
     @Override
@@ -193,7 +176,7 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
         return executionHint;
     }
 
-    public SignificantTermsAggregatorBuilder backgroundFilter(QueryBuilder<?> backgroundFilter) {
+    public SignificantTermsAggregatorBuilder backgroundFilter(QueryBuilder backgroundFilter) {
         if (backgroundFilter == null) {
             throw new IllegalArgumentException("[backgroundFilter] must not be null: [" + name + "]");
         }
@@ -201,7 +184,7 @@ public class SignificantTermsAggregatorBuilder extends ValuesSourceAggregatorBui
         return this;
     }
 
-    public QueryBuilder<?> backgroundFilter() {
+    public QueryBuilder backgroundFilter() {
         return filterBuilder;
     }
 

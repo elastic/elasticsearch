@@ -44,7 +44,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Indexing a document with a JSON `true`.
 <2> Querying for the document with `1`, which is interpreted as `true`.
 
@@ -81,7 +81,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work.
 
 [[boolean-params]]

@@ -43,8 +43,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class SearchModuleTests extends ModuleTestCase {
 
    public void testDoubleRegister() {
@@ -99,16 +97,16 @@ public class SearchModuleTests extends ModuleTestCase {
         IndicesQueriesRegistry indicesQueriesRegistry = module.getQueryParserRegistry();
         XContentParser dummyParser = XContentHelper.createParser(new BytesArray("{}"));
         for (String queryName : supportedQueries) {
-            indicesQueriesRegistry.lookup(queryName, dummyParser, ParseFieldMatcher.EMPTY);
+            indicesQueriesRegistry.lookup(queryName, ParseFieldMatcher.EMPTY, dummyParser.getTokenLocation());
         }
 
         for (String queryName : NON_DEPRECATED_QUERIES) {
-            QueryParser<?> queryParser = indicesQueriesRegistry.lookup(queryName, dummyParser, ParseFieldMatcher.STRICT);
+            QueryParser<?> queryParser = indicesQueriesRegistry.lookup(queryName, ParseFieldMatcher.STRICT, dummyParser.getTokenLocation());
             assertThat(queryParser, notNullValue());
         }
         for (String queryName : DEPRECATED_QUERIES) {
             try {
-                indicesQueriesRegistry.lookup(queryName, dummyParser, ParseFieldMatcher.STRICT);
+                indicesQueriesRegistry.lookup(queryName, ParseFieldMatcher.STRICT, dummyParser.getTokenLocation());
                 fail("query is deprecated, getQueryParser should have failed in strict mode");
             } catch(IllegalArgumentException e) {
                 assertThat(e.getMessage(), containsString("Deprecated field [" + queryName + "] used"));
@@ -120,67 +118,38 @@ public class SearchModuleTests extends ModuleTestCase {
             "bool",
             "boosting",
             "common",
-            "constantScore",
             "constant_score",
-            "disMax",
             "dis_max",
             "exists",
-            "fieldMaskingSpan",
             "field_masking_span",
-            "functionScore",
             "function_score",
             "fuzzy",
-            "geoBoundingBox",
-            "geoDistance",
-            "geoDistanceRange",
-            "geoPolygon",
-            "geoShape",
             "geo_bounding_box",
             "geo_distance",
             "geo_distance_range",
             "geo_polygon",
             "geo_shape",
-            "geohashCell",
             "geohash_cell",
-            "hasChild",
-            "hasParent",
             "has_child",
             "has_parent",
             "ids",
             "indices",
             "match",
-            "matchAll",
-            "matchNone",
-            "matchPhrase",
-            "matchPhrasePrefix",
             "match_all",
             "match_none",
             "match_phrase",
             "match_phrase_prefix",
-            "moreLikeThis",
             "more_like_this",
-            "multiMatch",
             "multi_match",
             "nested",
-            "parentId",
             "parent_id",
-            "percolator",
+            "percolate",
             "prefix",
-            "queryString",
             "query_string",
             "range",
             "regexp",
             "script",
-            "simpleQueryString",
             "simple_query_string",
-            "spanContaining",
-            "spanFirst",
-            "spanMulti",
-            "spanNear",
-            "spanNot",
-            "spanOr",
-            "spanTerm",
-            "spanWithin",
             "span_containing",
             "span_first",
             "span_multi",
@@ -198,12 +167,9 @@ public class SearchModuleTests extends ModuleTestCase {
     };
 
     private static final String[] DEPRECATED_QUERIES = new String[] {
-            "fuzzyMatch",
             "fuzzy_match",
-            "geoBbox",
             "geo_bbox",
             "in",
-            "matchFuzzy",
             "match_fuzzy",
             "mlt"
     };

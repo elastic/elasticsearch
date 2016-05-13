@@ -33,18 +33,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
 
 /**
  *
  */
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureComputeServiceImpl>
     implements AzureComputeService {
-
-    static final class Azure {
-        private static final String ENDPOINT = "https://management.core.windows.net/";
-    }
 
     private final ComputeManagementClient computeManagementClient;
     private final String serviceName;
@@ -59,18 +53,18 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
         String keystorePassword = Management.KEYSTORE_PASSWORD_SETTING.get(settings);
         KeyStoreType keystoreType = Management.KEYSTORE_TYPE_SETTING.get(settings);
 
-        // Check that we have all needed properties
-        Configuration configuration;
-        try {
-            configuration = ManagementConfiguration.configure(new URI(Azure.ENDPOINT),
-                    subscriptionId, keystorePath, keystorePassword, keystoreType);
-        } catch (IOException|URISyntaxException e) {
-            logger.error("can not start azure client: {}", e.getMessage());
-            computeManagementClient = null;
-            return;
-        }
         logger.trace("creating new Azure client for [{}], [{}]", subscriptionId, serviceName);
-        computeManagementClient = ComputeManagementService.create(configuration);
+        ComputeManagementClient result;
+        try {
+            // Check that we have all needed properties
+            Configuration configuration = ManagementConfiguration.configure(Management.ENDPOINT_SETTING.get(settings),
+                subscriptionId, keystorePath, keystorePassword, keystoreType);
+            result = ComputeManagementService.create(configuration);
+        } catch (IOException e) {
+            logger.error("can not start azure client: {}", e.getMessage());
+            result = null;
+        }
+        this.computeManagementClient = result;
     }
 
     @Override

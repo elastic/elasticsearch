@@ -106,7 +106,7 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
             int size = in.readVInt();
             sorts = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                sorts.add(in.readSortBuilder());
+                sorts.add(in.readNamedWriteable(SortBuilder.class));
             }
         }
         trackScores = in.readBoolean();
@@ -149,16 +149,11 @@ public class TopHitsAggregatorBuilder extends AggregatorBuilder<TopHitsAggregato
         if (hasSorts) {
             out.writeVInt(sorts.size());
             for (SortBuilder<?> sort : sorts) {
-                out.writeSortBuilder(sort);
+                out.writeNamedWriteable(sort);
             }
         }
         out.writeBoolean(trackScores);
         out.writeBoolean(version);
-    }
-
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
     }
 
     /**

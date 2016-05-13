@@ -128,16 +128,14 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         realWordErrorLikelihood = in.readFloat();
         confidence = in.readFloat();
         gramSize = in.readOptionalVInt();
-        if (in.readBoolean()) {
-            model = in.readPhraseSuggestionSmoothingModel();
-        }
+        model = in.readOptionalNamedWriteable(SmoothingModel.class);
         forceUnigrams = in.readBoolean();
         tokenLimit = in.readVInt();
         preTag = in.readOptionalString();
         postTag = in.readOptionalString();
         separator = in.readString();
         if (in.readBoolean()) {
-            collateQuery = Template.readTemplate(in);
+            collateQuery = new Template(in);
         }
         collateParams = in.readMap();
         collatePrune = in.readOptionalBoolean();
@@ -160,11 +158,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         out.writeFloat(realWordErrorLikelihood);
         out.writeFloat(confidence);
         out.writeOptionalVInt(gramSize);
-        boolean hasModel = model != null;
-        out.writeBoolean(hasModel);
-        if (hasModel) {
-            out.writePhraseSuggestionSmoothingModel(model);
-        }
+        out.writeOptionalNamedWriteable(model);
         out.writeBoolean(forceUnigrams);
         out.writeVInt(tokenLimit);
         out.writeOptionalString(preTag);
@@ -637,7 +631,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
         if (this.collateQuery != null) {
             CompiledScript compiledScript = context.getScriptService().compile(this.collateQuery, ScriptContext.Standard.SEARCH,
-                    Collections.emptyMap());
+                    Collections.emptyMap(), context.getClusterState());
             suggestionContext.setCollateQueryScript(compiledScript);
             if (this.collateParams != null) {
                 suggestionContext.setCollateScriptParams(this.collateParams);
@@ -714,7 +708,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     /**
      * {@link CandidateGenerator} interface.
      */
-    public interface CandidateGenerator extends Writeable<CandidateGenerator>, ToXContent {
+    public interface CandidateGenerator extends Writeable, ToXContent {
         String getType();
 
         PhraseSuggestionContext.DirectCandidateGenerator build(MapperService mapperService) throws IOException;

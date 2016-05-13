@@ -75,7 +75,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     public void testSpecifiedIndexUnavailableMultipleIndices() throws Exception {
-        createIndex("test1");
+        assertAcked(prepareCreate("test1").addMapping("query", "query", "type=percolator"));
         ensureYellow();
 
         // Verify defaults
@@ -136,7 +136,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getSettings("test1", "test2").setIndicesOptions(options), false);
 
         options = IndicesOptions.strictExpandOpen();
-        assertAcked(prepareCreate("test2"));
+        assertAcked(prepareCreate("test2").addMapping("query", "query", "type=percolator"));
         ensureYellow();
         verify(search("test1", "test2").setIndicesOptions(options), false);
         verify(msearch(options, "test1", "test2").setIndicesOptions(options), false);
@@ -158,7 +158,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     public void testSpecifiedIndexUnavailableSingleIndexThatIsClosed() throws Exception {
-        assertAcked(prepareCreate("test1"));
+        assertAcked(prepareCreate("test1").addMapping("query", "query", "type=percolator"));
         // we need to wait until all shards are allocated since recovery from
         // gateway will fail unless the majority of the replicas was allocated
         // pre-closing. with lots of replicas this will fail.
@@ -264,7 +264,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getMapping("test1").setIndicesOptions(options), false);
         verify(getSettings("test1").setIndicesOptions(options), false);
 
-        assertAcked(prepareCreate("test1"));
+        assertAcked(prepareCreate("test1").addMapping("query", "query", "type=percolator"));
         ensureYellow();
 
         options = IndicesOptions.strictExpandOpenAndForbidClosed();
@@ -357,7 +357,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getMapping(indices).setIndicesOptions(options), false);
         verify(getSettings(indices).setIndicesOptions(options), false);
 
-        assertAcked(prepareCreate("foobar"));
+        assertAcked(prepareCreate("foobar").addMapping("query", "query", "type=percolator"));
         client().prepareIndex("foobar", "type", "1").setSource("k", "v").setRefresh(true).execute().actionGet();
 
         // Verify defaults for wildcards, with one wildcard expression and one existing index

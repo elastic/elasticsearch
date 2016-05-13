@@ -14,7 +14,7 @@
       "params": {
         "requests_per_second": {
           "type": "float",
-          "default": 0,
+          "required": true,
           "description": "The throttle to set on this request in sub-requests per second. 0 means set no throttle. As does \"unlimited\". Otherwise it must be a float."
         }
       }

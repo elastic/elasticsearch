@@ -22,6 +22,8 @@ task buildTar(type: Tar) {
   extension = 'tar.gz'
   with archivesFiles
   compression = Compression.GZIP
+  dirMode 0755
+  fileMode 0644
 }
 
 artifacts {
@@ -31,3 +33,4 @@ artifacts {
     project.signArchives.singleSignature.type = 'tar.gz.asc'
   }
 }
+

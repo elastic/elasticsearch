@@ -66,5 +66,5 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `text` field will use the postings highlighter by default because `offsets` are indexed.

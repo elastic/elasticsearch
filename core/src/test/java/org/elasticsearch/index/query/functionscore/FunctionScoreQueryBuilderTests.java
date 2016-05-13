@@ -59,7 +59,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static java.lang.Math.abs;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -201,13 +200,13 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             break;
         case DATE_FIELD_NAME:
             origin = new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString();
-            scale = randomTimeValue();
-            offset = randomTimeValue();
+            scale = randomPositiveTimeValue();
+            offset = randomPositiveTimeValue();
             break;
         default:
             origin = randomBoolean() ? randomInt() : randomFloat();
-            scale = randomBoolean() ? abs(randomInt()) : abs(randomFloat());
-            offset = randomBoolean() ? abs(randomInt()) : abs(randomFloat());
+            scale = randomBoolean() ? between(1, Integer.MAX_VALUE) : randomFloat() + Float.MIN_NORMAL;
+            offset = randomBoolean() ? between(1, Integer.MAX_VALUE) : randomFloat() + Float.MIN_NORMAL;
             break;
         }
         offset = randomBoolean() ? null : offset;
@@ -241,7 +240,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testIllegalArguments() {
-        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((QueryBuilder<?>) null));
+        expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((QueryBuilder) null));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((ScoreFunctionBuilder<?>) null));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder((FilterFunctionBuilder[]) null));
         expectThrows(IllegalArgumentException.class, () -> new FunctionScoreQueryBuilder(null, randomFunction(123)));
@@ -302,7 +301,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             "    }\n" +
             "}";
 
-        QueryBuilder<?> queryBuilder = parseQuery(functionScoreQuery);
+        QueryBuilder queryBuilder = parseQuery(functionScoreQuery);
         /*
          * given that we copy part of the decay functions as bytes, we test that fromXContent and toXContent both work no matter what the
          * initial format was
@@ -344,7 +343,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             assertThat(functionScoreQueryBuilder.maxBoost(), equalTo(10f));
 
             if (i < XContentType.values().length) {
-                queryBuilder = parseQuery(((AbstractQueryBuilder<?>) queryBuilder).buildAsBytes(XContentType.values()[i]));
+                queryBuilder = parseQuery(((AbstractQueryBuilder) queryBuilder).buildAsBytes(XContentType.values()[i]));
             }
         }
     }
@@ -370,7 +369,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             "    }\n" +
             "}";
 
-        QueryBuilder<?> queryBuilder = parseQuery(functionScoreQuery);
+        QueryBuilder queryBuilder = parseQuery(functionScoreQuery);
         /*
          * given that we copy part of the decay functions as bytes, we test that fromXContent and toXContent both work no matter what the
          * initial format was
@@ -396,7 +395,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             assertThat(functionScoreQueryBuilder.maxBoost(), equalTo(10f));
 
             if (i < XContentType.values().length) {
-                queryBuilder = parseQuery(((AbstractQueryBuilder<?>) queryBuilder).buildAsBytes(XContentType.values()[i]));
+                queryBuilder = parseQuery(((AbstractQueryBuilder) queryBuilder).buildAsBytes(XContentType.values()[i]));
             }
         }
     }
@@ -477,7 +476,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             .endArray()
             .endObject()
             .endObject().string();
-        QueryBuilder<?> query = parseQuery(queryString);
+        QueryBuilder query = parseQuery(queryString);
         assertThat(query, instanceOf(FunctionScoreQueryBuilder.class));
         FunctionScoreQueryBuilder functionScoreQueryBuilder = (FunctionScoreQueryBuilder) query;
         assertThat(functionScoreQueryBuilder.filterFunctionBuilders()[0].getScoreFunction(),
@@ -613,21 +612,21 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     public void testRewrite() throws IOException {
         FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(
                 new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()));
-        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(queryShardContext());
+        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
         assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
     }
 
     public void testRewriteWithFunction() throws IOException {
-        QueryBuilder<?> firstFunction = new WrapperQueryBuilder(new TermQueryBuilder("tq", "1").toString());
+        QueryBuilder firstFunction = new WrapperQueryBuilder(new TermQueryBuilder("tq", "1").toString());
         TermQueryBuilder secondFunction = new TermQueryBuilder("tq", "2");
-        QueryBuilder<?> queryBuilder = randomBoolean() ? new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString())
+        QueryBuilder queryBuilder = randomBoolean() ? new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString())
                 : new TermQueryBuilder("foo", "bar");
         FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder,
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(firstFunction, new RandomScoreFunctionBuilder()),
                         new FunctionScoreQueryBuilder.FilterFunctionBuilder(secondFunction, new RandomScoreFunctionBuilder()) });
-        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(queryShardContext());
+        FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
         assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
         assertEquals(rewrite.filterFunctionBuilders()[0].getFilter(), new TermQueryBuilder("tq", "1"));

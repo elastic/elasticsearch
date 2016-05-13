@@ -38,7 +38,7 @@ import java.util.Objects;
 /**
  * The abstract base builder for instances of {@link RescoreBuilder}.
  */
-public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> extends ToXContentToBytes implements NamedWriteable<RB> {
+public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> extends ToXContentToBytes implements NamedWriteable {
 
     protected Integer windowSize;
 
@@ -125,7 +125,7 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> extends ToXC
 
     public abstract QueryRescoreContext build(QueryShardContext context) throws IOException;
 
-    public static QueryRescorerBuilder queryRescorer(QueryBuilder<?> queryBuilder) {
+    public static QueryRescorerBuilder queryRescorer(QueryBuilder queryBuilder) {
         return new QueryRescorerBuilder(queryBuilder);
     }
 

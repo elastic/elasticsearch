@@ -25,7 +25,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ChildTaskRequest;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,6 +43,7 @@ import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -61,10 +61,10 @@ import java.util.function.Supplier;
  * The base class for transport actions that are interacting with currently running tasks.
  */
 public abstract class TransportTasksAction<
-    OperationTask extends Task,
-    TasksRequest extends BaseTasksRequest<TasksRequest>,
-    TasksResponse extends BaseTasksResponse,
-    TaskResponse extends Writeable<TaskResponse>
+        OperationTask extends Task,
+        TasksRequest extends BaseTasksRequest<TasksRequest>,
+        TasksResponse extends BaseTasksResponse,
+        TaskResponse extends Writeable
     > extends HandledTransportAction<TasksRequest, TasksResponse> {
 
     protected final ClusterName clusterName;
@@ -310,7 +310,7 @@ public abstract class TransportTasksAction<
     }
 
 
-    private class NodeTaskRequest extends ChildTaskRequest {
+    private class NodeTaskRequest extends TransportRequest {
         private TasksRequest tasksRequest;
 
         protected NodeTaskRequest() {

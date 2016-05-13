@@ -83,6 +83,9 @@ import static org.hamcrest.Matchers.nullValue;
 
 @TestLogging("discovery.zen.publish:TRACE")
 public class PublishClusterStateActionTests extends ESTestCase {
+
+    private static final ClusterName CLUSTER_NAME = ClusterName.DEFAULT;
+
     protected ThreadPool threadPool;
     protected Map<String, MockNode> nodes = new HashMap<>();
 
@@ -101,7 +104,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             this.service = service;
             this.listener = listener;
             this.logger = logger;
-            this.clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder().put(discoveryNode).localNodeId(discoveryNode.getId()).build()).build();
+            this.clusterState = ClusterState.builder(CLUSTER_NAME).nodes(DiscoveryNodes.builder().put(discoveryNode).localNodeId(discoveryNode.getId()).build()).build();
         }
 
         public MockNode setAsMaster() {
@@ -229,7 +232,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     }
 
     protected MockTransportService buildTransportService(Settings settings, Version version) {
-        MockTransportService transportService = MockTransportService.local(Settings.EMPTY, version, threadPool);
+        MockTransportService transportService = MockTransportService.local(Settings.EMPTY, version, threadPool, CLUSTER_NAME);
         transportService.start();
         transportService.acceptIncomingRequests();
         return transportService;
@@ -249,7 +252,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 clusterStateSupplier,
                 listener,
                 discoverySettings,
-                ClusterName.DEFAULT);
+                CLUSTER_NAME);
     }
 
     public void testSimpleClusterStatePublishing() throws Exception {
@@ -343,7 +346,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(nodeA.nodes()).put(nodeB.discoveryNode).build();
-        ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
+        ClusterState previousClusterState = ClusterState.builder(CLUSTER_NAME).nodes(discoveryNodes).build();
         ClusterState clusterState = ClusterState.builder(previousClusterState).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
         assertSameStateFromFull(nodeB.clusterState, clusterState);
@@ -374,7 +377,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         // Initial cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).localNodeId(nodeA.discoveryNode.getId()).masterNodeId(nodeA.discoveryNode.getId()).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME).nodes(discoveryNodes).build();
 
         // cluster state update - add nodeB
         discoveryNodes = DiscoveryNodes.builder(discoveryNodes).put(nodeB.discoveryNode).build();
@@ -417,7 +420,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         AssertingAckListener[] listeners = new AssertingAckListener[numberOfIterations];
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
         MetaData metaData = MetaData.EMPTY_META_DATA;
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME).metaData(metaData).build();
         ClusterState previousState;
         for (int i = 0; i < numberOfIterations; i++) {
             previousState = clusterState;
@@ -451,7 +454,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(nodeA.nodes()).put(nodeB.discoveryNode).build();
-        ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
+        ClusterState previousClusterState = ClusterState.builder(CLUSTER_NAME).nodes(discoveryNodes).build();
         ClusterState clusterState = ClusterState.builder(previousClusterState).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
         assertSameStateFromFull(nodeB.clusterState, clusterState);
@@ -503,7 +506,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         discoveryNodesBuilder.localNodeId(master.discoveryNode.getId()).masterNodeId(master.discoveryNode.getId());
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
         MetaData metaData = MetaData.EMPTY_META_DATA;
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).nodes(discoveryNodes).build();
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME).metaData(metaData).nodes(discoveryNodes).build();
         ClusterState previousState = master.clusterState;
         try {
             publishState(master.action, clusterState, previousState, masterNodes + randomIntBetween(1, 5));
@@ -580,7 +583,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         discoveryNodesBuilder.localNodeId(master.discoveryNode.getId()).masterNodeId(master.discoveryNode.getId());
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
         MetaData metaData = MetaData.EMPTY_META_DATA;
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).nodes(discoveryNodes).build();
+        ClusterState clusterState = ClusterState.builder(CLUSTER_NAME).metaData(metaData).nodes(discoveryNodes).build();
         ClusterState previousState = master.clusterState;
         try {
             publishState(master.action, clusterState, previousState, minMasterNodes);

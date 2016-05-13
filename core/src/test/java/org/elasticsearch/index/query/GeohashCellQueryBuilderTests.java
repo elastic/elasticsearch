@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.locationtech.spatial4j.shape.Point;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -32,6 +30,7 @@ import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.GeohashCellQuery.Builder;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.locationtech.spatial4j.shape.Point;
 
 import java.io.IOException;
 
@@ -163,13 +162,13 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
     public void testIgnoreUnmapped() throws IOException {
         final GeohashCellQuery.Builder queryBuilder = new GeohashCellQuery.Builder("unmapped", "c");
         queryBuilder.ignoreUnmapped(true);
-        Query query = queryBuilder.toQuery(queryShardContext());
+        Query query = queryBuilder.toQuery(createShardContext());
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final GeohashCellQuery.Builder failingQueryBuilder = new GeohashCellQuery.Builder("unmapped", "c");
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("failed to parse [" + GeohashCellQuery.NAME + "] query. missing ["
                 + BaseGeoPointFieldMapper.CONTENT_TYPE + "] field [unmapped]"));
     }

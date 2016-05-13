@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.internal;
 
-import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -52,7 +50,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- *
+ * A mapper for the _id field. It does nothing since _id is neither indexed nor
+ * stored, but we need to keep it so that its FieldType can be used to generate
+ * queries.
  */
 public class IdFieldMapper extends MetadataFieldMapper {
 
@@ -74,26 +74,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, IdFieldMapper> {
-
-        public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
-            indexName = Defaults.NAME;
-        }
-
-        // if we are indexed we use DOCS
-        @Override
-        protected IndexOptions getDefaultIndexOption() {
-            return IndexOptions.DOCS;
-        }
-
-        @Override
-        public IdFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new IdFieldMapper(fieldType, context.indexSettings());
         }
     }
 
@@ -126,6 +106,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean isSearchable() {
+            // The _id field is always searchable.
+            return true;
         }
 
         @Override
@@ -197,40 +183,13 @@ public class IdFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
-        if (context.sourceToParse().id() != null) {
-            context.id(context.sourceToParse().id());
-            super.parse(context);
-        }
-    }
+    public void preParse(ParseContext context) throws IOException {}
 
     @Override
-    public void postParse(ParseContext context) throws IOException {
-        if (context.id() == null) {
-            throw new MapperParsingException("No id found while parsing the content source");
-        }
-        // it either get built in the preParse phase, or get parsed...
-    }
+    public void postParse(ParseContext context) throws IOException {}
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        XContentParser parser = context.parser();
-        if (parser.currentName() != null && parser.currentName().equals(Defaults.NAME) && parser.currentToken().isValue()) {
-            // we are in the parse Phase
-            String id = parser.text();
-            if (context.id() != null && !context.id().equals(id)) {
-                throw new MapperParsingException("Provided id [" + context.id() + "] does not match the content one [" + id + "]");
-            }
-            context.id(id);
-        } // else we are in the pre/post parse phase
-
-        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            fields.add(new Field(fieldType().name(), context.id(), fieldType()));
-        }
-        if (fieldType().hasDocValues()) {
-            fields.add(new BinaryDocValuesField(fieldType().name(), new BytesRef(context.id())));
-        }
-    }
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {}
 
     @Override
     protected String contentType() {

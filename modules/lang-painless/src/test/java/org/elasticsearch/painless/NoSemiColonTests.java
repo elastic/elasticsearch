@@ -168,6 +168,7 @@ public class NoSemiColonTests extends ScriptTestCase {
         assertEquals(4, exec("int x = 0, y = 0 while (x < 10) { ++x if (x == 5) break ++y } return y"));
     }
 
+    @SuppressWarnings("rawtypes")
     public void testReturnStatement() {
         assertEquals(10, exec("return 10"));
         assertEquals(5, exec("int x = 5 return x"));

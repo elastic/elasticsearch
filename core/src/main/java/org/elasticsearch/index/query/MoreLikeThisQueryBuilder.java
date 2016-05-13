@@ -57,7 +57,6 @@ import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.mapper.core.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -147,7 +146,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     /**
      * A single item to be used for a {@link MoreLikeThisQueryBuilder}.
      */
-    public static final class Item implements ToXContent, Writeable<Item> {
+    public static final class Item implements ToXContent, Writeable {
         public static final Item[] EMPTY_ARRAY = new Item[0];
 
         public interface Field {
@@ -425,10 +424,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 if (contentType == builder.contentType()) {
                     builder.rawField(Field.DOC.getPreferredName(), this.doc);
                 } else {
-                    XContentParser parser = XContentFactory.xContent(contentType).createParser(this.doc);
-                    parser.nextToken();
-                    builder.field(Field.DOC.getPreferredName());
-                    builder.copyCurrentStructure(parser);
+                    try (XContentParser parser = XContentFactory.xContent(contentType).createParser(this.doc)) {
+                        parser.nextToken();
+                        builder.field(Field.DOC.getPreferredName());
+                        builder.copyCurrentStructure(parser);
+                    }
                 }
             }
             if (this.fields != null) {
@@ -1080,14 +1080,14 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
 
         // fetching the items with multi-termvectors API
-        MultiTermVectorsResponse responses = fetchResponse(context.getClient(), likeItems, unlikeItems, SearchContext.current());
-
+        MultiTermVectorsResponse likeItemsResponse = fetchResponse(context.getClient(), likeItems);
         // getting the Fields for liked items
-        mltQuery.setLikeText(getFieldsFor(responses, likeItems));
+        mltQuery.setLikeText(getFieldsFor(likeItemsResponse));
 
         // getting the Fields for unliked items
         if (unlikeItems.length > 0) {
-            org.apache.lucene.index.Fields[] unlikeFields = getFieldsFor(responses, unlikeItems);
+            MultiTermVectorsResponse unlikeItemsResponse = fetchResponse(context.getClient(), unlikeItems);
+            org.apache.lucene.index.Fields[] unlikeFields = getFieldsFor(unlikeItemsResponse);
             if (unlikeFields.length > 0) {
                 mltQuery.setUnlikeText(unlikeFields);
             }
@@ -1126,30 +1126,19 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
     }
 
-    private MultiTermVectorsResponse fetchResponse(Client client, Item[] likeItems, @Nullable Item[] unlikeItems,
-                                                   SearchContext searchContext) throws IOException {
+    private MultiTermVectorsResponse fetchResponse(Client client, Item[] items) throws IOException {
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
-        for (Item item : likeItems) {
+        for (Item item : items) {
             request.add(item.toTermVectorsRequest());
         }
-        for (Item item : unlikeItems) {
-            request.add(item.toTermVectorsRequest());
-        }
+
         return client.multiTermVectors(request).actionGet();
     }
 
-    private static Fields[] getFieldsFor(MultiTermVectorsResponse responses, Item[] items) throws IOException {
+    private static Fields[] getFieldsFor(MultiTermVectorsResponse responses) throws IOException {
         List<Fields> likeFields = new ArrayList<>();
 
-        Set<Item> selectedItems = new HashSet<>();
-        for (Item request : items) {
-            selectedItems.add(new Item(request.index(), request.type(), request.id()));
-        }
-
         for (MultiTermVectorsItemResponse response : responses) {
-            if (!hasResponseFromRequest(response, selectedItems)) {
-                continue;
-            }
             if (response.isFailed()) {
                 continue;
             }
@@ -1160,10 +1149,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             likeFields.add(getResponse.getFields());
         }
         return likeFields.toArray(Fields.EMPTY_ARRAY);
-    }
-
-    private static boolean hasResponseFromRequest(MultiTermVectorsItemResponse response, Set<Item> selectedItems) {
-        return selectedItems.contains(new Item(response.getIndex(), response.getType(), response.getId()));
     }
 
     private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems) {
@@ -1211,7 +1196,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         // TODO this needs heavy cleanups before we can rewrite it
         return this;
     }

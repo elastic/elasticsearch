@@ -88,6 +88,6 @@ public class RangeParser extends NumericValuesSourceParser {
     }
 
     protected Range parseRange(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return Range.PROTOTYPE.fromXContent(parser, parseFieldMatcher);
+        return Range.fromXContent(parser, parseFieldMatcher);
     }
 }

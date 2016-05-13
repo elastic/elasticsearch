@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # elasticsearch <summary>
 #
@@ -69,6 +69,11 @@ lockfile=/var/lock/subsys/$prog
 # backwards compatibility for old config sysconfig files, pre 0.90.1
 if [ -n $USER ] && [ -z $ES_USER ] ; then
    ES_USER=$USER
+fi
+
+if [ ! -x "$exec" ]; then
+    echo "The elasticsearch startup script does not exists or it is not executable, tried: $exec"
+    exit 1
 fi
 
 checkJava() {

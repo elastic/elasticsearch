@@ -58,7 +58,7 @@ a parameter:
 --------------------------------------------------
 DELETE /twitter/tweet/_query?q=user:kimchy
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 or using the {ref}/query-dsl.html[Query DSL] defined within the request body:
 
@@ -73,7 +73,7 @@ DELETE /twitter/tweet/_query
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The query must be passed as a value to the `query` key, in the same way as
 the {ref}/search-search.html[search api].

@@ -19,11 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import org.locationtech.spatial4j.shape.Point;
-import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceQuery;
-
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceQuery;
 import org.apache.lucene.spatial.util.GeoEncodingUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -31,6 +29,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.locationtech.spatial4j.shape.Point;
 
 import java.io.IOException;
 
@@ -384,7 +383,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     private void assertGeoDistanceRangeQuery(String query, double lat, double lon, double distance, DistanceUnit distanceUnit) throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        Version version = queryShardContext().indexVersionCreated();
+        Version version = createShardContext().indexVersionCreated();
         if (version.before(Version.V_2_2_0)) {
             GeoDistanceRangeQuery q = (GeoDistanceRangeQuery) parsedQuery;
             assertThat(q.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
@@ -421,6 +420,40 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertEquals(json, 12000.0, parsed.distance(), 0.0001);
     }
 
+    public void testFromCoerceFails() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_distance\" : {\n" +
+                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
+                "    \"distance\" : 12000.0,\n" +
+                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"optimize_bbox\" : \"memory\",\n" +
+                "    \"coerce\" : true,\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+    }
+
+    public void testFromJsonIgnoreMalformedFails() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_distance\" : {\n" +
+                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
+                "    \"distance\" : 12000.0,\n" +
+                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"optimize_bbox\" : \"memory\",\n" +
+                "    \"ignore_malformed\" : true,\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+    }
+
     @Override
     public void testMustRewrite() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
@@ -430,13 +463,14 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     public void testIgnoreUnmapped() throws IOException {
         final GeoDistanceQueryBuilder queryBuilder = new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
         queryBuilder.ignoreUnmapped(true);
-        Query query = queryBuilder.toQuery(queryShardContext());
+        QueryShardContext shardContext = createShardContext();
+        Query query = queryBuilder.toQuery(shardContext);
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final GeoDistanceQueryBuilder failingQueryBuilder = new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(shardContext));
         assertThat(e.getMessage(), containsString("failed to find geo_point field [unmapped]"));
     }
 }

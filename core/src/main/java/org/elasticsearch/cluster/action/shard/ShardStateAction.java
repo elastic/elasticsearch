@@ -69,8 +69,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
-
 public class ShardStateAction extends AbstractComponent {
 
     public static final String SHARD_STARTED_ACTION_NAME = "internal:cluster/shard/started";
@@ -418,8 +416,8 @@ public class ShardStateAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardRouting = readShardRoutingEntry(in);
-            sourceShardRouting = readShardRoutingEntry(in);
+            shardRouting = new ShardRouting(in);
+            sourceShardRouting = new ShardRouting(in);
             message = in.readString();
             failure = in.readThrowable();
         }

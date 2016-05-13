@@ -45,7 +45,7 @@ public class DateRangeAggregatorBuilder extends AbstractRangeBuilder<DateRangeAg
      * Read from a stream.
      */
     public DateRangeAggregatorBuilder(StreamInput in) throws IOException {
-        super(in, InternalDateRange.FACTORY, Range.PROTOTYPE::readFrom);
+        super(in, InternalDateRange.FACTORY, Range::new);
     }
 
     @Override

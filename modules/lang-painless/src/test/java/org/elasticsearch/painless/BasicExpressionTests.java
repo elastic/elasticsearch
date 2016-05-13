@@ -38,7 +38,7 @@ public class BasicExpressionTests extends ScriptTestCase {
     }
 
     public void testReturnConstantChar() {
-        assertEquals('x', exec("return 'x';"));
+        assertEquals('x', exec("return (char)'x';"));
     }
 
     public void testConstantCharTruncation() {
@@ -100,11 +100,11 @@ public class BasicExpressionTests extends ScriptTestCase {
      */
     public void testBoxing() {
         // return
-        assertEquals(4, exec("return input.get(\"x\");", Collections.singletonMap("x", 4)));
+        assertEquals(4, exec("return params.get(\"x\");", Collections.singletonMap("x", 4)));
         // assignment
-        assertEquals(4, exec("int y = (Integer)input.get(\"x\"); return y;", Collections.singletonMap("x", 4)));
+        assertEquals(4, exec("int y = (Integer)params.get(\"x\"); return y;", Collections.singletonMap("x", 4)));
         // comparison
-        assertEquals(true, exec("return 5 > (Integer)input.get(\"x\");", Collections.singletonMap("x", 4)));
+        assertEquals(true, exec("return 5 > (Integer)params.get(\"x\");", Collections.singletonMap("x", 4)));
     }
 
     public void testBool() {

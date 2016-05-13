@@ -135,7 +135,7 @@ public class UpdateRequestTests extends ESTestCase {
         TimeValue providedTTLValue = TimeValue.parseTimeValue(randomTimeValue(), null, "ttl");
         Settings settings = settings(Version.CURRENT).build();
 
-        UpdateHelper updateHelper = new UpdateHelper(settings, null);
+        UpdateHelper updateHelper = new UpdateHelper(settings, null, null);
 
         // We just upsert one document with ttl
         IndexRequest indexRequest = new IndexRequest("test", "type1", "1")

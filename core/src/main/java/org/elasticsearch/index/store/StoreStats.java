@@ -26,7 +26,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -108,10 +107,10 @@ public class StoreStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString STORE = new XContentBuilderString("store");
-        static final XContentBuilderString SIZE = new XContentBuilderString("size");
-        static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
-        static final XContentBuilderString THROTTLE_TIME = new XContentBuilderString("throttle_time");
-        static final XContentBuilderString THROTTLE_TIME_IN_MILLIS = new XContentBuilderString("throttle_time_in_millis");
+        static final String STORE = "store";
+        static final String SIZE = "size";
+        static final String SIZE_IN_BYTES = "size_in_bytes";
+        static final String THROTTLE_TIME = "throttle_time";
+        static final String THROTTLE_TIME_IN_MILLIS = "throttle_time_in_millis";
     }
 }

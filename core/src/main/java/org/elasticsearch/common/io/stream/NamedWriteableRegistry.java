@@ -36,7 +36,6 @@ public class NamedWriteableRegistry {
      * This method suppresses the rawtypes warning because it intentionally using NamedWriteable instead of {@code NamedWriteable<T>} so it
      * is easier to use and because we might be able to drop the type parameter from NamedWriteable entirely some day.
      */
-    @SuppressWarnings("rawtypes")
     public synchronized <T extends NamedWriteable> void register(Class<T> categoryClass, String name,
             Writeable.Reader<? extends T> reader) {
         @SuppressWarnings("unchecked")
@@ -46,17 +45,6 @@ public class NamedWriteableRegistry {
             registry.put(categoryClass, innerRegistry);
         }
         innerRegistry.register(name, reader);
-    }
-
-    /**
-     * Registers a {@link NamedWriteable} prototype given its category.
-     * @deprecated Prefer {@link #register(Class, String, org.elasticsearch.common.io.stream.Writeable.Reader)}
-     */
-    @Deprecated
-    @SuppressWarnings("rawtypes") // TODO remove this method entirely before 5.0.0 GA
-    public synchronized <T extends NamedWriteable> void registerPrototype(Class<T> categoryClass,
-            NamedWriteable<? extends T> namedWriteable) {
-        register(categoryClass, namedWriteable.getWriteableName(), namedWriteable::readFrom);
     }
 
     /**

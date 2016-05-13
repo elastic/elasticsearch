@@ -36,13 +36,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
  * Base class for all classes producing lucene queries.
  * Supports conversion to BytesReference and creation of lucene Query objects.
  */
-public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> extends ToXContentToBytes implements QueryBuilder<QB> {
+public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> extends ToXContentToBytes implements QueryBuilder {
 
     /** Default for boost to apply to resulting Lucene query. Defaults to 1.0*/
     public static final float DEFAULT_BOOST = 1.0f;
@@ -108,12 +109,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     @Override
     public final Query toFilter(QueryShardContext context) throws IOException {
         Query result = null;
-            final boolean originalIsFilter = context.isFilter;
+            final boolean originalIsFilter = context.isFilter();
             try {
-                context.isFilter = true;
+                context.setIsFilter(true);
                 result = toQuery(context);
             } finally {
-                context.isFilter = originalIsFilter;
+                context.setIsFilter(originalIsFilter);
             }
         return result;
     }
@@ -220,10 +221,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * their {@link QueryBuilder#toQuery(QueryShardContext)} method are not added to the
      * resulting collection.
      */
-    protected static Collection<Query> toQueries(Collection<QueryBuilder<?>> queryBuilders, QueryShardContext context) throws QueryShardException,
+    protected static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, QueryShardContext context) throws QueryShardException,
             IOException {
         List<Query> queries = new ArrayList<>(queryBuilders.size());
-        for (QueryBuilder<?> queryBuilder : queryBuilders) {
+        for (QueryBuilder queryBuilder : queryBuilders) {
             Query query = queryBuilder.toQuery(context);
             if (query != null) {
                 queries.add(query);
@@ -238,25 +239,25 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return getWriteableName();
     }
 
-    protected final void writeQueries(StreamOutput out, List<? extends QueryBuilder<?>> queries) throws IOException {
+    protected final static void writeQueries(StreamOutput out, List<? extends QueryBuilder> queries) throws IOException {
         out.writeVInt(queries.size());
-        for (QueryBuilder<?> query : queries) {
-            out.writeQuery(query);
+        for (QueryBuilder query : queries) {
+            out.writeNamedWriteable(query);
         }
     }
 
-    protected final List<QueryBuilder<?>> readQueries(StreamInput in) throws IOException {
-        List<QueryBuilder<?>> queries = new ArrayList<>();
+    protected final static List<QueryBuilder> readQueries(StreamInput in) throws IOException {
+        List<QueryBuilder> queries = new ArrayList<>();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            queries.add(in.readQuery());
+            queries.add(in.readNamedWriteable(QueryBuilder.class));
         }
         return queries;
     }
 
     @Override
-    public final QueryBuilder<?> rewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder<?> rewritten = doRewrite(queryShardContext);
+    public final QueryBuilder rewrite(QueryRewriteContext queryShardContext) throws IOException {
+        QueryBuilder rewritten = doRewrite(queryShardContext);
         if (rewritten == this) {
             return rewritten;
         }
@@ -269,8 +270,17 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return rewritten;
     }
 
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         return this;
+    }
+
+    /**
+     * For internal usage only!
+     *
+     * Extracts the inner hits from the query tree.
+     * While it extracts inner hits, child inner hits are inlined into the inner hit builder they belong to.
+     */
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
     }
 
     // Like Objects.requireNotNull(...) but instead throws a IllegalArgumentException

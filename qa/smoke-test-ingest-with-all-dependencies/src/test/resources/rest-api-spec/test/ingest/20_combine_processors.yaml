@@ -26,14 +26,14 @@
               },
               {
                 "date" : {
-                  "match_field" : "timestamp",
+                  "field" : "timestamp",
                   "target_field" : "timestamp",
-                  "match_formats" : ["dd/MMM/YYYY:HH:mm:ss Z"]
+                  "formats" : ["dd/MMM/YYYY:HH:mm:ss Z"]
                 }
               },
               {
                 "geoip" : {
-                  "source_field" : "clientip"
+                  "field" : "clientip"
                 }
               }
             ]
@@ -128,7 +128,7 @@
               {
                 "rename" : {
                    "field" : "eyeColor",
-                   "to" : "eye_color"
+                   "target_field" : "eye_color"
                 }
               }
             ]

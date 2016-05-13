@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -28,7 +29,6 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
 import org.elasticsearch.search.aggregations.bucket.terms.AbstractTermsParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
@@ -43,12 +43,12 @@ import java.util.Map;
  *
  */
 public class SignificantTermsParser extends AbstractTermsParser {
-    private final SignificanceHeuristicParserMapper significanceHeuristicParserMapper;
+    private final ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry;
     private final IndicesQueriesRegistry queriesRegistry;
 
-    public SignificantTermsParser(SignificanceHeuristicParserMapper significanceHeuristicParserMapper,
+    public SignificantTermsParser(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
             IndicesQueriesRegistry queriesRegistry) {
-        this.significanceHeuristicParserMapper = significanceHeuristicParserMapper;
+        this.significanceHeuristicParserRegistry = significanceHeuristicParserRegistry;
         this.queriesRegistry = queriesRegistry;
     }
 
@@ -66,7 +66,7 @@ public class SignificantTermsParser extends AbstractTermsParser {
         if (incExc != null) {
             factory.includeExclude(incExc);
         }
-        QueryBuilder<?> backgroundFilter = (QueryBuilder<?>) otherOptions.get(SignificantTermsAggregatorBuilder.BACKGROUND_FILTER);
+        QueryBuilder backgroundFilter = (QueryBuilder) otherOptions.get(SignificantTermsAggregatorBuilder.BACKGROUND_FILTER);
         if (backgroundFilter != null) {
             factory.backgroundFilter(backgroundFilter);
         }
@@ -81,16 +81,15 @@ public class SignificantTermsParser extends AbstractTermsParser {
     public boolean parseSpecial(String aggregationName, XContentParser parser, ParseFieldMatcher parseFieldMatcher, Token token,
             String currentFieldName, Map<ParseField, Object> otherOptions) throws IOException {
         if (token == XContentParser.Token.START_OBJECT) {
-            SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserMapper.get(currentFieldName);
+            SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserRegistry
+                    .lookupReturningNullIfNotFound(currentFieldName, parseFieldMatcher);
             if (significanceHeuristicParser != null) {
                 SignificanceHeuristic significanceHeuristic = significanceHeuristicParser.parse(parser, parseFieldMatcher);
                 otherOptions.put(SignificantTermsAggregatorBuilder.HEURISTIC, significanceHeuristic);
                 return true;
             } else if (parseFieldMatcher.match(currentFieldName, SignificantTermsAggregatorBuilder.BACKGROUND_FILTER)) {
-                QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry);
-                queryParseContext.reset(parser);
-                queryParseContext.parseFieldMatcher(parseFieldMatcher);
-                QueryBuilder<?> filter = queryParseContext.parseInnerQueryBuilder();
+                QueryParseContext queryParseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+                QueryBuilder filter = queryParseContext.parseInnerQueryBuilder();
                 otherOptions.put(SignificantTermsAggregatorBuilder.BACKGROUND_FILTER, filter);
                 return true;
             }

@@ -69,7 +69,7 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private QueryBuilder<?> query;
+    private QueryBuilder query;
 
     private String routing;
 
@@ -132,11 +132,11 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
         return this;
     }
 
-    public QueryBuilder<?> query() {
+    public QueryBuilder query() {
         return query;
     }
 
-    public DeleteByQueryRequest query(QueryBuilder<?> queryBuilder) {
+    public DeleteByQueryRequest query(QueryBuilder queryBuilder) {
         this.query = queryBuilder;
         return this;
     }
@@ -208,7 +208,7 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         types = in.readStringArray();
-        query = in.readQuery();
+        query = in.readNamedWriteable(QueryBuilder.class);
         routing = in.readOptionalString();
         size = in.readVInt();
         if (in.readBoolean()) {
@@ -225,7 +225,7 @@ public class DeleteByQueryRequest extends ActionRequest<DeleteByQueryRequest> im
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeStringArray(types);
-        out.writeQuery(query);
+        out.writeNamedWriteable(query);
         out.writeOptionalString(routing);
         out.writeVInt(size);
         out.writeOptionalStreamable(scroll);

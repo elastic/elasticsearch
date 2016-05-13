@@ -49,14 +49,14 @@ public class JsonPath {
     /**
      * Returns the object corresponding to the provided path if present, null otherwise
      */
-    public Object evaluate(String path) {
+    public Object evaluate(String path) throws IOException {
         return evaluate(path, Stash.EMPTY);
     }
 
     /**
      * Returns the object corresponding to the provided path if present, null otherwise
      */
-    public Object evaluate(String path, Stash stash) {
+    public Object evaluate(String path, Stash stash) throws IOException {
         String[] parts = parsePath(path);
         Object object = jsonMap;
         for (String part : parts) {
@@ -69,7 +69,7 @@ public class JsonPath {
     }
 
     @SuppressWarnings("unchecked")
-    private Object evaluate(String key, Object object, Stash stash) {
+    private Object evaluate(String key, Object object, Stash stash) throws IOException {
         if (stash.isStashedValue(key)) {
             key = stash.unstashValue(key).toString();
         }

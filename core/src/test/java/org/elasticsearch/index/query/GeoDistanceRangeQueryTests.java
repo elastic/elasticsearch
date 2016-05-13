@@ -47,7 +47,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
 
     @Override
     protected GeoDistanceRangeQueryBuilder doCreateTestQueryBuilder() {
-        Version version = queryShardContext().indexVersionCreated();
+        Version version = createShardContext().indexVersionCreated();
         GeoDistanceRangeQueryBuilder builder;
         GeoPoint randomPoint = RandomGeoGenerator.randomPointIn(random(), -180.0, -89.9, 180.0, 89.9);
         if (randomBoolean()) {
@@ -307,7 +307,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
 
     public void testNestedRangeQuery() throws IOException {
         // create a nested geo_point type with a subfield named "geohash" (explicit testing for ISSUE #15179)
-        MapperService mapperService = queryShardContext().getMapperService();
+        MapperService mapperService = createShardContext().getMapperService();
         String nestedMapping =
             "{\"nested_doc\" : {\"properties\" : {" +
             "\"locations\": {\"properties\": {" +
@@ -357,6 +357,48 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         assertEquals(json, -70.0, parsed.point().lon(), 0.0001);
     }
 
+    public void testFromJsonCoerceFails() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_distance_range\" : {\n" +
+                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
+                "    \"from\" : \"200km\",\n" +
+                "    \"to\" : \"400km\",\n" +
+                "    \"include_lower\" : true,\n" +
+                "    \"include_upper\" : true,\n" +
+                "    \"unit\" : \"m\",\n" +
+                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"optimize_bbox\" : \"memory\",\n" +
+                "    \"coerce\" : true,\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+    }
+
+    public void testFromJsonIgnoreMalformedFails() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_distance_range\" : {\n" +
+                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
+                "    \"from\" : \"200km\",\n" +
+                "    \"to\" : \"400km\",\n" +
+                "    \"include_lower\" : true,\n" +
+                "    \"include_upper\" : true,\n" +
+                "    \"unit\" : \"m\",\n" +
+                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"optimize_bbox\" : \"memory\",\n" +
+                "    \"ignore_malformed\" : true,\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+    }
+
     @Override
     public void testMustRewrite() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
@@ -366,14 +408,14 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
     public void testIgnoreUnmapped() throws IOException {
         final GeoDistanceRangeQueryBuilder queryBuilder = new GeoDistanceRangeQueryBuilder("unmapped", new GeoPoint(0.0, 0.0)).from("20m");
         queryBuilder.ignoreUnmapped(true);
-        Query query = queryBuilder.toQuery(queryShardContext());
+        Query query = queryBuilder.toQuery(createShardContext());
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final GeoDistanceRangeQueryBuilder failingQueryBuilder = new GeoDistanceRangeQueryBuilder("unmapped", new GeoPoint(0.0, 0.0))
                 .from("20m");
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("failed to find geo_point field [unmapped]"));
     }
 }

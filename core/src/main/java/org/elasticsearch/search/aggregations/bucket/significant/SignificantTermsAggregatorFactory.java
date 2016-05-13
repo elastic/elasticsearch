@@ -19,12 +19,15 @@
 
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
@@ -65,18 +68,27 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private MappedFieldType fieldType;
     private FilterableTermsEnum termsEnum;
     private int numberOfAggregatorsCreated;
-    private final QueryBuilder<?> filterBuilder;
+    private final Query filter;
+    private final int supersetNumDocs;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final SignificanceHeuristic significanceHeuristic;
 
     public SignificantTermsAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource> config, IncludeExclude includeExclude,
-            String executionHint, QueryBuilder<?> filterBuilder, TermsAggregator.BucketCountThresholds bucketCountThresholds,
+            String executionHint, QueryBuilder filterBuilder, TermsAggregator.BucketCountThresholds bucketCountThresholds,
             SignificanceHeuristic significanceHeuristic, AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, type, config, context, parent, subFactoriesBuilder, metaData);
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
-        this.filterBuilder = filterBuilder;
+        this.filter = filterBuilder == null
+                ? null
+                : filterBuilder.toQuery(context.searchContext().getQueryShardContext());
+        IndexSearcher searcher = context.searchContext().searcher();
+        this.supersetNumDocs = filter == null
+                // Important - need to use the doc count that includes deleted docs
+                // or we have this issue: https://github.com/elastic/elasticsearch/issues/7951
+                ? searcher.getIndexReader().maxDoc()
+                : searcher.count(filter);
         this.bucketCountThresholds = bucketCountThresholds;
         this.significanceHeuristic = significanceHeuristic;
         this.significanceHeuristic.initialize(context.searchContext());
@@ -92,65 +104,56 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     /**
-     * Creates the TermsEnum (if not already created) and must be called before
-     * any calls to getBackgroundFrequency
-     *
-     * @param context
-     *            The aggregation context
-     * @return The number of documents in the index (after an optional filter
-     *         might have been applied)
+     * Get the number of docs in the superset.
      */
-    public long prepareBackground(AggregationContext context) {
+    public long getSupersetNumDocs() {
+        return supersetNumDocs;
+    }
+
+    private FilterableTermsEnum getTermsEnum(String field) throws IOException {
         if (termsEnum != null) {
-            // already prepared - return
-            return termsEnum.getNumDocs();
+            return termsEnum;
         }
-        SearchContext searchContext = context.searchContext();
-        IndexReader reader = searchContext.searcher().getIndexReader();
-        Query filter = null;
-        try {
-            if (filterBuilder != null) {
-                filter = filterBuilder.toFilter(context.searchContext().getQueryShardContext());
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchException("failed to create filter: " + filterBuilder.toString(), e);
+        IndexReader reader = context.searchContext().searcher().getIndexReader();
+        if (numberOfAggregatorsCreated > 1) {
+            termsEnum = new FreqTermsEnum(reader, field, true, false, filter, context.bigArrays());
+        } else {
+            termsEnum = new FilterableTermsEnum(reader, indexedFieldName, PostingsEnum.NONE, filter);
         }
-        try {
-            if (numberOfAggregatorsCreated == 1) {
-                // Setup a termsEnum for sole use by one aggregator
-                termsEnum = new FilterableTermsEnum(reader, indexedFieldName, PostingsEnum.NONE, filter);
+        return termsEnum;
+    }
+
+    private long getBackgroundFrequency(String value) throws IOException {
+        Query query = fieldType.termQuery(value, context.searchContext().getQueryShardContext());
+        if (query instanceof TermQuery) {
+            // for types that use the inverted index, we prefer using a caching terms
+            // enum that will do a better job at reusing index inputs
+            Term term = ((TermQuery) query).getTerm();
+            FilterableTermsEnum termsEnum = getTermsEnum(term.field());
+            if (termsEnum.seekExact(term.bytes())) {
+                return termsEnum.docFreq();
             } else {
-                // When we have > 1 agg we have possibility of duplicate term
-                // frequency lookups
-                // and so use a TermsEnum that caches results of all term
-                // lookups
-                termsEnum = new FreqTermsEnum(reader, indexedFieldName, true, false, filter, searchContext.bigArrays());
+                return 0;
             }
-        } catch (IOException e) {
-            throw new ElasticsearchException("failed to build terms enumeration", e);
         }
-        return termsEnum.getNumDocs();
+        // otherwise do it the naive way
+        if (filter != null) {
+            query = new BooleanQuery.Builder()
+                    .add(query, Occur.FILTER)
+                    .add(filter, Occur.FILTER)
+                    .build();
+        }
+        return context.searchContext().searcher().count(query);
     }
 
-    public long getBackgroundFrequency(BytesRef termBytes) {
-        assert termsEnum != null; // having failed to find a field in the index
-                                  // we don't expect any calls for frequencies
-        long result = 0;
-        try {
-            if (termsEnum.seekExact(termBytes)) {
-                result = termsEnum.docFreq();
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchException("IOException loading background document frequency info", e);
-        }
-        return result;
+    public long getBackgroundFrequency(BytesRef termBytes) throws IOException {
+        String value = config.format().format(termBytes);
+        return getBackgroundFrequency(value);
     }
 
-    public long getBackgroundFrequency(long value) {
-        Query query = fieldType.termQuery(value, null);
-        Term term = MappedFieldType.extractTerm(query);
-        BytesRef indexedVal = term.bytes();
-        return getBackgroundFrequency(indexedVal);
+    public long getBackgroundFrequency(long termNum) throws IOException {
+        String value = config.format().format(termNum);
+        return getBackgroundFrequency(value);
     }
 
     @Override

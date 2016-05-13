@@ -35,7 +35,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -87,14 +87,14 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final Set<String> destinationIndices = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final ESLogger logger;
-    private final Client client;
+    private final ParentTaskAssigningClient client;
     private final ThreadPool threadPool;
     private final SearchRequest firstSearchRequest;
     private final ActionListener<Response> listener;
     private final Retry retry;
 
-    public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, ESLogger logger, Client client, ThreadPool threadPool,
-            Request mainRequest, SearchRequest firstSearchRequest, ActionListener<Response> listener) {
+    public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, ESLogger logger, ParentTaskAssigningClient client,
+            ThreadPool threadPool, Request mainRequest, SearchRequest firstSearchRequest, ActionListener<Response> listener) {
         this.task = task;
         this.logger = logger;
         this.client = client;
@@ -339,7 +339,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * How many nanoseconds should a batch of lastBatchSize have taken if it were perfectly throttled? Package private for testing.
      */
     float perfectlyThrottledBatchTime(int lastBatchSize) {
-        if (task.getRequestsPerSecond() == 0) {
+        if (task.getRequestsPerSecond() == Float.POSITIVE_INFINITY) {
             return 0;
         }
         //       requests
@@ -409,7 +409,11 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
              */
             ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
             clearScrollRequest.addScrollId(scrollId);
-            client.clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
+            /*
+             * Unwrap the client so we don't set our task as the parent. If we *did* set our ID then the clear scroll would be cancelled as
+             * if this task is cancelled. But we want to clear the scroll regardless of whether or not the main request was cancelled.
+             */
+            client.unwrap().clearScroll(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
                 @Override
                 public void onResponse(ClearScrollResponse response) {
                     logger.debug("Freed [{}] contexts", response.getNumFreed());

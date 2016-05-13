@@ -40,11 +40,6 @@ public class ValueCountParser extends AnyValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalValueCount.TYPE.name();
-    }
-
-    @Override
     protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
             ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
         return false;
@@ -54,10 +49,5 @@ public class ValueCountParser extends AnyValuesSourceParser {
     protected ValuesSourceAggregatorBuilder<ValuesSource, ValueCountAggregatorBuilder> createFactory(
             String aggregationName, ValuesSourceType valuesSourceType, ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         return new ValueCountAggregatorBuilder(aggregationName, targetValueType);
-    }
-
-    @Override
-    public ValueCountAggregatorBuilder getFactoryPrototypes() {
-        return ValueCountAggregatorBuilder.PROTOTYPE;
     }
 }

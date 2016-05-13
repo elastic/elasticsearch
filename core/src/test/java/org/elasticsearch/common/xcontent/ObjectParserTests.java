@@ -42,7 +42,7 @@ public class ObjectParserTests extends ESTestCase {
                   "{\n"
                 + "  \"test\" : \"foo\",\n"
                 + "  \"test_number\" : 2,\n"
-                + "  \"testArray\":  [1,2,3,4]\n"
+                + "  \"test_array\":  [1,2,3,4]\n"
                 + "}");
         class TestStruct {
             public String test;
@@ -68,8 +68,6 @@ public class ObjectParserTests extends ESTestCase {
         assertEquals(s.ints, Arrays.asList(1, 2, 3, 4));
         assertEquals(objectParser.toString(), "ObjectParser{name='foo', fields=["
                 + "FieldParser{preferred_name=test, supportedTokens=[VALUE_STRING], type=STRING}, "
-                + "FieldParser{preferred_name=test_number, supportedTokens=[VALUE_STRING, VALUE_NUMBER], type=INT}, "
-                + "FieldParser{preferred_name=test_array, supportedTokens=[START_ARRAY, VALUE_STRING, VALUE_NUMBER], type=INT_ARRAY}, "
                 + "FieldParser{preferred_name=test_array, supportedTokens=[START_ARRAY, VALUE_STRING, VALUE_NUMBER], type=INT_ARRAY}, "
                 + "FieldParser{preferred_name=test_number, supportedTokens=[VALUE_STRING, VALUE_NUMBER], type=INT}]}");
     }

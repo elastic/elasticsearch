@@ -128,7 +128,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
     public static Builder parse(Builder builder, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext) throws MapperParsingException {
         for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
-            String propName = Strings.toUnderscoreCase(entry.getKey());
+            String propName = entry.getKey();
             Object propNode = entry.getValue();
             if (propName.equals(Names.COERCE)) {
                 builder.coerce = XContentMapValues.lenientNodeBooleanValue(propNode);

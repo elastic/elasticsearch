@@ -1,8 +1,10 @@
 rootProject.name = 'elasticsearch'
 
 List projects = [
+  'build-tools',
   'rest-api-spec',
   'core',
+  'docs',
   'distribution:integ-test-zip',
   'distribution:zip',
   'distribution:tar',
@@ -58,6 +60,8 @@ if (isEclipse) {
 }
 
 include projects.toArray(new String[0])
+
+project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
 
 if (isEclipse) {
   project(":core").projectDir = new File(rootProject.projectDir, 'core/src/main')

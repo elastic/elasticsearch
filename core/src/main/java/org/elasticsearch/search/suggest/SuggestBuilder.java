@@ -46,7 +46,7 @@ import java.util.Objects;
  * Suggesting works by suggesting terms/phrases that appear in the suggest text that are similar compared
  * to the terms in provided text. These suggestions are based on several options described in this class.
  */
-public class SuggestBuilder extends ToXContentToBytes implements Writeable<SuggestBuilder> {
+public class SuggestBuilder extends ToXContentToBytes implements Writeable {
     protected static final ParseField GLOBAL_TEXT_FIELD = new ParseField("text");
 
     private String globalText;
@@ -65,7 +65,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
         globalText = in.readOptionalString();
         final int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            suggestions.put(in.readString(), in.readSuggestion());
+            suggestions.put(in.readString(), in.readNamedWriteable(SuggestionBuilder.class));
         }
     }
 
@@ -76,7 +76,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable<Sugge
         out.writeVInt(size);
         for (Entry<String, SuggestionBuilder<?>> suggestion : suggestions.entrySet()) {
             out.writeString(suggestion.getKey());
-            out.writeSuggestion(suggestion.getValue());
+            out.writeNamedWriteable(suggestion.getValue());
         }
     }
 

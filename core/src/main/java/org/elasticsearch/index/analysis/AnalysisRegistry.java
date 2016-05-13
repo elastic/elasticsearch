@@ -258,6 +258,7 @@ public final class AnalysisRegistry implements Closeable {
         tokenFilters.put("apostrophe", ApostropheFilterFactory::new);
         tokenFilters.put("classic", ClassicFilterFactory::new);
         tokenFilters.put("decimal_digit", DecimalDigitFilterFactory::new);
+        tokenFilters.put("fingerprint", FingerprintTokenFilterFactory::new);
     }
 
     private void registerBuiltInAnalyzer(Map<String, AnalysisModule.AnalysisProvider<AnalyzerProvider>> analyzers) {
@@ -304,6 +305,7 @@ public final class AnalysisRegistry implements Closeable {
         analyzers.put("swedish", SwedishAnalyzerProvider::new);
         analyzers.put("turkish", TurkishAnalyzerProvider::new);
         analyzers.put("thai", ThaiAnalyzerProvider::new);
+        analyzers.put("fingerprint", FingerprintAnalyzerProvider::new);
     }
 
     private <T> Map<String, T> buildMapping(boolean analyzer, String toBuild, IndexSettings settings, Map<String, Settings> settingsMap, Map<String, AnalysisModule.AnalysisProvider<T>> providerMap, Map<String, AnalysisModule.AnalysisProvider<T>> defaultInstance) throws IOException {
@@ -364,23 +366,15 @@ public final class AnalysisRegistry implements Closeable {
                 instance = defaultProvider.get(settings, environment, name, defaultSettings);
             }
             factories.put(name, instance);
-            String camelCase = Strings.toCamelCase(name);
-            if (providerMap.containsKey(camelCase) == false && factories.containsKey(camelCase) == false) {
-                factories.put(camelCase, instance);
-            }
         }
 
         for (Map.Entry<String, AnalysisModule.AnalysisProvider<T>> entry : defaultInstance.entrySet()) {
             final String name = entry.getKey();
             final AnalysisModule.AnalysisProvider<T> provider = entry.getValue();
-            final String camelCase = Strings.toCamelCase(name);
-            if (factories.containsKey(name) == false || (defaultInstance.containsKey(camelCase) == false && factories.containsKey(camelCase) == false)) {
+            if (factories.containsKey(name) == false) {
                 final T instance = provider.get(settings, environment, name, defaultSettings);
                 if (factories.containsKey(name) == false) {
                     factories.put(name, instance);
-                }
-                if ((defaultInstance.containsKey(camelCase) == false && factories.containsKey(camelCase) == false)) {
-                    factories.put(camelCase, instance);
                 }
             }
         }

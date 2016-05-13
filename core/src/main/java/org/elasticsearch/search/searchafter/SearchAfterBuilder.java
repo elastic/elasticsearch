@@ -20,9 +20,7 @@
 package org.elasticsearch.search.searchafter;
 
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -36,6 +34,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,7 +46,7 @@ import java.util.Objects;
 /**
  *
  */
-public class SearchAfterBuilder implements ToXContent, Writeable<SearchAfterBuilder> {
+public class SearchAfterBuilder implements ToXContent, Writeable {
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
     private static final Object[] EMPTY_SORT_VALUES = new Object[0];
 
@@ -104,21 +104,23 @@ public class SearchAfterBuilder implements ToXContent, Writeable<SearchAfterBuil
         return Arrays.copyOf(sortValues, sortValues.length);
     }
 
-    public static FieldDoc buildFieldDoc(Sort sort, Object[] values) {
-        if (sort == null || sort.getSort() == null || sort.getSort().length == 0) {
+    public static FieldDoc buildFieldDoc(SortAndFormats sort, Object[] values) {
+        if (sort == null || sort.sort.getSort() == null || sort.sort.getSort().length == 0) {
             throw new IllegalArgumentException("Sort must contain at least one field.");
         }
 
-        SortField[] sortFields = sort.getSort();
+        SortField[] sortFields = sort.sort.getSort();
         if (sortFields.length != values.length) {
             throw new IllegalArgumentException(
-                    SEARCH_AFTER.getPreferredName() + " has " + values.length + " value(s) but sort has " + sort.getSort().length + ".");
+                    SEARCH_AFTER.getPreferredName() + " has " + values.length + " value(s) but sort has "
+                            + sort.sort.getSort().length + ".");
         }
         Object[] fieldValues = new Object[sortFields.length];
         for (int i = 0; i < sortFields.length; i++) {
             SortField sortField = sortFields[i];
+            DocValueFormat format = sort.formats[i];
             if (values[i] != null) {
-                fieldValues[i] = convertValueFromSortField(values[i], sortField);
+                fieldValues[i] = convertValueFromSortField(values[i], sortField, format);
             } else {
                 fieldValues[i] = null;
             }
@@ -130,15 +132,15 @@ public class SearchAfterBuilder implements ToXContent, Writeable<SearchAfterBuil
         return new FieldDoc(Integer.MAX_VALUE, 0, fieldValues);
     }
 
-    private static Object convertValueFromSortField(Object value, SortField sortField) {
+    private static Object convertValueFromSortField(Object value, SortField sortField, DocValueFormat format) {
         if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource) {
             IndexFieldData.XFieldComparatorSource cmpSource = (IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource();
-            return convertValueFromSortType(sortField.getField(), cmpSource.reducedType(), value);
+            return convertValueFromSortType(sortField.getField(), cmpSource.reducedType(), value, format);
         }
-        return convertValueFromSortType(sortField.getField(), sortField.getType(), value);
+        return convertValueFromSortType(sortField.getField(), sortField.getType(), value, format);
     }
 
-    private static Object convertValueFromSortType(String fieldName, SortField.Type sortType, Object value) {
+    private static Object convertValueFromSortType(String fieldName, SortField.Type sortType, Object value, DocValueFormat format) {
         try {
             switch (sortType) {
                 case DOC:
@@ -179,7 +181,7 @@ public class SearchAfterBuilder implements ToXContent, Writeable<SearchAfterBuil
 
                 case STRING_VAL:
                 case STRING:
-                    return new BytesRef(value.toString());
+                    return format.parseBytesRef(value.toString());
 
                 default:
                     throw new IllegalArgumentException("Comparator type [" + sortType.name() + "] for field [" + fieldName

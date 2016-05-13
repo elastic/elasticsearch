@@ -26,7 +26,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
@@ -148,7 +148,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         super(config.getShardId(), config.getIndexSettings());
         this.config = config;
         if (translogGeneration == null || translogGeneration.translogUUID == null) { // legacy case
-            translogUUID = Strings.randomBase64UUID();
+            translogUUID = UUIDs.randomBase64UUID();
         } else {
             translogUUID = translogGeneration.translogUUID;
         }

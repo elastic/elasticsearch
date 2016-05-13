@@ -201,7 +201,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         this.joinThreadControl = new JoinThreadControl(threadPool);
 
-        transportService.registerRequestHandler(DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
+        transportService.registerRequestHandler(
+            DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
     }
 
     @Override

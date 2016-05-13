@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -109,12 +108,26 @@ public class MonitoringBulkRequestTests extends ESTestCase {
 
     public void testAddMultipleDocs() throws Exception {
         final int nbDocs = randomIntBetween(3, 20);
+        final MonitoringIndex[] indices = new MonitoringIndex[nbDocs];
+        final String[] types = new String[nbDocs];
         final XContentType xContentType = XContentType.JSON;
+        int i;
 
         try (BytesStreamOutput content = new BytesStreamOutput()) {
             try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, content)) {
-                for (int i = 0; i < nbDocs; i++) {
-                    builder.startObject().startObject("index").endObject().endObject().flush();
+                for (i = 0; i < nbDocs; i++) {
+                    builder.startObject().startObject("index");
+                    if (rarely()) {
+                        indices[i] = MonitoringIndex.DATA;
+                        builder.field("_index", "_data");
+                    } else {
+                        indices[i] = MonitoringIndex.TIMESTAMPED;
+                    }
+                    if (randomBoolean()) {
+                        types[i] = randomAsciiOfLength(5);
+                        builder.field("_type", types[i]);
+                    }
+                    builder.endObject().endObject().flush();
                     content.write(xContentType.xContent().streamSeparator());
                     builder.startObject().field("foo").value(i).endObject().flush();
                     content.write(xContentType.xContent().streamSeparator());
@@ -123,20 +136,23 @@ public class MonitoringBulkRequestTests extends ESTestCase {
 
             String defaultMonitoringId = randomBoolean() ? randomAsciiOfLength(2) : null;
             String defaultMonitoringVersion = randomBoolean() ? randomAsciiOfLength(3) : null;
-            String defaultIndex = randomFrom("_data", null);
-            String defaultType = randomBoolean() ? randomAsciiOfLength(4) : null;
-
-            MonitoringIndex index = MonitoringIndex.from(defaultIndex);
+            String defaultType = rarely() ? randomAsciiOfLength(4) : null;
 
             MonitoringBulkRequest request = new MonitoringBulkRequest();
-            request.add(content.bytes(), defaultMonitoringId, defaultMonitoringVersion, defaultIndex, defaultType);
+            request.add(content.bytes(), defaultMonitoringId, defaultMonitoringVersion, defaultType);
             assertThat(request.getDocs(), hasSize(nbDocs));
 
+            i = 0;
+
             for (MonitoringBulkDoc doc : request.getDocs()) {
+                String expectedType = types[i] != null ? types[i] : defaultType;
+
                 assertThat(doc.getMonitoringId(), equalTo(defaultMonitoringId));
                 assertThat(doc.getMonitoringVersion(), equalTo(defaultMonitoringVersion));
-                assertThat(doc.getIndex(), sameInstance(index));
-                assertThat(doc.getType(), equalTo(defaultType));
+                assertThat(doc.getIndex(), sameInstance(indices[i]));
+                assertThat(doc.getType(), equalTo(expectedType));
+
+                ++i;
             }
         }
     }
@@ -170,7 +186,9 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         MonitoringBulkRequest request2 = new MonitoringBulkRequest();
         request2.readFrom(in);
 
-        assertThat(request2.docs.size(), CoreMatchers.equalTo(request.docs.size()));
+        assertThat(in.available(), equalTo(0));
+        assertThat(request2.docs.size(), equalTo(request.docs.size()));
+
         for (int i = 0; i < request2.docs.size(); i++) {
             MonitoringBulkDoc doc = request.docs.get(i);
             MonitoringBulkDoc doc2 = request2.docs.get(i);

@@ -42,7 +42,6 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
 
     @Override
     protected void handleRequest(RestRequest request, RestChannel channel, MonitoringClient client) throws Exception {
-        String defaultIndex = request.param("index");
         String defaultType = request.param("type");
 
         String id = request.param(MONITORING_ID);
@@ -59,7 +58,7 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
         }
 
         MonitoringBulkRequestBuilder requestBuilder = client.prepareMonitoringBulk();
-        requestBuilder.add(request.content(), id, version, defaultIndex, defaultType);
+        requestBuilder.add(request.content(), id, version, defaultType);
         requestBuilder.execute(new RestBuilderListener<MonitoringBulkResponse>(channel) {
             @Override
             public RestResponse buildResponse(MonitoringBulkResponse response, XContentBuilder builder) throws Exception {

@@ -85,10 +85,10 @@ public class MonitoringBulkRequest extends ActionRequest<MonitoringBulkRequest> 
      * Parses a monitoring bulk request and builds the list of documents to be indexed.
      */
     public MonitoringBulkRequest add(BytesReference content, String defaultMonitoringId, String defaultMonitoringVersion,
-                                     String defaultIndex, String defaultType) throws Exception {
+                                     String defaultType) throws Exception {
         // MonitoringBulkRequest accepts a body request that has the same format as the BulkRequest:
         // instead of duplicating the parsing logic here we use a new BulkRequest instance to parse the content.
-        BulkRequest bulkRequest = Requests.bulkRequest().add(content, defaultIndex, defaultType);
+        BulkRequest bulkRequest = Requests.bulkRequest().add(content, null, defaultType);
 
         for (ActionRequest request : bulkRequest.requests()) {
             if (request instanceof IndexRequest) {
@@ -114,18 +114,12 @@ public class MonitoringBulkRequest extends ActionRequest<MonitoringBulkRequest> 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            add(new MonitoringBulkDoc(in));
-        }
+        docs.addAll(in.readList(MonitoringBulkDoc::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(docs.size());
-        for (MonitoringBulkDoc doc : docs) {
-            doc.writeTo(out);
-        }
+        out.writeList(docs);
     }
 }

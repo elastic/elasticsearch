@@ -130,6 +130,7 @@ public final class SFor extends AStatement {
 
     @Override
     void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        writeDebugInfo(adapter);
         final Label start = new Label();
         final Label begin = afterthought == null ? start : new Label();
         final Label end = new Label();

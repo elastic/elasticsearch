@@ -251,8 +251,8 @@ public class ValueCountIT extends ESIntegTestCase {
         }
 
         @Override
-        public Object compile(String script, Map<String, String> params) {
-            return script;
+        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+            return scriptSource;
         }
 
         @Override

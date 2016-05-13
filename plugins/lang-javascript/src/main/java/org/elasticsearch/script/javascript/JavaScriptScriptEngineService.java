@@ -171,10 +171,10 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public Object compile(String script, Map<String, String> params) {
+    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
         Context ctx = Context.enter();
         try {
-            return ctx.compileString(script, generateScriptName(), 1, DOMAIN);
+            return ctx.compileString(scriptSource, generateScriptName(), 1, DOMAIN);
         } finally {
             Context.exit();
         }

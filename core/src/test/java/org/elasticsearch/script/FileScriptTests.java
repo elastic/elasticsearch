@@ -20,6 +20,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.MockScriptEngine.MockCompiledScript;
 import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.test.ESTestCase;
 
@@ -56,7 +57,10 @@ public class FileScriptTests extends ESTestCase {
             .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", "false").build();
         ScriptService scriptService = makeScriptService(settings);
         Script script = new Script("script1", ScriptService.ScriptType.FILE, MockScriptEngine.NAME, null);
-        assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH, Collections.emptyMap(), null));
+        CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.SEARCH, Collections.emptyMap(), null);
+        assertNotNull(compiledScript);
+        MockCompiledScript executable = (MockCompiledScript) compiledScript.compiled();
+        assertEquals("script1.mockscript", executable.name);
     }
 
     public void testAllOpsDisabled() throws Exception {

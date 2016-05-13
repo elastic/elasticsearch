@@ -521,8 +521,8 @@ public class ScriptServiceTests extends ESTestCase {
         }
 
         @Override
-        public Object compile(String script, Map<String, String> params) {
-            return "compiled_" + script;
+        public Object compile(String scriptName, String scriptText, Map<String, String> params) {
+            return "compiled_" + scriptText;
         }
 
         @Override
@@ -563,8 +563,8 @@ public class ScriptServiceTests extends ESTestCase {
         }
 
         @Override
-        public Object compile(String script, Map<String, String> params) {
-            return "compiled_" + script;
+        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+            return "compiled_" + scriptSource;
         }
 
         @Override

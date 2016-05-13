@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
     public void testExecutableNoRuntimeParams() throws Exception {
         final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        final Object compiled = se.compile("x + y", Collections.emptyMap());
+        final Object compiled = se.compile(null, "x + y", Collections.emptyMap());
         final AtomicBoolean failed = new AtomicBoolean();
 
         Thread[] threads = new Thread[50];
@@ -83,7 +83,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
 
     public void testExecutableWithRuntimeParams() throws Exception {
         final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        final Object compiled = se.compile("x + y", Collections.emptyMap());
+        final Object compiled = se.compile(null, "x + y", Collections.emptyMap());
         final AtomicBoolean failed = new AtomicBoolean();
 
         Thread[] threads = new Thread[50];
@@ -125,7 +125,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
 
     public void testExecute() throws Exception {
         final JavaScriptScriptEngineService se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
-        final Object compiled = se.compile("x + y", Collections.emptyMap());
+        final Object compiled = se.compile(null, "x + y", Collections.emptyMap());
         final AtomicBoolean failed = new AtomicBoolean();
 
         Thread[] threads = new Thread[50];

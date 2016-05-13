@@ -37,8 +37,8 @@ final class Debugger {
     }
 
     /** compiles to bytecode, and returns debugging output */
-    static String toString(final String source, final CompilerSettings settings) {
-        final byte[] bytes = Compiler.compile(source, settings);
+    static String toString(String source, CompilerSettings settings) {
+        final byte[] bytes = Compiler.compile("<debugging>", source, settings);
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
         final PrintWriter outputWriter = new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
         final ClassReader reader = new ClassReader(bytes);

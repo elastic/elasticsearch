@@ -82,6 +82,7 @@ public final class SDo extends AStatement {
 
     @Override
     void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        writeDebugInfo(adapter);
         final Label start = new Label();
         final Label begin = new Label();
         final Label end = new Label();

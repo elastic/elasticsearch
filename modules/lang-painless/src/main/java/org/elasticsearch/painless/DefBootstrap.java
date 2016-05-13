@@ -27,7 +27,7 @@ import java.lang.invoke.MethodType;
 import java.lang.invoke.MutableCallSite;
 
 /**
- * Painless invokedynamic call site.
+ * Painless invokedynamic bootstrap for the call site.
  * <p>
  * Has 5 flavors (passed as static bootstrap parameters): dynamic method call,
  * dynamic field load (getter), and dynamic field store (setter), dynamic array load,
@@ -41,9 +41,9 @@ import java.lang.invoke.MutableCallSite;
  */
 // NOTE: this class must be public, because generated painless classes are in a different classloader,
 // and it needs to be accessible by that code.
-public final class DynamicCallSite {
+public final class DefBootstrap {
 
-    private DynamicCallSite() {} // no instance!
+    private DefBootstrap() {} // no instance!
 
     // NOTE: these must be primitive types, see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
     /** static bootstrap parameter indicating a dynamic method call, e.g. foo.bar(...) */
@@ -57,7 +57,10 @@ public final class DynamicCallSite {
     /** static bootstrap parameter indicating a dynamic array store, e.g. foo[bar] = baz */
     public static final int ARRAY_STORE = 4;
 
-    static final class InliningCacheCallSite extends MutableCallSite {
+    /**
+     * CallSite that implements the polymorphic inlining cache (PIC).
+     */
+    static final class PIC extends MutableCallSite {
         /** maximum number of types before we go megamorphic */
         static final int MAX_DEPTH = 5;
 
@@ -65,14 +68,14 @@ public final class DynamicCallSite {
         private final int flavor;
         int depth; // pkg-protected for testing
 
-        InliningCacheCallSite(String name, MethodType type, int flavor) {
+        PIC(String name, MethodType type, int flavor) {
             super(type);
             this.name = name;
             this.flavor = flavor;
 
-            MethodHandle fallback = FALLBACK.bindTo(this);
-            fallback = fallback.asCollector(Object[].class, type.parameterCount());
-            fallback = fallback.asType(type);
+            final MethodHandle fallback = FALLBACK.bindTo(this)
+              .asCollector(Object[].class, type.parameterCount())
+              .asType(type);
 
             setTarget(fallback);
         }
@@ -109,11 +112,10 @@ public final class DynamicCallSite {
          * types at this call site and given up on caching).
          */
         Object fallback(Object[] args) throws Throwable {
-            MethodType type = type();
-            Object receiver = args[0];
-            Class<?> receiverClass = receiver.getClass();
-            MethodHandle target = lookup(flavor, receiverClass, name);
-            target = target.asType(type);
+            final MethodType type = type();
+            final Object receiver = args[0];
+            final Class<?> receiverClass = receiver.getClass();
+            final MethodHandle target = lookup(flavor, receiverClass, name).asType(type);
 
             if (depth >= MAX_DEPTH) {
                 // revert to a vtable call
@@ -124,7 +126,8 @@ public final class DynamicCallSite {
             MethodHandle test = CHECK_CLASS.bindTo(receiverClass);
             test = test.asType(test.type().changeParameterType(0, type.parameterType(0)));
 
-            MethodHandle guard = MethodHandles.guardWithTest(test, target, getTarget());
+            final MethodHandle guard = MethodHandles.guardWithTest(test, target, getTarget());
+            
             depth++;
 
             setTarget(guard);
@@ -139,7 +142,7 @@ public final class DynamicCallSite {
                 CHECK_CLASS = lookup.findStatic(lookup.lookupClass(), "checkClass",
                                                 MethodType.methodType(boolean.class, Class.class, Object.class));
                 FALLBACK = lookup.findVirtual(lookup.lookupClass(), "fallback",
-                                             MethodType.methodType(Object.class, Object[].class));
+                                              MethodType.methodType(Object.class, Object[].class));
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
             }
@@ -155,7 +158,7 @@ public final class DynamicCallSite {
      * see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
      */
     public static CallSite bootstrap(Lookup lookup, String name, MethodType type, int flavor) {
-        return new InliningCacheCallSite(name, type, flavor);
+        return new PIC(name, type, flavor);
     }
 
 }

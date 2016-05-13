@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.DynamicCallSite;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
@@ -62,13 +62,13 @@ final class LDefArray extends ALink {
     @Override
     void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.visitInvokeDynamicInsn(
-            "arrayLoad", DEF_DYNAMIC_ARRAY_LOAD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.ARRAY_LOAD });
+            "arrayLoad", DEF_DYNAMIC_ARRAY_LOAD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.ARRAY_LOAD });
 
     }
 
     @Override
     void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         adapter.visitInvokeDynamicInsn(
-            "arrayStore", DEF_DYNAMIC_ARRAY_STORE_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.ARRAY_STORE });
+            "arrayStore", DEF_DYNAMIC_ARRAY_STORE_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.ARRAY_STORE });
     }
 }

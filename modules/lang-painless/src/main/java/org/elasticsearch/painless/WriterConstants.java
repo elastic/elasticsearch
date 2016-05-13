@@ -58,7 +58,7 @@ public final class WriterConstants {
     public final static MethodType DEF_BOOTSTRAP_TYPE =
         MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, int.class);
     public final static Handle DEF_BOOTSTRAP_HANDLE =
-        new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(DynamicCallSite.class),
+        new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(DefBootstrap.class),
             "bootstrap", DEF_BOOTSTRAP_TYPE.toMethodDescriptorString());
 
     public final static String DEF_DYNAMIC_LOAD_FIELD_DESC =

@@ -7,6 +7,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -20,8 +21,6 @@ import java.util.Map;
 public class SleepScriptEngine implements ScriptEngineService {
 
     public static final String NAME = "sleep";
-
-    public static final List<String> TYPES = Collections.singletonList(NAME);
 
     public static class TestPlugin extends Plugin {
 
@@ -39,29 +38,25 @@ public class SleepScriptEngine implements ScriptEngineService {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(SleepScriptEngine.class, SleepScriptEngine.TYPES));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(SleepScriptEngine.class,
+                            SleepScriptEngine.NAME, ScriptMode.ON));
         }
 
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    public List<String> getExtensions() {
-        return TYPES;
+    public String getExtension() {
+        return NAME;
     }
 
     @Override
-    public boolean isSandboxed() {
-        return true;
-    }
-
-    @Override
-    public Object compile(String script, Map<String, String> params) {
-        return script;
+    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+        return scriptSource;
     }
 
     @Override

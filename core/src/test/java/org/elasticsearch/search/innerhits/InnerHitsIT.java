@@ -21,7 +21,6 @@ package org.elasticsearch.search.innerhits;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -67,7 +66,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18314")
 public class InnerHitsIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

@@ -31,16 +31,28 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A dummy script engine used for testing. Scripts must be a number. Many 
- * tests rely on the fact this thing returns a String as its compiled form.
- * they even try to serialize it over the network!
+ * Similar to MockScriptEngine but returns everything in a MockCompiledScript that it was given,
+ * all the metadata as well (name, script source, parameters)
  */
-public class MockScriptEngine implements ScriptEngineService {
+public class MockMetadataScriptEngine implements ScriptEngineService {
 
     public static final String NAME = "mockscript";
 
     public static final List<String> TYPES = Collections.singletonList(NAME);
     
+    /** A compiled script, just holds the scripts name, source, and params that were passed in */
+    public static class MockCompiledScript {
+        public final String name;
+        public final String source;
+        public final Map<String,String> params;
+        
+        MockCompiledScript(String name, String source, Map<String,String> params) {
+            this.name = name;
+            this.source = source;
+            this.params = params;
+        }
+    }
+
     public static class TestPlugin extends Plugin {
 
         public TestPlugin() {
@@ -53,11 +65,12 @@ public class MockScriptEngine implements ScriptEngineService {
 
         @Override
         public String description() {
-            return "Mock script engine for integration tests";
+            return "Mock script engine for UNIT tests";
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MockMetadataScriptEngine.class, 
+                                                                                     MockMetadataScriptEngine.TYPES));
         }
 
     }
@@ -79,7 +92,7 @@ public class MockScriptEngine implements ScriptEngineService {
 
     @Override
     public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
-        return scriptSource;
+        return new MockCompiledScript(scriptName, scriptSource, params);
     }
 
     @Override
@@ -87,7 +100,7 @@ public class MockScriptEngine implements ScriptEngineService {
         return new AbstractExecutableScript() {
             @Override
             public Object run() {
-                return new BytesArray((String)compiledScript.compiled());
+                return new BytesArray(((MockCompiledScript)compiledScript.compiled()).source);
             }
         };
     }

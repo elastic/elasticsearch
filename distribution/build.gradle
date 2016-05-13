@@ -442,7 +442,7 @@ task run(type: RunTask) {}
  * </dl>
  */
 Map<String, String> expansionsForDistribution(distributionType) {
-  String heapSize = '512m'
+  String heapSize = '2g'
   String footer = "# Built for ${project.name}-${project.version} " +
       "(${distributionType})"
   Map<String, Object> expansions = [

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -28,7 +29,6 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 
@@ -39,39 +39,39 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, TransportUpdateByQueryAction> {
+public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<DeleteByQueryRequest, TransportDeleteByQueryAction> {
 
     @Inject
-    public RestUpdateByQueryAction(Settings settings, RestController controller, Client client,
-            IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
-            ClusterService clusterService, TransportUpdateByQueryAction action) {
+    public RestDeleteByQueryAction(Settings settings, RestController controller, Client client,
+                                   IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
+                                   ClusterService clusterService, TransportDeleteByQueryAction action) {
         super(settings, client, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
-        controller.registerHandler(POST, "/{index}/_update_by_query", this);
-        controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);
+        controller.registerHandler(POST, "/{index}/_delete_by_query", this);
+        controller.registerHandler(POST, "/{index}/{type}/_delete_by_query", this);
     }
 
     @Override
     protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
-        handleRequest(request, channel, false, true, false);
+        if (false == request.hasContent()) {
+            throw new ElasticsearchException("_delete_by_query requires a request body");
+        }
+        handleRequest(request, channel, false, false, true);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    protected UpdateByQueryRequest buildRequest(RestRequest request) throws IOException {
-        /*
-         * Passing the search request through UpdateByQueryRequest first allows
+    protected DeleteByQueryRequest buildRequest(RestRequest request) throws IOException {
+         /*
+         * Passing the search request through DeleteByQueryRequest first allows
          * it to set its own defaults which differ from SearchRequest's
-         * defaults. Then the parse can override them.
+         * defaults. Then the parseInternalRequest can override them.
          */
-        UpdateByQueryRequest internal = new UpdateByQueryRequest(new SearchRequest());
+        DeleteByQueryRequest internal = new DeleteByQueryRequest(new SearchRequest());
 
         Map<String, Consumer<Object>> consumers = new HashMap<>();
         consumers.put("conflicts", o -> internal.setConflicts((String) o));
-        consumers.put("script", o -> internal.setScript(Script.parse((Map<String, Object>)o, false, parseFieldMatcher)));
 
         parseInternalRequest(internal, request, consumers);
 
-        internal.setPipeline(request.param("pipeline"));
         return internal;
     }
 }

@@ -30,6 +30,8 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkIndexB
 
     private Matcher<Long> createdMatcher = equalTo(0L);
     private Matcher<Long> updatedMatcher = equalTo(0L);
+    private Matcher<Long> deletedMatcher = equalTo(0L);
+
     /**
      * Matches for number of batches. Optional.
      */
@@ -54,6 +56,15 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkIndexB
 
     public BulkIndexByScrollResponseMatcher updated(long updated) {
         return updated(equalTo(updated));
+    }
+
+    public BulkIndexByScrollResponseMatcher deleted(Matcher<Long> deletedMatcher) {
+        this.deletedMatcher = deletedMatcher;
+        return this;
+    }
+
+    public BulkIndexByScrollResponseMatcher deleted(long deleted) {
+        return deleted(equalTo(deleted));
     }
 
     /**
@@ -110,6 +121,7 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkIndexB
     protected boolean matchesSafely(BulkIndexByScrollResponse item) {
         return updatedMatcher.matches(item.getUpdated()) &&
                 createdMatcher.matches(item.getCreated()) &&
+                deletedMatcher.matches(item.getDeleted()) &&
                 (batchesMatcher == null || batchesMatcher.matches(item.getBatches())) &&
                 versionConflictsMatcher.matches(item.getVersionConflicts()) &&
                 failuresMatcher.matches(item.getIndexingFailures().size()) &&
@@ -120,6 +132,7 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkIndexB
     public void describeTo(Description description) {
         description.appendText("updated matches ").appendDescriptionOf(updatedMatcher);
         description.appendText(" and created matches ").appendDescriptionOf(createdMatcher);
+        description.appendText(" and deleted matches ").appendDescriptionOf(deletedMatcher);
         if (batchesMatcher != null) {
             description.appendText(" and batches matches ").appendDescriptionOf(batchesMatcher);
         }

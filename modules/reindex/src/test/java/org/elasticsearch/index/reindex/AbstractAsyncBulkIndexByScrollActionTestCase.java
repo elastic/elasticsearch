@@ -46,8 +46,6 @@ public abstract class AbstractAsyncBulkIndexByScrollActionTestCase<
         threadPool.shutdown();
     }
 
-    protected abstract AbstractAsyncBulkIndexByScrollAction<Request> action();
-
     protected abstract Request request();
 
     protected PlainActionFuture<Response> listener() {

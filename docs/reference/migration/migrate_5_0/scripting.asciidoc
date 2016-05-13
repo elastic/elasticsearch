@@ -85,3 +85,11 @@ The Java API methods for interacting with stored scripts have been added under `
 The sugar methods that used to exist on the indexed scripts API methods don't exist on the methods for
 stored scripts. The only way to provide scripts is by using `BytesReference` implementation, if a string needs to be
 provided the `BytesArray` class should be used.
+
+==== Scripting engines now register only a single language
+
+Prior to 5.0.0, script engines could register multiple languages. The Javascript
+script engine in particular registered both `"lang": "js"` and `"lang":
+"javascript"`. Script engines can now only register a single language. All
+references to `"lang": "js"` should be changed to `"lang": "javascript"` for
+existing users of the lang-javascript plugin.

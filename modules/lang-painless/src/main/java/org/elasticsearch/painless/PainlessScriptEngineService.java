@@ -103,8 +103,8 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
      * @return Always contains only the single name of the language.
      */
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     /**
@@ -114,15 +114,6 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
     @Override
     public List<String> getExtensions() {
         return EXTENSIONS;
-    }
-
-    /**
-     * Whether or not the engine is secure.
-     * @return Always true as the engine should be secure at runtime.
-     */
-    @Override
-    public boolean isSandboxed() {
-        return true;
     }
 
     /**

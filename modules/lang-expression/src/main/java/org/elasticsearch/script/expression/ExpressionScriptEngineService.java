@@ -70,18 +70,13 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override
     public List<String> getExtensions() {
         return TYPES;
-    }
-
-    @Override
-    public boolean isSandboxed() {
-        return true;
     }
 
     @Override

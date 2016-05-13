@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 
 /**
@@ -40,6 +41,6 @@ public final class PainlessPlugin extends Plugin {
 
     public void onModule(final ScriptModule module) {
         module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(
-            PainlessScriptEngineService.class, PainlessScriptEngineService.TYPES));
+                        PainlessScriptEngineService.class, PainlessScriptEngineService.NAME, ScriptMode.ON));
     }
 }

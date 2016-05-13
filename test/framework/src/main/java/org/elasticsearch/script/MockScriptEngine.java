@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -55,24 +56,20 @@ public class MockScriptEngine implements ScriptEngineService {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
+                            MockScriptEngine.NAME, ScriptMode.ON));
         }
 
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override
     public List<String> getExtensions() {
         return TYPES;
-    }
-
-    @Override
-    public boolean isSandboxed() {
-        return true;
     }
 
     @Override

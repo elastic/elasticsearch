@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -34,42 +34,43 @@ import java.util.Map;
  *
  * @internal
  */
-class MatrixStatsResults implements Streamable {
+class MatrixStatsResults implements Writeable {
     /** object holding results - computes results in place */
-    final RunningStats results;
+    final protected RunningStats results;
     /** pearson product correlation coefficients */
-    protected HashMap<String, HashMap<String, Double>> correlation;
+    final protected Map<String, HashMap<String, Double>> correlation;
 
     /** Base ctor */
-    private MatrixStatsResults() {
-        results = RunningStats.EMPTY();
+    public MatrixStatsResults() {
+        results = new RunningStats();
         this.correlation = new HashMap<>();
     }
 
     /** creates and computes result from provided stats */
     public MatrixStatsResults(RunningStats stats) {
-        try {
-            this.results = stats.clone();
-            this.correlation = new HashMap<>();
-        } catch (CloneNotSupportedException e) {
-            throw new ElasticsearchException("Error trying to create multifield_stats results", e);
-        }
+        this.results = stats.clone();
+        this.correlation = new HashMap<>();
         this.compute();
     }
 
     /** creates a results object from the given stream */
+    @SuppressWarnings("unchecked")
     protected MatrixStatsResults(StreamInput in) {
         try {
             results = new RunningStats(in);
-            this.readFrom(in);
+            correlation = (Map<String, HashMap<String, Double>>) in.readGenericValue();
         } catch (IOException e) {
             throw new ElasticsearchException("Error trying to create multifield_stats results from stream input", e);
         }
     }
 
-    /** create an empty results object **/
-    protected static MatrixStatsResults EMPTY() {
-        return new MatrixStatsResults();
+    /** Marshalls MatrixStatsResults */
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // marshall results
+        results.writeTo(out);
+        // marshall correlation
+        out.writeGenericValue(correlation);
     }
 
     /** return document count */
@@ -77,8 +78,8 @@ class MatrixStatsResults implements Streamable {
         return results.docCount;
     }
 
-    /** return the field counts */
-    public Map<String, Long> getFieldCounts() {
+    /** return the field counts - not public, used for getProperty() */
+    protected Map<String, Long> getFieldCounts() {
         return Collections.unmodifiableMap(results.counts);
     }
 
@@ -90,60 +91,66 @@ class MatrixStatsResults implements Streamable {
         return results.counts.get(field);
     }
 
-    /** return the means */
-    public Map<String, Double> getMeans() {
+    /** return the means - not public, used for getProperty() */
+    protected Map<String, Double> getMeans() {
         return Collections.unmodifiableMap(results.means);
     }
 
     /** return the mean for the requested field */
-    public Double getMean(String field) {
+    public double getMean(String field) {
+        checkField(field, results.means);
         return results.means.get(field);
     }
 
-    /** return the variances */
-    public Map<String, Double> getVariances() {
+    /** return the variances - not public, used for getProperty() */
+    protected Map<String, Double> getVariances() {
         return Collections.unmodifiableMap(results.variances);
     }
 
     /** return the variance for the requested field */
-    public Double getVariance(String field) {
+    public double getVariance(String field) {
+        checkField(field, results.variances);
         return results.variances.get(field);
     }
 
-    /** return the skewness */
-    public Map<String, Double> getSkewness() {
+    /** return the skewness - not public, used for getProperty() */
+    protected Map<String, Double> getSkewness() {
         return Collections.unmodifiableMap(results.skewness);
     }
 
     /** return the skewness for the requested field */
-    public Double getSkewness(String field) {
+    public double getSkewness(String field) {
+        checkField(field, results.skewness);
         return results.skewness.get(field);
     }
 
     /** return the kurtosis */
-    public Map<String, Double> getKurtosis() {
+    protected Map<String, Double> getKurtosis() {
         return Collections.unmodifiableMap(results.kurtosis);
     }
 
     /** return the kurtosis for the requested field */
-    public Double getKurtosis(String field) {
+    public double getKurtosis(String field) {
+        checkField(field, results.kurtosis);
         return results.kurtosis.get(field);
     }
 
-    /** return the covariances */
-    public Map<String, HashMap<String, Double>> getCovariances() {
+    /** return the covariances as a map - not public, used for getProperty() */
+    protected Map<String, HashMap<String, Double>> getCovariances() {
         return Collections.unmodifiableMap(results.covariances);
     }
 
     /** return the covariance between two fields */
-    public Double getCovariance(String fieldX, String fieldY) {
+    public double getCovariance(String fieldX, String fieldY) {
         if (fieldX.equals(fieldY)) {
+            checkField(fieldX, results.variances);
             return results.variances.get(fieldX);
         }
         return getValFromUpperTriangularMatrix(results.covariances, fieldX, fieldY);
     }
 
-    public Map<String, HashMap<String, Double>> getCorrelations() {
+    /** return the correlations as a map - not public, used for getProperty() */
+    protected Map<String, HashMap<String, Double>> getCorrelations() {
         return Collections.unmodifiableMap(correlation);
     }
 
@@ -156,10 +163,10 @@ class MatrixStatsResults implements Streamable {
     }
 
     /** return the value for two fields in an upper triangular matrix, regardless of row col location. */
-    private Double getValFromUpperTriangularMatrix(HashMap<String, HashMap<String, Double>> map, String fieldX, String fieldY) {
+    private double getValFromUpperTriangularMatrix(Map<String, HashMap<String, Double>> map, String fieldX, String fieldY) {
         // for the co-value to exist, one of the two (or both) fields has to be a row key
         if (map.containsKey(fieldX) == false && map.containsKey(fieldY) == false) {
-            return null;
+            throw new IllegalArgumentException("neither field " + fieldX + " nor " + fieldY + " exist");
         } else if (map.containsKey(fieldX)) {
             // fieldX exists as a row key
             if (map.get(fieldX).containsKey(fieldY)) {
@@ -174,6 +181,15 @@ class MatrixStatsResults implements Streamable {
             return map.get(fieldY).get(fieldX);
         }
         throw new IllegalArgumentException("Coefficient not computed between fields: " + fieldX + " and " + fieldY);
+    }
+
+    private void checkField(String field, Map<String, ?> map) {
+        if (field == null) {
+            throw new IllegalArgumentException("field name cannot be null");
+        }
+        if (map.containsKey(field) == false) {
+            throw new IllegalArgumentException("field " + field + " does not exist");
+        }
     }
 
     /** Computes final covariance, variance, and correlation */
@@ -212,31 +228,6 @@ class MatrixStatsResults implements Streamable {
             }
             results.covariances.put(rowName, covRow);
             correlation.put(rowName, corRow);
-        }
-    }
-
-    /** Unmarshalls MatrixStatsResults */
-    @Override
-    @SuppressWarnings("unchecked")
-    public void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            correlation = (HashMap<String, HashMap<String, Double>>) (in.readGenericValue());
-        } else {
-            correlation = null;
-        }
-    }
-
-    /** Marshalls MatrixStatsResults */
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        // marshall results
-        results.writeTo(out);
-        // marshall correlation
-        if (correlation != null) {
-            out.writeBoolean(true);
-            out.writeGenericValue(correlation);
-        } else {
-            out.writeBoolean(false);
         }
     }
 }

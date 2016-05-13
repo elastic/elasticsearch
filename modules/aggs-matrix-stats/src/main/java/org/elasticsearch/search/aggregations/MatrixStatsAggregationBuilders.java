@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
-import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 
 /**
  */
@@ -27,7 +27,7 @@ public class MatrixStatsAggregationBuilders {
     /**
      * Create a new {@link MatrixStats} aggregation with the given name.
      */
-    public static MatrixStatsAggregatorBuilder matrixStats(String name) {
-        return new MatrixStatsAggregatorBuilder(name);
+    public static MatrixStatsAggregationBuilder matrixStats(String name) {
+        return new MatrixStatsAggregationBuilder(name);
     }
 }

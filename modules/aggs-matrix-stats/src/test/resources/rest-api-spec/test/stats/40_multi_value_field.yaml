@@ -130,21 +130,35 @@ setup:
       search:
         index: unmapped
         type:  test
-        body: {"aggs": { "mfs" : { "matrix_stats": {"field": ["val1", "val2", "vals"]} } } }
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "vals"]} } } }
 
   - match: {hits.total: 0}
 
 ---
-"Multi value field":
+"Multi value field Max":
 
   - do:
       search:
         index: test
         type:  test
-        body: {"aggs": { "mfs" : { "matrix_stats": {"field": ["val1", "val3"]} } } }
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "vals"], "mode" : "max"} } } }
 
   - match: {hits.total: 15}
-  - match: {aggregations.mfs.count.0: 15}
+  - match: {aggregations.mfs.fields.0.count: 14}
+  - match: {aggregations.mfs.fields.0.correlation.val1: 0.06838646533369998}
+
+---
+"Multi value field Min":
+
+  - do:
+      search:
+        index: test
+        type:  test
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "vals"], "mode" : "min"} } } }
+
+  - match: {hits.total: 15}
+  - match: {aggregations.mfs.fields.0.count: 14}
+  - match: {aggregations.mfs.fields.0.correlation.val1: -0.09777682707831963}
 
 ---
 "Partially unmapped":
@@ -153,32 +167,41 @@ setup:
       search:
         index: [test, unmapped]
         type:  test
-        body: {"aggs": { "mfs" : { "matrix_stats": {"field": ["val1", "val2", "vals"]} } } }
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "vals"]} } } }
 
   - match: {hits.total: 15}
-  - match: {aggregations.mfs.count.0: 13}
+  - match: {aggregations.mfs.fields.0.count: 13}
+  - match: {aggregations.mfs.fields.0.correlation.val1: -0.044997535185684244}
+
+---
+"Partially unmapped with missing defaults":
+
+  - do:
+      search:
+        index: [test, unmapped]
+        type:  test
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "vals"], "missing" : {"val2" : 10, "vals" : 5 } } } } }
+
+  - match: {hits.total: 15}
+  - match: {aggregations.mfs.fields.0.count: 15}
+  - match: {aggregations.mfs.fields.0.correlation.val2: 0.04028024709708195}
 
 ---
 "With script":
 
   - do:
+      catch: /parsing_exception/
       search:
         index: test
         type:  test
-        body: {"aggs": { "mfs" : { "matrix_stats": {"field": ["vals", "val3"], "script" : { "my_script" : {"inline" : "1 + doc['val1'].value", "lang" : "js"} } } } } }
-
-  - match: {hits.total: 15}
-  - match: {aggregations.mfs.count.0: 14}
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["vals", "val3"], "script" : { "my_script" : {"inline" : "1 + doc['val1'].value", "lang" : "js"} } } } } }
 
 ---
 "With script params":
 
   - do:
+      catch: /parsing_exception/
       search:
         index: test
         type:  test
-        body: {"aggs": { "mfs" : { "matrix_stats": {"field": ["val1", "val3", "vals"], "script" : { "my_script" : {"inline" : "my_var + doc['val1'].value", "params" : { "my_var" : 1 }, "lang" : "js" } } } } } }
-
-  - match: {hits.total: 15}
-  - match: {aggregations.mfs.count.0: 14}
-  - match: {aggregations.mfs.correlation.1.2: -0.055971032866899535}
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val3", "vals"], "script" : { "my_script" : {"inline" : "my_var + doc['val1'].value", "params" : { "my_var" : 1 }, "lang" : "js" } } } } } }

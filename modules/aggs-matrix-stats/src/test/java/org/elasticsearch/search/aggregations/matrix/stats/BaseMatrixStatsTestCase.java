@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class MatrixStatsTestCase extends ESTestCase {
+public abstract class BaseMatrixStatsTestCase extends ESTestCase {
     protected final int numObs = atLeast(10000);
     protected final ArrayList<Double> fieldA = new ArrayList<>(numObs);
     protected final ArrayList<Double> fieldB = new ArrayList<>(numObs);

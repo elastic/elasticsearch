@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,7 +37,7 @@ import java.util.Map;
  *
  * @internal
  */
-public class RunningStats implements Streamable, Cloneable {
+public class RunningStats implements Writeable, Cloneable {
     /** count of observations (same number of observations per field) */
     protected long docCount = 0;
     /** per field sum of observations */
@@ -53,20 +55,14 @@ public class RunningStats implements Streamable, Cloneable {
     /** covariance values */
     protected HashMap<String, HashMap<String, Double>> covariances;
 
-    private RunningStats() {
+    public RunningStats() {
         init();
     }
 
-    /** Ctor to create an instance of running statistics */
-    public RunningStats(StreamInput in) throws IOException {
-        this();
-        this.readFrom(in);
-    }
-
-    public RunningStats(Map<String, Double> doc) {
-        if (doc != null && doc.isEmpty() == false) {
+    public RunningStats(final String[] fieldNames, final double[] fieldVals) {
+        if (fieldVals != null && fieldVals.length > 0) {
             init();
-            this.add(doc);
+            this.add(fieldNames, fieldVals);
         }
     }
 
@@ -80,15 +76,52 @@ public class RunningStats implements Streamable, Cloneable {
         variances = new HashMap<>();
     }
 
-    /** create an empty instance */
-    protected static RunningStats EMPTY() {
-        return new RunningStats();
+    /** Ctor to create an instance of running statistics */
+    @SuppressWarnings("unchecked")
+    public RunningStats(StreamInput in) throws IOException {
+        this();
+        // read fieldSum
+        fieldSum = (HashMap<String, Double>)in.readGenericValue();
+        // counts
+        counts = (HashMap<String, Long>)in.readGenericValue();
+        // means
+        means = (HashMap<String, Double>)in.readGenericValue();
+        // variances
+        variances = (HashMap<String, Double>)in.readGenericValue();
+        // skewness
+        skewness = (HashMap<String, Double>)in.readGenericValue();
+        // kurtosis
+        kurtosis = (HashMap<String, Double>)in.readGenericValue();
+        // read covariances
+        covariances = (HashMap<String, HashMap<String, Double>>)in.readGenericValue();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // marshall fieldSum
+        out.writeGenericValue(fieldSum);
+        // counts
+        out.writeGenericValue(counts);
+        // mean
+        out.writeGenericValue(means);
+        // variances
+        out.writeGenericValue(variances);
+        // skewness
+        out.writeGenericValue(skewness);
+        // kurtosis
+        out.writeGenericValue(kurtosis);
+        // covariances
+        out.writeGenericValue(covariances);
     }
 
     /** updates running statistics with a documents field values **/
-    public void add(Map<String, Double> doc) {
-        if (doc == null || doc.isEmpty()) {
-            return;
+    public void add(final String[] fieldNames, final double[] fieldVals) {
+        if (fieldNames == null) {
+            throw new IllegalArgumentException("Cannot add statistics without field names.");
+        } else if (fieldVals == null) {
+            throw new IllegalArgumentException("Cannot add statistics without field values.");
+        } else if (fieldNames.length != fieldVals.length) {
+            throw new IllegalArgumentException("Number of field values do not match number of field names.");
         }
 
         // update total, mean, and variance
@@ -98,9 +131,9 @@ public class RunningStats implements Streamable, Cloneable {
         double m1, m2, m3, m4;  // moments
         double d, dn, dn2, t1;
         final HashMap<String, Double> deltas = new HashMap<>();
-        for (Map.Entry<String, Double> field : doc.entrySet()) {
-            fieldName = field.getKey();
-            fieldValue = field.getValue();
+        for (int i = 0; i < fieldNames.length; ++i) {
+            fieldName = fieldNames[i];
+            fieldValue = fieldVals[i];
 
             // update counts
             counts.put(fieldName, 1 + (counts.containsKey(fieldName) ? counts.get(fieldName) : 0));
@@ -133,17 +166,17 @@ public class RunningStats implements Streamable, Cloneable {
             }
         }
 
-        this.updateCovariance(doc, deltas);
+        this.updateCovariance(fieldNames, deltas);
     }
 
     /** Update covariance matrix */
-    private void updateCovariance(final Map<String, Double> doc, final Map<String, Double> deltas) {
+    private void updateCovariance(final String[] fieldNames, final Map<String, Double> deltas) {
         // deep copy of hash keys (field names)
-        ArrayList<String> cFieldNames = new ArrayList<>(doc.keySet());
+        ArrayList<String> cFieldNames = new ArrayList<>(Arrays.asList(fieldNames));
         String fieldName;
         double dR, newVal;
-        for (Map.Entry<String, Double> field : doc.entrySet()) {
-            fieldName = field.getKey();
+        for (int i = 0; i < fieldNames.length; ++i) {
+            fieldName = fieldNames[i];
             cFieldNames.remove(fieldName);
             // update running covariances
             dR = deltas.get(fieldName);
@@ -169,6 +202,21 @@ public class RunningStats implements Streamable, Cloneable {
      **/
     public void merge(final RunningStats other) {
         if (other == null) {
+            return;
+        } else if (this.docCount == 0) {
+            for (Map.Entry<String, Double> fs : other.means.entrySet()) {
+                final String fieldName = fs.getKey();
+                this.means.put(fieldName, fs.getValue().doubleValue());
+                this.counts.put(fieldName, other.counts.get(fieldName).longValue());
+                this.fieldSum.put(fieldName, other.fieldSum.get(fieldName).doubleValue());
+                this.variances.put(fieldName, other.variances.get(fieldName).doubleValue());
+                this.skewness.put(fieldName , other.skewness.get(fieldName).doubleValue());
+                this.kurtosis.put(fieldName, other.kurtosis.get(fieldName).doubleValue());
+                if (other.covariances.containsKey(fieldName) == true) {
+                    this.covariances.put(fieldName, other.covariances.get(fieldName));
+                }
+                this.docCount = other.docCount;
+            }
             return;
         }
         final double nA = docCount;
@@ -226,7 +274,7 @@ public class RunningStats implements Streamable, Cloneable {
     }
 
     /** Merges two covariance matrices */
-    private void mergeCovariance(final RunningStats other, final HashMap<String, Double> deltas) {
+    private void mergeCovariance(final RunningStats other, final Map<String, Double> deltas) {
         final double countA = docCount - other.docCount;
         double f, dR, newVal;
         for (Map.Entry<String, Double> fs : other.means.entrySet()) {
@@ -252,107 +300,11 @@ public class RunningStats implements Streamable, Cloneable {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        // marshall fieldSum
-        if (fieldSum != null) {
-            out.writeBoolean(true);
-            out.writeGenericValue(fieldSum);
-        } else {
-            out.writeBoolean(false);
+    public RunningStats clone() {
+        try {
+            return (RunningStats) super.clone();
+        } catch (CloneNotSupportedException e) {
+            throw new ElasticsearchException("Error trying to create a copy of RunningStats");
         }
-        // counts
-        if (counts != null) {
-            out.writeBoolean(true);
-            out.writeGenericValue(counts);
-        } else {
-            out.writeBoolean(false);
-        }
-        // mean
-        if (means != null) {
-            out.writeBoolean(true);
-            out.writeGenericValue(means);
-        } else {
-            out.writeBoolean(false);
-        }
-        // variances
-        if (variances != null) {
-            out.writeBoolean(true);
-            out.writeGenericValue(variances);
-        } else {
-            out.writeBoolean(false);
-        }
-        // skewness
-        if (skewness != null) {
-            out.writeBoolean(true);
-            out.writeGenericValue(skewness);
-        } else {
-            out.writeBoolean(false);
-        }
-        // kurtosis
-        if (kurtosis != null) {
-            out.writeBoolean(true);
-            out.writeGenericValue(kurtosis);
-        } else {
-            out.writeBoolean(false);
-        }
-        // covariances
-        if (covariances != null) {
-            out.writeBoolean(true);
-            out.writeGenericValue(covariances);
-        } else {
-            out.writeBoolean(false);
-        }
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public void readFrom(StreamInput in) throws IOException {
-        // read fieldSum
-        if (in.readBoolean()) {
-            fieldSum = (HashMap<String, Double>)(in.readGenericValue());
-        } else {
-            fieldSum = null;
-        }
-        // counts
-        if (in.readBoolean()) {
-            counts = (HashMap<String, Long>)(in.readGenericValue());
-        } else {
-            counts = null;
-        }
-        // means
-        if (in.readBoolean()) {
-            means = (HashMap<String, Double>)(in.readGenericValue());
-        } else {
-            means = null;
-        }
-        // variances
-        if (in.readBoolean()) {
-            variances = (HashMap<String, Double>)(in.readGenericValue());
-        } else {
-            variances = null;
-        }
-        // skewness
-        if (in.readBoolean()) {
-            skewness = (HashMap<String, Double>)(in.readGenericValue());
-        } else {
-            skewness = null;
-        }
-        // kurtosis
-        if (in.readBoolean()) {
-            kurtosis = (HashMap<String, Double>)(in.readGenericValue());
-        } else {
-            kurtosis = null;
-        }
-        // read covariances
-        if (in.readBoolean()) {
-            covariances = (HashMap<String, HashMap<String, Double>>) (in.readGenericValue());
-        } else {
-            covariances = null;
-        }
-    }
-
-    @Override
-    public RunningStats clone() throws CloneNotSupportedException {
-        return (RunningStats)super.clone();
     }
 }

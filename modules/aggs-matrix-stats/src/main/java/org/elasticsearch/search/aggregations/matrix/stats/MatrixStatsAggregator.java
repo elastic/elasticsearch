@@ -22,7 +22,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -30,11 +31,10 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.MultiValuesSource.NumericMultiValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -43,89 +43,75 @@ import java.util.Map;
  **/
 public class MatrixStatsAggregator extends MetricsAggregator {
     /** Multiple ValuesSource with field names */
-    final Map<String, ValuesSource.Numeric> valuesSources;
+    final NumericMultiValuesSource valuesSources;
 
     /** array of descriptive stats, per shard, needed to compute the correlation */
     ObjectArray<RunningStats> stats;
 
     public MatrixStatsAggregator(String name, Map<String, ValuesSource.Numeric> valuesSources, AggregationContext context,
-                                 Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                                 Aggregator parent, MultiValueMode multiValueMode, List<PipelineAggregator> pipelineAggregators,
                                  Map<String,Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
-        this.valuesSources = valuesSources;
         if (valuesSources != null && !valuesSources.isEmpty()) {
+            this.valuesSources = new NumericMultiValuesSource(valuesSources, multiValueMode);
             stats = context.bigArrays().newObjectArray(1);
+        } else {
+            this.valuesSources = null;
         }
     }
 
     @Override
     public boolean needsScores() {
-        boolean needsScores = false;
-        if (valuesSources != null) {
-            for (Map.Entry<String, ValuesSource.Numeric> valueSource : valuesSources.entrySet()) {
-                needsScores |= valueSource.getValue().needsScores();
-            }
-        }
-        return needsScores;
+        return (valuesSources == null) ? false : valuesSources.needsScores();
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
                                                 final LeafBucketCollector sub) throws IOException {
-        if (valuesSources == null || valuesSources.isEmpty()) {
+        if (valuesSources == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
-        final HashMap<String, SortedNumericDoubleValues> values = new HashMap<>(valuesSources.size());
-        for (Map.Entry<String, ValuesSource.Numeric> valuesSource : valuesSources.entrySet()) {
-            values.put(valuesSource.getKey(), valuesSource.getValue().doubleValues(ctx));
+        final NumericDoubleValues[] values = new NumericDoubleValues[valuesSources.fieldNames().length];
+        for (int i = 0; i < values.length; ++i) {
+            values[i] = valuesSources.getField(i, ctx);
         }
 
         return new LeafBucketCollectorBase(sub, values) {
+            final String[] fieldNames = valuesSources.fieldNames();
+            final double[] fieldVals = new double[fieldNames.length];
+
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 // get fields
-                Map<String, Double> fields = getFields(doc);
-                if (fields != null) {
+                if (includeDocument(doc) == true) {
                     stats = bigArrays.grow(stats, bucket + 1);
                     RunningStats stat = stats.get(bucket);
                     // add document fields to correlation stats
                     if (stat == null) {
-                        stat = new RunningStats(fields);
+                        stat = new RunningStats(fieldNames, fieldVals);
+                        stats.set(bucket, stat);
                     } else {
-                        stat.add(fields);
+                        stat.add(fieldNames, fieldVals);
                     }
-                    stats.set(bucket, stat);
                 }
             }
 
             /**
              * return a map of field names and data
              */
-            private Map<String, Double> getFields(int doc) {
-                // get fieldNames to use as hash keys
-                ArrayList<String> fieldNames = new ArrayList<>(values.keySet());
-                HashMap<String, Double> fields = new HashMap<>(fieldNames.size());
-
+            private boolean includeDocument(int doc) {
                 // loop over fields
-                for (String fieldName : fieldNames) {
-                    final SortedNumericDoubleValues doubleValues = values.get(fieldName);
-                    doubleValues.setDocument(doc);
-                    final int valuesCount = doubleValues.count();
-                    // if document contains an empty field we omit the doc from the correlation
-                    if (valuesCount <= 0) {
-                        return null;
+                for (int i = 0; i < fieldVals.length; ++i) {
+                    final NumericDoubleValues doubleValues = values[i];
+                    final double value = doubleValues.get(doc);
+                    // skip if value is missing
+                    if (value == Double.NEGATIVE_INFINITY) {
+                        return false;
                     }
-                    // get the field value (multi-value is the average of all the values)
-                    double fieldValue = 0;
-                    for (int i = 0; i < valuesCount; ++i) {
-                        if (Double.isNaN(doubleValues.valueAt(i)) == false) {
-                            fieldValue += doubleValues.valueAt(i);
-                        }
-                    }
-                    fields.put(fieldName, fieldValue / valuesCount);
+                    fieldVals[i] = value;
                 }
-                return fields;
+                return true;
             }
         };
     }

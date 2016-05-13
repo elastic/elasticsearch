@@ -22,15 +22,12 @@ package org.elasticsearch.search.aggregations.matrix;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats;
-import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsParser;
 
 import java.io.IOException;
 
 public class MatrixAggregationPlugin extends Plugin {
-    static {
-        InternalMatrixStats.registerStreams();
-    }
 
     public MatrixAggregationPlugin() throws IOException {
     }
@@ -46,7 +43,8 @@ public class MatrixAggregationPlugin extends Plugin {
     }
 
     public void onModule(SearchModule searchModule) {
-        searchModule.registerAggregation(MatrixStatsAggregatorBuilder::new, new MatrixStatsParser(),
-            MatrixStatsAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        InternalMatrixStats.registerStreams();
+        searchModule.registerAggregation(MatrixStatsAggregationBuilder::new, new MatrixStatsParser(),
+            MatrixStatsAggregationBuilder.AGGREGATION_NAME_FIELD);
     }
 }

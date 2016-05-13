@@ -27,7 +27,9 @@ import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Computes distribution statistics over multiple fields
@@ -70,11 +72,13 @@ public class InternalMatrixStats extends InternalMetricsAggregation implements M
         return TYPE;
     }
 
+    /** get the number of documents */
     @Override
     public long getDocCount() {
         return stats.docCount;
     }
 
+    /** get the number of samples for the given field. == docCount - numMissing */
     @Override
     public long getFieldCount(String field) {
         if (results == null) {
@@ -83,65 +87,63 @@ public class InternalMatrixStats extends InternalMetricsAggregation implements M
         return results.getFieldCount(field);
     }
 
+    /** get the mean for the given field */
     @Override
-    public Double getMean(String field) {
+    public double getMean(String field) {
         if (results == null) {
-            return null;
+            return Double.NaN;
         }
         return results.getMean(field);
     }
 
+    /** get the variance for the given field */
     @Override
-    public Double getVariance(String field) {
+    public double getVariance(String field) {
         if (results == null) {
-            return null;
+            return Double.NaN;
         }
         return results.getVariance(field);
     }
 
+    /** get the distribution skewness for the given field */
     @Override
-    public Double getSkewness(String field) {
+    public double getSkewness(String field) {
         if (results == null) {
-            return null;
+            return Double.NaN;
         }
         return results.getSkewness(field);
     }
 
+    /** get the distribution shape for the given field */
     @Override
-    public Double getKurtosis(String field) {
+    public double getKurtosis(String field) {
         if (results == null) {
-            return null;
+            return Double.NaN;
         }
         return results.getKurtosis(field);
     }
 
+    /** get the covariance between the two fields */
     @Override
-    public Double getCovariance(String fieldX, String fieldY) {
+    public double getCovariance(String fieldX, String fieldY) {
         if (results == null) {
-            return null;
+            return Double.NaN;
         }
         return results.getCovariance(fieldX, fieldY);
     }
 
+    /** get the correlation between the two fields */
     @Override
-    public Map<String, HashMap<String, Double>> getCovariance() {
-        return results.getCovariances();
-    }
-
-    @Override
-    public Double getCorrelation(String fieldX, String fieldY) {
+    public double getCorrelation(String fieldX, String fieldY) {
         if (results == null) {
-            return null;
+            return Double.NaN;
         }
         return results.getCorrelation(fieldX, fieldY);
     }
 
-    @Override
-    public Map<String, HashMap<String, Double>> getCorrelation() {
-        return results.getCorrelations();
-    }
-
     static class Fields {
+        public static final String FIELDS = "fields";
+        public static final String NAME = "name";
         public static final String COUNT = "count";
         public static final String MEAN = "mean";
         public static final String VARIANCE = "variance";
@@ -153,30 +155,38 @@ public class InternalMatrixStats extends InternalMetricsAggregation implements M
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        if (results != null) {
-            Set<String> fieldNames = results.getFieldCounts().keySet();
-            builder.field("field", fieldNames);
-            builder.field(Fields.COUNT, results.getFieldCounts().values());
-            builder.field(Fields.MEAN, results.getMeans().values());
-            builder.field(Fields.VARIANCE, results.getVariances().values());
-            builder.field(Fields.SKEWNESS, results.getSkewness().values());
-            builder.field(Fields.KURTOSIS, results.getKurtosis().values());
-            ArrayList<ArrayList<Double>> cov = new ArrayList<>(fieldNames.size());
-            ArrayList<ArrayList<Double>> cor = new ArrayList<>(fieldNames.size());
-            for (String y : fieldNames) {
-                ArrayList<Double> covRow = new ArrayList<>(fieldNames.size());
-                ArrayList<Double> corRow = new ArrayList<>(fieldNames.size());
-                for (String x : fieldNames) {
-                    covRow.add(results.getCovariance(x, y));
-                    corRow.add(results.getCorrelation(x, y));
+        if (results != null && results.getFieldCounts().keySet().isEmpty() == false) {
+            builder.startArray(Fields.FIELDS);
+            for (String fieldName : results.getFieldCounts().keySet()) {
+                builder.startObject();
+                // name
+                builder.field(Fields.NAME, fieldName);
+                // count
+                builder.field(Fields.COUNT, results.getFieldCount(fieldName));
+                // mean
+                builder.field(Fields.MEAN, results.getMean(fieldName));
+                // variance
+                builder.field(Fields.VARIANCE, results.getVariance(fieldName));
+                // skewness
+                builder.field(Fields.SKEWNESS, results.getSkewness(fieldName));
+                // kurtosis
+                builder.field(Fields.KURTOSIS, results.getKurtosis(fieldName));
+                // covariance
+                builder.startObject(Fields.COVARIANCE);
+                for (String fieldB : results.getFieldCounts().keySet()) {
+                    builder.field(fieldB, results.getCovariance(fieldName, fieldB));
                 }
-                cov.add(covRow);
-                cor.add(corRow);
+                builder.endObject();
+                // correlation
+                builder.startObject(Fields.CORRELATION);
+                for (String fieldB : results.getFieldCounts().keySet()) {
+                    builder.field(fieldB, results.getCorrelation(fieldName, fieldB));
+                }
+                builder.endObject();
+                builder.endObject();
             }
-            builder.field(Fields.COVARIANCE, cov);
-            builder.field(Fields.CORRELATION, cor);
+            builder.endArray();
         }
-
         return builder;
     }
 
@@ -185,11 +195,11 @@ public class InternalMatrixStats extends InternalMetricsAggregation implements M
         if (path.isEmpty()) {
             return this;
         } else if (path.size() == 1) {
-            String coordinate = path.get(0);
+            String element = path.get(0);
             if (results == null) {
-                results = MatrixStatsResults.EMPTY();
+                results = new MatrixStatsResults();
             }
-            switch (coordinate) {
+            switch (element) {
                 case "counts":
                     return results.getFieldCounts();
                 case "means":
@@ -205,7 +215,7 @@ public class InternalMatrixStats extends InternalMetricsAggregation implements M
                 case "correlation":
                     return results.getCorrelations();
                 default:
-                    throw new IllegalArgumentException("Found unknown path element [" + coordinate + "] in [" + getName() + "]");
+                    throw new IllegalArgumentException("Found unknown path element [" + element + "] in [" + getName() + "]");
             }
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
@@ -215,53 +225,35 @@ public class InternalMatrixStats extends InternalMetricsAggregation implements M
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         // write running stats
-        if (stats == null || stats.docCount == 0) {
-            out.writeVLong(0);
-        } else {
-            out.writeVLong(stats.docCount);
-            stats.writeTo(out);
-        }
-
+        out.writeOptionalWriteable(stats);
         // write results
-        if (results == null || results.getDocCount() == 0) {
-            out.writeVLong(0);
-        } else {
-            out.writeVLong(results.getDocCount());
-            results.writeTo(out);
-        }
+        out.writeOptionalWriteable(results);
     }
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
         // read stats count
-        final long statsCount = in.readVLong();
-        if (statsCount > 0) {
-            stats = new RunningStats(in);
-            stats.docCount = statsCount;
-        }
-
+        stats = in.readOptionalWriteable(RunningStats::new);
         // read count
-        final long count = in.readVLong();
-        if (count > 0) {
-            results = new MatrixStatsResults(in);
-        }
+        results = in.readOptionalWriteable(MatrixStatsResults::new);
     }
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         // merge stats across all shards
-        aggregations.removeIf(p -> ((InternalMatrixStats)p).stats == null);
+        List<InternalAggregation> aggs = new ArrayList<>(aggregations);
+        aggs.removeIf(p -> ((InternalMatrixStats)p).stats == null);
 
         // return empty result iff all stats are null
-        if (aggregations.isEmpty()) {
-            return new InternalMatrixStats(name, 0, null, MatrixStatsResults.EMPTY(), pipelineAggregators(), getMetaData());
+        if (aggs.isEmpty()) {
+            return new InternalMatrixStats(name, 0, null, new MatrixStatsResults(), pipelineAggregators(), getMetaData());
         }
 
-        RunningStats runningStats = ((InternalMatrixStats) aggregations.get(0)).stats;
-        for (int i=1; i < aggregations.size(); ++i) {
-            runningStats.merge(((InternalMatrixStats) aggregations.get(i)).stats);
+        RunningStats runningStats = new RunningStats();
+        for (int i=0; i < aggs.size(); ++i) {
+            runningStats.merge(((InternalMatrixStats) aggs.get(i)).stats);
         }
-        MatrixStatsResults results = new MatrixStatsResults(stats);
+        MatrixStatsResults results = new MatrixStatsResults(runningStats);
 
         return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, pipelineAggregators(), getMetaData());
     }

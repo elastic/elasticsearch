@@ -76,6 +76,21 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return this;
     }
 
+    public ValuesSourceConfig<VS> format(final DocValueFormat format) {
+        this.format = format;
+        return this;
+    }
+
+    public ValuesSourceConfig<VS> missing(final Object missing) {
+        this.missing = missing;
+        return this;
+    }
+
+    public ValuesSourceConfig<VS> timezone(final DateTimeZone timeZone) {
+        this.timeZone= timeZone;
+        return this;
+    }
+
     public DocValueFormat format() {
         return format;
     }

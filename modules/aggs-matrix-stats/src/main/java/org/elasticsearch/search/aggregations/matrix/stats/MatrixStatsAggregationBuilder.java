@@ -23,10 +23,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -38,19 +39,21 @@ import java.util.Map;
 
 /**
  */
-public class MatrixStatsAggregatorBuilder
-    extends MultiValuesSourceAggregatorBuilder.LeafOnly<ValuesSource.Numeric, MatrixStatsAggregatorBuilder> {
+public class MatrixStatsAggregationBuilder
+    extends MultiValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, MatrixStatsAggregationBuilder> {
     public static final String NAME = InternalMatrixStats.TYPE.name();
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
-    public MatrixStatsAggregatorBuilder(String name) {
+    private MultiValueMode multiValueMode = MultiValueMode.AVG;
+
+    public MatrixStatsAggregationBuilder(String name) {
         super(name, InternalMatrixStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     /**
      * Read from a stream.
      */
-    public MatrixStatsAggregatorBuilder(StreamInput in) throws IOException {
+    public MatrixStatsAggregationBuilder(StreamInput in) throws IOException {
         super(in, InternalMatrixStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
@@ -59,14 +62,24 @@ public class MatrixStatsAggregatorBuilder
         // Do nothing, no extra state to write to stream
     }
 
+    public MatrixStatsAggregationBuilder multiValueMode(MultiValueMode multiValueMode) {
+        this.multiValueMode = multiValueMode;
+        return this;
+    }
+
+    public MultiValueMode multiValueMode() {
+        return this.multiValueMode;
+    }
+
     @Override
     protected MatrixStatsAggregatorFactory innerBuild(AggregationContext context, Map<String, ValuesSourceConfig<Numeric>> configs,
-                                                      AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new MatrixStatsAggregatorFactory(name, type, configs, context, parent, subFactoriesBuilder, metaData);
+            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        return new MatrixStatsAggregatorFactory(name, type, configs, multiValueMode, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.field(MULTIVALUE_MODE_FIELD.getPreferredName(), multiValueMode);
         return builder;
     }
 

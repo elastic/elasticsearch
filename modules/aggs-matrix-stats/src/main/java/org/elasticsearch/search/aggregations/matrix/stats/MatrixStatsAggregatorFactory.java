@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -37,23 +38,26 @@ import java.util.Map;
 public class MatrixStatsAggregatorFactory
     extends MultiValuesSourceAggregatorFactory<ValuesSource.Numeric, MatrixStatsAggregatorFactory> {
 
+    private final MultiValueMode multiValueMode;
+
     public MatrixStatsAggregatorFactory(String name, InternalAggregation.Type type,
-                                        Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs, AggregationContext context,
-                                        AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                        Map<String, Object> metaData) throws IOException {
+            Map<String, ValuesSourceConfig<ValuesSource.Numeric>> configs, MultiValueMode multiValueMode,
+            AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            Map<String, Object> metaData) throws IOException {
         super(name, type, configs, context, parent, subFactoriesBuilder, metaData);
+        this.multiValueMode = multiValueMode;
     }
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
         throws IOException {
-        return new MatrixStatsAggregator(name, null, context, parent, pipelineAggregators, metaData);
+        return new MatrixStatsAggregator(name, null, context, parent, multiValueMode, pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(Map<String, ValuesSource.Numeric> valuesSources, Aggregator parent,
                                           boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
                                           Map<String, Object> metaData) throws IOException {
-        return new MatrixStatsAggregator(name, valuesSources, context, parent, pipelineAggregators, metaData);
+        return new MatrixStatsAggregator(name, valuesSources, context, parent, multiValueMode, pipelineAggregators, metaData);
     }
 }

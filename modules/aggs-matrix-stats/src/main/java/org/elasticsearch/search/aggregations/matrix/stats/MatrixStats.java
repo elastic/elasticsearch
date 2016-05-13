@@ -20,9 +20,6 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.elasticsearch.search.aggregations.Aggregation;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * Interface for MatrixStats Metric Aggregation
  */
@@ -32,19 +29,15 @@ public interface MatrixStats extends Aggregation {
     /** return total field count (differs from docCount if there are missing values) */
     long getFieldCount(String field);
     /** return the field mean */
-    Double getMean(String field);
+    double getMean(String field);
     /** return the field variance */
-    Double getVariance(String field);
+    double getVariance(String field);
     /** return the skewness of the distribution */
-    Double getSkewness(String field);
+    double getSkewness(String field);
     /** return the kurtosis of the distribution */
-    Double getKurtosis(String field);
-    /** return the upper triangle of the covariance matrix */
-    Map<String, HashMap<String, Double>> getCovariance();
+    double getKurtosis(String field);
     /** return the covariance between field x and field y */
-    Double getCovariance(String fieldX, String fieldY);
-    /** return the upper triangle of the pearson product-moment correlation matrix */
-    Map<String, HashMap<String, Double>> getCorrelation();
+    double getCovariance(String fieldX, String fieldY);
     /** return the correlation coefficient of field x and field y */
-    Double getCorrelation(String fieldX, String fieldY);
+    double getCorrelation(String fieldX, String fieldY);
 }

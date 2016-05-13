@@ -18,13 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
-import java.util.HashMap;
 import java.util.List;
 
 /**
  *
  */
-public class RunningStatsTests extends MatrixStatsTestCase {
+public class RunningStatsTests extends BaseMatrixStatsTestCase {
 
     /** test running stats */
     public void testRunningStats() throws Exception {
@@ -56,15 +55,18 @@ public class RunningStatsTests extends MatrixStatsTestCase {
     }
 
     private RunningStats createRunningStats(List<Double> fieldAObs, List<Double> fieldBObs) {
-        RunningStats stats = RunningStats.EMPTY();
+        RunningStats stats = new RunningStats();
         // create a document with two numeric fields
-        final HashMap<String, Double> doc = new HashMap<>(2);
+        final String[] fieldNames = new String[2];
+        fieldNames[0] = fieldAKey;
+        fieldNames[1] = fieldBKey;
+        final double[] fieldVals = new double[2];
 
         // running stats computation
         for (int n = 0; n < fieldAObs.size(); ++n) {
-            doc.put(fieldAKey, fieldAObs.get(n));
-            doc.put(fieldBKey, fieldBObs.get(n));
-            stats.add(doc);
+            fieldVals[0] = fieldAObs.get(n);
+            fieldVals[1] = fieldBObs.get(n);
+            stats.add(fieldNames, fieldVals);
         }
         return stats;
     }

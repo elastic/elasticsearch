@@ -21,15 +21,3 @@ esplugin {
     description 'Adds aggregations whose input are a list of numeric fields and output includes a matrix.'
     classname 'org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin'
 }
-
-dependencies {
-    testCompile project(path: ':plugins:lang-javascript', configuration: 'runtime')
-}
-
-integTest {
-    cluster {
-        plugin 'lang-javascript', project(':plugins:lang-javascript')
-        setting 'script.inline', 'true'
-        setting 'script.stored', 'true'
-    }
-}

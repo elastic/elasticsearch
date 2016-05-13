@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -28,23 +29,36 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder.MULTIVALUE_MODE_FIELD;
+
 /**
  */
 public class MatrixStatsParser extends NumericValuesSourceParser {
 
     public MatrixStatsParser() {
-        super(true, true, false);
+        super(true);
     }
 
     @Override
     protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
                             ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        if (parseFieldMatcher.match(currentFieldName, MULTIVALUE_MODE_FIELD)) {
+            if (token == XContentParser.Token.VALUE_STRING) {
+                otherOptions.put(MULTIVALUE_MODE_FIELD, parser.text());
+                return true;
+            }
+        }
         return false;
     }
 
     @Override
-    protected MatrixStatsAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                         ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new MatrixStatsAggregatorBuilder(aggregationName);
+    protected MatrixStatsAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                          ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        MatrixStatsAggregationBuilder builder = new MatrixStatsAggregationBuilder(aggregationName);
+        String mode = (String)otherOptions.get(MULTIVALUE_MODE_FIELD);
+        if (mode != null) {
+            builder.multiValueMode(MultiValueMode.fromString(mode));
+        }
+        return builder;
     }
 }

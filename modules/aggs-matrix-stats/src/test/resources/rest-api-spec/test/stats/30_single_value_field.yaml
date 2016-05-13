@@ -130,7 +130,7 @@ setup:
       search:
         index: unmapped
         type:  test
-        body: {"aggs": { "mfs" : { "matrix_stats": {"field": ["val1", "val2", "val3"]} } } }
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"]} } } }
 
   - match: {hits.total: 0}
 
@@ -141,10 +141,10 @@ setup:
       search:
         index: test
         type:  test
-        body: {"aggs": { "mfs" : { "matrix_stats": {"field": ["val1", "val3"]} } } }
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val3"]} } } }
 
   - match: {hits.total: 15}
-  - match: {aggregations.mfs.count.0: 15}
+  - match: {aggregations.mfs.fields.0.count: 15}
 
 ---
 "Partially unmapped":
@@ -153,32 +153,41 @@ setup:
       search:
         index: [test, unmapped]
         type:  test
-        body: {"aggs": { "mfs" : { "matrix_stats": {"field": ["val1", "val2", "val3"]} } } }
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"]} } } }
 
   - match: {hits.total: 15}
-  - match: {aggregations.mfs.count.0: 14}
+  - match: {aggregations.mfs.fields.0.count: 14}
+  - match: {aggregations.mfs.fields.2.correlation.val2: 0.9569513137793205}
+
+---
+"Partially unmapped with missing default":
+
+  - do:
+      search:
+        index: [test, unmapped]
+        type:  test
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"], "missing" : {"val2" : 10} } } } }
+
+  - match: {hits.total: 15}
+  - match: {aggregations.mfs.fields.0.count: 15}
+  - match: {aggregations.mfs.fields.2.correlation.val2: 0.9567970467908384}
 
 ---
 "With script":
 
   - do:
+      catch: /parsing_exception/
       search:
         index: test
         type:  test
-        body: {"aggs": { "mfs" : { "matrix_stats": {"field": ["val1", "val2"], "script" : { "my_script" : {"inline" : "1 + doc['val1'].value", "lang" : "js"} } } } } }
-
-  - match: {hits.total: 15}
-  - match: {aggregations.mfs.count.0: 14}
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2"], "script" : { "my_script" : {"inline" : "1 + doc['val1'].value", "lang" : "js"} } } } } }
 
 ---
 "With script params":
 
   - do:
+      catch: /parsing_exception/
       search:
         index: test
         type:  test
-        body: {"aggs": { "mfs" : { "matrix_stats": {"field": ["val1", "val2", "val3"], "script" : { "my_script" : {"inline" : "my_var + doc['val1'].value", "params" : { "my_var" : 1 }, "lang" : "js" } } } } } }
-
-  - match: {hits.total: 15}
-  - match: {aggregations.mfs.count.0: 14}
-  - match: {aggregations.mfs.correlation.1.2: 0.9569513137793205}
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val2", "val3"], "script" : { "my_script" : {"inline" : "my_var + doc['val1'].value", "params" : { "my_var" : 1 }, "lang" : "js" } } } } } }

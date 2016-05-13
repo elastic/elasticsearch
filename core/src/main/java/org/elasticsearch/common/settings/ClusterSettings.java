@@ -87,6 +87,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -417,6 +418,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ResourceWatcherService.ENABLED,
                     ResourceWatcherService.RELOAD_INTERVAL_HIGH,
                     ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
-                    ResourceWatcherService.RELOAD_INTERVAL_LOW
+                    ResourceWatcherService.RELOAD_INTERVAL_LOW,
+                    SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING
             )));
 }

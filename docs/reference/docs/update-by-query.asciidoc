@@ -19,10 +19,17 @@ That will return something like this:
 [source,js]
 --------------------------------------------------
 {
-  "took" : 639,
-  "updated": 1235,
-  "batches": 13,
-  "version_conflicts": 2,
+  "took" : 147,
+  "timed_out": false,
+  "updated": 120,
+  "batches": 1,
+  "version_conflicts": 0,
+  "noops": 0,
+  "retries": 0,
+  "throttled_millis": 0,
+  "requests_per_second": "unlimited",
+  "throttled_until_millis": 0,
+  "total": 120,
   "failures" : [ ]
 }
 --------------------------------------------------
@@ -132,12 +139,12 @@ POST /twitter/_update_by_query?routing=1
 --------------------------------------------------
 // AUTOSENSE
 
-By default `_update_by_query` uses scroll batches of 100. You can change the
+By default `_update_by_query` uses scroll batches of 1000. You can change the
 batch size with the `scroll_size` URL parameter:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/_update_by_query?scroll_size=1000
+POST twitter/_update_by_query?scroll_size=100
 --------------------------------------------------
 // AUTOSENSE
 
@@ -250,24 +257,26 @@ The responses looks like:
         "testattr" : "test",
         "portsfile" : "true"
       },
-      "tasks" : [ {
-        "node" : "r1A2WoRbTwKZ516z6NEs5A",
-        "id" : 36619,
-        "type" : "transport",
-        "action" : "indices:data/write/update/byquery",
-        "status" : {    <1>
-          "total" : 6154,
-          "updated" : 3500,
-          "created" : 0,
-          "deleted" : 0,
-          "batches" : 36,
-          "version_conflicts" : 0,
-          "noops" : 0,
-          "retries": 0,
-          "throttled_millis": 0
-        },
-        "description" : ""
-      } ]
+      "tasks" : {
+        "r1A2WoRbTwKZ516z6NEs5A:36619" : {
+          "node" : "r1A2WoRbTwKZ516z6NEs5A",
+          "id" : 36619,
+          "type" : "transport",
+          "action" : "indices:data/write/update/byquery",
+          "status" : {    <1>
+            "total" : 6154,
+            "updated" : 3500,
+            "created" : 0,
+            "deleted" : 0,
+            "batches" : 4,
+            "version_conflicts" : 0,
+            "noops" : 0,
+            "retries": 0,
+            "throttled_millis": 0
+          },
+          "description" : ""
+        }
+      }
     }
   }
 }

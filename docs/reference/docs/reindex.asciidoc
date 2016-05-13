@@ -25,9 +25,11 @@ That will return something like this:
 [source,js]
 --------------------------------------------------
 {
-  "took" : 639,
-  "updated": 112,
-  "batches": 130,
+  "took" : 147,
+  "timed_out": false,
+  "created": 120,
+  "updated": 0,
+  "batches": 1,
   "version_conflicts": 0,
   "failures" : [ ],
   "created": 12344
@@ -273,10 +275,29 @@ POST /_reindex
         "company": "cat"
       }
     }
-  }
+  },
   "dest": {
     "index": "dest",
     "routing": "=cat"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
+
+By default `_reindex` uses scroll batches of 1000. You can change the
+batch size with the `size` field in the `source` element:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "source",
+    "size": 100
+  },
+  "dest": {
+    "index": "dest",
   }
 }
 --------------------------------------------------
@@ -397,24 +418,26 @@ The responses looks like:
         "testattr" : "test",
         "portsfile" : "true"
       },
-      "tasks" : [ {
-        "node" : "r1A2WoRbTwKZ516z6NEs5A",
-        "id" : 36619,
-        "type" : "transport",
-        "action" : "indices:data/write/reindex",
-        "status" : {    <1>
-          "total" : 6154,
-          "updated" : 3500,
-          "created" : 0,
-          "deleted" : 0,
-          "batches" : 36,
-          "version_conflicts" : 0,
-          "noops" : 0,
-          "retries": 0,
-          "throttled_millis": 0
-        },
-        "description" : ""
-      } ]
+      "tasks" : {
+        "r1A2WoRbTwKZ516z6NEs5A:36619" : {
+          "node" : "r1A2WoRbTwKZ516z6NEs5A",
+          "id" : 36619,
+          "type" : "transport",
+          "action" : "indices:data/write/reindex",
+          "status" : {    <1>
+            "total" : 6154,
+            "updated" : 3500,
+            "created" : 0,
+            "deleted" : 0,
+            "batches" : 4,
+            "version_conflicts" : 0,
+            "noops" : 0,
+            "retries": 0,
+            "throttled_millis": 0
+          },
+          "description" : ""
+        }
+      }
     }
   }
 }

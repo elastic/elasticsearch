@@ -51,7 +51,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         extends ActionRequest<Self> {
     public static final int SIZE_ALL_MATCHES = -1;
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
-    private static final int DEFAULT_SCROLL_SIZE = 100;
+    private static final int DEFAULT_SCROLL_SIZE = 1000;
 
     /**
      * Default search source.

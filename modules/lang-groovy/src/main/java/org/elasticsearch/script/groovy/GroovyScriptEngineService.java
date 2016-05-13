@@ -76,7 +76,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
      */
     public static final String NAME = "groovy";
 
-    public static final List<String> TYPES = Collections.singletonList(NAME);
     /**
      * The name of the Groovy compiler setting to use associated with activating <code>invokedynamic</code> support.
      */
@@ -161,18 +160,13 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    public List<String> getExtensions() {
-        return TYPES;
-    }
-
-    @Override
-    public boolean isSandboxed() {
-        return false;
+    public String getExtension() {
+        return NAME;
     }
 
     @Override

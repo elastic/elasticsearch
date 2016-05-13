@@ -43,6 +43,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -93,7 +94,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PutFieldValuesScriptEngine.class, PutFieldValuesScriptEngine.TYPES));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PutFieldValuesScriptEngine.class, PutFieldValuesScriptEngine.NAME, ScriptMode.ON));
         }
 
     }
@@ -102,25 +103,18 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "put_values";
 
-        public static final List<String> TYPES = Collections.singletonList(NAME);
-
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override
-        public List<String> getExtensions() {
-            return TYPES;
-        }
-
-        @Override
-        public boolean isSandboxed() {
-            return true;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override
@@ -187,7 +181,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldIncrementScriptEngine.class, FieldIncrementScriptEngine.TYPES));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldIncrementScriptEngine.class, FieldIncrementScriptEngine.NAME, ScriptMode.ON));
         }
 
     }
@@ -196,25 +190,18 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "field_inc";
 
-        public static final List<String> TYPES = Collections.singletonList(NAME);
-
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override
-        public List<String> getExtensions() {
-            return TYPES;
-        }
-
-        @Override
-        public boolean isSandboxed() {
-            return true;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override
@@ -274,7 +261,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ScriptedUpsertScriptEngine.class, ScriptedUpsertScriptEngine.TYPES));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ScriptedUpsertScriptEngine.class, ScriptedUpsertScriptEngine.NAME, ScriptMode.ON));
         }
 
     }
@@ -283,25 +270,18 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "scripted_upsert";
 
-        public static final List<String> TYPES = Collections.singletonList(NAME);
-
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override
-        public List<String> getExtensions() {
-            return TYPES;
-        }
-
-        @Override
-        public boolean isSandboxed() {
-            return true;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override
@@ -361,7 +341,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractContextInSourceScriptEngine.class, ExtractContextInSourceScriptEngine.TYPES));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExtractContextInSourceScriptEngine.class, ExtractContextInSourceScriptEngine.NAME, ScriptMode.ON));
         }
 
     }
@@ -370,25 +350,18 @@ public class UpdateIT extends ESIntegTestCase {
 
         public static final String NAME = "extract_ctx";
 
-        public static final List<String> TYPES = Collections.singletonList(NAME);
-
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override
-        public List<String> getExtensions() {
-            return TYPES;
-        }
-
-        @Override
-        public boolean isSandboxed() {
-            return true;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override

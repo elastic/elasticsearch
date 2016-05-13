@@ -59,6 +59,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
@@ -106,7 +107,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         ScriptModule scriptModule = new ScriptModule();
         scriptModule.prepareSettings(settingsModule);
         // TODO: make this use a mock engine instead of mustache and it will no longer be messy!
-        scriptModule.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.TYPES));
+        scriptModule.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.NAME, ScriptMode.ON));
         settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),

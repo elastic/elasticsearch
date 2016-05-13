@@ -58,7 +58,8 @@ import java.util.Map;
 //TODO we can optimize the case for Map<String, Object> similar to PyStringMap
 public class PythonScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
-    public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("py", "python"));
+    public static final String NAME = "python";
+    public static final String EXTENSION = "py";
 
     private final PythonInterpreter interp;
 
@@ -96,18 +97,13 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    public List<String> getExtensions() {
-        return Collections.unmodifiableList(Arrays.asList("py"));
-    }
-
-    @Override
-    public boolean isSandboxed() {
-        return false;
+    public String getExtension() {
+        return EXTENSION;
     }
 
     @Override

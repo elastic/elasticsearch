@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.DynamicCallSite;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
@@ -57,11 +57,11 @@ final class LDefField extends ALink {
 
     @Override
     void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        adapter.visitInvokeDynamicInsn(value, DEF_DYNAMIC_LOAD_FIELD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.LOAD });
+        adapter.visitInvokeDynamicInsn(value, DEF_DYNAMIC_LOAD_FIELD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.LOAD });
     }
 
     @Override
     void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        adapter.visitInvokeDynamicInsn(value, DEF_DYNAMIC_STORE_FIELD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.STORE });
+        adapter.visitInvokeDynamicInsn(value, DEF_DYNAMIC_STORE_FIELD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.STORE });
     }
 }

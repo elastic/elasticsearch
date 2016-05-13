@@ -31,11 +31,9 @@ import java.util.Map;
  */
 public interface ScriptEngineService extends Closeable {
 
-    List<String> getTypes();
+    String getType();
 
-    List<String> getExtensions();
-
-    boolean isSandboxed();
+    String getExtension();
 
     /**
      * Compiles a script.

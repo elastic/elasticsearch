@@ -108,6 +108,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
      * allocation to a very small value, it kicks the allocation of the unassigned shard
      * even though the node it was hosted on will not come back.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18293")
     @TestLogging("_root:DEBUG,cluster.routing:TRACE")
     public void testDelayedAllocationChangeWithSettingTo100ms() throws Exception {
         internalCluster().startNodesAsync(3).get();

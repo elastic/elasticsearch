@@ -54,7 +54,7 @@ public class ScriptModes {
      * @param lang the language that the script is written in
      * @param scriptType the type of the script
      * @param scriptContext the operation that requires the execution of the script
-     * @return whether scripts are on, off, or enabled only for sandboxed languages
+     * @return whether scripts are on or off
      */
     public ScriptMode getScriptMode(String lang, ScriptType scriptType, ScriptContext scriptContext) {
         //native scripts are always on as they are static by definition
@@ -74,6 +74,10 @@ public class ScriptModes {
 
     static String sourceKey(ScriptType scriptType) {
         return SCRIPT_SETTINGS_PREFIX + "." + scriptType.getScriptType();
+    }
+
+    static String getGlobalKey(String lang, ScriptType scriptType) {
+        return ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType;
     }
 
     static String getKey(String lang, ScriptType scriptType, ScriptContext scriptContext) {

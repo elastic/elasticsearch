@@ -55,8 +55,6 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
 
     public static final String NAME = "mustache";
 
-    public static final List<String> TYPES = Collections.singletonList(NAME);
-
     static final String CONTENT_TYPE_PARAM = "content_type";
     static final String JSON_CONTENT_TYPE = "application/json";
     static final String PLAIN_TEXT_CONTENT_TYPE = "text/plain";
@@ -112,18 +110,13 @@ public final class MustacheScriptEngineService extends AbstractComponent impleme
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    public List<String> getExtensions() {
-        return TYPES;
-    }
-
-    @Override
-    public boolean isSandboxed() {
-        return true;
+    public String getExtension() {
+        return NAME;
     }
 
     @Override

@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.MockScriptEngine.MockCompiledScript;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Files;
@@ -45,7 +46,7 @@ public class FileScriptTests extends ESTestCase {
             .put(settings)
             .build();
         Set<ScriptEngineService> engines = new HashSet<>(Collections.singletonList(new MockScriptEngine()));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.NAME, ScriptMode.ON)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         return new ScriptService(settings, new Environment(settings), engines, null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);

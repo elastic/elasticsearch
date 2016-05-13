@@ -47,7 +47,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
     @Inject
     public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ClusterName clusterName, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterStateAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterStateRequest.class);
+        super(settings, ClusterStateAction.NAME, false, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterStateRequest.class);
         this.clusterName = clusterName;
     }
 

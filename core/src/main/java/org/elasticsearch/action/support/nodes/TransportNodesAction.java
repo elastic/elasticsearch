@@ -62,7 +62,8 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
         this.transportNodeAction = actionName + "[n]";
 
-        transportService.registerRequestHandler(transportNodeAction, nodeRequest, nodeExecutor, new NodeTransportHandler());
+        transportService.registerRequestHandler(
+            transportNodeAction, nodeRequest, nodeExecutor, new NodeTransportHandler());
     }
 
     @Override

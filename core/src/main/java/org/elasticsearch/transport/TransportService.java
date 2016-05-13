@@ -433,7 +433,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * @param handler  The handler itself that implements the request handling
      */
     public final <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, TransportRequestHandler<Request> handler) {
-        registerRequestHandler(action, request, executor, false, handler);
+        registerRequestHandler(action, request, executor, false, true, handler);
     }
 
     /**
@@ -445,21 +445,38 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * @param handler        The handler itself that implements the request handling
      */
     public <Request extends TransportRequest> void registerRequestHandler(String action, Callable<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
-        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, requestFactory, taskManager, handler, executor, false);
+        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, requestFactory, taskManager, handler, executor, false, true);
         registerRequestHandler(reg);
     }
 
     /**
      * Registers a new request handler
      *
-     * @param action         The action the request handler is associated with
-     * @param request        The request class that will be used to constrcut new instances for streaming
-     * @param executor       The executor the request handling will be executed on
-     * @param forceExecution Force execution on the executor queue and never reject it
-     * @param handler        The handler itself that implements the request handling
+     * @param action                The action the request handler is associated with
+     * @param requestFactory        a callable to be used construct new instances for streaming
+     * @param executor              The executor the request handling will be executed on
+     * @param forceExecution        Force execution on the executor queue and never reject it
+     * @param canTripCircuitBreaker Check the request size and raise an exception in case the limit is breached.
+     * @param handler               The handler itself that implements the request handling
      */
-    public <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
-        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, request, taskManager, handler, executor, forceExecution);
+    public <Request extends TransportRequest> void registerRequestHandler(String action, Callable<Request> requestFactory, String executor, boolean forceExecution, boolean canTripCircuitBreaker, TransportRequestHandler<Request> handler) {
+        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, requestFactory, taskManager, handler, executor, forceExecution, canTripCircuitBreaker);
+        registerRequestHandler(reg);
+    }
+
+
+    /**
+     * Registers a new request handler
+     *
+     * @param action                The action the request handler is associated with
+     * @param request               The request class that will be used to constrcut new instances for streaming
+     * @param executor              The executor the request handling will be executed on
+     * @param forceExecution        Force execution on the executor queue and never reject it
+     * @param canTripCircuitBreaker Check the request size and raise an exception in case the limit is breached.
+     * @param handler               The handler itself that implements the request handling
+     */
+    public <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, boolean forceExecution, boolean canTripCircuitBreaker, TransportRequestHandler<Request> handler) {
+        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, request, taskManager, handler, executor, forceExecution, canTripCircuitBreaker);
         registerRequestHandler(reg);
     }
 

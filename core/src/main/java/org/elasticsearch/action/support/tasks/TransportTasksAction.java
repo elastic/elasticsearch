@@ -80,7 +80,7 @@ public abstract class TransportTasksAction<
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, Callable<TasksRequest> requestFactory,
                                    String nodeExecutor) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, requestFactory);
+        super(settings, actionName, true, threadPool, transportService, actionFilters, indexNameExpressionResolver, requestFactory);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.transportService = transportService;

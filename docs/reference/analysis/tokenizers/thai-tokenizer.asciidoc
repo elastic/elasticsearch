@@ -1,7 +1,36 @@
 [[analysis-thai-tokenizer]]
 === Thai Tokenizer
 
-A tokenizer of type `thai` that segments Thai text into words. This tokenizer
-uses the built-in Thai segmentation algorithm included with Java to divide
-up Thai text. Text in other languages in general will be treated the same
-as `standard`.
+The `thai` tokenizer segments Thai text into words, using the Thai
+segmentation algorithm included with Java. Text in other languages in general
+will be treated the same as the
+<<analysis-standard-tokenizer,`standard` tokenizer>>.
+
+WARNING: This tokenizer may not be supported by all JREs. It is known to work
+with Sun/Oracle and Harmony JREs. If your application needs to be fully
+portable, consider using  the ICUTokenizer instead.
+
+[float]
+=== Example output
+
+[source,js]
+---------------------------
+POST _analyze
+{
+  "tokenizer": "thai",
+  "text": "การที่ได้ต้องแสดงว่างานดี"
+}
+---------------------------
+// CONSOLE
+
+The above sentence would produce the following terms:
+
+[source,text]
+---------------------------
+[ การ, ที่, ได้, ต้อง, แสดง, ว่า, งาน, ดี ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `thai` tokenizer is not configurable.

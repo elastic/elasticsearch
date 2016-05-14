@@ -1,4 +1,30 @@
 [[analysis-whitespace-tokenizer]]
-=== Whitespace Tokenizer
+=== Whitespace Analyzer
 
-A tokenizer of type `whitespace` that divides text at whitespace.
+The `whitespace` tokenizer breaks text into terms whenever it encounters a
+whitespace character.
+
+[float]
+=== Example output
+
+[source,js]
+---------------------------
+POST _analyze
+{
+  "tokenizer": "whitespace",
+  "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
+}
+---------------------------
+// CONSOLE
+
+The above sentence would produce the following terms:
+
+[source,text]
+---------------------------
+[ The, 2, QUICK, Brown-Foxes, jumped, over, the, lazy, dog's, bone. ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `whitespace` tokenizer is not configurable.

@@ -1,7 +1,32 @@
 [[analysis-letter-tokenizer]]
 === Letter Tokenizer
 
-A tokenizer of type `letter` that divides text at non-letters. That's to
-say, it defines tokens as maximal strings of adjacent letters. Note,
-this does a decent job for most European languages, but does a terrible
-job for some Asian languages, where words are not separated by spaces.
+The `letter` tokenizer breaks text into terms whenever it encounters a
+character which is not a letter. It does a reasonable job for most European
+languages, but does a terrible job for some Asian languages, where words are
+not separated by spaces.
+
+[float]
+=== Example output
+
+[source,js]
+---------------------------
+POST _analyze
+{
+  "tokenizer": "letter",
+  "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
+}
+---------------------------
+// CONSOLE
+
+The above sentence would produce the following terms:
+
+[source,text]
+---------------------------
+[ The, QUICK, Brown, Foxes, jumped, over, the, lazy, dog, s, bone ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `letter` tokenizer is not configurable.

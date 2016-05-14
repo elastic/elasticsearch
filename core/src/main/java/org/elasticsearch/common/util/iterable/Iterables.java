@@ -63,11 +63,7 @@ public class Iterables {
         private final Iterable<? extends Iterable<T>> inputs;
 
         FlattenedIterables(Iterable<? extends Iterable<T>> inputs) {
-            List<Iterable<T>> list = new ArrayList<>();
-            for (Iterable<T> iterable : inputs) {
-                list.add(iterable);
-            }
-            this.inputs = list;
+            this.inputs = inputs;
         }
 
         @Override

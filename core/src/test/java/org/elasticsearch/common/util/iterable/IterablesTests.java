@@ -19,11 +19,13 @@
 
 package org.elasticsearch.common.util.iterable;
 
-import org.elasticsearch.test.ESTestCase;
-
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NoSuchElementException;
+
+import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.object.HasToString.hasToString;
 
@@ -54,6 +56,29 @@ public class IterablesTests extends ESTestCase {
                     }
                 };
         test(iterable);
+    }
+
+    public void testFlatten() {
+        List<List<Integer>> list = new ArrayList<>();
+
+        Iterable<Integer> allInts = Iterables.flatten(list);
+        int count = 0;
+        for(int x : allInts) {
+            count++;
+        }
+        assertEquals(0, count);
+
+        list.add(new ArrayList<>());
+        for(int x : allInts) {
+            count++;
+        }
+        assertEquals(0, count);
+
+        list.get(0).add(0);
+        for(int x : allInts) {
+            count++;
+        }
+        assertEquals(1, count);
     }
 
     private void test(Iterable<String> iterable) {

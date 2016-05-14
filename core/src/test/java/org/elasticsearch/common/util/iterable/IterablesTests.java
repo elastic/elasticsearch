@@ -60,6 +60,7 @@ public class IterablesTests extends ESTestCase {
 
     public void testFlatten() {
         List<List<Integer>> list = new ArrayList<>();
+        list.add(new ArrayList<>());
 
         Iterable<Integer> allInts = Iterables.flatten(list);
         int count = 0;
@@ -67,13 +68,17 @@ public class IterablesTests extends ESTestCase {
             count++;
         }
         assertEquals(0, count);
-
         list.add(new ArrayList<>());
+        list.get(1).add(0);
+
+        // changes to the outer list are not seen since flatten pre-caches outer list on init:
+        count = 0;
         for(int x : allInts) {
             count++;
         }
         assertEquals(0, count);
 
+        // but changes to the original inner lists are seen:
         list.get(0).add(0);
         for(int x : allInts) {
             count++;

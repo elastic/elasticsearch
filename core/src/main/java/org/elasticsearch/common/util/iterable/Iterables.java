@@ -54,8 +54,8 @@ public class Iterables {
         }
     }
 
-    /** Flattens the two level {@code Iterable} into a single {@code Iterable}.  Note that this uses the original input iterable so if it
-     *  later changes, the flattened result here will reflect the change. */
+    /** Flattens the two level {@code Iterable} into a single {@code Iterable}.  Note that this pre-caches the values from the outer {@code
+     *  Iterable}, but not the values from the inner one. */
     public static <T> Iterable<T> flatten(Iterable<? extends Iterable<T>> inputs) {
         Objects.requireNonNull(inputs);
         return new FlattenedIterables<>(inputs);
@@ -65,7 +65,11 @@ public class Iterables {
         private final Iterable<? extends Iterable<T>> inputs;
 
         FlattenedIterables(Iterable<? extends Iterable<T>> inputs) {
-            this.inputs = inputs;
+            List<Iterable<T>> list = new ArrayList<>();
+            for (Iterable<T> iterable : inputs) {
+                list.add(iterable);
+            }
+            this.inputs = list;
         }
 
         @Override

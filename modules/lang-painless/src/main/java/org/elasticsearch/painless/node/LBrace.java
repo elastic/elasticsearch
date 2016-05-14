@@ -60,20 +60,12 @@ public final class LBrace extends ALink {
         } else if (sort == Sort.DEF) {
             return new LDefArray(line, location, index).copy(this).analyze(settings, definition, variables);
         } else {
-            try {
-                before.clazz.asSubclass(Map.class);
-
+            if (Map.class.isAssignableFrom(before.clazz)) {
                 return new LMapShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
-            } catch (final ClassCastException exception) {
-                // Do nothing.
             }
-
-            try {
-                before.clazz.asSubclass(List.class);
-
+            
+            if (List.class.isAssignableFrom(before.clazz)) {
                 return new LListShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
-            } catch (final ClassCastException exception) {
-                // Do nothing.
             }
         }
 

@@ -175,6 +175,12 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         });
     }
 
+    public void testDynamicWrongArgs() {
+        expectThrows(WrongMethodTypeException.class, () -> {
+            exec("def x = new ArrayList(); return x.get('bogus');");
+        });
+    }
+
     public void testDynamicArrayWrongIndex() {
         expectThrows(WrongMethodTypeException.class, () -> {
             exec("def x = new long[1]; x[0]=1; return x['bogus'];");

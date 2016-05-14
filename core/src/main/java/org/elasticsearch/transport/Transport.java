@@ -47,7 +47,7 @@ public interface Transport extends LifecycleComponent<Transport> {
 
     /**
      * Further profile bound addresses
-     * @return Should return null if transport does not support profiles, otherwise a map with name of profile and its bound transport address
+     * @return <code>null</code> iff profiles are unsupported, otherwise a map with name of profile and its bound transport address
      */
     Map<String, BoundTransportAddress> profileBoundAddresses();
 
@@ -85,7 +85,8 @@ public interface Transport extends LifecycleComponent<Transport> {
     /**
      * Sends the request to the node.
      */
-    void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException;
+    void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
+        IOException, TransportException;
 
     /**
      * Returns count of currently open connections

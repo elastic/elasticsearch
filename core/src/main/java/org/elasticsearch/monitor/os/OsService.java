@@ -53,7 +53,7 @@ public class OsService extends AbstractComponent {
         this.info.allocatedProcessors = EsExecutors.boundedNumberOfProcessors(settings);
 
         osStatsCache = new OsStatsCache(refreshInterval, probe.osStats());
-        logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);
+        logger.debug("using refresh_interval [{}]", refreshInterval);
     }
 
     public OsInfo info() {

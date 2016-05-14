@@ -56,6 +56,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 
 
@@ -67,13 +68,14 @@ public class MinDocCountTests extends AbstractTermsTestCase {
         return Collections.singleton(GroovyPlugin.class);
     }
 
-    private static final QueryBuilder<?> QUERY = QueryBuilders.termQuery("match", true);
+    private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);
 
     private static int cardinality;
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        createIndex("idx");
+        assertAcked(client().admin().indices().prepareCreate("idx")
+                .addMapping("type", "s", "type=keyword").get());
 
         cardinality = randomIntBetween(8, 30);
         final List<IndexRequestBuilder> indexRequests = new ArrayList<>();
@@ -82,7 +84,7 @@ public class MinDocCountTests extends AbstractTermsTestCase {
         for (int i = 0; i < cardinality; ++i) {
             String stringTerm;
             do {
-                stringTerm = RandomStrings.randomAsciiOfLength(getRandom(), 8);
+                stringTerm = RandomStrings.randomAsciiOfLength(random(), 8);
             } while (!stringTerms.add(stringTerm));
             long longTerm;
             do {

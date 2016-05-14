@@ -31,7 +31,7 @@ import org.elasticsearch.test.geo.RandomGeoGenerator;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
-import static org.apache.lucene.spatial.util.GeoHashUtils.stringEncode;
+import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 
 public class GeoPointParsingTests  extends ESTestCase {
     static double TOLERANCE = 1E-5;

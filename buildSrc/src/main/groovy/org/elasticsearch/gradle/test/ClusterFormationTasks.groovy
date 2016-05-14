@@ -258,7 +258,7 @@ class ClusterFormationTasks {
                 'path.repo'                    : "${node.sharedDir}/repo",
                 'path.shared_data'             : "${node.sharedDir}/",
                 // Define a node attribute so we can test that it exists
-                'node.testattr'                : 'test',
+                'node.attr.testattr'                : 'test',
                 'repositories.url.allowed_urls': 'http://snapshot.test*'
         ]
         esConfig['http.port'] = node.config.httpPort
@@ -391,6 +391,22 @@ class ClusterFormationTasks {
         return configureExecTask(name, project, setup, node, args)
     }
 
+    /** Wrapper for command line argument: surrounds comma with double quotes **/
+    private static class EscapeCommaWrapper {
+
+        Object arg
+
+        public String toString() {
+            String s = arg.toString()
+
+            /// Surround strings that contains a comma with double quotes
+            if (s.indexOf(',') != -1) {
+                return "\"${s}\""
+            }
+            return s
+        }
+    }
+
     /** Adds a task to execute a command to help setup the cluster */
     static Task configureExecTask(String name, Project project, Task setup, NodeInfo node, Object[] execArgs) {
         return project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) {
@@ -398,10 +414,12 @@ class ClusterFormationTasks {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 executable 'cmd'
                 args '/C', 'call'
+                // On Windows the comma character is considered a parameter separator:
+                // argument are wrapped in an ExecArgWrapper that escapes commas
+                args execArgs.collect { a -> new EscapeCommaWrapper(arg: a) }
             } else {
-                executable 'sh'
+                commandLine execArgs
             }
-            args execArgs
         }
     }
 
@@ -432,7 +450,7 @@ class ClusterFormationTasks {
             // gradle task options are not processed until the end of the configuration phase
             if (node.config.debug) {
                 println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
-                node.env['JAVA_OPTS'] = '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
+                node.env['ES_JAVA_OPTS'] = '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
             }
 
             node.getCommandString().eachLine { line -> logger.info(line) }

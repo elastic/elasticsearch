@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
@@ -44,24 +45,35 @@ import java.util.Set;
 
 public abstract class TermsAggregator extends BucketsAggregator {
 
-    public static class BucketCountThresholds implements Writeable<BucketCountThresholds>, ToXContent {
-
-        private static final BucketCountThresholds PROTOTYPE = new BucketCountThresholds(-1, -1, -1, -1);
-
+    public static class BucketCountThresholds implements Writeable, ToXContent {
         private long minDocCount;
         private long shardMinDocCount;
         private int requiredSize;
         private int shardSize;
-
-        public static BucketCountThresholds readFromStream(StreamInput in) throws IOException {
-            return PROTOTYPE.readFrom(in);
-        }
 
         public BucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {
             this.minDocCount = minDocCount;
             this.shardMinDocCount = shardMinDocCount;
             this.requiredSize = requiredSize;
             this.shardSize = shardSize;
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public BucketCountThresholds(StreamInput in) throws IOException {
+            requiredSize = in.readInt();
+            shardSize = in.readInt();
+            minDocCount = in.readLong();
+            shardMinDocCount = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeInt(requiredSize);
+            out.writeInt(shardSize);
+            out.writeLong(minDocCount);
+            out.writeLong(shardMinDocCount);
         }
 
         public BucketCountThresholds(BucketCountThresholds bucketCountThresholds) {
@@ -135,23 +147,6 @@ public abstract class TermsAggregator extends BucketsAggregator {
         }
 
         @Override
-        public BucketCountThresholds readFrom(StreamInput in) throws IOException {
-            int requiredSize = in.readInt();
-            int shardSize = in.readInt();
-            long minDocCount = in.readLong();
-            long shardMinDocCount = in.readLong();
-            return new BucketCountThresholds(minDocCount, shardMinDocCount, requiredSize, shardSize);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeInt(requiredSize);
-            out.writeInt(shardSize);
-            out.writeLong(minDocCount);
-            out.writeLong(shardMinDocCount);
-        }
-
-        @Override
         public int hashCode() {
             return Objects.hash(requiredSize, shardSize, minDocCount, shardMinDocCount);
         }
@@ -172,15 +167,19 @@ public abstract class TermsAggregator extends BucketsAggregator {
         }
     }
 
+    protected final DocValueFormat format;
     protected final BucketCountThresholds bucketCountThresholds;
     protected final Terms.Order order;
     protected final Set<Aggregator> aggsUsedForSorting = new HashSet<>();
     protected final SubAggCollectionMode collectMode;
 
-    public TermsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent, BucketCountThresholds bucketCountThresholds, Terms.Order order, SubAggCollectionMode collectMode, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    public TermsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
+            BucketCountThresholds bucketCountThresholds, Terms.Order order, DocValueFormat format, SubAggCollectionMode collectMode,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = InternalOrder.validate(order, this);
+        this.format = format;
         this.collectMode = collectMode;
         // Don't defer any child agg if we are dependent on it for pruning results
         if (order instanceof Aggregation){
@@ -200,7 +199,6 @@ public abstract class TermsAggregator extends BucketsAggregator {
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
         return collectMode == SubAggCollectionMode.BREADTH_FIRST
-                && aggregator.needsScores() == false
                 && !aggsUsedForSorting.contains(aggregator);
     }
 

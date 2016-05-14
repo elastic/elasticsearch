@@ -208,10 +208,10 @@ public class RestShardsAction extends AbstractCatAction {
                 String ip = state.getState().nodes().get(shard.currentNodeId()).getHostAddress();
                 String nodeId = shard.currentNodeId();
                 StringBuilder name = new StringBuilder();
-                name.append(state.getState().nodes().get(shard.currentNodeId()).name());
+                name.append(state.getState().nodes().get(shard.currentNodeId()).getName());
                 if (shard.relocating()) {
                     String reloIp = state.getState().nodes().get(shard.relocatingNodeId()).getHostAddress();
-                    String reloNme = state.getState().nodes().get(shard.relocatingNodeId()).name();
+                    String reloNme = state.getState().nodes().get(shard.relocatingNodeId()).getName();
                     String reloNodeId = shard.relocatingNodeId();
                     name.append(" -> ");
                     name.append(reloIp);

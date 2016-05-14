@@ -22,14 +22,10 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -119,7 +115,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     builder.enabled(lenientNodeBooleanValue(fieldNode));
@@ -170,24 +166,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public byte[] value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            BytesReference bValue;
-            if (value instanceof BytesRef) {
-                bValue = new BytesArray((BytesRef) value);
-            } else {
-                bValue = (BytesReference) value;
-            }
-            try {
-                return CompressorFactory.uncompressIfNeeded(bValue).toBytes();
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to decompress source", e);
-            }
         }
     }
 
@@ -251,7 +229,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (!fieldType().stored()) {
             return;
         }
-        BytesReference source = context.source();
+        BytesReference source = context.sourceToParse().source();
         // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
         if (source == null) {
             return;

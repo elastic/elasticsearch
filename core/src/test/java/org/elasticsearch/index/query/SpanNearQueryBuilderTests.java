@@ -50,7 +50,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         assertThat(spanNearQuery.getSlop(), equalTo(queryBuilder.slop()));
         assertThat(spanNearQuery.isInOrder(), equalTo(queryBuilder.inOrder()));
         assertThat(spanNearQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));
-        Iterator<SpanQueryBuilder<?>> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
+        Iterator<SpanQueryBuilder> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
         for (SpanQuery spanQuery : spanNearQuery.getClauses()) {
             assertThat(spanQuery, equalTo(spanQueryBuilderIterator.next().toQuery(context)));
         }
@@ -65,7 +65,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         }
 
         try {
-            SpanNearQueryBuilder spanNearQueryBuilder = new SpanNearQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, 1);
+            SpanNearQueryBuilder spanNearQueryBuilder = new SpanNearQueryBuilder(new SpanTermQueryBuilder("field", "value"), 1);
             spanNearQueryBuilder.clause(null);
             fail("cannot be null");
         } catch (IllegalArgumentException e) {

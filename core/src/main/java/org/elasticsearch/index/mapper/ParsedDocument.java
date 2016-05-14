@@ -30,11 +30,12 @@ import java.util.List;
  */
 public class ParsedDocument {
 
-    private final Field uid, version, seqNo;
-
+    private final String uid;
     private final String id;
-
     private final String type;
+
+    private final Field version;
+    private final Field seqNo;
 
     private final String routing;
 
@@ -50,12 +51,12 @@ public class ParsedDocument {
 
     private String parent;
 
-    public ParsedDocument(Field uid, Field version, Field seqNo, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, BytesReference source, Mapping dynamicMappingsUpdate) {
-        this.uid = uid;
+    public ParsedDocument(Field version, Field seqNo, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, BytesReference source, Mapping dynamicMappingsUpdate) {
         this.version = version;
         this.seqNo = seqNo;
         this.id = id;
         this.type = type;
+        this.uid = Uid.createUid(type, id);
         this.routing = routing;
         this.timestamp = timestamp;
         this.ttl = ttl;
@@ -64,16 +65,8 @@ public class ParsedDocument {
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
     }
 
-    public Field uid() {
-        return this.uid;
-    }
-
-    public Field version() {
-        return version;
-    }
-
-    public Field seqNo() {
-        return seqNo;
+    public String uid() {
+        return uid;
     }
 
     public String id() {
@@ -82,6 +75,14 @@ public class ParsedDocument {
 
     public String type() {
         return this.type;
+    }
+
+    public Field version() {
+        return version;
+    }
+
+    public Field seqNo() {
+        return seqNo;
     }
 
     public String routing() {

@@ -106,7 +106,7 @@ public class ShardStateActionTests extends ESTestCase {
         super.setUp();
         this.transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = new TransportService(transport, THREAD_POOL);
+        transportService = new TransportService(transport, THREAD_POOL, clusterService.state().getClusterName());
         transportService.start();
         transportService.acceptIncomingRequests();
         shardStateAction = new TestShardStateAction(Settings.EMPTY, clusterService, transportService, null, null);
@@ -162,7 +162,7 @@ public class ShardStateActionTests extends ESTestCase {
         // for the right shard
         assertEquals(shardRouting, shardRoutingEntry.getShardRouting());
         // sent to the master
-        assertEquals(clusterService.state().nodes().masterNode().getId(), capturedRequests[0].node.getId());
+        assertEquals(clusterService.state().nodes().getMasterNode().getId(), capturedRequests[0].node.getId());
 
         transport.handleResponse(capturedRequests[0].requestId, TransportResponse.Empty.INSTANCE);
 
@@ -333,12 +333,12 @@ public class ShardStateActionTests extends ESTestCase {
 
         ShardRouting failedShard = getRandomShardRouting(index);
 
-        String nodeId = randomFrom(clusterService.state().nodes().nodes().keys().toArray(String.class));
+        String nodeId = randomFrom(clusterService.state().nodes().getNodes().keys().toArray(String.class));
 
         AtomicReference<Throwable> failure = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        ShardRouting sourceFailedShard = TestShardRouting.newShardRouting(failedShard.index(), failedShard.id(), nodeId, randomBoolean(), randomFrom(ShardRoutingState.values()));
+        ShardRouting sourceFailedShard = TestShardRouting.newShardRouting(failedShard.shardId(), nodeId, randomBoolean(), randomFrom(ShardRoutingState.values()));
         shardStateAction.shardFailed(failedShard, sourceFailedShard, "test", getSimulatedFailure(), new ShardStateAction.Listener() {
             @Override
             public void onSuccess() {
@@ -375,7 +375,7 @@ public class ShardStateActionTests extends ESTestCase {
     private void setUpMasterRetryVerification(int numberOfRetries, AtomicInteger retries, CountDownLatch latch, LongConsumer retryLoop) {
         shardStateAction.setOnBeforeWaitForNewMasterAndRetry(() -> {
             DiscoveryNodes.Builder masterBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-            masterBuilder.masterNodeId(clusterService.state().nodes().masterNodes().iterator().next().value.id());
+            masterBuilder.masterNodeId(clusterService.state().nodes().getMasterNodes().iterator().next().value.getId());
             setState(clusterService, ClusterState.builder(clusterService.state()).nodes(masterBuilder));
         });
 

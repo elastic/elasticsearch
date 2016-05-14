@@ -20,7 +20,7 @@ package org.elasticsearch.index.mapper.geo;
 
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.junit.Before;
 
@@ -41,7 +41,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
         addModifier(new Modifier("lat_lon", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((BaseGeoPointFieldMapper.GeoPointFieldType)ft).setLatLonEnabled(new DoubleFieldMapper.DoubleFieldType(), new DoubleFieldMapper.DoubleFieldType());
+                ((BaseGeoPointFieldMapper.GeoPointFieldType)ft).setLatLonEnabled(new LegacyDoubleFieldMapper.DoubleFieldType(), new LegacyDoubleFieldMapper.DoubleFieldType());
             }
         });
     }

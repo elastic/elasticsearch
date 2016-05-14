@@ -21,26 +21,12 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
-import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.instanceOf;
-
 public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestCase<PhraseSuggestionBuilder> {
-
-    @BeforeClass
-    public static void initSmoothingModels() {
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, Laplace.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, LinearInterpolation.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, StupidBackoff.PROTOTYPE);
-    }
-
     @Override
     protected PhraseSuggestionBuilder randomSuggestionBuilder() {
         return randomPhraseSuggestionBuilder();
@@ -162,81 +148,40 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
 
     public void testInvalidParameters() throws IOException {
         // test missing field name
-        try {
-            new PhraseSuggestionBuilder(null);
-            fail("Should not allow null as field name");
-        } catch (NullPointerException e) {
-            assertEquals("suggestion requires a field name", e.getMessage());
-        }
+        Exception e = expectThrows(NullPointerException.class, () -> new PhraseSuggestionBuilder((String) null));
+        assertEquals("suggestion requires a field name", e.getMessage());
 
-        // test emtpy field name
-        try {
-            new PhraseSuggestionBuilder("");
-            fail("Should not allow empty string as field name");
-        } catch (IllegalArgumentException e) {
-            assertEquals("suggestion field name is empty", e.getMessage());
-        }
+        // test empty field name
+        e = expectThrows(IllegalArgumentException.class, () -> new PhraseSuggestionBuilder(""));
+        assertEquals("suggestion field name is empty", e.getMessage());
 
         PhraseSuggestionBuilder builder = new PhraseSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
-        try {
-            builder.gramSize(0);
-            fail("Should not allow gramSize < 1");
-        } catch (IllegalArgumentException e) {
-            assertEquals("gramSize must be >= 1", e.getMessage());
-        }
+ 
+        e = expectThrows(IllegalArgumentException.class, () -> builder.gramSize(0));
+        assertEquals("gramSize must be >= 1", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> builder.gramSize(-1));
+        assertEquals("gramSize must be >= 1", e.getMessage());
 
-        try {
-            builder.gramSize(-1);
-            fail("Should not allow gramSize < 1");
-        } catch (IllegalArgumentException e) {
-            assertEquals("gramSize must be >= 1", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> builder.maxErrors(-1));
+        assertEquals("max_error must be > 0.0", e.getMessage());
 
-        try {
-            builder.maxErrors(-1);
-            fail("Should not allow maxErrors < 0");
-        } catch (IllegalArgumentException e) {
-            assertEquals("max_error must be > 0.0", e.getMessage());
-        }
+        e = expectThrows(NullPointerException.class, () -> builder.separator(null));
+        assertEquals("separator cannot be set to null", e.getMessage());
 
-        try {
-            builder.separator(null);
-            fail("Should not allow null as separator");
-        } catch (NullPointerException e) {
-            assertEquals("separator cannot be set to null", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> builder.realWordErrorLikelihood(-1));
+        assertEquals("real_word_error_likelihood must be > 0.0", e.getMessage());
 
-        try {
-            builder.realWordErrorLikelihood(-1);
-            fail("Should not allow real world error likelihood < 0");
-        } catch (IllegalArgumentException e) {
-            assertEquals("real_word_error_likelihood must be > 0.0", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> builder.confidence(-1));
+        assertEquals("confidence must be >= 0.0", e.getMessage());
 
-        try {
-            builder.confidence(-1);
-            fail("Should not allow confidence < 0");
-        } catch (IllegalArgumentException e) {
-            assertEquals("confidence must be >= 0.0", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> builder.tokenLimit(0));
+        assertEquals("token_limit must be >= 1", e.getMessage());
 
-        try {
-            builder.tokenLimit(0);
-            fail("token_limit must be >= 1");
-        } catch (IllegalArgumentException e) {
-            assertEquals("token_limit must be >= 1", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> builder.highlight(null, "</b>"));
+        assertEquals("Pre and post tag must both be null or both not be null.", e.getMessage());
 
-        try {
-            if (randomBoolean()) {
-                builder.highlight(null, "</b>");
-            } else {
-                builder.highlight("<b>", null);
-            }
-            fail("Pre and post tag must both be null or both not be null.");
-        } catch (IllegalArgumentException e) {
-            assertEquals("Pre and post tag must both be null or both not be null.", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> builder.highlight("<b>", null));
+        assertEquals("Pre and post tag must both be null or both not be null.", e.getMessage());
     }
 
 }

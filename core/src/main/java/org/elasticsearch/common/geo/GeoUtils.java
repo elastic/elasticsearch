@@ -71,7 +71,7 @@ public class GeoUtils {
      * maximum distance/radius from the point 'center' before overlapping
      **/
     public static double maxRadialDistance(GeoPoint center, double initialRadius) {
-        final double maxRadius = maxRadialDistanceMeters(center.lon(), center.lat());
+        final double maxRadius = maxRadialDistanceMeters(center.lat(), center.lon());
         return Math.min(initialRadius, maxRadius);
     }
 
@@ -89,14 +89,6 @@ public class GeoUtils {
             return false;
         }
         return true;
-    }
-
-    /**
-     * Return an approximate value of the diameter of the earth (in meters) at the given latitude (in radians).
-     */
-    public static double earthDiameter(double latitude) {
-        // SloppyMath impl returns a result in kilometers
-        return SloppyMath.earthDiameter(latitude) * 1000;
     }
 
     /**
@@ -374,6 +366,7 @@ public class GeoUtils {
         double lat = Double.NaN;
         double lon = Double.NaN;
         String geohash = null;
+        NumberFormatException numberFormatException = null;
 
         if(parser.currentToken() == Token.START_OBJECT) {
             while(parser.nextToken() != Token.END_OBJECT) {
@@ -384,7 +377,11 @@ public class GeoUtils {
                         switch (parser.currentToken()) {
                             case VALUE_NUMBER:
                             case VALUE_STRING:
-                                lat = parser.doubleValue(true);
+                                try {
+                                    lat = parser.doubleValue(true);
+                                } catch (NumberFormatException e) {
+                                    numberFormatException = e;
+                                }
                                 break;
                             default:
                                 throw new ElasticsearchParseException("latitude must be a number");
@@ -394,7 +391,11 @@ public class GeoUtils {
                         switch (parser.currentToken()) {
                             case VALUE_NUMBER:
                             case VALUE_STRING:
-                                lon = parser.doubleValue(true);
+                                try {
+                                    lon = parser.doubleValue(true);
+                                } catch (NumberFormatException e) {
+                                    numberFormatException = e;
+                                }
                                 break;
                             default:
                                 throw new ElasticsearchParseException("longitude must be a number");
@@ -419,6 +420,9 @@ public class GeoUtils {
                 } else {
                     return point.resetFromGeoHash(geohash);
                 }
+            } else if (numberFormatException != null) {
+                throw new ElasticsearchParseException("[{}] and [{}] must be valid double values", numberFormatException, LATITUDE,
+                    LONGITUDE);
             } else if (Double.isNaN(lat)) {
                 throw new ElasticsearchParseException("field [{}] missing", LATITUDE);
             } else if (Double.isNaN(lon)) {

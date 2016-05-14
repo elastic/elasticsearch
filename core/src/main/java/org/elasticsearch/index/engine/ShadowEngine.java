@@ -253,4 +253,10 @@ public class ShadowEngine extends Engine {
     public SeqNoStats seqNoStats() {
         throw new UnsupportedOperationException("ShadowEngine doesn't track sequence numbers");
     }
+
+    @Override
+    public Engine recoverFromTranslog() throws IOException {
+        throw new UnsupportedOperationException("can't recover on a shadow engine");
+    }
+
 }

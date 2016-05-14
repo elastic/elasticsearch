@@ -25,10 +25,10 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESAllocationTestCase;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class AllocationPriorityTests extends ESAllocationTestCase {
 
@@ -37,7 +37,7 @@ public class AllocationPriorityTests extends ESAllocationTestCase {
      * See https://github.com/elastic/elasticsearch/issues/13249 for details
      */
     public void testPrioritizedIndicesAllocatedFirst() {
-        AllocationService allocation = createAllocationService(settingsBuilder().
+        AllocationService allocation = createAllocationService(Settings.builder().
                 put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), 1)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 10)
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), 1)

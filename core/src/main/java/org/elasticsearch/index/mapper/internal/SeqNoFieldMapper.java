@@ -99,14 +99,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             return CONTENT_TYPE;
         }
 
-        @Override
-        public Long value(Object value) {
-            if (value == null || (value instanceof Long)) {
-                return (Long) value;
-            } else {
-                return Long.parseLong(value.toString());
-            }
-        }
     }
 
     public SeqNoFieldMapper(Settings indexSettings) {

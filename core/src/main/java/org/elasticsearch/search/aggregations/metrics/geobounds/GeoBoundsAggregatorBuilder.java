@@ -19,28 +19,43 @@
 
 package org.elasticsearch.search.aggregations.metrics.geobounds;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
 import java.io.IOException;
 import java.util.Objects;
 
 public class GeoBoundsAggregatorBuilder extends ValuesSourceAggregatorBuilder<ValuesSource.GeoPoint, GeoBoundsAggregatorBuilder> {
-
-    static final GeoBoundsAggregatorBuilder PROTOTYPE = new GeoBoundsAggregatorBuilder("");
+    public static final String NAME = InternalGeoBounds.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIED = new ParseField(NAME);
 
     private boolean wrapLongitude = true;
 
     public GeoBoundsAggregatorBuilder(String name) {
         super(name, InternalGeoBounds.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public GeoBoundsAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalGeoBounds.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        wrapLongitude = in.readBoolean();
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeBoolean(wrapLongitude);
     }
 
     /**
@@ -65,19 +80,6 @@ public class GeoBoundsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Va
     }
 
     @Override
-    protected GeoBoundsAggregatorBuilder innerReadFrom(String name, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, StreamInput in) throws IOException {
-        GeoBoundsAggregatorBuilder factory = new GeoBoundsAggregatorBuilder(name);
-        factory.wrapLongitude = in.readBoolean();
-        return factory;
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeBoolean(wrapLongitude);
-    }
-
-    @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(GeoBoundsAggregator.WRAP_LONGITUDE_FIELD.getPreferredName(), wrapLongitude);
         return builder;
@@ -94,4 +96,8 @@ public class GeoBoundsAggregatorBuilder extends ValuesSourceAggregatorBuilder<Va
         return Objects.equals(wrapLongitude, other.wrapLongitude);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

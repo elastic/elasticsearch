@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -56,13 +57,11 @@ public class FiltersAggregator extends BucketsAggregator {
     public static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
     public static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
 
-    public static class KeyedFilter implements Writeable<KeyedFilter>, ToXContent {
-
-        static final KeyedFilter PROTOTYPE = new KeyedFilter("", EmptyQueryBuilder.PROTOTYPE);
+    public static class KeyedFilter implements Writeable, ToXContent {
         private final String key;
-        private final QueryBuilder<?> filter;
+        private final QueryBuilder filter;
 
-        public KeyedFilter(String key, QueryBuilder<?> filter) {
+        public KeyedFilter(String key, QueryBuilder filter) {
             if (key == null) {
                 throw new IllegalArgumentException("[key] must not be null");
             }
@@ -70,14 +69,32 @@ public class FiltersAggregator extends BucketsAggregator {
                 throw new IllegalArgumentException("[filter] must not be null");
             }
             this.key = key;
-            this.filter = filter;
+            if (filter instanceof EmptyQueryBuilder) {
+                this.filter = new MatchAllQueryBuilder();
+            } else {
+                this.filter = filter;
+            }
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public KeyedFilter(StreamInput in) throws IOException {
+            key = in.readString();
+            filter = in.readNamedWriteable(QueryBuilder.class);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(key);
+            out.writeNamedWriteable(filter);
         }
 
         public String key() {
             return key;
         }
 
-        public QueryBuilder<?> filter() {
+        public QueryBuilder filter() {
             return filter;
         }
 
@@ -85,19 +102,6 @@ public class FiltersAggregator extends BucketsAggregator {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(key, filter);
             return builder;
-        }
-
-        @Override
-        public KeyedFilter readFrom(StreamInput in) throws IOException {
-            String key = in.readString();
-            QueryBuilder<?> filter = in.readQuery();
-            return new KeyedFilter(key, filter);
-    }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(key);
-            out.writeQuery(filter);
         }
 
         @Override

@@ -31,26 +31,14 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptServiceTests.TestEngineService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
-import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.nio.file.Path;
-import java.util.Collections;
-
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -67,23 +55,10 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      */
     @BeforeClass
     public static void init() throws IOException {
-        Path genericConfigFolder = createTempDir();
-        Settings baseSettings = settingsBuilder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
-                .build();
-        Environment environment = new Environment(baseSettings);
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry
-                .ScriptEngineRegistration(TestEngineService.class, TestEngineService.TYPES)));
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        suggesters = new Suggesters(Collections.emptyMap());
-
         namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, TermSuggestionBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, PhraseSuggestionBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, CompletionSuggestionBuilder.PROTOTYPE);
-        queriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).buildQueryParserRegistry();
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, namedWriteableRegistry);
+        queriesRegistry = searchModule.getQueryParserRegistry();
+        suggesters = searchModule.getSuggesters();
         parseFieldMatcher = ParseFieldMatcher.STRICT;
     }
 
@@ -168,8 +143,6 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      * instance that should be equal to original
      */
     public void testFromXContent() throws IOException {
-        QueryParseContext context = new QueryParseContext(null);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB suggestionBuilder = randomTestBuilder();
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -180,8 +153,9 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             suggestionBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             xContentBuilder.endObject();
 
-            XContentParser parser = XContentHelper.createParser(xContentBuilder.bytes());
-            context.reset(parser);
+            XContentBuilder shuffled = shuffleXContent(xContentBuilder, shuffleProtectedFields());
+            XContentParser parser = XContentHelper.createParser(shuffled.bytes());
+            QueryParseContext context = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
             // we need to skip the start object and the name, those will be parsed by outer SuggestBuilder
             parser.nextToken();
 
@@ -190,6 +164,14 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             assertEquals(suggestionBuilder, secondSuggestionBuilder);
             assertEquals(suggestionBuilder.hashCode(), secondSuggestionBuilder.hashCode());
         }
+    }
+
+    /**
+     * Subclasses can override this method and return a set of fields which should be protected from
+     * recursive random shuffling in the {@link #testFromXContent()} test case
+     */
+    protected String[] shuffleProtectedFields() {
+        return new String[0];
     }
 
     private SB mutate(SB firstBuilder) throws IOException {
@@ -232,17 +214,16 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     @SuppressWarnings("unchecked")
     protected SB serializedCopy(SB original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeSuggestion(original);
+            output.writeNamedWriteable(original);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                return (SB) in.readSuggestion();
+                return (SB) in.readNamedWriteable(SuggestionBuilder.class);
             }
         }
     }
 
     protected static QueryParseContext newParseContext(final String xcontent) throws IOException {
-        final QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
-        parseContext.reset(XContentFactory.xContent(xcontent).createParser(xcontent));
-        parseContext.parseFieldMatcher(parseFieldMatcher);
+        XContentParser parser = XContentFactory.xContent(xcontent).createParser(xcontent);
+        final QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         return parseContext;
     }
 }

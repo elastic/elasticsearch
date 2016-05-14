@@ -16,7 +16,7 @@ setup:
                 routing: routing
 
   - do:
-      indices.get_aliases:
+      indices.get_alias:
         index: test_index
 
   - match: {test_index.aliases.test_alias: {'index_routing': 'routing', 'search_routing': 'routing'}}
@@ -34,7 +34,7 @@ setup:
                 index_routing: index_routing
 
   - do:
-      indices.get_aliases:
+      indices.get_alias:
         index: test_index
 
   - match: {test_index.aliases.test_alias: {'index_routing': 'index_routing'}}
@@ -52,7 +52,7 @@ setup:
                 search_routing: search_routing
 
   - do:
-      indices.get_aliases:
+      indices.get_alias:
         index: test_index
 
   - match: {test_index.aliases.test_alias: {'search_routing': 'search_routing'}}
@@ -71,7 +71,7 @@ setup:
                 routing: routing
 
   - do:
-      indices.get_aliases:
+      indices.get_alias:
         index: test_index
 
   - match: {test_index.aliases.test_alias: {'index_routing': 'index_routing', 'search_routing': 'routing'}}
@@ -90,7 +90,7 @@ setup:
                 routing: routing
 
   - do:
-      indices.get_aliases:
+      indices.get_alias:
         index: test_index
 
   - match: {test_index.aliases.test_alias: {'index_routing': 'routing', 'search_routing': 'search_routing'}}
@@ -110,7 +110,7 @@ setup:
                 routing: routing
 
   - do:
-      indices.get_aliases:
+      indices.get_alias:
         index: test_index
 
   - match: {test_index.aliases.test_alias: {'index_routing': 'index_routing', 'search_routing': 'search_routing'}}
@@ -128,7 +128,7 @@ setup:
                 routing: 5
 
   - do:
-      indices.get_aliases:
+      indices.get_alias:
         index: test_index
 
   - match: {test_index.aliases.test_alias: {'index_routing': '5', 'search_routing': '5'}}

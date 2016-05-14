@@ -91,8 +91,6 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
     }
 
     public static class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionBuilder> {
-
-        public final static CustomSuggestionBuilder PROTOTYPE = new CustomSuggestionBuilder("_na_", "_na_");
         protected static final ParseField RANDOM_SUFFIX_FIELD = new ParseField("suffix");
 
         private String randomSuffix;
@@ -100,6 +98,19 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         public CustomSuggestionBuilder(String randomField, String randomSuffix) {
             super(randomField);
             this.randomSuffix = randomSuffix;
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public CustomSuggestionBuilder(StreamInput in) throws IOException {
+            super(in);
+            this.randomSuffix = in.readString();
+        }
+
+        @Override
+        public void doWriteTo(StreamOutput out) throws IOException {
+            out.writeString(randomSuffix);
         }
 
         @Override
@@ -114,16 +125,6 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public void doWriteTo(StreamOutput out) throws IOException {
-            out.writeString(randomSuffix);
-        }
-
-        @Override
-        public CustomSuggestionBuilder doReadFrom(StreamInput in, String field) throws IOException {
-            return new CustomSuggestionBuilder(field, in.readString());
-        }
-
-        @Override
         protected boolean doEquals(CustomSuggestionBuilder other) {
             return Objects.equals(randomSuffix, other.randomSuffix);
         }
@@ -133,10 +134,9 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
             return Objects.hash(randomSuffix);
         }
 
-        @Override
-        protected CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
+        static CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
             XContentParser parser = parseContext.parser();
-            ParseFieldMatcher parseFieldMatcher = parseContext.parseFieldMatcher();
+            ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
             XContentParser.Token token;
             String currentFieldName = null;
             String fieldname = null;

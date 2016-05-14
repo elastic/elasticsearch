@@ -62,7 +62,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<
      * Set the query that will filter the source. Just a convenience method for
      * easy chaining.
      */
-    public Self filter(QueryBuilder<?> filter) {
+    public Self filter(QueryBuilder filter) {
         source.setQuery(filter);
         return self();
     }
@@ -104,6 +104,16 @@ public abstract class AbstractBulkByScrollRequestBuilder<
      */
     public Self consistency(WriteConsistencyLevel consistency) {
         request.setConsistency(consistency);
+        return self();
+    }
+
+    /**
+     * Set the throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
+     */
+    public Self setRequestsPerSecond(float requestsPerSecond) {
+        request.setRequestsPerSecond(requestsPerSecond);
         return self();
     }
 }

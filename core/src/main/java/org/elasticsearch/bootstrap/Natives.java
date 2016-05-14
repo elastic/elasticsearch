@@ -90,7 +90,7 @@ final class Natives {
         }
         return JNANatives.LOCAL_MLOCKALL;
     }
-    
+
     static void trySeccomp(Path tmpFile) {
         if (!JNA_AVAILABLE) {
             logger.warn("cannot install syscall filters because JNA is not available");
@@ -98,7 +98,23 @@ final class Natives {
         }
         JNANatives.trySeccomp(tmpFile);
     }
-    
+
+    static void trySetMaxNumberOfThreads() {
+        if (!JNA_AVAILABLE) {
+            logger.warn("cannot getrlimit RLIMIT_NPROC because JNA is not available");
+            return;
+        }
+        JNANatives.trySetMaxNumberOfThreads();
+    }
+
+    static void trySetMaxSizeVirtualMemory() {
+        if (!JNA_AVAILABLE) {
+            logger.warn("cannot getrlimit RLIMIT_AS beacuse JNA is not available");
+            return;
+        }
+        JNANatives.trySetMaxSizeVirtualMemory();
+    }
+
     static boolean isSeccompInstalled() {
         if (!JNA_AVAILABLE) {
             return false;

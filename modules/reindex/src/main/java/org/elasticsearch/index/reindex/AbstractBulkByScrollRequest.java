@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.reindex;
 
+import java.io.IOException;
+import java.util.Arrays;
+
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -29,9 +32,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
-
-import java.io.IOException;
-import java.util.Arrays;
+import org.elasticsearch.tasks.TaskId;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -86,11 +87,11 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     private int maxRetries = 11;
 
     /**
-     * The throttle for this request in sub-requests per second. 0 means set no throttle and that is the default. Throttling is done between
-     * batches, as we start the next scroll requests. That way we can increase the scroll's timeout to make sure that it contains any time
-     * that we might wait.
+     * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
      */
-    private float requestsPerSecond = 0;
+    private float requestsPerSecond = Float.POSITIVE_INFINITY;
 
     public AbstractBulkByScrollRequest() {
     }
@@ -116,6 +117,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         ActionRequestValidationException e = searchRequest.validate();
         if (searchRequest.source().from() != -1) {
             e = addValidationError("from is not supported in this context", e);
+        }
+        if (searchRequest.source().fields() != null) {
+            e = addValidationError("fields is not supported in this context", e);
         }
         if (maxRetries < 0) {
             e = addValidationError("retries cannnot be negative", e);
@@ -260,23 +264,31 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
-     * The throttle for this request in sub-requests per second. 0 means set no throttle and that is the default.
+     * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
      */
     public float getRequestsPerSecond() {
         return requestsPerSecond;
     }
 
     /**
-     * Set the throttle for this request in sub-requests per second. 0 means set no throttle and that is the default.
+     * Set the throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
      */
     public Self setRequestsPerSecond(float requestsPerSecond) {
+        if (requestsPerSecond <= 0) {
+            throw new IllegalArgumentException(
+                    "[requests_per_second] must be greater than 0. Use Float.POSITIVE_INFINITY to disable throttling.");
+        }
         this.requestsPerSecond = requestsPerSecond;
         return self();
     }
 
     @Override
-    public Task createTask(long id, String type, String action) {
-        return new BulkByScrollTask(id, type, action, getDescription());
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId, requestsPerSecond);
     }
 
     @Override

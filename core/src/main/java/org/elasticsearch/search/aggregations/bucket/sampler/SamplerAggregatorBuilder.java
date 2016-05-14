@@ -19,20 +19,24 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class SamplerAggregatorBuilder extends AggregatorBuilder<SamplerAggregatorBuilder> {
-
-    static final SamplerAggregatorBuilder PROTOTYPE = new SamplerAggregatorBuilder("");
+    public static final String NAME = InternalSampler.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public static final int DEFAULT_SHARD_SAMPLE_SIZE = 100;
 
@@ -40,6 +44,19 @@ public class SamplerAggregatorBuilder extends AggregatorBuilder<SamplerAggregato
 
     public SamplerAggregatorBuilder(String name) {
         super(name, InternalSampler.TYPE);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public SamplerAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalSampler.TYPE);
+        shardSize = in.readVInt();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeVInt(shardSize);
     }
 
     /**
@@ -71,16 +88,33 @@ public class SamplerAggregatorBuilder extends AggregatorBuilder<SamplerAggregato
         return builder;
     }
 
-    @Override
-    protected SamplerAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-        SamplerAggregatorBuilder factory = new SamplerAggregatorBuilder(name);
-        factory.shardSize = in.readVInt();
-        return factory;
-    }
+    public static SamplerAggregatorBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        XContentParser.Token token;
+        String currentFieldName = null;
+        Integer shardSize = null;
 
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(shardSize);
+        XContentParser parser = context.parser();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                if (context.getParseFieldMatcher().match(currentFieldName, SamplerAggregator.SHARD_SIZE_FIELD)) {
+                    shardSize = parser.intValue();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unsupported property \"" + currentFieldName + "\" for aggregation \"" + aggregationName);
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "Unsupported property \"" + currentFieldName + "\" for aggregation \"" + aggregationName);
+            }
+        }
+
+        SamplerAggregatorBuilder factory = new SamplerAggregatorBuilder(aggregationName);
+        if (shardSize != null) {
+            factory.shardSize(shardSize);
+        }
+        return factory;
     }
 
     @Override
@@ -94,4 +128,8 @@ public class SamplerAggregatorBuilder extends AggregatorBuilder<SamplerAggregato
         return Objects.equals(shardSize, other.shardSize);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

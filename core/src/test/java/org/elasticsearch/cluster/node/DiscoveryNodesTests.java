@@ -39,10 +39,10 @@ public class DiscoveryNodesTests extends ESTestCase {
 
     public void testResolveNodeByIdOrName() {
         DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
-        DiscoveryNode[] nodes = discoveryNodes.nodes().values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] nodes = discoveryNodes.getNodes().values().toArray(DiscoveryNode.class);
         DiscoveryNode node = randomFrom(nodes);
-        DiscoveryNode resolvedNode = discoveryNodes.resolveNode(randomBoolean() ? node.id() : node.name());
-        assertThat(resolvedNode.id(), equalTo(node.id()));
+        DiscoveryNode resolvedNode = discoveryNodes.resolveNode(randomBoolean() ? node.getId() : node.getName());
+        assertThat(resolvedNode.getId(), equalTo(node.getId()));
     }
 
     public void testResolveNodeByAttribute() {
@@ -52,7 +52,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         try {
             DiscoveryNode resolvedNode = discoveryNodes.resolveNode(nodeSelector.selector);
             assertThat(matchingNodeIds.size(), equalTo(1));
-            assertThat(resolvedNode.id(), equalTo(matchingNodeIds.iterator().next()));
+            assertThat(resolvedNode.getId(), equalTo(matchingNodeIds.iterator().next()));
         } catch(IllegalArgumentException e) {
             if (matchingNodeIds.size() == 0) {
                 assertThat(e.getMessage(), equalTo("failed to resolve [" + nodeSelector.selector + "], no matching nodes"));
@@ -77,18 +77,18 @@ public class DiscoveryNodesTests extends ESTestCase {
             }
         }
         int numNodeIds = randomIntBetween(0, 3);
-        String[] nodeIds = discoveryNodes.nodes().keys().toArray(String.class);
+        String[] nodeIds = discoveryNodes.getNodes().keys().toArray(String.class);
         for (int i = 0; i < numNodeIds; i++) {
             String nodeId = randomFrom(nodeIds);
             nodeSelectors.add(nodeId);
             expectedNodeIdsSet.add(nodeId);
         }
         int numNodeNames = randomIntBetween(0, 3);
-        DiscoveryNode[] nodes = discoveryNodes.nodes().values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] nodes = discoveryNodes.getNodes().values().toArray(DiscoveryNode.class);
         for (int i = 0; i < numNodeNames; i++) {
             DiscoveryNode discoveryNode = randomFrom(nodes);
-            nodeSelectors.add(discoveryNode.name());
-            expectedNodeIdsSet.add(discoveryNode.id());
+            nodeSelectors.add(discoveryNode.getName());
+            expectedNodeIdsSet.add(discoveryNode.getId());
         }
 
         String[] resolvedNodesIds = discoveryNodes.resolveNodesIds(nodeSelectors.toArray(new String[nodeSelectors.size()]));
@@ -104,61 +104,61 @@ public class DiscoveryNodesTests extends ESTestCase {
         List<DiscoveryNode> nodesList = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             Map<String, String> attributes = new HashMap<>();
-            if (randomBoolean()) {
-                attributes.put("master", Boolean.toString(randomBoolean()));
-                attributes.put("data", Boolean.toString(randomBoolean()));
-                attributes.put("ingest", Boolean.toString(randomBoolean()));
-            } else {
-                attributes.put("client", "true");
-            }
             if (frequently()) {
                 attributes.put("custom", randomBoolean() ? "match" : randomAsciiOfLengthBetween(3, 5));
             }
-            final DiscoveryNode node = newNode(i, attributes);
+            final DiscoveryNode node = newNode(i, attributes, new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values()))));
             discoBuilder = discoBuilder.put(node);
             nodesList.add(node);
         }
-        discoBuilder.localNodeId(randomFrom(nodesList).id());
-        discoBuilder.masterNodeId(randomFrom(nodesList).id());
+        discoBuilder.localNodeId(randomFrom(nodesList).getId());
+        discoBuilder.masterNodeId(randomFrom(nodesList).getId());
         return discoBuilder.build();
     }
 
-    private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes) {
-        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, DummyTransportAddress.INSTANCE, attributes, Version.CURRENT);
+    private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNode.Role> roles) {
+        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, DummyTransportAddress.INSTANCE, attributes, roles, Version.CURRENT);
     }
 
     private enum NodeSelector {
         LOCAL("_local") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                return Collections.singleton(nodes.localNodeId());
+                return Collections.singleton(nodes.getLocalNodeId());
             }
         }, ELECTED_MASTER("_master") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                return Collections.singleton(nodes.masterNodeId());
+                return Collections.singleton(nodes.getMasterNodeId());
             }
-        }, MASTER_ELIGIBLE("master:true") {
+        }, MASTER_ELIGIBLE(DiscoveryNode.Role.MASTER.getRoleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 Set<String> ids = new HashSet<>();
                 nodes.getMasterNodes().keysIt().forEachRemaining(ids::add);
                 return ids;
             }
-        }, DATA("data:true") {
+        }, DATA(DiscoveryNode.Role.DATA.getRoleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 Set<String> ids = new HashSet<>();
                 nodes.getDataNodes().keysIt().forEachRemaining(ids::add);
                 return ids;
             }
-        }, CUSTOM_ATTRIBUTE("attr:value") {
+        }, INGEST(DiscoveryNode.Role.INGEST.getRoleName() + ":true") {
+            @Override
+            Set<String> matchingNodeIds(DiscoveryNodes nodes) {
+                Set<String> ids = new HashSet<>();
+                nodes.getIngestNodes().keysIt().forEachRemaining(ids::add);
+                return ids;
+            }
+        },CUSTOM_ATTRIBUTE("attr:value") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 Set<String> ids = new HashSet<>();
                 nodes.getNodes().valuesIt().forEachRemaining(node -> {
                     if ("value".equals(node.getAttributes().get("attr"))) {
-                        ids.add(node.id());
+                        ids.add(node.getId());
                     }
                 });
                 return ids;

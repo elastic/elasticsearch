@@ -62,12 +62,12 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             Property.Dynamic, Property.NodeScope);
     public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING =
         new Setting<>("cluster.routing.allocation.node_concurrent_incoming_recoveries",
-            (s) -> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getRaw(s),
+            CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING::getRaw,
             (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_incoming_recoveries"),
             Property.Dynamic, Property.NodeScope);
     public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING =
         new Setting<>("cluster.routing.allocation.node_concurrent_outgoing_recoveries",
-            (s) -> CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getRaw(s),
+            CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING::getRaw,
             (s) -> Setting.parseInt(s, 0, "cluster.routing.allocation.node_concurrent_outgoing_recoveries"),
             Property.Dynamic, Property.NodeScope);
 
@@ -84,11 +84,16 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         concurrentIncomingRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.get(settings);
         concurrentOutgoingRecoveries = CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(settings);
 
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING, this::setPrimariesInitialRecoveries);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING, this::setConcurrentIncomingRecoverries);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING, this::setConcurrentOutgoingRecoverries);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING,
+                this::setPrimariesInitialRecoveries);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
+                this::setConcurrentIncomingRecoverries);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
+                this::setConcurrentOutgoingRecoverries);
 
-        logger.debug("using node_concurrent_outgoing_recoveries [{}], node_concurrent_incoming_recoveries [{}], node_initial_primaries_recoveries [{}]", concurrentOutgoingRecoveries, concurrentIncomingRecoveries, primariesInitialRecoveries);
+        logger.debug("using node_concurrent_outgoing_recoveries [{}], node_concurrent_incoming_recoveries [{}], " +
+                        "node_initial_primaries_recoveries [{}]",
+                concurrentOutgoingRecoveries, concurrentIncomingRecoveries, primariesInitialRecoveries);
     }
 
     private void setConcurrentIncomingRecoverries(int concurrentIncomingRecoveries) {
@@ -118,7 +123,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                     }
                 }
                 if (primariesInRecovery >= primariesInitialRecoveries) {
-                    return allocation.decision(Decision.THROTTLE, NAME, "too many primaries currently recovering [%d], limit: [%d]",
+                    return allocation.decision(Decision.THROTTLE, NAME, "too many primaries are currently recovering [%d], limit: [%d]",
                             primariesInRecovery, primariesInitialRecoveries);
                 } else {
                     return allocation.decision(Decision.YES, NAME, "below primary recovery limit of [%d]", primariesInitialRecoveries);
@@ -137,13 +142,17 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         int currentOutRecoveries = allocation.routingNodes().getOutgoingRecoveries(node.nodeId());
         int currentInRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());
         if (currentOutRecoveries >= concurrentOutgoingRecoveries) {
-            return allocation.decision(Decision.THROTTLE, NAME, "too many outgoing shards currently recovering [%d], limit: [%d]",
+            return allocation.decision(Decision.THROTTLE, NAME, "too many outgoing shards are currently recovering [%d], limit: [%d]",
                 currentOutRecoveries, concurrentOutgoingRecoveries);
         } else if (currentInRecoveries >= concurrentIncomingRecoveries) {
-            return allocation.decision(Decision.THROTTLE, NAME, "too many incoming shards currently recovering [%d], limit: [%d]",
+            return allocation.decision(Decision.THROTTLE, NAME, "too many incoming shards are currently recovering [%d], limit: [%d]",
                 currentInRecoveries, concurrentIncomingRecoveries);
         }  else {
-            return allocation.decision(Decision.YES, NAME, "below shard recovery limit of outgoing: [%d] incoming: [%d]", concurrentOutgoingRecoveries, concurrentIncomingRecoveries);
+            return allocation.decision(Decision.YES, NAME, "below shard recovery limit of outgoing: [%d < %d] incoming: [%d < %d]",
+                    currentOutRecoveries,
+                    concurrentOutgoingRecoveries,
+                    currentInRecoveries,
+                    concurrentIncomingRecoveries);
         }
     }
 }

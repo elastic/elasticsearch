@@ -60,10 +60,7 @@ If `discovery.zen.master_election.ignore_non_master_pings` is `true`, pings from
 eligible (nodes where `node.master` is `false`) are ignored during master election; the default value is
 `false`.
 
-Nodes can be excluded from becoming a master by setting `node.master` to
-`false`. Note, once a node is a client node (`node.client` set to
-`true`), it will not be allowed to become a master (`node.master` is
-automatically set to `false`).
+Nodes can be excluded from becoming a master by setting `node.master` to `false`.
 
 The `discovery.zen.minimum_master_nodes` sets the minimum
 number of master eligible nodes that need to join a newly elected master in order for an election to

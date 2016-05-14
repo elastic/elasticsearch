@@ -23,6 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
@@ -32,8 +33,6 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,14 +57,14 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    private ValueFormatter formatter;
+    private DocValueFormat formatter;
     private GapPolicy gapPolicy;
     private int lag;
 
     public SerialDiffPipelineAggregator() {
     }
 
-    public SerialDiffPipelineAggregator(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
+    public SerialDiffPipelineAggregator(String name, String[] bucketsPaths, @Nullable DocValueFormat formatter, GapPolicy gapPolicy,
                                         int lag, Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
@@ -129,14 +128,14 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
 
     @Override
     public void doReadFrom(StreamInput in) throws IOException {
-        formatter = ValueFormatterStreams.readOptional(in);
+        formatter = in.readNamedWriteable(DocValueFormat.class);
         gapPolicy = GapPolicy.readFrom(in);
         lag = in.readVInt();
     }
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(formatter, out);
+        out.writeNamedWriteable(formatter);
         gapPolicy.writeTo(out);
         out.writeVInt(lag);
     }

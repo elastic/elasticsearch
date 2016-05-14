@@ -20,10 +20,13 @@ package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -38,14 +41,12 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.PercolatorQueryBuilder;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.PercolateQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.script.Template;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
@@ -55,7 +56,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 
 public class TransportPercolateAction extends HandledTransportAction<PercolateRequest, PercolateResponse> {
 
@@ -196,29 +198,31 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
             searchSource.field("size", 0);
         }
 
-        PercolatorQueryBuilder percolatorQueryBuilder = new PercolatorQueryBuilder(percolateRequest.documentType(), documentSource);
+        PercolateQueryBuilder percolateQueryBuilder =
+                new PercolateQueryBuilder("query", percolateRequest.documentType(), documentSource);
         if (querySource != null) {
-            QueryParseContext queryParseContext = new QueryParseContext(queryRegistry);
-            queryParseContext.reset(XContentHelper.createParser(querySource));
-            queryParseContext.parseFieldMatcher(parseFieldMatcher);
-            QueryBuilder<?> queryBuilder = queryParseContext.parseInnerQueryBuilder();
-            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-            boolQueryBuilder.must(queryBuilder);
-            boolQueryBuilder.filter(percolatorQueryBuilder);
-            searchSource.field("query", boolQueryBuilder);
+            try (XContentParser parser = XContentHelper.createParser(querySource)) {
+                QueryParseContext queryParseContext = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
+                QueryBuilder queryBuilder = queryParseContext.parseInnerQueryBuilder();
+                BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+                boolQueryBuilder.must(queryBuilder);
+                boolQueryBuilder.filter(percolateQueryBuilder);
+                searchSource.field("query", boolQueryBuilder);
+            }
         } else {
-            searchSource.field("query", percolatorQueryBuilder);
+            // wrapping in a constant score query with boost 0 for bwc reason.
+            // percolator api didn't emit scores before and never included scores
+            // for how well percolator queries matched with the document being percolated
+            searchSource.field("query", new ConstantScoreQueryBuilder(percolateQueryBuilder).boost(0f));
         }
 
         searchSource.endObject();
         searchSource.flush();
         BytesReference source = searchSource.bytes();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        QueryParseContext context = new QueryParseContext(queryRegistry);
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(source)) {
-            context.reset(parser);
-            context.parseFieldMatcher(parseFieldMatcher);
-            searchSourceBuilder.parseXContent(parser, context, aggParsers, null);
+            QueryParseContext context = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
+            searchSourceBuilder.parseXContent(context, aggParsers, null);
             searchRequest.source(searchSourceBuilder);
             return searchRequest;
         }
@@ -237,9 +241,15 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
             }
         }
 
+        List<ShardOperationFailedException> shardFailures = new ArrayList<>(searchResponse.getShardFailures().length);
+        for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
+            shardFailures.add(new DefaultShardOperationFailedException(shardSearchFailure.index(), shardSearchFailure.shardId(),
+                    shardSearchFailure.getCause()));
+        }
+
         return new PercolateResponse(
             searchResponse.getTotalShards(), searchResponse.getSuccessfulShards(), searchResponse.getFailedShards(),
-            Arrays.asList(searchResponse.getShardFailures()), matches, hits.getTotalHits(), searchResponse.getTookInMillis(), (InternalAggregations) searchResponse.getAggregations()
+            shardFailures, matches, hits.getTotalHits(), searchResponse.getTookInMillis(), (InternalAggregations) searchResponse.getAggregations()
         );
     }
 

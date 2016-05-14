@@ -20,12 +20,12 @@ package org.elasticsearch.search.aggregations.metrics.percentiles.hdr;
 
 import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -55,7 +55,7 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
     InternalHDRPercentiles() {
     } // for serialization
 
-    public InternalHDRPercentiles(String name, double[] percents, DoubleHistogram state, boolean keyed, ValueFormatter formatter,
+    public InternalHDRPercentiles(String name, double[] percents, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
     }
@@ -86,7 +86,7 @@ public class InternalHDRPercentiles extends AbstractInternalHDRPercentiles imple
     @Override
     protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalHDRPercentiles(name, keys, merged, keyed, valueFormatter, pipelineAggregators, metaData);
+        return new InternalHDRPercentiles(name, keys, merged, keyed, format, pipelineAggregators, metaData);
     }
 
     @Override

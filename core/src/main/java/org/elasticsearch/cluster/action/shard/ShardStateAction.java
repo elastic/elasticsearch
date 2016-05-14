@@ -53,6 +53,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -67,8 +68,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
 public class ShardStateAction extends AbstractComponent {
 
@@ -92,7 +91,7 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     private void sendShardAction(final String actionName, final ClusterStateObserver observer, final ShardRoutingEntry shardRoutingEntry, final Listener listener) {
-        DiscoveryNode masterNode = observer.observedState().nodes().masterNode();
+        DiscoveryNode masterNode = observer.observedState().nodes().getMasterNode();
         if (masterNode == null) {
             logger.warn("{} no master known for action [{}] for shard [{}]", shardRoutingEntry.getShardRouting().shardId(), actionName, shardRoutingEntry.getShardRouting());
             waitForNewMasterAndRetry(actionName, observer, shardRoutingEntry, listener);
@@ -111,7 +110,7 @@ public class ShardStateAction extends AbstractComponent {
                             waitForNewMasterAndRetry(actionName, observer, shardRoutingEntry, listener);
                         } else {
                             logger.warn("{} unexpected failure while sending request [{}] to [{}] for shard [{}]", exp, shardRoutingEntry.getShardRouting().shardId(), actionName, masterNode, shardRoutingEntry);
-                            listener.onFailure(exp.getCause());
+                            listener.onFailure(exp instanceof RemoteTransportException ? exp.getCause() : exp);
                         }
                     }
                 });
@@ -417,8 +416,8 @@ public class ShardStateAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardRouting = readShardRoutingEntry(in);
-            sourceShardRouting = readShardRoutingEntry(in);
+            shardRouting = new ShardRouting(in);
+            sourceShardRouting = new ShardRouting(in);
             message = in.readString();
             failure = in.readThrowable();
         }

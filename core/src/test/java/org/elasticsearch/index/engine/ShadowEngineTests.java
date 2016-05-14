@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -45,7 +46,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -53,7 +53,6 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.store.DirectoryService;
@@ -173,7 +172,8 @@ public class ShadowEngineTests extends ESTestCase {
         Field seqNoField = new NumericDocValuesField("_seq_no", 0);
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(uidField, versionField, seqNoField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingsUpdate);
+        document.add(new LongPoint("point_field", 42)); // so that points report memory/disk usage
+        return new ParsedDocument(versionField, seqNoField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingsUpdate);
     }
 
     protected Store createStore(Path p) throws IOException {
@@ -218,26 +218,30 @@ public class ShadowEngineTests extends ESTestCase {
     }
 
     protected InternalEngine createInternalEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
-        return new InternalEngine(config(indexSettings, store, translogPath, mergePolicy), true);
+        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy);
+        return new InternalEngine(config);
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
         IndexWriterConfig iwc = newIndexWriterConfig();
+        final EngineConfig.OpenMode openMode;
+        try {
+            if (Lucene.indexExists(store.directory()) == false) {
+                openMode = EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG;
+            } else {
+                openMode = EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG;
+            }
+        } catch (IOException e) {
+            throw new ElasticsearchException("can't find index?", e);
+        }
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-        EngineConfig config = new EngineConfig(shardId, threadPool, indexSettings
+        EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings
                 , null, store, createSnapshotDeletionPolicy(), mergePolicy,
                 iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(null, logger), new Engine.EventListener() {
             @Override
             public void onFailedEngine(String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
-            }
-        }, null, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5)
-        );
-        try {
-            config.setCreate(Lucene.indexExists(store.directory()) == false);
-        } catch (IOException e) {
-            throw new ElasticsearchException("can't find index?", e);
-        }
+        }}, null, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5));
         return config;
     }
 
@@ -298,6 +302,7 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(stats.getStoredFieldsMemoryInBytes(), greaterThan(0L));
         assertThat(stats.getTermVectorsMemoryInBytes(), equalTo(0L));
         assertThat(stats.getNormsMemoryInBytes(), greaterThan(0L));
+        assertThat(stats.getPointsMemoryInBytes(), greaterThan(0L));
         assertThat(stats.getDocValuesMemoryInBytes(), greaterThan(0L));
         assertThat(segments.get(0).isCommitted(), equalTo(false));
         assertThat(segments.get(0).isSearch(), equalTo(true));
@@ -315,6 +320,7 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(stats.getStoredFieldsMemoryInBytes(), equalTo(0L));
         assertThat(stats.getTermVectorsMemoryInBytes(), equalTo(0L));
         assertThat(stats.getNormsMemoryInBytes(), equalTo(0L));
+        assertThat(stats.getPointsMemoryInBytes(), equalTo(0L));
         assertThat(stats.getDocValuesMemoryInBytes(), equalTo(0L));
         assertThat(segments.size(), equalTo(0));
 
@@ -354,6 +360,7 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(primaryEngine.segmentsStats(false).getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
         assertThat(primaryEngine.segmentsStats(false).getTermVectorsMemoryInBytes(), equalTo(0L));
         assertThat(primaryEngine.segmentsStats(false).getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
+        assertThat(primaryEngine.segmentsStats(false).getPointsMemoryInBytes(), greaterThan(stats.getPointsMemoryInBytes()));
         assertThat(primaryEngine.segmentsStats(false).getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));
@@ -378,6 +385,7 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(replicaEngine.segmentsStats(false).getStoredFieldsMemoryInBytes(), greaterThan(stats.getStoredFieldsMemoryInBytes()));
         assertThat(replicaEngine.segmentsStats(false).getTermVectorsMemoryInBytes(), equalTo(0L));
         assertThat(replicaEngine.segmentsStats(false).getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
+        assertThat(replicaEngine.segmentsStats(false).getPointsMemoryInBytes(), greaterThan(stats.getPointsMemoryInBytes()));
         assertThat(replicaEngine.segmentsStats(false).getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
         assertThat(segments.get(0).isCommitted(), equalTo(true));

@@ -21,7 +21,7 @@ package org.elasticsearch.messy.tests;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
-import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;

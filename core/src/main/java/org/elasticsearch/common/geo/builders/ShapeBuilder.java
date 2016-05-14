@@ -51,7 +51,7 @@ import java.util.Locale;
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
  */
-public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWriteable<ShapeBuilder> {
+public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWriteable {
 
     protected static final ESLogger LOGGER = ESLoggerFactory.getLogger(ShapeBuilder.class.getName());
 
@@ -180,7 +180,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
         out.writeDouble(coordinate.y);
     }
 
-    protected Coordinate readCoordinateFrom(StreamInput in) throws IOException {
+    protected static Coordinate readFromStream(StreamInput in) throws IOException {
         return new Coordinate(in.readDouble(), in.readDouble());
     }
 
@@ -519,7 +519,8 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
             } else if (geometryCollections == null && GeoShapeType.GEOMETRYCOLLECTION == shapeType) {
                 throw new ElasticsearchParseException("geometries not included");
             } else if (radius != null && GeoShapeType.CIRCLE != shapeType) {
-                throw new ElasticsearchParseException("field [{}] is supported for [{}] only", CircleBuilder.FIELD_RADIUS, CircleBuilder.TYPE);
+                throw new ElasticsearchParseException("field [{}] is supported for [{}] only", CircleBuilder.FIELD_RADIUS,
+                        CircleBuilder.TYPE);
             }
 
             switch (shapeType) {
@@ -539,7 +540,8 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
 
         protected static void validatePointNode(CoordinateNode node) {
             if (node.isEmpty()) {
-                throw new ElasticsearchParseException("invalid number of points (0) provided when expecting a single coordinate ([lat, lng])");
+                throw new ElasticsearchParseException(
+                        "invalid number of points (0) provided when expecting a single coordinate ([lat, lng])");
             } else if (node.coordinate == null) {
                 if (node.children.isEmpty() == false) {
                     throw new ElasticsearchParseException("multipoint data provided when single point data expected.");
@@ -559,8 +561,9 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
         protected static EnvelopeBuilder parseEnvelope(CoordinateNode coordinates) {
             // validate the coordinate array for envelope type
             if (coordinates.children.size() != 2) {
-                throw new ElasticsearchParseException("invalid number of points [{}] provided for " +
-                        "geo_shape [{}] when expecting an array of 2 coordinates", coordinates.children.size(), GeoShapeType.ENVELOPE.shapename);
+                throw new ElasticsearchParseException(
+                        "invalid number of points [{}] provided for geo_shape [{}] when expecting an array of 2 coordinates",
+                        coordinates.children.size(), GeoShapeType.ENVELOPE.shapename);
             }
             // verify coordinate bounds, correct if necessary
             Coordinate uL = coordinates.children.get(0).coordinate;
@@ -604,7 +607,8 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
              * LineStringBuilder should throw a graceful exception if < 2 coordinates/points are provided
              */
             if (coordinates.children.size() < 2) {
-                throw new ElasticsearchParseException("invalid number of points in LineString (found [{}] - must be >= 2)", coordinates.children.size());
+                throw new ElasticsearchParseException("invalid number of points in LineString (found [{}] - must be >= 2)",
+                        coordinates.children.size());
             }
 
             CoordinatesBuilder line = new CoordinatesBuilder();
@@ -636,10 +640,10 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
                 throw new ElasticsearchParseException(error);
             }
 
-            int numValidPts;
-            if (coordinates.children.size() < (numValidPts = (coerce) ? 3 : 4)) {
-                throw new ElasticsearchParseException("invalid number of points in LinearRing (found [{}] - must be >= " +  numValidPts + ")(",
-                        coordinates.children.size());
+            int numValidPts = coerce ? 3 : 4;
+            if (coordinates.children.size() < numValidPts) {
+                throw new ElasticsearchParseException("invalid number of points in LinearRing (found [{}] - must be >= [{}])",
+                        coordinates.children.size(), numValidPts);
             }
 
             if (!coordinates.children.get(0).coordinate.equals(
@@ -655,7 +659,8 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
 
         protected static PolygonBuilder parsePolygon(CoordinateNode coordinates, final Orientation orientation, final boolean coerce) {
             if (coordinates.children == null || coordinates.children.isEmpty()) {
-                throw new ElasticsearchParseException("invalid LinearRing provided for type polygon. Linear ring must be an array of coordinates");
+                throw new ElasticsearchParseException(
+                        "invalid LinearRing provided for type polygon. Linear ring must be an array of coordinates");
             }
 
             LineStringBuilder shell = parseLinearRing(coordinates.children.get(0), coerce);

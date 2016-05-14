@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
@@ -29,8 +30,6 @@ import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -62,10 +61,10 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
     } // for serialization
 
     public InternalPercentilesBucket(String name, double[] percents, double[] percentiles,
-                                     ValueFormatter formatter, List<PipelineAggregator> pipelineAggregators,
+                                     DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
                                      Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
-        this.valueFormatter = formatter;
+        this.format = formatter;
         this.percentiles = percentiles;
         this.percents = percents;
     }
@@ -82,7 +81,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
     @Override
     public String percentileAsString(double percent) {
-        return valueFormatter.format(percentile(percent));
+        return format.format(percentile(percent));
     }
 
     @Override
@@ -107,14 +106,14 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        valueFormatter = ValueFormatterStreams.readOptional(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
         percentiles = in.readDoubleArray();
         percents = in.readDoubleArray();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(valueFormatter, out);
+        out.writeNamedWriteable(format);
         out.writeDoubleArray(percentiles);
         out.writeDoubleArray(percents);
     }
@@ -127,7 +126,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
             boolean hasValue = !(Double.isInfinite(value) || Double.isNaN(value));
             String key = String.valueOf(percent);
             builder.field(key, hasValue ? value : null);
-            if (hasValue && !(valueFormatter instanceof ValueFormatter.Raw)) {
+            if (hasValue && format != DocValueFormat.RAW) {
                 builder.field(key + "_as_string", percentileAsString(percent));
             }
         }

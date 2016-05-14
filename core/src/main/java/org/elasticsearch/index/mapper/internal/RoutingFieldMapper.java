@@ -91,7 +91,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("required")) {
                     builder.required(lenientNodeBooleanValue(fieldNode));
@@ -125,14 +125,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
-
-        @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
-        }
     }
 
     private boolean required;
@@ -154,11 +146,6 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         return this.required;
     }
 
-    public String value(Document document) {
-        Field field = (Field) document.getField(fieldType().name());
-        return field == null ? null : (String)fieldType().value(field);
-    }
-
     @Override
     public void preParse(ParseContext context) throws IOException {
         super.parse(context);
@@ -178,12 +165,10 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (context.sourceToParse().routing() != null) {
-            String routing = context.sourceToParse().routing();
-            if (routing != null) {
-                if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-                    fields.add(new Field(fieldType().name(), routing, fieldType()));
-                }
+        String routing = context.sourceToParse().routing();
+        if (routing != null) {
+            if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
+                fields.add(new Field(fieldType().name(), routing, fieldType()));
             }
         }
     }

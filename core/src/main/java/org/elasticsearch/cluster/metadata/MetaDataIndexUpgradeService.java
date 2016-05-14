@@ -95,7 +95,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     private void checkSupportedVersion(IndexMetaData indexMetaData) {
         if (indexMetaData.getState() == IndexMetaData.State.OPEN && isSupportedVersion(indexMetaData) == false) {
             throw new IllegalStateException("The index [" + indexMetaData.getIndex() + "] was created before v2.0.0.beta1 and wasn't upgraded."
-                    + " This index should be open using a version before " + Version.CURRENT.minimumCompatibilityVersion()
+                    + " This index should be opened using a version before " + Version.CURRENT.minimumCompatibilityVersion()
                     + " and upgraded using the upgrade API.");
         }
     }
@@ -127,11 +127,10 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
 
             try (AnalysisService analysisService = new FakeAnalysisService(indexSettings)) {
-                try (MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry, () -> null)) {
-                    for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
-                        MappingMetaData mappingMetaData = cursor.value;
-                        mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), MapperService.MergeReason.MAPPING_RECOVERY, false);
-                    }
+                MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry, () -> null);
+                for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
+                    MappingMetaData mappingMetaData = cursor.value;
+                    mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), MapperService.MergeReason.MAPPING_RECOVERY, false);
                 }
             }
         } catch (Exception ex) {

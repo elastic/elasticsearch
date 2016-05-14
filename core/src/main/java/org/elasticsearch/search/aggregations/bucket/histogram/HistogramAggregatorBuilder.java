@@ -19,25 +19,29 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 
 public class HistogramAggregatorBuilder extends AbstractHistogramBuilder<HistogramAggregatorBuilder> {
-    public static final HistogramAggregatorBuilder PROTOTYPE = new HistogramAggregatorBuilder("");
+    public static final String NAME = InternalHistogram.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public HistogramAggregatorBuilder(String name) {
         super(name, InternalHistogram.HISTOGRAM_FACTORY);
     }
 
-    @Override
-    protected HistogramAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
-        return new HistogramAggregatorBuilder(name);
+    /**
+     * Read from a stream.
+     */
+    public HistogramAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalHistogram.HISTOGRAM_FACTORY);
     }
 
     @Override
@@ -47,4 +51,8 @@ public class HistogramAggregatorBuilder extends AbstractHistogramBuilder<Histogr
                 parent, subFactoriesBuilder, metaData);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

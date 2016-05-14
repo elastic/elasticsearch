@@ -103,11 +103,28 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         assertEquals(IndexOptions.NONE, field.fieldType().indexOptions());
     }
 
+    public void testIllegalIndexValue() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "string")
+                        .field("index", false)
+                    .endObject()
+                .endObject() .endObject().endObject().string();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertThat(e.getMessage(),
+                containsString("Can't parse [index] value [false] for field [field], expected [no], [not_analyzed] or [analyzed]"));
+    }
+
     public void testNotSupportedUpgrade() throws IOException {
         IndexService indexService = createIndex("test");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "string").field("analyzer", "keyword").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "string")
+                .field("index", "not_analyzed").field("analyzer", "keyword").endObject().endObject()
                 .endObject().endObject().string();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> parser.parse("type", new CompressedXContent(mapping)));
@@ -164,6 +181,23 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         assertEquals(200, ((KeywordFieldMapper) field).ignoreAbove());
     }
 
+    public void testUpgradeAnalyzer() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string")
+                .field("analyzer", "standard")
+                .field("search_analyzer", "whitespace")
+                .field("search_quote_analyzer", "keyword").endObject().endObject()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        FieldMapper field = mapper.mappers().getMapper("field");
+        assertThat(field, instanceOf(TextFieldMapper.class));
+        assertEquals("standard", field.fieldType().indexAnalyzer().name());
+        assertEquals("whitespace", field.fieldType().searchAnalyzer().name());
+        assertEquals("keyword", field.fieldType().searchQuoteAnalyzer().name());
+    }
+
     public void testUpgradeRandomMapping() throws IOException {
         final int iters = 20;
         for (int i = 0; i < iters; ++i) {
@@ -199,6 +233,9 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         }
         if (keyword && randomBoolean()) {
             mapping.field("doc_values", randomBoolean());
+        }
+        if (keyword == false && randomBoolean()) {
+            mapping.field("analyzer", "keyword");
         }
         if (randomBoolean()) {
             hasNorms = randomBoolean();

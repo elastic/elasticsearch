@@ -21,10 +21,12 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper2x;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
+import org.elasticsearch.search.suggest.completion2x.context.ContextMapping.ContextQuery;
 
 import java.util.Collections;
 import java.util.List;
@@ -36,7 +38,7 @@ import java.util.Map;
 public class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionContext {
 
     protected CompletionSuggestionContext(QueryShardContext shardContext) {
-        super(CompletionSuggester.PROTOTYPE, shardContext);
+        super(CompletionSuggester.INSTANCE, shardContext);
     }
 
     private CompletionFieldMapper.CompletionFieldType fieldType;
@@ -44,9 +46,15 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     private RegexOptions regexOptions;
     private Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = Collections.emptyMap();
     private List<String> payloadFields = Collections.emptyList();
+    private CompletionFieldMapper2x.CompletionFieldType fieldType2x;
+    private List<ContextQuery> contextQueries;
 
     CompletionFieldMapper.CompletionFieldType getFieldType() {
         return this.fieldType;
+    }
+
+    CompletionFieldMapper2x.CompletionFieldType getFieldType2x() {
+        return this.fieldType2x;
     }
 
     void setFieldType(CompletionFieldMapper.CompletionFieldType fieldType) {
@@ -115,5 +123,17 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
             return contextMappings.toContextQuery(query, queryContexts);
         }
         return query;
+    }
+
+    public void setFieldType2x(CompletionFieldMapper2x.CompletionFieldType type) {
+        this.fieldType2x = type;
+    }
+
+    public void setContextQueries(List<ContextQuery> contextQueries) {
+        this.contextQueries = contextQueries;
+    }
+
+    public List<ContextQuery> getContextQueries() {
+        return contextQueries;
     }
 }

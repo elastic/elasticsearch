@@ -18,16 +18,13 @@
  */
 package org.elasticsearch.test;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -65,12 +62,9 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 public class TestSearchContext extends SearchContext {
 
@@ -154,11 +148,6 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchType searchType() {
-        return null;
-    }
-
-    @Override
-    public SearchContext searchType(SearchType searchType) {
         return null;
     }
 
@@ -370,12 +359,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext sort(Sort sort) {
+    public SearchContext sort(SortAndFormats sort) {
         return null;
     }
 
     @Override
-    public Sort sort() {
+    public SortAndFormats sort() {
         return null;
     }
 

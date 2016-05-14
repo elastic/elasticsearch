@@ -92,6 +92,12 @@ public final class IndexSettings {
      */
     public static final Setting<Integer> MAX_RESULT_WINDOW_SETTING =
         Setting.intSetting("index.max_result_window", 10000, 1, Property.Dynamic, Property.IndexScope);
+    /**
+     * Index setting describing the maximum size of the rescore window. Defaults to {@link #MAX_RESULT_WINDOW_SETTING}
+     * because they both do the same thing: control the size of the heap of hits.
+     */
+    public static final Setting<Integer> MAX_RESCORE_WINDOW_SETTING =
+            Setting.intSetting("index.max_rescore_window", MAX_RESULT_WINDOW_SETTING, 1, Property.Dynamic, Property.IndexScope);
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.MILLISECONDS),
@@ -137,6 +143,7 @@ public final class IndexSettings {
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
+    private volatile int maxRescoreWindow;
     private volatile boolean TTLPurgeDisabled;
 
     /**
@@ -220,6 +227,7 @@ public final class IndexSettings {
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
+        maxRescoreWindow = scopedSettings.get(MAX_RESCORE_WINDOW_SETTING);
         TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         assert indexNameMatcher.test(indexMetaData.getIndex().getName());
@@ -238,6 +246,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TTL_DISABLE_PURGE_SETTING, this::setTTLPurgeDisabled);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
+        scopedSettings.addSettingsUpdateConsumer(MAX_RESCORE_WINDOW_SETTING, this::setMaxRescoreWindow);
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
@@ -373,7 +382,7 @@ public final class IndexSettings {
      */
     synchronized boolean updateIndexMetaData(IndexMetaData indexMetaData) {
         final Settings newSettings = indexMetaData.getSettings();
-        if (Version.indexCreated(newSettings) != version) {
+        if (version.equals(Version.indexCreated(newSettings)) == false) {
             throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + Version.indexCreated(newSettings));
         }
         final String newUUID = newSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
@@ -449,6 +458,16 @@ public final class IndexSettings {
         this.maxResultWindow = maxResultWindow;
     }
 
+    /**
+     * Returns the maximum rescore window for search requests.
+     */
+    public int getMaxRescoreWindow() {
+        return maxRescoreWindow;
+    }
+
+    private void setMaxRescoreWindow(int maxRescoreWindow) {
+        this.maxRescoreWindow = maxRescoreWindow;
+    }
 
     /**
      * Returns the GC deletes cycle in milliseconds.

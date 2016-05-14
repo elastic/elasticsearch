@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -41,6 +40,7 @@ import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Node statistics (dynamic, changes depending on when created).
@@ -224,7 +224,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
             threadPool = ThreadPoolStats.readThreadPoolStats(in);
         }
         if (in.readBoolean()) {
-            fs = FsInfo.readFsInfo(in);
+            fs = new FsInfo(in);
         }
         if (in.readBoolean()) {
             transport = TransportStats.readTransportStats(in);
@@ -299,15 +299,21 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (!params.param("node_info_format", "default").equals("none")) {
-            builder.field("name", getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("transport_address", getNode().address().toString(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("host", getNode().getHostName(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("ip", getNode().getAddress(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("name", getNode().getName());
+            builder.field("transport_address", getNode().getAddress().toString());
+            builder.field("host", getNode().getHostName());
+            builder.field("ip", getNode().getAddress());
 
-            if (!getNode().attributes().isEmpty()) {
+            builder.startArray("roles");
+            for (DiscoveryNode.Role role : getNode().getRoles()) {
+                builder.value(role.getRoleName());
+            }
+            builder.endArray();
+
+            if (!getNode().getAttributes().isEmpty()) {
                 builder.startObject("attributes");
-                for (ObjectObjectCursor<String, String> attr : getNode().attributes()) {
-                    builder.field(attr.key, attr.value, XContentBuilder.FieldCaseConversion.NONE);
+                for (Map.Entry<String, String> attrEntry : getNode().getAttributes().entrySet()) {
+                    builder.field(attrEntry.getKey(), attrEntry.getValue());
                 }
                 builder.endObject();
             }

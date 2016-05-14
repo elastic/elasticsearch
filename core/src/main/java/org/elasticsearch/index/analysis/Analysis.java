@@ -305,33 +305,4 @@ public class Analysis {
         }
     }
 
-    /**
-     * Check whether the provided token stream is able to provide character
-     * terms.
-     * <p>Although most analyzers generate character terms (CharTermAttribute),
-     * some token only contain binary terms (BinaryTermAttribute,
-     * CharTermAttribute being a special type of BinaryTermAttribute), such as
-     * {@link LegacyNumericTokenStream} and unsuitable for highlighting and
-     * more-like-this queries which expect character terms.</p>
-     */
-    public static boolean isCharacterTokenStream(TokenStream tokenStream) {
-        try {
-            tokenStream.addAttribute(CharTermAttribute.class);
-            return true;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
-    }
-
-    /**
-     * Check whether {@link TokenStream}s generated with <code>analyzer</code>
-     * provide with character terms.
-     * @see #isCharacterTokenStream(TokenStream)
-     */
-    public static boolean generatesCharacterTokenStream(Analyzer analyzer, String fieldName) throws IOException {
-        try (TokenStream ts = analyzer.tokenStream(fieldName, "")) {
-            return isCharacterTokenStream(ts);
-        }
-    }
-
 }

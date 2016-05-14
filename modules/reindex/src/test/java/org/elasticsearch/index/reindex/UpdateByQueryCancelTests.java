@@ -32,11 +32,11 @@ import static org.hamcrest.Matchers.equalTo;
  * places - that is the responsibility of {@link AsyncBulkByScrollActionTests} which have more precise control to simulate failures but do
  * not exercise important portion of the stack like transport and task management.
  */
-public class UpdateByQueryCancelTests extends UpdateByQueryTestCase {
+public class UpdateByQueryCancelTests extends ReindexTestCase {
     public void testCancel() throws Exception {
-        BulkIndexByScrollResponse response = CancelTestUtils.testCancel(this, request(), UpdateByQueryAction.NAME);
+        BulkIndexByScrollResponse response = CancelTestUtils.testCancel(this, updateByQuery(), UpdateByQueryAction.NAME);
 
-        assertThat(response, responseMatcher().updated(1).reasonCancelled(equalTo("by user request")));
+        assertThat(response, matcher().updated(1).reasonCancelled(equalTo("by user request")));
         refresh("source");
         assertHitCount(client().prepareSearch("source").setSize(0).setQuery(matchQuery("giraffes", "giraffes")).get(), 1);
     }

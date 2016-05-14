@@ -53,7 +53,7 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */
     public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams) {
-        Object object = scriptEngine.compile(script, compileParams);
+        Object object = scriptEngine.compile(null, script, compileParams);
         CompiledScript compiled = new CompiledScript(ScriptService.ScriptType.INLINE, getTestName(), "painless", object);
         return scriptEngine.executable(compiled, vars).run();
     }

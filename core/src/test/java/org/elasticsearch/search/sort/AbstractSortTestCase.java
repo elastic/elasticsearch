@@ -21,6 +21,8 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -40,11 +42,15 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper.DoubleFieldType;
+import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper.DoubleFieldType;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper.Nested;
+import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -56,6 +62,7 @@ import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptServiceTests.TestEngineService;
 import org.elasticsearch.script.ScriptSettings;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -89,27 +96,24 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         Environment environment = new Environment(baseSettings);
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry
-                .ScriptEngineRegistration(TestEngineService.class, TestEngineService.TYPES)));
+                .ScriptEngineRegistration(TestEngineService.class, TestEngineService.NAME)));
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         scriptService = new ScriptService(baseSettings, environment, Collections.singleton(new TestEngineService()),
                 new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
-            public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
+            public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params, ClusterState state) {
                 return new CompiledScript(ScriptType.INLINE, "mockName", "test", script);
             }
         };
 
         namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, GeoDistanceSortBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, ScoreSortBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, ScriptSortBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, FieldSortBuilder.PROTOTYPE);
-        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).buildQueryParserRegistry();
+        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).getQueryParserRegistry();
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
+        indicesQueriesRegistry = null;
     }
 
     /** Returns random sort that is put under test */
@@ -117,6 +121,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     /** Returns mutated version of original so the returned sort is different in terms of equals/hashcode */
     protected abstract T mutate(T original) throws IOException;
+
+    /** Parse the sort from xContent. Just delegate to the SortBuilder's static fromXContent method. */
+    protected abstract T fromXContent(QueryParseContext context, String fieldName) throws IOException;
 
     /**
      * Test that creates new sort from a random test sort and checks both for equality
@@ -130,7 +137,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
                 builder.prettyPrint();
             }
             testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentParser itemParser = XContentHelper.createParser(builder.bytes());
+            XContentBuilder shuffled = shuffleXContent(builder);
+            XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
             itemParser.nextToken();
 
             /*
@@ -140,9 +148,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             String elementName = itemParser.currentName();
             itemParser.nextToken();
 
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-            context.reset(itemParser);
-            T parsedItem = testItem.fromXContent(context, elementName);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
+            T parsedItem = fromXContent(context, elementName);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
@@ -157,12 +164,12 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         QueryShardContext mockShardContext = createMockShardContext();
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T sortBuilder = createTestItem();
-            SortField sortField = sortBuilder.build(mockShardContext);
-            sortFieldAssertions(sortBuilder, sortField);
+            SortFieldAndFormat sortField = sortBuilder.build(mockShardContext);
+            sortFieldAssertions(sortBuilder, sortField.field, sortField.format);
         }
     }
 
-    protected abstract void sortFieldAssertions(T builder, SortField sortField) throws IOException;
+    protected abstract void sortFieldAssertions(T builder, SortField sortField, DocValueFormat format) throws IOException;
 
     /**
      * Test serialization and deserialization of the test sort.
@@ -208,7 +215,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         }
     }
 
-    private QueryShardContext createMockShardContext() {
+    protected QueryShardContext createMockShardContext() {
         Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
@@ -225,7 +232,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
         });
         return new QueryShardContext(idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                indicesQueriesRegistry, null) {
+                indicesQueriesRegistry, null, null, null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);
@@ -248,6 +255,18 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         doubleFieldType.setName(name);
         doubleFieldType.setHasDocValues(true);
         return doubleFieldType;
+    }
+
+    protected static QueryBuilder randomNestedFilter() {
+        int id = randomIntBetween(0, 2);
+        switch(id) {
+            case 0: return (new MatchAllQueryBuilder()).boost(randomFloat());
+            case 1: return (new IdsQueryBuilder()).boost(randomFloat());
+            case 2: return (new TermQueryBuilder(
+                    randomAsciiOfLengthBetween(1, 10),
+                    randomDouble()).boost(randomFloat()));
+            default: throw new IllegalStateException("Only three query builders supported for testing sort");
+        }
     }
 
     @SuppressWarnings("unchecked")

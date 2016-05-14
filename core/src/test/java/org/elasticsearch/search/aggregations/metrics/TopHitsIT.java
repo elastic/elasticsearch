@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -101,12 +102,18 @@ public class TopHitsIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        createIndex("idx");
+        assertAcked(prepareCreate("idx").addMapping("type", TERMS_AGGS_FIELD, "type=keyword", "group", "type=keyword"));
         createIndex("empty");
         assertAcked(prepareCreate("articles").addMapping("article", jsonBuilder().startObject().startObject("article").startObject("properties")
+                .startObject(TERMS_AGGS_FIELD)
+                    .field("type", "keyword")
+                .endObject()
                 .startObject("comments")
                     .field("type", "nested")
                     .startObject("properties")
+                        .startObject("user")
+                            .field("type", "keyword")
+                        .endObject()
                         .startObject("date")
                             .field("type", "long")
                         .endObject()
@@ -344,8 +351,7 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
 
-    public void testBreadthFirst() throws Exception {
-        // breadth_first will be ignored since we need scores
+    public void testBreadthFirstWithScoreNeeded() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
@@ -372,6 +378,38 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(hits.getHits().length, equalTo(3));
 
             assertThat(hits.getAt(0).sourceAsMap().size(), equalTo(4));
+        }
+    }
+
+    public void testBreadthFirstWithAggOrderAndScoreNeeded() throws Exception {
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                .field(TERMS_AGGS_FIELD)
+                .order(Terms.Order.aggregation("max", false))
+                .subAggregation(max("max").field(SORT_FIELD))
+                .subAggregation(topHits("hits").size(3))
+            ).get();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+        int id = 4;
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("val" + id));
+            assertThat(bucket.getDocCount(), equalTo(10L));
+            TopHits topHits = bucket.getAggregations().get("hits");
+            SearchHits hits = topHits.getHits();
+            assertThat(hits.totalHits(), equalTo(10L));
+            assertThat(hits.getHits().length, equalTo(3));
+
+            assertThat(hits.getAt(0).sourceAsMap().size(), equalTo(4));
+            id --;
         }
     }
 
@@ -810,7 +848,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client()
                 .prepareSearch("articles")
-                .setQuery(nestedQuery("comments", matchQuery("comments.message", "comment").queryName("test")))
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "comment").queryName("test"), ScoreMode.Avg))
                 .addAggregation(
                         nested("to-comments", "comments").subAggregation(
                                 topHits("top-comments").size(1).highlighter(new HighlightBuilder().field(hlField)).explain(true)

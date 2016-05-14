@@ -19,22 +19,30 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 
 public class RangeAggregatorBuilder extends AbstractRangeBuilder<RangeAggregatorBuilder, Range> {
-
-    static final RangeAggregatorBuilder PROTOTYPE = new RangeAggregatorBuilder("");
+    public static final String NAME = InternalRange.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public RangeAggregatorBuilder(String name) {
         super(name, InternalRange.FACTORY);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public RangeAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalRange.FACTORY, Range::new);
     }
 
     /**
@@ -111,12 +119,7 @@ public class RangeAggregatorBuilder extends AbstractRangeBuilder<RangeAggregator
     }
 
     @Override
-    protected RangeAggregatorBuilder createFactoryFromStream(String name, StreamInput in) throws IOException {
-        int size = in.readVInt();
-        RangeAggregatorBuilder factory = new RangeAggregatorBuilder(name);
-        for (int i = 0; i < size; i++) {
-            factory.addRange(Range.PROTOTYPE.readFrom(in));
-        }
-        return factory;
+    public String getWriteableName() {
+        return NAME;
     }
 }

@@ -46,7 +46,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
-import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
@@ -58,18 +58,14 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.Profiler;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.sort.TrackScoresParseElement;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
 
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Callable;
-
-import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -88,28 +84,6 @@ public class QueryPhase implements SearchPhase {
     }
 
     @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        Map<String, SearchParseElement> parseElements = new HashMap<>();
-        parseElements.put("from", new FromParseElement());
-        parseElements.put("size", new SizeParseElement());
-        parseElements.put("indices_boost", new IndicesBoostParseElement());
-        parseElements.put("indicesBoost", new IndicesBoostParseElement());
-        parseElements.put("query", new QueryParseElement());
-        parseElements.put("post_filter", new PostFilterParseElement());
-        parseElements.put("postFilter", new PostFilterParseElement());
-        parseElements.put("trackScores", new TrackScoresParseElement());
-        parseElements.put("track_scores", new TrackScoresParseElement());
-        parseElements.put("min_score", new MinScoreParseElement());
-        parseElements.put("minScore", new MinScoreParseElement());
-        parseElements.put("timeout", new TimeoutParseElement());
-        parseElements.put("terminate_after", new TerminateAfterParseElement());
-        parseElements.putAll(aggregationPhase.parseElements());
-        parseElements.putAll(suggestPhase.parseElements());
-        parseElements.putAll(rescorePhase.parseElements());
-        return unmodifiableMap(parseElements);
-    }
-
-    @Override
     public void preProcess(SearchContext context) {
         context.preProcess();
     }
@@ -119,7 +93,9 @@ public class QueryPhase implements SearchPhase {
         if (searchContext.hasOnlySuggest()) {
             suggestPhase.execute(searchContext);
             // TODO: fix this once we can fetch docs for suggestions
-            searchContext.queryResult().topDocs(new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0));
+            searchContext.queryResult().topDocs(
+                    new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0),
+                    new DocValueFormat[0]);
             return;
         }
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
@@ -141,15 +117,15 @@ public class QueryPhase implements SearchPhase {
         }
     }
 
-    private static boolean returnsDocsInOrder(Query query, Sort sort) {
-        if (sort == null || Sort.RELEVANCE.equals(sort)) {
+    private static boolean returnsDocsInOrder(Query query, SortAndFormats sf) {
+        if (sf == null || Sort.RELEVANCE.equals(sf.sort)) {
             // sort by score
             // queries that return constant scores will return docs in index
             // order since Lucene tie-breaks on the doc id
             return query.getClass() == ConstantScoreQuery.class
                     || query.getClass() == MatchAllDocsQuery.class;
         } else {
-            return Sort.INDEXORDER.equals(sort);
+            return Sort.INDEXORDER.equals(sf.sort);
         }
     }
 
@@ -176,6 +152,7 @@ public class QueryPhase implements SearchPhase {
 
             Collector collector;
             Callable<TopDocs> topDocsCallable;
+            DocValueFormat[] sortValueFormats = new DocValueFormat[0];
 
             assert query == searcher.rewrite(query); // already rewritten
 
@@ -229,8 +206,10 @@ public class QueryPhase implements SearchPhase {
                 }
                 assert numDocs > 0;
                 if (searchContext.sort() != null) {
-                    topDocsCollector = TopFieldCollector.create(searchContext.sort(), numDocs,
+                    SortAndFormats sf = searchContext.sort();
+                    topDocsCollector = TopFieldCollector.create(sf.sort, numDocs,
                             (FieldDoc) after, true, searchContext.trackScores(), searchContext.trackScores());
+                    sortValueFormats = sf.formats;
                 } else {
                     rescore = !searchContext.rescore().isEmpty();
                     for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
@@ -402,7 +381,7 @@ public class QueryPhase implements SearchPhase {
                 queryResult.terminatedEarly(false);
             }
 
-            queryResult.topDocs(topDocsCallable.call());
+            queryResult.topDocs(topDocsCallable.call(), sortValueFormats);
 
             if (searchContext.getProfilers() != null) {
                 List<ProfileShardResult> shardResults = Profiler.buildShardResults(searchContext.getProfilers().getProfilers());

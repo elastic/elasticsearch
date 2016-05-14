@@ -32,7 +32,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -60,7 +60,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
 
     private static final GenericAction[] ACTIONS = new GenericAction[] {
                 // client actions
-                GetAction.INSTANCE, SearchAction.INSTANCE, DeleteAction.INSTANCE, DeleteIndexedScriptAction.INSTANCE,
+                GetAction.INSTANCE, SearchAction.INSTANCE, DeleteAction.INSTANCE, DeleteStoredScriptAction.INSTANCE,
                 IndexAction.INSTANCE,
 
                 // cluster admin actions
@@ -105,7 +105,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.prepareGet("idx", "type", "id").execute().addListener(new AssertingActionListener<>(GetAction.NAME, client.threadPool()));
         client.prepareSearch().execute().addListener(new AssertingActionListener<>(SearchAction.NAME, client.threadPool()));
         client.prepareDelete("idx", "type", "id").execute().addListener(new AssertingActionListener<>(DeleteAction.NAME, client.threadPool()));
-        client.prepareDeleteIndexedScript("lang", "id").execute().addListener(new AssertingActionListener<>(DeleteIndexedScriptAction.NAME, client.threadPool()));
+        client.admin().cluster().prepareDeleteStoredScript("lang", "id").execute().addListener(new AssertingActionListener<>(DeleteStoredScriptAction.NAME, client.threadPool()));
         client.prepareIndex("idx", "type", "id").setSource("source").execute().addListener(new AssertingActionListener<>(IndexAction.NAME, client.threadPool()));
 
         // choosing arbitrary cluster admin actions to test
@@ -120,7 +120,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.admin().indices().prepareFlush().execute().addListener(new AssertingActionListener<>(FlushAction.NAME, client.threadPool()));
     }
 
-    public void testOverideHeader() throws Exception {
+    public void testOverrideHeader() throws Exception {
         String key1Val = randomAsciiOfLength(5);
         Map<String, String> expected = new HashMap<>();
         expected.put("key1", key1Val);

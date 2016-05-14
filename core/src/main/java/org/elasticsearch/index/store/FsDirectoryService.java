@@ -110,10 +110,12 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
         final String storeType = indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
-            IndexModule.Type.DEFAULT.getSettingsKey());
-        if (IndexModule.Type.FS.match(storeType) || IndexModule.Type.DEFAULT.match(storeType)) {
+            IndexModule.Type.FS.getSettingsKey());
+        if (IndexModule.Type.FS.match(storeType) || isDefault(storeType)) {
             final FSDirectory open = FSDirectory.open(location, lockFactory); // use lucene defaults
-            if (open instanceof MMapDirectory && Constants.WINDOWS == false) {
+            if (open instanceof MMapDirectory
+                    && isDefault(storeType)
+                    && Constants.WINDOWS == false) {
                 return newDefaultDir(location, (MMapDirectory) open, lockFactory);
             }
             return open;
@@ -125,6 +127,11 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
             return new MMapDirectory(location, lockFactory);
         }
         throw new IllegalArgumentException("No directory found for type [" + storeType + "]");
+    }
+
+    @SuppressWarnings("deprecation")
+    private static boolean isDefault(String storeType) {
+        return IndexModule.Type.DEFAULT.match(storeType);
     }
 
     private Directory newDefaultDir(Path location, final MMapDirectory mmapDir, LockFactory lockFactory) throws IOException {

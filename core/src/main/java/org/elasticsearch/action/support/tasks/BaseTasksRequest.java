@@ -42,8 +42,6 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
 
     public static final String[] ALL_NODES = Strings.EMPTY_ARRAY;
 
-    public static final long ALL_TASKS = -1L;
-
     private String[] nodesIds = ALL_NODES;
 
     private TimeValue timeout;
@@ -142,8 +140,8 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        taskId = new TaskId(in);
-        parentTaskId = new TaskId(in);
+        taskId = TaskId.readFromStream(in);
+        parentTaskId = TaskId.readFromStream(in);
         nodesIds = in.readStringArray();
         actions = in.readStringArray();
         if (in.readBoolean()) {

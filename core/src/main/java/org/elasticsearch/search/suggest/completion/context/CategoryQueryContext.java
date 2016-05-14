@@ -21,9 +21,13 @@ package org.elasticsearch.search.suggest.completion.context;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,9 +39,8 @@ import static org.elasticsearch.search.suggest.completion.context.CategoryContex
 /**
  * Defines the query context for {@link CategoryContextMapping}
  */
-public final class CategoryQueryContext implements QueryContext {
+public final class CategoryQueryContext implements ToXContent {
     public static final String NAME = "category";
-    public static final CategoryQueryContext PROTOTYPE = new CategoryQueryContext("", 1, false);
 
     private final String category;
     private final boolean isPrefix;
@@ -95,19 +98,19 @@ public final class CategoryQueryContext implements QueryContext {
         return result;
     }
 
-    private static ObjectParser<Builder, Void> CATEGORY_PARSER = new ObjectParser<>(NAME, null);
+    private static ObjectParser<Builder, ParseFieldMatcherSupplier> CATEGORY_PARSER = new ObjectParser<>(NAME, null);
     static {
         CATEGORY_PARSER.declareString(Builder::setCategory, new ParseField(CONTEXT_VALUE));
         CATEGORY_PARSER.declareInt(Builder::setBoost, new ParseField(CONTEXT_BOOST));
         CATEGORY_PARSER.declareBoolean(Builder::setPrefix, new ParseField(CONTEXT_PREFIX));
     }
 
-    @Override
-    public CategoryQueryContext fromXContext(XContentParser parser) throws IOException {
+    public static CategoryQueryContext fromXContent(QueryParseContext context) throws IOException {
+        XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
         Builder builder = builder();
         if (token == XContentParser.Token.START_OBJECT) {
-            CATEGORY_PARSER.parse(parser, builder);
+            CATEGORY_PARSER.parse(parser, builder, () -> ParseFieldMatcher.STRICT);
         } else if (token == XContentParser.Token.VALUE_STRING) {
             builder.setCategory(parser.text());
         } else {

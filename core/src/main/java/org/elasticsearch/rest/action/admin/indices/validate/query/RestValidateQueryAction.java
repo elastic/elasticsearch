@@ -29,7 +29,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -83,7 +82,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
                 return;
             }
         } else {
-            QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+            QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
             if (queryBuilder != null) {
                 validateQueryRequest.query(queryBuilder);
             }
@@ -102,7 +101,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
                     for (QueryExplanation explanation : response.getQueryExplanation()) {
                         builder.startObject();
                         if (explanation.getIndex() != null) {
-                            builder.field(INDEX_FIELD, explanation.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+                            builder.field(INDEX_FIELD, explanation.getIndex());
                         }
                         builder.field(VALID_FIELD, explanation.isValid());
                         if (explanation.getError() != null) {
@@ -131,9 +130,9 @@ public class RestValidateQueryAction extends BaseRestHandler {
         return new BytesRestResponse(OK, builder);
     }
 
-    private static final XContentBuilderString INDEX_FIELD = new XContentBuilderString("index");
-    private static final XContentBuilderString VALID_FIELD = new XContentBuilderString("valid");
-    private static final XContentBuilderString EXPLANATIONS_FIELD = new XContentBuilderString("explanations");
-    private static final XContentBuilderString ERROR_FIELD = new XContentBuilderString("error");
-    private static final XContentBuilderString EXPLANATION_FIELD = new XContentBuilderString("explanation");
+    private static final String INDEX_FIELD = "index";
+    private static final String VALID_FIELD = "valid";
+    private static final String EXPLANATIONS_FIELD = "explanations";
+    private static final String ERROR_FIELD = "error";
+    private static final String EXPLANATION_FIELD = "explanation";
 }

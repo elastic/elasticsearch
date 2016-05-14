@@ -173,11 +173,9 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregatorBuild
             "}";
         try {
             XContentParser parser = XContentFactory.xContent(source).createParser(source);
-            QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
-            parseContext.reset(parser);
-            parseContext.parseFieldMatcher(parseFieldMatcher);
+            QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-            aggParsers.parseAggregators(parser, parseContext);
+            aggParsers.parseAggregators(parseContext);
             fail();
         } catch (AggregationInitializationException e) {
             assertThat(e.toString(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));

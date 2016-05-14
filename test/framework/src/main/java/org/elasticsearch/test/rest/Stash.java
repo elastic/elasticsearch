@@ -19,16 +19,17 @@
 
 package org.elasticsearch.test.rest;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import org.elasticsearch.test.rest.client.RestResponse;
 
 /**
  * Allows to cache the last obtained test response and or part of it within variables
@@ -41,6 +42,7 @@ public class Stash implements ToXContent {
     public static final Stash EMPTY = new Stash();
 
     private final Map<String, Object> stash = new HashMap<>();
+    private RestResponse response;
 
     /**
      * Allows to saved a specific field in the stash as key-value pair
@@ -51,6 +53,12 @@ public class Stash implements ToXContent {
         if (old != null && old != value) {
             logger.trace("replaced stashed value [{}] with same key [{}]", old, key);
         }
+    }
+
+    public void stashResponse(RestResponse response) throws IOException {
+        // TODO we can almost certainly save time by lazily evaluating the body
+        stashValue("body", response.getBody());
+        this.response = response;
     }
 
     /**
@@ -78,7 +86,13 @@ public class Stash implements ToXContent {
      * The stash contains fields eventually extracted from previous responses that can be reused
      * as arguments for following requests (e.g. scroll_id)
      */
-    public Object unstashValue(String value) {
+    public Object unstashValue(String value) throws IOException {
+        if (value.startsWith("$body.")) {
+            if (response == null) {
+                return null;
+            }
+            return response.evaluate(value.substring("$body".length()), this);
+        }
         Object stashedValue = stash.get(value.substring(1));
         if (stashedValue == null) {
             throw new IllegalArgumentException("stashed value not found for key [" + value + "]");
@@ -89,14 +103,14 @@ public class Stash implements ToXContent {
     /**
      * Recursively unstashes map values if needed
      */
-    public Map<String, Object> unstashMap(Map<String, Object> map) {
+    public Map<String, Object> unstashMap(Map<String, Object> map) throws IOException {
         Map<String, Object> copy = new HashMap<>(map);
         unstashObject(copy);
         return copy;
     }
 
     @SuppressWarnings("unchecked")
-    private void unstashObject(Object obj) {
+    private void unstashObject(Object obj) throws IOException {
         if (obj instanceof List) {
             List list = (List) obj;
             for (int i = 0; i < list.size(); i++) {

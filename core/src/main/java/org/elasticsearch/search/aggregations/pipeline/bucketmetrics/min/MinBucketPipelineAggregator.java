@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -27,7 +28,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,7 +58,7 @@ public class MinBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     private MinBucketPipelineAggregator() {
     }
 
-    protected MinBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, ValueFormatter formatter,
+    protected MinBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat formatter,
             Map<String, Object> metaData) {
         super(name, bucketsPaths, gapPolicy, formatter, metaData);
     }
@@ -89,7 +89,7 @@ public class MinBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     protected InternalAggregation buildAggregation(java.util.List<PipelineAggregator> pipelineAggregators,
             java.util.Map<String, Object> metadata) {
         String[] keys = minBucketKeys.toArray(new String[minBucketKeys.size()]);
-        return new InternalBucketMetricValue(name(), keys, minValue, formatter, Collections.emptyList(), metaData());
+        return new InternalBucketMetricValue(name(), keys, minValue, format, Collections.emptyList(), metaData());
     }
 
 }

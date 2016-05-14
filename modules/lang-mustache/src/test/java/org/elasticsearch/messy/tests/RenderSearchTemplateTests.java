@@ -32,6 +32,7 @@ import org.elasticsearch.script.Template;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,7 +41,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -55,7 +55,10 @@ public class RenderSearchTemplateTests extends ESIntegTestCase {
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        client().preparePutIndexedScript(MustacheScriptEngineService.NAME, "index_template_1", "{ \"template\": " + TEMPLATE_CONTENTS + " }").get();
+        ElasticsearchAssertions.assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(MustacheScriptEngineService.NAME)
+                .setId("index_template_1")
+                .setSource(new BytesArray("{ \"template\": " + TEMPLATE_CONTENTS + " }")));
     }
 
     @Override
@@ -68,7 +71,7 @@ public class RenderSearchTemplateTests extends ESIntegTestCase {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(Environment.PATH_CONF_SETTING.getKey(), configDir).build();
     }
 
@@ -105,7 +108,7 @@ public class RenderSearchTemplateTests extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("value", "bar");
         params.put("size", 20);
-        Template template = new Template("index_template_1", ScriptType.INDEXED, MustacheScriptEngineService.NAME, XContentType.JSON, params);
+        Template template = new Template("index_template_1", ScriptType.STORED, MustacheScriptEngineService.NAME, XContentType.JSON, params);
         RenderSearchTemplateResponse response = client().admin().cluster().prepareRenderSearchTemplate().template(template).get();
         assertThat(response, notNullValue());
         BytesReference source = response.source();
@@ -119,7 +122,7 @@ public class RenderSearchTemplateTests extends ESIntegTestCase {
         params = new HashMap<>();
         params.put("value", "baz");
         params.put("size", 100);
-        template = new Template("index_template_1", ScriptType.INDEXED, MustacheScriptEngineService.NAME, XContentType.JSON, params);
+        template = new Template("index_template_1", ScriptType.STORED, MustacheScriptEngineService.NAME, XContentType.JSON, params);
         response = client().admin().cluster().prepareRenderSearchTemplate().template(template).get();
         assertThat(response, notNullValue());
         source = response.source();

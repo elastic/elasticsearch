@@ -37,12 +37,40 @@ import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public abstract class AbstractBaseReindexRestHandler<
                 Request extends AbstractBulkByScrollRequest<Request>,
-                Response extends BulkIndexByScrollResponse,
-                TA extends TransportAction<Request, Response>
+                TA extends TransportAction<Request, BulkIndexByScrollResponse>
             > extends BaseRestHandler {
+
+    /**
+     * @return requests_per_second from the request as a float if it was on the request, null otherwise
+     */
+    public static Float parseRequestsPerSecond(RestRequest request) {
+        String requestsPerSecondString = request.param("requests_per_second");
+        if (requestsPerSecondString == null) {
+            return null;
+        }
+        if ("unlimited".equals(requestsPerSecondString)) {
+            return Float.POSITIVE_INFINITY;
+        }
+        float requestsPerSecond;
+        try {
+            requestsPerSecond = Float.parseFloat(requestsPerSecondString);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                    "[requests_per_second] must be a float greater than 0. Use \"unlimited\" to disable throttling.", e);
+        }
+        if (requestsPerSecond <= 0) {
+            // We validate here and in the setters because the setters use "Float.POSITIVE_INFINITY" instead of "unlimited"
+            throw new IllegalArgumentException(
+                    "[requests_per_second] must be a float greater than 0. Use \"unlimited\" to disable throttling.");
+        }
+        return requestsPerSecond;
+    }
+
     protected final IndicesQueriesRegistry indicesQueriesRegistry;
     protected final AggregatorParsers aggParsers;
     protected final Suggesters suggesters;
@@ -60,10 +88,20 @@ public abstract class AbstractBaseReindexRestHandler<
         this.action = action;
     }
 
-    protected void execute(RestRequest request, Request internalRequest, RestChannel channel) throws IOException {
-        internalRequest.setRequestsPerSecond(request.paramAsFloat("requests_per_second", internalRequest.getRequestsPerSecond()));
+    protected void execute(RestRequest request, Request internalRequest, RestChannel channel,
+                           boolean includeCreated, boolean includeUpdated, boolean includeDeleted) throws IOException {
+        Float requestsPerSecond = parseRequestsPerSecond(request);
+        if (requestsPerSecond != null) {
+            internalRequest.setRequestsPerSecond(requestsPerSecond);
+        }
+
         if (request.paramAsBoolean("wait_for_completion", true)) {
-            action.execute(internalRequest, new BulkIndexByScrollResponseContentListener<Response>(channel));
+            Map<String, String> params = new HashMap<>();
+            params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(includeCreated));
+            params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(includeUpdated));
+            params.put(BulkByScrollTask.Status.INCLUDE_DELETED, Boolean.toString(includeDeleted));
+
+            action.execute(internalRequest, new BulkIndexByScrollResponseContentListener<>(channel, params));
             return;
         }
         /*

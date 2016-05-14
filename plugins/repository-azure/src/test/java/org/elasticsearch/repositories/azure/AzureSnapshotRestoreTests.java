@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.greaterThan;
         transportClientRatio = 0.0)
 public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCase {
     private String getRepositoryPath() {
-        String testName = "it-".concat(Strings.toUnderscoreCase(getTestName()).replaceAll("_", "-"));
+        String testName = "it-" + getTestName();
         return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
     }
 
@@ -105,7 +105,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         Client client = client();
         logger.info("-->  creating azure repository with path [{}]", getRepositoryPath());
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("azure").setSettings(Settings.settingsBuilder()
+                .setType("azure").setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                         .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
                         .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
@@ -196,7 +196,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
 
         logger.info("creating Azure repository with path [{}]", getRepositoryPath());
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository(repositoryName)
-                .setType("azure").setSettings(Settings.settingsBuilder()
+                .setType("azure").setSettings(Settings.builder()
                                 .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                                 .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
                                 .put(Repository.BASE_PATH_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
@@ -236,14 +236,14 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         Client client = client();
         logger.info("-->  creating azure repository with path [{}]", getRepositoryPath());
         PutRepositoryResponse putRepositoryResponse1 = client.admin().cluster().preparePutRepository("test-repo1")
-                .setType("azure").setSettings(Settings.settingsBuilder()
+                .setType("azure").setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName().concat("-1"))
                         .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
                         .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
                 ).get();
         assertThat(putRepositoryResponse1.isAcknowledged(), equalTo(true));
         PutRepositoryResponse putRepositoryResponse2 = client.admin().cluster().preparePutRepository("test-repo2")
-                .setType("azure").setSettings(Settings.settingsBuilder()
+                .setType("azure").setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName().concat("-2"))
                         .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
                         .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
@@ -315,7 +315,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating azure repository without any path");
         PutRepositoryResponse putRepositoryResponse = client.preparePutRepository("test-repo").setType("azure")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -336,7 +336,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
 
         logger.info("-->  creating azure repository path [{}]", getRepositoryPath());
         putRepositoryResponse = client.preparePutRepository("test-repo").setType("azure")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                         .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
         ).get();
@@ -362,7 +362,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating azure repository without any path");
         PutRepositoryResponse putRepositoryResponse = client.preparePutRepository("test-repo").setType("azure")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                 ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
@@ -413,7 +413,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
             public void run() {
                 try {
                     PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
-                            .setType("azure").setSettings(Settings.settingsBuilder()
+                            .setType("azure").setSettings(Settings.builder()
                                             .put(Repository.CONTAINER_SETTING.getKey(), container)
                                             .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
                                             .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
@@ -443,7 +443,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         Client client = client();
         logger.info("-->  creating azure repository with path [{}]", getRepositoryPath());
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("azure").setSettings(Settings.settingsBuilder()
+                .setType("azure").setSettings(Settings.builder()
                         .put(Repository.CONTAINER_SETTING.getKey(), getContainerName())
                         .put(Repository.BASE_PATH_SETTING.getKey(), getRepositoryPath())
                         .put(Repository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(1000, 10000), ByteSizeUnit.BYTES)
@@ -491,7 +491,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         logger.info("-->  creating azure repository while container is being removed");
         try {
             client.preparePutRepository("test-repo").setType("azure")
-                    .setSettings(Settings.settingsBuilder()
+                    .setSettings(Settings.builder()
                             .put(Repository.CONTAINER_SETTING.getKey(), container)
                     ).get();
             fail("we should get a RepositoryVerificationException");

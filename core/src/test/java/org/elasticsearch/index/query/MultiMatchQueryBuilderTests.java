@@ -27,12 +27,15 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.index.search.MatchQuery;
 
 import java.io.IOException;
@@ -79,7 +82,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         if (randomBoolean()) {
             query.slop(randomIntBetween(0, 5));
         }
-        if (randomBoolean()) {
+        if (randomBoolean() && (query.type() == Type.BEST_FIELDS || query.type() == Type.MOST_FIELDS)) {
             query.fuzziness(randomFuzziness(fieldName));
         }
         if (randomBoolean()) {
@@ -134,7 +137,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 .or(instanceOf(FuzzyQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
                 .or(instanceOf(MatchAllDocsQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
                 .or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(PhraseQuery.class))
-                .or(instanceOf(LegacyNumericRangeQuery.class)));
+                .or(instanceOf(LegacyNumericRangeQuery.class))
+                .or(instanceOf(PointRangeQuery.class)));
     }
 
     public void testIllegaArguments() {
@@ -251,5 +255,40 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertEquals(json, 3, parsed.fields().size());
         assertEquals(json, MultiMatchQueryBuilder.Type.MOST_FIELDS, parsed.type());
         assertEquals(json, Operator.OR, parsed.operator());
+    }
+
+    /**
+     * `fuzziness` is not allowed for `cross_fields`, `phrase` and `phrase_prefix` and should throw an error
+     */
+    public void testFuzzinessNotAllowedTypes() throws IOException {
+        String[] notAllowedTypes = new String[]{ Type.CROSS_FIELDS.parseField().getPreferredName(),
+            Type.PHRASE.parseField().getPreferredName(), Type.PHRASE_PREFIX.parseField().getPreferredName()};
+        for (String type : notAllowedTypes) {
+            String json =
+                    "{\n" +
+                    "  \"multi_match\" : {\n" +
+                    "    \"query\" : \"quick brown fox\",\n" +
+                    "    \"fields\" : [ \"title^1.0\", \"title.original^1.0\", \"title.shingles^1.0\" ],\n" +
+                    "    \"type\" : \"" + type + "\",\n" +
+                    "    \"fuzziness\" : 1" +
+                    "  }\n" +
+                    "}";
+
+            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("Fuziness not allowed for type [" + type +"]", e.getMessage());
+        }
+    }
+
+    public void testQueryParameterArrayException() throws IOException {
+        String json =
+                "{\n" +
+                "  \"multi_match\" : {\n" +
+                "    \"query\" : [\"quick\", \"brown\", \"fox\"]\n" +
+                "    \"fields\" : [ \"title^1.0\", \"title.original^1.0\", \"title.shingles^1.0\" ]" +
+                "  }\n" +
+                "}";
+
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[multi_match] unknown token [START_ARRAY] after [query]", e.getMessage());
     }
 }

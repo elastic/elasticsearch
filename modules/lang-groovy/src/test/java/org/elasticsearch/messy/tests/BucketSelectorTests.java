@@ -21,6 +21,7 @@ package org.elasticsearch.messy.tests;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -93,8 +94,8 @@ public class BucketSelectorTests extends ESIntegTestCase {
         builders.add(client().prepareIndex("idx_with_gaps", "type").setSource(newDocBuilder(3, 1, 0, 0)));
         builders.add(client().prepareIndex("idx_with_gaps", "type").setSource(newDocBuilder(3, 3, 0, 0)));
 
-        client().preparePutIndexedScript().setId("my_script").setScriptLang(GroovyScriptEngineService.NAME)
-                .setSource("{ \"script\": \"Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)\" }").get();
+        client().admin().cluster().preparePutStoredScript().setId("my_script").setScriptLang(GroovyScriptEngineService.NAME)
+                .setSource(new BytesArray("{ \"script\": \"Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)\" }")).get();
 
         indexRandom(true, builders);
         ensureSearchable();
@@ -358,7 +359,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
                                 .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                                 .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                                 .subAggregation(
-                                        bucketSelector("bucketSelector", new Script("my_script", ScriptType.INDEXED, null, null),
+                                        bucketSelector("bucketSelector", new Script("my_script", ScriptType.STORED, null, null),
                                                 "field2Sum", "field3Sum"))).execute().actionGet();
 
         assertSearchResponse(response);

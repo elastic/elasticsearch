@@ -49,8 +49,7 @@ public class UpdateByQueryWithScriptTests
     }
 
     @Override
-    protected AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest, BulkIndexByScrollResponse> action() {
-        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, null, threadPool,
-                request(), listener());
+    protected AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest> action() {
+        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, null, threadPool, null, request(), listener());
     }
 }

@@ -44,9 +44,9 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
         createIndex("test");
 
         // connect to each node with a custom TransportClient, issue a ClusterStateRequest to test serialization
-        for (NodeInfo n : clusterNodes()) {
+        for (NodeInfo n : clusterNodes().getNodes()) {
             try (TransportClient tc = newTransportClient()) {
-                tc.addTransportAddress(n.getNode().address());
+                tc.addTransportAddress(n.getNode().getAddress());
                 ClusterStateResponse response = tc.admin().cluster().prepareState().execute().actionGet();
 
                 assertThat(response.getState().status(), equalTo(ClusterState.ClusterStateStatus.UNKNOWN));
@@ -68,9 +68,9 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
             try {
                 enableIndexBlock("test-blocks", block.getKey());
 
-                for (NodeInfo n : clusterNodes()) {
+                for (NodeInfo n : clusterNodes().getNodes()) {
                     try (TransportClient tc = newTransportClient()) {
-                        tc.addTransportAddress(n.getNode().address());
+                        tc.addTransportAddress(n.getNode().getAddress());
 
                         ClusterStateResponse response = tc.admin().cluster().prepareState().setIndices("test-blocks")
                                 .setBlocks(true).setNodes(false).execute().actionGet();
@@ -99,7 +99,7 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
     }
 
     private TransportClient newTransportClient() {
-        Settings settings = Settings.settingsBuilder().put("client.transport.ignore_cluster_name", true)
+        Settings settings = Settings.builder().put("client.transport.ignore_cluster_name", true)
                 .put("node.name", "transport_client_" + getTestName()).build();
         return TransportClient.builder().settings(settings).build();
     }

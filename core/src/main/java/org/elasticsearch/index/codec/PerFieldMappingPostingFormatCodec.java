@@ -28,6 +28,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper2x;
 
 /**
  * {@link PerFieldMappingPostingFormatCodec This postings format} is the default
@@ -54,11 +55,14 @@ public class PerFieldMappingPostingFormatCodec extends Lucene60Codec {
 
     @Override
     public PostingsFormat getPostingsFormatForField(String field) {
-        final MappedFieldType indexName = mapperService.fullName(field);
-        if (indexName == null) {
+        final MappedFieldType fieldType = mapperService.fullName(field);
+        if (fieldType == null) {
             logger.warn("no index mapper found for field: [{}] returning default postings format", field);
-        } else if (indexName instanceof CompletionFieldMapper.CompletionFieldType) {
+        } else if (fieldType instanceof CompletionFieldMapper.CompletionFieldType) {
             return CompletionFieldMapper.CompletionFieldType.postingsFormat();
+        } else if (fieldType instanceof CompletionFieldMapper2x.CompletionFieldType) {
+            return ((CompletionFieldMapper2x.CompletionFieldType) fieldType).postingsFormat(
+                super.getPostingsFormatForField(field));
         }
         return super.getPostingsFormatForField(field);
     }

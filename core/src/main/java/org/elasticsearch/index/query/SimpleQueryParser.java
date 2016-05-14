@@ -19,9 +19,9 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -29,12 +29,15 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.search.SynonymQuery;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Wrapper class for Lucene's SimpleQueryParser that allows us to redefine
@@ -43,11 +46,14 @@ import java.util.Objects;
 public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.SimpleQueryParser {
 
     private final Settings settings;
+    private QueryShardContext context;
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
-    public SimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags, Settings settings) {
+    public SimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags,
+                             Settings settings, QueryShardContext context) {
         super(analyzer, weights, flags);
         this.settings = settings;
+        this.context = context;
     }
 
     /**
@@ -58,6 +64,15 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             return null;
         }
         throw e;
+    }
+
+    @Override
+    protected Query newTermQuery(Term term) {
+        MappedFieldType currentFieldType = context.fieldMapper(term.field());
+        if (currentFieldType == null || currentFieldType.tokenized()) {
+            return super.newTermQuery(term);
+        }
+        return currentFieldType.termQuery(term.bytes(), context);
     }
 
     @Override
@@ -155,62 +170,79 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
     /**
      * Analyze the given string using its analyzer, constructing either a
      * {@code PrefixQuery} or a {@code BooleanQuery} made up
-     * of {@code PrefixQuery}s
+     * of {@code TermQuery}s and {@code PrefixQuery}s
      */
     private Query newPossiblyAnalyzedQuery(String field, String termStr) {
+        List<List<String>> tlist = new ArrayList<> ();
+        // get Analyzer from superclass and tokenize the term
         try (TokenStream source = getAnalyzer().tokenStream(field, termStr)) {
-            // Use the analyzer to get all the tokens, and then build a TermQuery,
-            // PhraseQuery, or nothing based on the term count
-            CachingTokenFilter buffer = new CachingTokenFilter(source);
-            buffer.reset();
+            source.reset();
+            List<String> currentPos = new ArrayList<>();
+            CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
+            PositionIncrementAttribute posAtt = source.addAttribute(PositionIncrementAttribute.class);
 
-            TermToBytesRefAttribute termAtt = null;
-            int numTokens = 0;
-            boolean hasMoreTokens = false;
-            termAtt = buffer.getAttribute(TermToBytesRefAttribute.class);
-            if (termAtt != null) {
-                try {
-                    hasMoreTokens = buffer.incrementToken();
-                    while (hasMoreTokens) {
-                        numTokens++;
-                        hasMoreTokens = buffer.incrementToken();
+            try {
+                boolean hasMoreTokens = source.incrementToken();
+                while (hasMoreTokens) {
+                    if (currentPos.isEmpty() == false && posAtt.getPositionIncrement() > 0) {
+                        tlist.add(currentPos);
+                        currentPos = new ArrayList<>();
                     }
-                } catch (IOException e) {
-                    // ignore
+                    currentPos.add(termAtt.toString());
+                    hasMoreTokens = source.incrementToken();
                 }
-            }
-
-            // rewind buffer
-            buffer.reset();
-
-            if (numTokens == 0) {
-                return null;
-            } else if (numTokens == 1) {
-                try {
-                    boolean hasNext = buffer.incrementToken();
-                    assert hasNext == true;
-                } catch (IOException e) {
-                    // safe to ignore, because we know the number of tokens
+                if (currentPos.isEmpty() == false) {
+                    tlist.add(currentPos);
                 }
-                return new PrefixQuery(new Term(field, BytesRef.deepCopyOf(termAtt.getBytesRef())));
-            } else {
-                BooleanQuery.Builder bq = new BooleanQuery.Builder();
-                for (int i = 0; i < numTokens; i++) {
-                    try {
-                        boolean hasNext = buffer.incrementToken();
-                        assert hasNext == true;
-                    } catch (IOException e) {
-                        // safe to ignore, because we know the number of tokens
-                    }
-                    bq.add(new BooleanClause(new PrefixQuery(new Term(field, BytesRef.deepCopyOf(termAtt.getBytesRef()))), BooleanClause.Occur.SHOULD));
-                }
-                return bq.build();
+            } catch (IOException e) {
+                // ignore
+                // TODO: we should not ignore the exception and return a prefix query with the original term ?
             }
         } catch (IOException e) {
             // Bail on any exceptions, going with a regular prefix query
             return new PrefixQuery(new Term(field, termStr));
         }
+
+        if (tlist.size() == 0) {
+            return null;
+        }
+
+        if (tlist.size() == 1 && tlist.get(0).size() == 1) {
+            return new PrefixQuery(new Term(field, tlist.get(0).get(0)));
+        }
+
+        // build a boolean query with prefix on the last position only.
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        for (int pos = 0; pos < tlist.size(); pos++) {
+            List<String> plist = tlist.get(pos);
+            boolean isLastPos = (pos == tlist.size()-1);
+            Query posQuery;
+            if (plist.size() == 1) {
+                if (isLastPos) {
+                    posQuery = new PrefixQuery(new Term(field, plist.get(0)));
+                } else {
+                    posQuery = newTermQuery(new Term(field, plist.get(0)));
+                }
+            } else if (isLastPos == false) {
+                // build a synonym query for terms in the same position.
+                Term[] terms = new Term[plist.size()];
+                for (int i = 0; i < plist.size(); i++) {
+                    terms[i] = new Term(field, plist.get(i));
+                }
+                posQuery = new SynonymQuery(terms);
+            } else {
+                BooleanQuery.Builder innerBuilder = new BooleanQuery.Builder();
+                for (String token : plist) {
+                    innerBuilder.add(new BooleanClause(new PrefixQuery(new Term(field, token)),
+                        BooleanClause.Occur.SHOULD));
+                }
+                posQuery = innerBuilder.setDisableCoord(true).build();
+            }
+            builder.add(new BooleanClause(posQuery, getDefaultOperator()));
+        }
+        return builder.build();
     }
+
     /**
      * Class encapsulating the settings for the SimpleQueryString query, with
      * their default values

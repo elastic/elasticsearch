@@ -170,7 +170,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         return profile;
     }
 
-    @SuppressWarnings("unchecked")
     protected void innerReadFrom(StreamInput in) throws IOException {
         shardId = ShardId.readShardId(in);
         searchType = SearchType.fromId(in.readByte());
@@ -179,12 +178,12 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
             scroll = readScroll(in);
         }
         if (in.readBoolean()) {
-            source = SearchSourceBuilder.readSearchSourceFrom(in);
+            source = new SearchSourceBuilder(in);
         }
         types = in.readStringArray();
         filteringAliases = in.readStringArray();
         nowInMillis = in.readVLong();
-        template = in.readOptionalStreamable(Template::new);
+        template = in.readOptionalWriteable(Template::new);
         requestCache = in.readOptionalBoolean();
     }
 
@@ -213,7 +212,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
             out.writeVLong(nowInMillis);
         }
 
-        out.writeOptionalStreamable(template);
+        out.writeOptionalWriteable(template);
         out.writeOptionalBoolean(requestCache);
     }
 

@@ -30,8 +30,10 @@ import org.elasticsearch.cloud.azure.AzureServiceRemoteException;
 import org.elasticsearch.cloud.azure.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +47,9 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 /**
  *
@@ -89,7 +94,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                     return deployment;
                 }
             }
-            return null;
+            throw new IllegalArgumentException("invalid value for deployment type [" + string + "]");
         }
     }
 
@@ -120,21 +125,14 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
         this.refreshInterval = Discovery.REFRESH_SETTING.get(settings);
 
         this.hostType = Discovery.HOST_TYPE_SETTING.get(settings);
-        this.publicEndpointName = settings.get(Discovery.ENDPOINT_NAME, "elasticsearch");
+        this.publicEndpointName = Discovery.ENDPOINT_NAME_SETTING.get(settings);
 
         // Deployment name could be set with discovery.azure.deployment.name
         // Default to cloud.azure.management.cloud.service.name
-        this.deploymentName = settings.get(Discovery.DEPLOYMENT_NAME);
+        this.deploymentName = Discovery.DEPLOYMENT_NAME_SETTING.get(settings);
 
         // Reading deployment_slot
-        String strDeployment = settings.get(Discovery.DEPLOYMENT_SLOT, Deployment.PRODUCTION.deployment);
-        Deployment tmpDeployment = Deployment.fromString(strDeployment);
-        if (tmpDeployment == null) {
-            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", Discovery.DEPLOYMENT_SLOT, strDeployment,
-                    Deployment.PRODUCTION.deployment);
-            tmpDeployment = Deployment.PRODUCTION;
-        }
-        this.deploymentSlot = tmpDeployment.slot;
+        this.deploymentSlot = Discovery.DEPLOYMENT_SLOT_SETTING.get(settings).slot;
     }
 
     /**
@@ -188,7 +186,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
             }
 
             // If provided, we check the deployment name
-            if (deploymentName != null && !deploymentName.equals(deployment.getName())) {
+            if (Strings.hasLength(deploymentName) && !deploymentName.equals(deployment.getName())) {
                 logger.debug("current deployment name [{}] different from [{}]. skipping...",
                         deployment.getName(), deploymentName);
                 continue;
@@ -216,7 +214,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                             if (privateIp.equals(ipAddress)) {
                                 logger.trace("adding ourselves {}", NetworkAddress.format(ipAddress));
                             }
-                            networkAddress = NetworkAddress.formatAddress(privateIp);
+                            networkAddress = InetAddresses.toUriString(privateIp);
                         } else {
                             logger.trace("no private ip provided. ignoring [{}]...", instance.getInstanceName());
                         }
@@ -229,7 +227,8 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                                 continue;
                             }
 
-                            networkAddress = NetworkAddress.formatAddress(new InetSocketAddress(endpoint.getVirtualIPAddress(), endpoint.getPort()));
+                            networkAddress = NetworkAddress.format(new InetSocketAddress(endpoint.getVirtualIPAddress(),
+                                    endpoint.getPort()));
                         }
 
                         if (networkAddress == null) {
@@ -253,8 +252,8 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                     TransportAddress[] addresses = transportService.addressesFromString(networkAddress, 1);
                     for (TransportAddress address : addresses) {
                         logger.trace("adding {}, transport_address {}", networkAddress, address);
-                        cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceName(), address,
-                            version.minimumCompatibilityVersion()));
+                        cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + instance.getInstanceName(), address, emptyMap(),
+                                emptySet(), version.minimumCompatibilityVersion()));
                     }
                 } catch (Exception e) {
                     logger.warn("can not convert [{}] to transport address. skipping. [{}]", networkAddress, e.getMessage());

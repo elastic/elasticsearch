@@ -18,23 +18,27 @@
  */
 package org.elasticsearch.messy.tests;
 
-import org.elasticsearch.action.index.IndexRequest.OpType;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptResponse;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequestBuilder;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TemplateQueryBuilder;
-import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -45,16 +49,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -85,7 +81,7 @@ public class TemplateQueryTests extends ESIntegTestCase {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(Environment.PATH_CONF_SETTING.getKey(), this.getDataPath("config")).build();
     }
 
@@ -155,7 +151,7 @@ public class TemplateQueryTests extends ESIntegTestCase {
 
     private Template parseTemplate(String template) throws IOException {
         try (XContentParser parser = XContentFactory.xContent(template).createParser(template)) {
-            return TemplateQueryParser.parse(parser, ParseFieldMatcher.EMPTY, "params", "template");
+            return TemplateQueryBuilder.parse(parser, ParseFieldMatcher.EMPTY, "params", "template");
         }
     }
 
@@ -259,33 +255,33 @@ public class TemplateQueryTests extends ESIntegTestCase {
     }
 
     public void testIndexedTemplateClient() throws Exception {
-        createIndex(ScriptService.SCRIPT_INDEX);
-        ensureGreen(ScriptService.SCRIPT_INDEX);
-
-        PutIndexedScriptResponse scriptResponse = client().preparePutIndexedScript(MustacheScriptEngineService.NAME, "testTemplate", "{" +
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(MustacheScriptEngineService.NAME)
+                .setId("testTemplate")
+                .setSource(new BytesArray("{" +
                 "\"template\":{" +
                 "                \"query\":{" +
                 "                   \"match\":{" +
                 "                    \"theField\" : \"{{fieldParam}}\"}" +
                 "       }" +
                 "}" +
-                "}").get();
+                "}")));
 
-        assertTrue(scriptResponse.isCreated());
 
-        scriptResponse = client().preparePutIndexedScript(MustacheScriptEngineService.NAME, "testTemplate", "{" +
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(MustacheScriptEngineService.NAME)
+                .setId("testTemplate").setSource(new BytesArray("{" +
                 "\"template\":{" +
                 "                \"query\":{" +
                 "                   \"match\":{" +
                 "                    \"theField\" : \"{{fieldParam}}\"}" +
                 "       }" +
                 "}" +
-                "}").get();
+                "}")));
 
-        assertEquals(scriptResponse.getVersion(), 2);
-
-        GetIndexedScriptResponse getResponse = client().prepareGetIndexedScript(MustacheScriptEngineService.NAME, "testTemplate").get();
-        assertTrue(getResponse.isExists());
+        GetStoredScriptResponse getResponse = client().admin().cluster()
+                .prepareGetStoredScript(MustacheScriptEngineService.NAME, "testTemplate").get();
+        assertNotNull(getResponse.getStoredScript());
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
@@ -301,22 +297,22 @@ public class TemplateQueryTests extends ESIntegTestCase {
         templateParams.put("fieldParam", "foo");
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type")
-                .setTemplate(new Template("testTemplate", ScriptType.INDEXED, MustacheScriptEngineService.NAME, null, templateParams))
+                .setTemplate(new Template("testTemplate", ScriptType.STORED, MustacheScriptEngineService.NAME, null, templateParams))
                 .get();
         assertHitCount(searchResponse, 4);
 
-        DeleteIndexedScriptResponse deleteResponse = client().prepareDeleteIndexedScript(MustacheScriptEngineService.NAME, "testTemplate")
-                .get();
-        assertTrue(deleteResponse.isFound());
+        assertAcked(client().admin().cluster()
+                .prepareDeleteStoredScript(MustacheScriptEngineService.NAME, "testTemplate"));
 
-        getResponse = client().prepareGetIndexedScript(MustacheScriptEngineService.NAME, "testTemplate").get();
-        assertFalse(getResponse.isExists());
+        getResponse = client().admin().cluster()
+                .prepareGetStoredScript(MustacheScriptEngineService.NAME, "testTemplate").get();
+        assertNull(getResponse.getStoredScript());
 
         try {
             client().prepareSearch("test")
                     .setTypes("type")
                     .setTemplate(
-                            new Template("/template_index/mustache/1000", ScriptType.INDEXED, MustacheScriptEngineService.NAME, null,
+                            new Template("/template_index/mustache/1000", ScriptType.STORED, MustacheScriptEngineService.NAME, null,
                                     templateParams)).get();
             fail("Expected SearchPhaseExecutionException");
         } catch (SearchPhaseExecutionException e) {
@@ -325,43 +321,50 @@ public class TemplateQueryTests extends ESIntegTestCase {
     }
 
     public void testIndexedTemplate() throws Exception {
-        createIndex(ScriptService.SCRIPT_INDEX);
-        ensureGreen(ScriptService.SCRIPT_INDEX);
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(MustacheScriptEngineService.NAME)
+                .setId("1a")
+                .setSource(new BytesArray("{" +
+                                "\"template\":{"+
+                                "                \"query\":{" +
+                                "                   \"match\":{" +
+                                "                    \"theField\" : \"{{fieldParam}}\"}" +
+                                "       }" +
+                                "}" +
+                                "}"
+                ))
+        );
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(MustacheScriptEngineService.NAME)
+                .setId("2")
+                .setSource(new BytesArray("{" +
+                        "\"template\":{"+
+                        "                \"query\":{" +
+                        "                   \"match\":{" +
+                        "                    \"theField\" : \"{{fieldParam}}\"}" +
+                        "       }" +
+                        "}" +
+                        "}"))
+        );
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(MustacheScriptEngineService.NAME)
+                .setId("3")
+                .setSource(new BytesArray("{" +
+                        "\"template\":{"+
+                        "             \"match\":{" +
+                        "                    \"theField\" : \"{{fieldParam}}\"}" +
+                        "       }" +
+                        "}"))
+        );
+
+
+
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, MustacheScriptEngineService.NAME, "1a").setSource("{" +
-                "\"template\":{"+
-                "                \"query\":{" +
-                "                   \"match\":{" +
-                "                    \"theField\" : \"{{fieldParam}}\"}" +
-                "       }" +
-                    "}" +
-                "}"));
-        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, MustacheScriptEngineService.NAME, "2").setSource("{" +
-                "\"template\":{"+
-                "                \"query\":{" +
-                "                   \"match\":{" +
-                "                    \"theField\" : \"{{fieldParam}}\"}" +
-                "       }" +
-                    "}" +
-                "}"));
-
-        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, MustacheScriptEngineService.NAME, "3").setSource("{" +
-                "\"template\":{"+
-                "             \"match\":{" +
-                "                    \"theField\" : \"{{fieldParam}}\"}" +
-                "       }" +
-                "}"));
-
-        indexRandom(true, builders);
-
-        builders.clear();
-
         builders.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}"));
         builders.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}"));
         builders.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}"));
         builders.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}"));
         builders.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}"));
-
         indexRandom(true, builders);
 
         Map<String, Object> templateParams = new HashMap<>();
@@ -371,7 +374,7 @@ public class TemplateQueryTests extends ESIntegTestCase {
                 .prepareSearch("test")
                 .setTypes("type")
                 .setTemplate(
-                        new Template("/mustache/1a", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null,
+                        new Template("/mustache/1a", ScriptService.ScriptType.STORED, MustacheScriptEngineService.NAME, null,
                                 templateParams)).get();
         assertHitCount(searchResponse, 4);
 
@@ -379,7 +382,7 @@ public class TemplateQueryTests extends ESIntegTestCase {
             client().prepareSearch("test")
                     .setTypes("type")
                     .setTemplate(
-                            new Template("/template_index/mustache/1000", ScriptService.ScriptType.INDEXED,
+                            new Template("/template_index/mustache/1000", ScriptService.ScriptType.STORED,
                                     MustacheScriptEngineService.NAME, null, templateParams)).get();
             fail("shouldn't get here");
         } catch (SearchPhaseExecutionException spee) {
@@ -391,7 +394,7 @@ public class TemplateQueryTests extends ESIntegTestCase {
                     .prepareSearch("test")
                     .setTypes("type")
                     .setTemplate(
-                            new Template("/myindex/mustache/1", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null,
+                            new Template("/myindex/mustache/1", ScriptService.ScriptType.STORED, MustacheScriptEngineService.NAME, null,
                                     templateParams)).get();
             assertFailures(searchResponse);
         } catch (SearchPhaseExecutionException spee) {
@@ -399,7 +402,7 @@ public class TemplateQueryTests extends ESIntegTestCase {
         }
 
         searchResponse = client().prepareSearch("test").setTypes("type")
-                .setTemplate(new Template("1a", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null, templateParams))
+                .setTemplate(new Template("1a", ScriptService.ScriptType.STORED, MustacheScriptEngineService.NAME, null, templateParams))
                 .get();
         assertHitCount(searchResponse, 4);
 
@@ -408,7 +411,7 @@ public class TemplateQueryTests extends ESIntegTestCase {
                 .prepareSearch("test")
                 .setTypes("type")
                 .setTemplate(
-                        new Template("/mustache/2", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null,
+                        new Template("/mustache/2", ScriptService.ScriptType.STORED, MustacheScriptEngineService.NAME, null,
                                 templateParams)).get();
         assertHitCount(searchResponse, 1);
 
@@ -416,7 +419,7 @@ public class TemplateQueryTests extends ESIntegTestCase {
         vars.put("fieldParam", "bar");
 
         TemplateQueryBuilder builder = new TemplateQueryBuilder(new Template(
-                "3", ScriptService.ScriptType.INDEXED, null, null, vars));
+                "3", ScriptService.ScriptType.STORED, null, null, vars));
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 1);
@@ -424,11 +427,11 @@ public class TemplateQueryTests extends ESIntegTestCase {
         // "{\"template\": {\"id\": \"3\",\"params\" : {\"fieldParam\" : \"foo\"}}}";
         Map<String, Object> params = new HashMap<>();
         params.put("fieldParam", "foo");
-        TemplateQueryBuilder templateQuery = new TemplateQueryBuilder(new Template("3", ScriptType.INDEXED, null, null, params));
+        TemplateQueryBuilder templateQuery = new TemplateQueryBuilder(new Template("3", ScriptType.STORED, null, null, params));
         sr = client().prepareSearch().setQuery(templateQuery).get();
         assertHitCount(sr, 4);
 
-        templateQuery = new TemplateQueryBuilder(new Template("/mustache/3", ScriptType.INDEXED, null, null, params));
+        templateQuery = new TemplateQueryBuilder(new Template("/mustache/3", ScriptType.STORED, null, null, params));
         sr = client().prepareSearch().setQuery(templateQuery).get();
         assertHitCount(sr, 4);
     }
@@ -443,12 +446,15 @@ public class TemplateQueryTests extends ESIntegTestCase {
 
         int iterations = randomIntBetween(2, 11);
         for (int i = 1; i < iterations; i++) {
-            PutIndexedScriptResponse scriptResponse = client().preparePutIndexedScript(MustacheScriptEngineService.NAME, "git01",
-                    "{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\",\"type\": \"ooophrase_prefix\"}}}}").get();
-            assertEquals(i * 2 - 1, scriptResponse.getVersion());
+            assertAcked(client().admin().cluster().preparePutStoredScript()
+            .setScriptLang(MustacheScriptEngineService.NAME)
+                    .setId("git01")
+                    .setSource(new BytesArray("{\"template\":{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
+                            "\"type\": \"ooophrase_prefix\"}}}}}")));
 
-            GetIndexedScriptResponse getResponse = client().prepareGetIndexedScript(MustacheScriptEngineService.NAME, "git01").get();
-            assertTrue(getResponse.isExists());
+            GetStoredScriptResponse getResponse = client().admin().cluster()
+                    .prepareGetStoredScript(MustacheScriptEngineService.NAME, "git01").get();
+            assertNotNull(getResponse.getStoredScript());
 
             Map<String, Object> templateParams = new HashMap<>();
             templateParams.put("P_Keyword1", "dev");
@@ -457,41 +463,39 @@ public class TemplateQueryTests extends ESIntegTestCase {
                 client().prepareSearch("testindex")
                         .setTypes("test")
                         .setTemplate(
-                                new Template("git01", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null,
+                                new Template("git01", ScriptService.ScriptType.STORED, MustacheScriptEngineService.NAME, null,
                                         templateParams)).get();
                 fail("Broken test template is parsing w/o error.");
             } catch (SearchPhaseExecutionException e) {
                 // the above is expected to fail
             }
 
-            PutIndexedScriptRequestBuilder builder = client().preparePutIndexedScript(MustacheScriptEngineService.NAME, "git01",
-                    "{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\",\"type\": \"phrase_prefix\"}}}}").setOpType(
-                    OpType.INDEX);
-            scriptResponse = builder.get();
-            assertEquals(i * 2, scriptResponse.getVersion());
+            assertAcked(client().admin().cluster().preparePutStoredScript()
+                    .setScriptLang(MustacheScriptEngineService.NAME)
+                    .setId("git01")
+                    .setSource(new BytesArray("{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
+                            "\"type\": \"phrase_prefix\"}}}}")));
+
             SearchResponse searchResponse = client()
                     .prepareSearch("testindex")
                     .setTypes("test")
                     .setTemplate(
-                            new Template("git01", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null, templateParams))
+                            new Template("git01", ScriptService.ScriptType.STORED, MustacheScriptEngineService.NAME, null, templateParams))
                     .get();
             assertHitCount(searchResponse, 1);
         }
     }
 
     public void testIndexedTemplateWithArray() throws Exception {
-      createIndex(ScriptService.SCRIPT_INDEX);
-      ensureGreen(ScriptService.SCRIPT_INDEX);
-      List<IndexRequestBuilder> builders = new ArrayList<>();
-
       String multiQuery = "{\"query\":{\"terms\":{\"theField\":[\"{{#fieldParam}}\",\"{{.}}\",\"{{/fieldParam}}\"]}}}";
 
-      builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, MustacheScriptEngineService.NAME, "4").setSource(jsonBuilder().startObject().field("template", multiQuery).endObject()));
-
-      indexRandom(true,builders);
-
-      builders.clear();
-
+      assertAcked(
+              client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(MustacheScriptEngineService.NAME)
+                .setId("4")
+                .setSource(jsonBuilder().startObject().field("template", multiQuery).endObject().bytes())
+      );
+      List<IndexRequestBuilder> builders = new ArrayList<>();
       builders.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}"));
       builders.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}"));
       builders.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}"));
@@ -508,7 +512,7 @@ public class TemplateQueryTests extends ESIntegTestCase {
                 .prepareSearch("test")
                 .setTypes("type")
                 .setTemplate(
-                        new Template("/mustache/4", ScriptService.ScriptType.INDEXED, MustacheScriptEngineService.NAME, null,
+                        new Template("/mustache/4", ScriptService.ScriptType.STORED, MustacheScriptEngineService.NAME, null,
                                 arrayTemplateParams)).get();
         assertHitCount(searchResponse, 5);
     }

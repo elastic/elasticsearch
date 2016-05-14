@@ -28,7 +28,10 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -46,11 +49,13 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.index.IndexWarmer.TerminationHandle;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Searcher;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.query.PercolatorQuery;
+import org.elasticsearch.index.query.PercolateQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -63,8 +68,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.percolator.PercolatorFieldMapper.LEGACY_TYPE_NAME;
+import static org.elasticsearch.index.percolator.PercolatorFieldMapper.PercolatorFieldType;
+import static org.elasticsearch.index.percolator.PercolatorFieldMapper.parseQuery;
+
 public final class PercolatorQueryCache extends AbstractIndexComponent
-        implements Closeable, LeafReader.CoreClosedListener, PercolatorQuery.QueryRegistry {
+        implements Closeable, LeafReader.CoreClosedListener, PercolateQuery.QueryRegistry {
 
     public final static Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING =
             Setting.boolSetting("index.percolator.map_unmapped_fields_as_string", false, Setting.Property.IndexScope);
@@ -107,7 +116,7 @@ public final class PercolatorQueryCache extends AbstractIndexComponent
                     executor.execute(() -> {
                         try {
                             final long start = System.nanoTime();
-                            QueriesLeaf queries = loadQueries(ctx, indexShard.indexSettings().getIndexVersionCreated());
+                            QueriesLeaf queries = loadQueries(ctx, indexShard);
                             cache.put(ctx.reader().getCoreCacheKey(), queries);
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
                                 indexShard.warmerService().logger().trace(
@@ -127,7 +136,9 @@ public final class PercolatorQueryCache extends AbstractIndexComponent
         };
     }
 
-    QueriesLeaf loadQueries(LeafReaderContext context, Version indexVersionCreated) throws IOException {
+    QueriesLeaf loadQueries(LeafReaderContext context, IndexShard indexShard) throws IOException {
+        Version indexVersionCreated = indexShard.indexSettings().getIndexVersionCreated();
+        MapperService mapperService = indexShard.mapperService();
         LeafReader leafReader = context.reader();
         ShardId shardId = ShardUtils.extractShardId(leafReader);
         if (shardId == null) {
@@ -135,29 +146,48 @@ public final class PercolatorQueryCache extends AbstractIndexComponent
         }
         if (indexSettings.getIndex().equals(shardId.getIndex()) == false) {
             // percolator cache insanity
-            String message = "Trying to load queries for index " + shardId.getIndex() + " with cache of index " + indexSettings.getIndex();
+            String message = "Trying to load queries for index " + shardId.getIndex() + " with cache of index " +
+                    indexSettings.getIndex();
             throw new IllegalStateException(message);
         }
 
         IntObjectHashMap<Query> queries = new IntObjectHashMap<>();
         boolean legacyLoading = indexVersionCreated.before(Version.V_5_0_0_alpha1);
-        PostingsEnum postings = leafReader.postings(new Term(TypeFieldMapper.NAME, PercolatorFieldMapper.TYPE_NAME), PostingsEnum.NONE);
-        if (postings != null) {
-            if (legacyLoading) {
+        if (legacyLoading) {
+            PostingsEnum postings = leafReader.postings(new Term(TypeFieldMapper.NAME, LEGACY_TYPE_NAME), PostingsEnum.NONE);
+            if (postings != null) {
                 LegacyQueryFieldVisitor visitor = new LegacyQueryFieldVisitor();
                 for (int docId = postings.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = postings.nextDoc()) {
                     leafReader.document(docId, visitor);
                     queries.put(docId, parseLegacyPercolatorDocument(docId, visitor.source));
                     visitor.source = null; // reset
                 }
-            } else {
-                BinaryDocValues binaryDocValues = leafReader.getBinaryDocValues(PercolatorFieldMapper.QUERY_BUILDER_FULL_FIELD_NAME);
-                if (binaryDocValues != null) {
-                    for (int docId = postings.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = postings.nextDoc()) {
-                        BytesRef queryBuilder = binaryDocValues.get(docId);
-                        if (queryBuilder.length > 0) {
-                            queries.put(docId, parseQueryBuilder(docId, queryBuilder));
+            }
+        } else {
+            // Each type can have one percolator field mapper,
+            // So for each type we check if there is a percolator field mapper
+            // and parse all the queries for the documents of that type.
+            IndexSearcher indexSearcher = new IndexSearcher(leafReader);
+            for (DocumentMapper documentMapper : mapperService.docMappers(false)) {
+                Weight queryWeight = indexSearcher.createNormalizedWeight(documentMapper.typeFilter(), false);
+                for (FieldMapper fieldMapper : documentMapper.mappers()) {
+                    if (fieldMapper instanceof PercolatorFieldMapper) {
+                        PercolatorFieldType fieldType = (PercolatorFieldType) fieldMapper.fieldType();
+                        BinaryDocValues binaryDocValues = leafReader.getBinaryDocValues(fieldType.getQueryBuilderFieldName());
+                        if (binaryDocValues != null) {
+                            // use the same leaf reader context the indexSearcher is using too:
+                            Scorer scorer = queryWeight.scorer(leafReader.getContext());
+                            if (scorer != null) {
+                                DocIdSetIterator iterator = scorer.iterator();
+                                for (int docId = iterator.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
+                                    BytesRef qbSource = binaryDocValues.get(docId);
+                                    if (qbSource.length > 0) {
+                                        queries.put(docId, parseQueryBuilder(docId, qbSource));
+                                    }
+                                }
+                            }
                         }
+                        break;
                     }
                 }
             }
@@ -166,11 +196,11 @@ public final class PercolatorQueryCache extends AbstractIndexComponent
         return new QueriesLeaf(shardId, queries);
     }
 
-    private Query parseQueryBuilder(int docId, BytesRef queryBuilder) {
+    private Query parseQueryBuilder(int docId, BytesRef qbSource) {
         XContent xContent = QUERY_BUILDER_CONTENT_TYPE.xContent();
-        try (XContentParser sourceParser = xContent.createParser(queryBuilder.bytes, queryBuilder.offset, queryBuilder.length)) {
+        try (XContentParser sourceParser = xContent.createParser(qbSource.bytes, qbSource.offset, qbSource.length)) {
             QueryShardContext context = queryShardContextSupplier.get();
-            return PercolatorFieldMapper.parseQuery(context, mapUnmappedFieldsAsString, sourceParser);
+            return parseQuery(context, mapUnmappedFieldsAsString, sourceParser);
         } catch (IOException e) {
             throw new PercolatorException(index(), "failed to parse query builder for document  [" + docId   + "]", e);
         }
@@ -189,7 +219,7 @@ public final class PercolatorQueryCache extends AbstractIndexComponent
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("query".equals(currentFieldName)) {
                         QueryShardContext context = queryShardContextSupplier.get();
-                        return PercolatorFieldMapper.parseQuery(context, mapUnmappedFieldsAsString, sourceParser);
+                        return parseQuery(context, mapUnmappedFieldsAsString, sourceParser);
                     } else {
                         sourceParser.skipChildren();
                     }

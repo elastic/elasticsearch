@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -64,6 +65,7 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
@@ -92,6 +94,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.elasticsearch.tribe.TribeService;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -253,11 +256,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
+                    HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
+                    HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
                     HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
                     HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
                     ClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                     SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                     ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
+                    TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                     TransportService.TRACE_LOG_EXCLUDE_SETTING,
                     TransportService.TRACE_LOG_INCLUDE_SETTING,
                     TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
@@ -312,6 +318,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
                     ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
                     ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING,
+                    ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
                     IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
                     IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
                     IndicesRequestCache.INDICES_CACHE_QUERY_SIZE,
@@ -352,7 +359,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchService.KEEPALIVE_INTERVAL_SETTING,
                     Node.WRITE_PORTS_FIELD_SETTING,
                     Node.NODE_NAME_SETTING,
-                    Node.NODE_CLIENT_SETTING,
                     Node.NODE_DATA_SETTING,
                     Node.NODE_MASTER_SETTING,
                     Node.NODE_LOCAL_SETTING,
@@ -401,6 +407,16 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING,
                     BootstrapSettings.MLOCKALL_SETTING,
                     BootstrapSettings.SECCOMP_SETTING,
-                    BootstrapSettings.CTRLHANDLER_SETTING
+                    BootstrapSettings.CTRLHANDLER_SETTING,
+                    BootstrapSettings.IGNORE_SYSTEM_BOOTSTRAP_CHECKS,
+                    IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
+                    IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
+                    IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,
+                    IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING,
+                    IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING,
+                    ResourceWatcherService.ENABLED,
+                    ResourceWatcherService.RELOAD_INTERVAL_HIGH,
+                    ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
+                    ResourceWatcherService.RELOAD_INTERVAL_LOW
             )));
 }

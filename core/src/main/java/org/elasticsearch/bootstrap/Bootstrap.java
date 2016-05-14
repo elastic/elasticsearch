@@ -33,6 +33,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -133,9 +134,8 @@ final class Bootstrap {
             // we've already logged this.
         }
 
-        JNANatives.trySetMaxNumberOfThreads();
-
-        JNANatives.trySetMaxSizeVirtualMemory();
+        Natives.trySetMaxNumberOfThreads();
+        Natives.trySetMaxSizeVirtualMemory();
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
@@ -180,14 +180,17 @@ final class Bootstrap {
         // We do not need to reload system properties here as we have already applied them in building the settings and
         // reloading could cause multiple prompts to the user for values if a system property was specified with a prompt
         // placeholder
-        Settings nodeSettings = Settings.settingsBuilder()
+        Settings nodeSettings = Settings.builder()
                 .put(settings)
                 .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
                 .build();
 
-        BootstrapCheck.check(nodeSettings);
-
-        node = new Node(nodeSettings);
+        node = new Node(nodeSettings) {
+            @Override
+            protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
+                BootstrapCheck.check(settings, boundTransportAddress);
+            }
+        };
     }
 
     private static Environment initialSettings(boolean foreground, String pidFile) {
@@ -241,12 +244,6 @@ final class Bootstrap {
 
         if (environment.pidFile() != null) {
             PidFile.create(environment.pidFile(), true);
-        }
-
-        // warn if running using the client VM
-        if (JvmInfo.jvmInfo().getVmName().toLowerCase(Locale.ROOT).contains("client")) {
-            ESLogger logger = Loggers.getLogger(Bootstrap.class);
-            logger.warn("jvm uses the client vm, make sure to run `java` with the server vm for best performance by adding `-server` to the command line");
         }
 
         try {

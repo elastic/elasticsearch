@@ -30,10 +30,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RestoreSource;
-import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -45,6 +44,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -192,27 +192,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private void cleanFailedShards(final ClusterChangedEvent event) {
-        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().localNodeId());
+        RoutingNode routingNode = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
         if (routingNode == null) {
             failedShards.clear();
             return;
         }
-        RoutingTable routingTable = event.state().routingTable();
         for (Iterator<Map.Entry<ShardId, ShardRouting>> iterator = failedShards.entrySet().iterator(); iterator.hasNext(); ) {
             Map.Entry<ShardId, ShardRouting> entry = iterator.next();
-            ShardId failedShardId = entry.getKey();
             ShardRouting failedShardRouting = entry.getValue();
-            IndexRoutingTable indexRoutingTable = routingTable.index(failedShardId.getIndex());
-            if (indexRoutingTable == null) {
-                iterator.remove();
-                continue;
-            }
-            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(failedShardId.id());
-            if (shardRoutingTable == null) {
-                iterator.remove();
-                continue;
-            }
-            if (shardRoutingTable.assignedShards().stream().noneMatch(shr -> shr.isSameAllocation(failedShardRouting))) {
+            ShardRouting matchedShardRouting = routingNode.getByShardId(failedShardRouting.shardId());
+            if (matchedShardRouting == null || matchedShardRouting.isSameAllocation(failedShardRouting) == false) {
                 iterator.remove();
             }
         }
@@ -220,7 +209,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     private void applyDeletedIndices(final ClusterChangedEvent event) {
         final ClusterState previousState = event.previousState();
-        final String localNodeId = event.state().nodes().localNodeId();
+        final String localNodeId = event.state().nodes().getLocalNodeId();
         assert localNodeId != null;
 
         for (Index index : event.indicesDeleted()) {
@@ -232,15 +221,34 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             if (idxService != null) {
                 indexSettings = idxService.getIndexSettings();
                 deleteIndex(index, "index no longer part of the metadata");
-            } else {
-                final IndexMetaData metaData = previousState.metaData().getIndexSafe(index);
+            } else if (previousState.metaData().hasIndex(index.getName())) {
+                // The deleted index was part of the previous cluster state, but not loaded on the local node
+                final IndexMetaData metaData = previousState.metaData().index(index);
                 indexSettings = new IndexSettings(metaData, settings);
-                indicesService.deleteClosedIndex("closed index no longer part of the metadata", metaData, event.state());
+                indicesService.deleteUnassignedIndex("deleted index was not assigned to local node", metaData, event.state());
+            } else {
+                // The previous cluster state's metadata also does not contain the index,
+                // which is what happens on node startup when an index was deleted while the
+                // node was not part of the cluster.  In this case, try reading the index
+                // metadata from disk.  If its not there, there is nothing to delete.
+                // First, though, verify the precondition for applying this case by
+                // asserting that the previous cluster state is not initialized/recovered.
+                assert previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
+                final IndexMetaData metaData = indicesService.verifyIndexIsDeleted(index, event.state());
+                if (metaData != null) {
+                    indexSettings = new IndexSettings(metaData, settings);
+                } else {
+                    indexSettings = null;
+                }
             }
-            try {
-                nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, indexSettings, localNodeId);
-            } catch (Throwable e) {
-                logger.debug("failed to send to master index {} deleted event", e, index);
+            // indexSettings can only be null if there was no IndexService and no metadata existed
+            // on disk for this index, so it won't need to go through the node deleted action anyway
+            if (indexSettings != null) {
+                try {
+                    nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, indexSettings, localNodeId);
+                } catch (Exception e) {
+                    logger.debug("failed to send to master index {} deleted event", e, index);
+                }
             }
         }
 
@@ -258,7 +266,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private void applyDeletedShards(final ClusterChangedEvent event) {
-        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().localNodeId());
+        RoutingNode routingNode = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
         if (routingNode == null) {
             return;
         }
@@ -313,9 +321,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
         }
 
-        Set<Index> hasAllocations = new HashSet<>();
-        for (ShardRouting routing : event.state().getRoutingNodes().node(event.state().nodes().localNodeId())) {
-            hasAllocations.add(routing.index());
+        final Set<Index> hasAllocations = new HashSet<>();
+        final RoutingNode node = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
+        // if no shards are allocated ie. if this node is a master-only node it can return nul
+        if (node != null) {
+            for (ShardRouting routing : node) {
+                hasAllocations.add(routing.index());
+            }
         }
         for (IndexService indexService : indicesService) {
             Index index = indexService.index();
@@ -357,7 +369,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     private void applyNewIndices(final ClusterChangedEvent event) {
         // we only create indices for shards that are allocated
-        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().localNodeId());
+        RoutingNode routingNode = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
         if (routingNode == null) {
             return;
         }
@@ -402,7 +414,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (requireRefresh && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
                         new NodeMappingRefreshAction.NodeMappingRefreshRequest(index.getName(), indexMetaData.getIndexUUID(),
-                            event.state().nodes().localNodeId())
+                            event.state().nodes().getLocalNodeId())
                     );
                 }
             } catch (Throwable t) {
@@ -454,7 +466,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
 
         RoutingTable routingTable = event.state().routingTable();
-        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().localNodeId());
+        RoutingNode routingNode = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
 
         if (routingNode == null) {
             failedShards.clear();
@@ -478,14 +490,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
             if (!indexService.hasShard(shardId) && shardRouting.started()) {
                 if (failedShards.containsKey(shardRouting.shardId())) {
-                    if (nodes.masterNode() != null) {
-                        String message = "master " + nodes.masterNode() + " marked shard as started, but shard has previous failed. resending shard failure";
+                    if (nodes.getMasterNode() != null) {
+                        String message = "master " + nodes.getMasterNode() + " marked shard as started, but shard has previous failed. resending shard failure";
                         logger.trace("[{}] re-sending failed shard [{}], reason [{}]", shardRouting.shardId(), shardRouting, message);
                         shardStateAction.shardFailed(shardRouting, shardRouting, message, null, SHARD_STATE_ACTION_LISTENER);
                     }
                 } else {
                     // the master thinks we are started, but we don't have this shard at all, mark it as failed
-                    sendFailShard(shardRouting, "master [" + nodes.masterNode() + "] marked shard as started, but shard has not been created, mark shard as failed", null);
+                    sendFailShard(shardRouting, "master [" + nodes.getMasterNode() + "] marked shard as started, but shard has not been created, mark shard as failed", null);
                 }
                 continue;
             }
@@ -542,11 +554,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // we managed to tell the master we started), mark us as started
                 if (logger.isTraceEnabled()) {
                     logger.trace("{} master marked shard as initializing, but shard has state [{}], resending shard started to {}",
-                        indexShard.shardId(), indexShard.state(), nodes.masterNode());
+                        indexShard.shardId(), indexShard.state(), nodes.getMasterNode());
                 }
-                if (nodes.masterNode() != null) {
+                if (nodes.getMasterNode() != null) {
                     shardStateAction.shardStarted(shardRouting,
-                        "master " + nodes.masterNode() + " marked shard as initializing, but shard state is [" + indexShard.state() + "], mark shard as started",
+                        "master " + nodes.getMasterNode() + " marked shard as initializing, but shard state is [" + indexShard.state() + "], mark shard as started",
                         SHARD_STATE_ACTION_LISTENER);
                 }
                 return;
@@ -571,8 +583,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         // if there is no shard, create it
         if (!indexService.hasShard(shardId)) {
             if (failedShards.containsKey(shardRouting.shardId())) {
-                if (nodes.masterNode() != null) {
-                    String message = "master " + nodes.masterNode() + " marked shard as initializing, but shard is marked as failed, resend shard failure";
+                if (nodes.getMasterNode() != null) {
+                    String message = "master " + nodes.getMasterNode() + " marked shard as initializing, but shard is marked as failed, resend shard failure";
                     logger.trace("[{}] re-sending failed shard [{}], reason [{}]", shardRouting.shardId(), shardRouting, message);
                     shardStateAction.shardFailed(shardRouting, shardRouting, message, null, SHARD_STATE_ACTION_LISTENER);
                 }
@@ -612,7 +624,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 //    the edge case where its mark as relocated, and we might need to roll it back...
                 // For replicas: we are recovering a backup from a primary
                 RecoveryState.Type type = shardRouting.primary() ? RecoveryState.Type.PRIMARY_RELOCATION : RecoveryState.Type.REPLICA;
-                RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), shardRouting.primary(), type, sourceNode, nodes.localNode());
+                RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), shardRouting.primary(), type, sourceNode, nodes.getLocalNode());
                 indexShard.markAsRecovering("from " + sourceNode, recoveryState);
                 recoveryTargetService.startRecovery(indexShard, type, sourceNode, new PeerRecoveryListener(shardRouting, indexService, indexMetaData));
             } catch (Throwable e) {
@@ -624,11 +636,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             // recover from filesystem store
             final RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), shardRouting.primary(),
                 RecoveryState.Type.STORE,
-                nodes.localNode(), nodes.localNode());
+                nodes.getLocalNode(), nodes.getLocalNode());
             indexShard.markAsRecovering("from store", recoveryState); // mark the shard as recovering on the cluster state thread
             threadPool.generic().execute(() -> {
                 try {
-                    if (indexShard.recoverFromStore(nodes.localNode())) {
+                    if (indexShard.recoverFromStore(nodes.getLocalNode())) {
                         shardStateAction.shardStarted(shardRouting, "after recovery from store", SHARD_STATE_ACTION_LISTENER);
                     }
                 } catch (Throwable t) {
@@ -639,13 +651,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         } else {
             // recover from a restore
             final RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), shardRouting.primary(),
-                RecoveryState.Type.SNAPSHOT, shardRouting.restoreSource(), nodes.localNode());
+                RecoveryState.Type.SNAPSHOT, shardRouting.restoreSource(), nodes.getLocalNode());
             indexShard.markAsRecovering("from snapshot", recoveryState); // mark the shard as recovering on the cluster state thread
             threadPool.generic().execute(() -> {
                 final ShardId sId = indexShard.shardId();
                 try {
                     final IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(restoreSource.snapshotId().getRepository());
-                    if (indexShard.restoreFromRepository(indexShardRepository, nodes.localNode())) {
+                    if (indexShard.restoreFromRepository(indexShardRepository, nodes.getLocalNode())) {
                         restoreService.indexShardRestoreCompleted(restoreSource.snapshotId(), sId);
                         shardStateAction.shardStarted(shardRouting, "after recovery from repository", SHARD_STATE_ACTION_LISTENER);
                     }

@@ -83,7 +83,7 @@ public class FuzzyOptionsTests extends WritableTestCase<FuzzyOptions> {
 
     @Override
     protected FuzzyOptions readFrom(StreamInput in) throws IOException {
-        return FuzzyOptions.readFuzzyOptions(in);
+        return new FuzzyOptions(in);
     }
 
     public void testIllegalArguments() {

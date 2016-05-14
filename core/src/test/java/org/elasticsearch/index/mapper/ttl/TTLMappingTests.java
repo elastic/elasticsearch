@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.ttl;
 
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -52,7 +51,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
                 .field("field", "value")
                 .endObject()
                 .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1").ttl(Long.MAX_VALUE));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source).ttl(Long.MAX_VALUE));
 
         assertThat(doc.rootDoc().getField("_ttl"), equalTo(null));
     }
@@ -67,7 +66,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
                 .field("field", "value")
                 .endObject()
                 .bytes();
-        ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1").ttl(Long.MAX_VALUE));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source).ttl(Long.MAX_VALUE));
 
         assertThat(doc.rootDoc().getField("_ttl").fieldType().stored(), equalTo(true));
         assertNotSame(IndexOptions.NONE, doc.rootDoc().getField("_ttl").fieldType().indexOptions());
@@ -168,20 +167,20 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testNoConflictIfNothingSetAndDisabledLater() throws Exception {
-        IndexService indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type");
+        IndexService indexService = createIndex("testindex", Settings.builder().build(), "type");
         XContentBuilder mappingWithTtlDisabled = getMappingWithTtlDisabled("7d");
         indexService.mapperService().merge("type", new CompressedXContent(mappingWithTtlDisabled.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     public void testNoConflictIfNothingSetAndEnabledLater() throws Exception {
-        IndexService indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type");
+        IndexService indexService = createIndex("testindex", Settings.builder().build(), "type");
         XContentBuilder mappingWithTtlEnabled = getMappingWithTtlEnabled("7d");
         indexService.mapperService().merge("type", new CompressedXContent(mappingWithTtlEnabled.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     public void testMergeWithOnlyDefaultSet() throws Exception {
         XContentBuilder mappingWithTtlEnabled = getMappingWithTtlEnabled("7d");
-        IndexService indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type", mappingWithTtlEnabled);
+        IndexService indexService = createIndex("testindex", Settings.builder().build(), "type", mappingWithTtlEnabled);
         XContentBuilder mappingWithOnlyDefaultSet = getMappingWithOnlyTtlDefaultSet("6m");
         indexService.mapperService().merge("type", new CompressedXContent(mappingWithOnlyDefaultSet.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         CompressedXContent mappingAfterMerge = indexService.mapperService().documentMapper("type").mappingSource();
@@ -190,7 +189,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
 
     public void testMergeWithOnlyDefaultSetTtlDisabled() throws Exception {
         XContentBuilder mappingWithTtlEnabled = getMappingWithTtlDisabled("7d");
-        IndexService indexService = createIndex("testindex", Settings.settingsBuilder().build(), "type", mappingWithTtlEnabled);
+        IndexService indexService = createIndex("testindex", Settings.builder().build(), "type", mappingWithTtlEnabled);
         CompressedXContent mappingAfterCreation = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterCreation, equalTo(new CompressedXContent("{\"type\":{\"_ttl\":{\"enabled\":false},\"properties\":{\"field\":{\"type\":\"text\"}}}}")));
         XContentBuilder mappingWithOnlyDefaultSet = getMappingWithOnlyTtlDefaultSet("6m");

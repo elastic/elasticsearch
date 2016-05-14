@@ -31,7 +31,6 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -167,7 +166,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      *
      * @see org.elasticsearch.index.query.QueryBuilders
      */
-    public SearchRequestBuilder setQuery(QueryBuilder<?> queryBuilder) {
+    public SearchRequestBuilder setQuery(QueryBuilder queryBuilder) {
         sourceBuilder().query(queryBuilder);
         return this;
     }
@@ -176,7 +175,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets a filter that will be executed after the query has been executed and only has affect on the search hits
      * (not aggregations). This filter is always executed as last filtering mechanism.
      */
-    public SearchRequestBuilder setPostFilter(QueryBuilder<?> postFilter) {
+    public SearchRequestBuilder setPostFilter(QueryBuilder postFilter) {
         sourceBuilder().postFilter(postFilter);
         return this;
     }
@@ -397,11 +396,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder suggest(SuggestBuilder suggestBuilder) {
         sourceBuilder().suggest(suggestBuilder);
-        return this;
-    }
-
-    public SearchRequestBuilder innerHits(InnerHitsBuilder innerHitsBuilder) {
-        sourceBuilder().innerHits(innerHitsBuilder);
         return this;
     }
 

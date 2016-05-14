@@ -198,6 +198,7 @@ public class NodeService extends AbstractComponent implements Closeable {
 
     @Override
     public void close() throws IOException {
+        ingestService.close();
         indicesService.close();
     }
 }

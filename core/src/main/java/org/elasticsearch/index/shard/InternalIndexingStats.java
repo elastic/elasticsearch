@@ -66,50 +66,63 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
     @Override
     public Engine.Index preIndex(Engine.Index operation) {
-        totalStats.indexCurrent.inc();
-        typeStats(operation.type()).indexCurrent.inc();
+        if (operation.origin() != Engine.Operation.Origin.RECOVERY) {
+            totalStats.indexCurrent.inc();
+            typeStats(operation.type()).indexCurrent.inc();
+        }
         return operation;
     }
 
     @Override
-    public void postIndex(Engine.Index index) {
-        long took = index.endTime() - index.startTime();
-        totalStats.indexMetric.inc(took);
-        totalStats.indexCurrent.dec();
-        StatsHolder typeStats = typeStats(index.type());
-        typeStats.indexMetric.inc(took);
-        typeStats.indexCurrent.dec();
+    public void postIndex(Engine.Index index, boolean created) {
+        if (index.origin() != Engine.Operation.Origin.RECOVERY) {
+            long took = index.endTime() - index.startTime();
+            totalStats.indexMetric.inc(took);
+            totalStats.indexCurrent.dec();
+            StatsHolder typeStats = typeStats(index.type());
+            typeStats.indexMetric.inc(took);
+            typeStats.indexCurrent.dec();
+        }
     }
 
     @Override
     public void postIndex(Engine.Index index, Throwable ex) {
-        totalStats.indexCurrent.dec();
-        typeStats(index.type()).indexCurrent.dec();
-        totalStats.indexFailed.inc();
-        typeStats(index.type()).indexFailed.inc();
+        if (index.origin() != Engine.Operation.Origin.RECOVERY) {
+            totalStats.indexCurrent.dec();
+            typeStats(index.type()).indexCurrent.dec();
+            totalStats.indexFailed.inc();
+            typeStats(index.type()).indexFailed.inc();
+        }
     }
 
     @Override
     public Engine.Delete preDelete(Engine.Delete delete) {
-        totalStats.deleteCurrent.inc();
-        typeStats(delete.type()).deleteCurrent.inc();
+        if (delete.origin() != Engine.Operation.Origin.RECOVERY) {
+            totalStats.deleteCurrent.inc();
+            typeStats(delete.type()).deleteCurrent.inc();
+        }
         return delete;
+
     }
 
     @Override
     public void postDelete(Engine.Delete delete) {
-        long took = delete.endTime() - delete.startTime();
-        totalStats.deleteMetric.inc(took);
-        totalStats.deleteCurrent.dec();
-        StatsHolder typeStats = typeStats(delete.type());
-        typeStats.deleteMetric.inc(took);
-        typeStats.deleteCurrent.dec();
+        if (delete.origin() != Engine.Operation.Origin.RECOVERY) {
+            long took = delete.endTime() - delete.startTime();
+            totalStats.deleteMetric.inc(took);
+            totalStats.deleteCurrent.dec();
+            StatsHolder typeStats = typeStats(delete.type());
+            typeStats.deleteMetric.inc(took);
+            typeStats.deleteCurrent.dec();
+        }
     }
 
     @Override
     public void postDelete(Engine.Delete delete, Throwable ex) {
-        totalStats.deleteCurrent.dec();
-        typeStats(delete.type()).deleteCurrent.dec();
+        if (delete.origin() != Engine.Operation.Origin.RECOVERY) {
+            totalStats.deleteCurrent.dec();
+            typeStats(delete.type()).deleteCurrent.dec();
+        }
     }
 
     public void noopUpdate(String type) {

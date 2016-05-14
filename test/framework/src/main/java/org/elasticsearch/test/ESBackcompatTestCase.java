@@ -195,7 +195,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
     private Settings addLoggerSettings(Settings externalNodesSettings) {
         TestLogging logging = getClass().getAnnotation(TestLogging.class);
         Map<String, String> loggingLevels = LoggingListener.getLoggersAndLevelsFromAnnotation(logging);
-        Settings.Builder finalSettings = Settings.settingsBuilder();
+        Settings.Builder finalSettings = Settings.builder();
         if (loggingLevels != null) {
             for (Map.Entry<String, String> level : loggingLevels.entrySet()) {
                 finalSettings.put("logger." + level.getKey(), level.getValue());
@@ -231,7 +231,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
                     if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndexName())) {
-                        String name = clusterState.nodes().get(shardRouting.currentNodeId()).name();
+                        String name = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
                         assertThat("Allocated on new node: " + name, Regex.simpleMatch(pattern, name), is(true));
                     }
                 }

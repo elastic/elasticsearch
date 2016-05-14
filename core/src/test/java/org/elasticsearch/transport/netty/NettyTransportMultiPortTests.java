@@ -34,7 +34,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.Before;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
 
 public class NettyTransportMultiPortTests extends ESTestCase {
@@ -51,7 +50,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     }
 
     public void testThatNettyCanBindToMultiplePorts() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("network.host", host)
                 .put(TransportSettings.PORT.getKey(), 22) // will not actually bind to this
                 .put("transport.profiles.default.port", 0)
@@ -68,7 +67,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     }
 
     public void testThatDefaultProfileInheritsFromStandardSettings() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("network.host", host)
                 .put(TransportSettings.PORT.getKey(), 0)
                 .put("transport.profiles.client1.port", 0)
@@ -85,7 +84,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
 
     public void testThatProfileWithoutPortSettingsFails() throws Exception {
 
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("network.host", host)
                 .put(TransportSettings.PORT.getKey(), 0)
                 .put("transport.profiles.client1.whatever", "foo")
@@ -101,7 +100,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     }
 
     public void testThatDefaultProfilePortOverridesGeneralConfiguration() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("network.host", host)
                 .put(TransportSettings.PORT.getKey(), 22) // will not actually bind to this
                 .put("transport.profiles.default.port", 0)
@@ -117,7 +116,7 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     }
 
     public void testThatProfileWithoutValidNameIsIgnored() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("network.host", host)
                 .put(TransportSettings.PORT.getKey(), 0)
                 // mimics someone trying to define a profile for .local which is the profile for a node request to itself
@@ -137,7 +136,8 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     private NettyTransport startNettyTransport(Settings settings, ThreadPool threadPool) {
         BigArrays bigArrays = new MockBigArrays(new PageCacheRecycler(settings, threadPool), new NoneCircuitBreakerService());
 
-        NettyTransport nettyTransport = new NettyTransport(settings, threadPool, new NetworkService(settings), bigArrays, Version.CURRENT, new NamedWriteableRegistry());
+        NettyTransport nettyTransport = new NettyTransport(settings, threadPool, new NetworkService(settings), bigArrays, Version.CURRENT,
+            new NamedWriteableRegistry(), new NoneCircuitBreakerService());
         nettyTransport.start();
 
         assertThat(nettyTransport.lifecycleState(), is(Lifecycle.State.STARTED));

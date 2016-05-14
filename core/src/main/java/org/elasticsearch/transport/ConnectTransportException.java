@@ -45,23 +45,19 @@ public class ConnectTransportException extends ActionTransportException {
     }
 
     public ConnectTransportException(DiscoveryNode node, String msg, String action, Throwable cause) {
-        super(node == null ? null : node.name(), node == null ? null : node.address(), action, msg, cause);
+        super(node == null ? null : node.getName(), node == null ? null : node.getAddress(), action, msg, cause);
         this.node = node;
     }
 
     public ConnectTransportException(StreamInput in) throws IOException {
         super(in);
-        if (in.readBoolean()) {
-            node = DiscoveryNode.readNode(in);
-        } else {
-            node = null;
-        }
+        node = in.readOptionalWriteable(DiscoveryNode::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalStreamable(node);
+        out.writeOptionalWriteable(node);
     }
 
     public DiscoveryNode node() {

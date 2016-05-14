@@ -49,11 +49,7 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
             listener.onFailure(validationException);
             return;
         }
-        transportService.sendRequest(node, action.name(), request, transportOptions, new ActionListenerResponseHandler<Response>(listener) {
-            @Override
-            public Response newInstance() {
-                return action.newResponse();
-            }
-        });
+        transportService.sendRequest(node, action.name(), request, transportOptions,
+            new ActionListenerResponseHandler<>(listener, action::newResponse));
     }
 }

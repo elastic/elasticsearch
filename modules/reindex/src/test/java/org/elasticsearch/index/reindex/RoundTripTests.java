@@ -33,11 +33,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
 
+import static java.lang.Math.abs;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -104,9 +106,9 @@ public class RoundTripTests extends ESTestCase {
     }
 
     public void testReindexResponse() throws IOException {
-        ReindexResponse response = new ReindexResponse(timeValueMillis(randomPositiveLong()), randomStatus(), randomIndexingFailures(),
-                randomSearchFailures(), randomBoolean());
-        ReindexResponse tripped = new ReindexResponse();
+        BulkIndexByScrollResponse response = new BulkIndexByScrollResponse(timeValueMillis(randomPositiveLong()), randomStatus(),
+                randomIndexingFailures(), randomSearchFailures(), randomBoolean());
+        BulkIndexByScrollResponse tripped = new BulkIndexByScrollResponse();
         roundTrip(response, tripped);
         assertResponseEquals(response, tripped);
     }
@@ -119,10 +121,26 @@ public class RoundTripTests extends ESTestCase {
         assertResponseEquals(response, tripped);
     }
 
+    public void testRethrottleRequest() throws IOException {
+        RethrottleRequest request = new RethrottleRequest();
+        request.setRequestsPerSecond((float) randomDoubleBetween(0, Float.POSITIVE_INFINITY, false));
+        if (randomBoolean()) {
+            request.setActions(randomFrom(UpdateByQueryAction.NAME, ReindexAction.NAME));
+        } else {
+            request.setTaskId(new TaskId(randomAsciiOfLength(5), randomLong()));
+        }
+        RethrottleRequest tripped = new RethrottleRequest();
+        roundTrip(request, tripped);
+        assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0.00001);
+        assertArrayEquals(request.getActions(), tripped.getActions());
+        assertEquals(request.getTaskId(), tripped.getTaskId());
+    }
+
     private BulkByScrollTask.Status randomStatus() {
         return new BulkByScrollTask.Status(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                randomPositiveInt(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                parseTimeValue(randomPositiveTimeValue(), "test"), random().nextBoolean() ? null : randomSimpleString(random()));
+                randomInt(Integer.MAX_VALUE), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                parseTimeValue(randomPositiveTimeValue(), "test"), abs(random().nextFloat()),
+                random().nextBoolean() ? null : randomSimpleString(random()), parseTimeValue(randomPositiveTimeValue(), "test"));
     }
 
     private List<Failure> randomIndexingFailures() {
@@ -161,10 +179,6 @@ public class RoundTripTests extends ESTestCase {
         return l;
     }
 
-    private int randomPositiveInt() {
-        return randomInt(Integer.MAX_VALUE);
-    }
-
     private void assertResponseEquals(BulkIndexByScrollResponse expected, BulkIndexByScrollResponse actual) {
         assertEquals(expected.getTook(), actual.getTook());
         assertTaskStatusEquals(expected.getStatus(), actual.getStatus());
@@ -198,6 +212,8 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(expected.getNoops(), actual.getNoops());
         assertEquals(expected.getRetries(), actual.getRetries());
         assertEquals(expected.getThrottled(), actual.getThrottled());
+        assertEquals(expected.getRequestsPerSecond(), actual.getRequestsPerSecond(), 0f);
         assertEquals(expected.getReasonCancelled(), actual.getReasonCancelled());
+        assertEquals(expected.getThrottledUntil(), actual.getThrottledUntil());
     }
 }

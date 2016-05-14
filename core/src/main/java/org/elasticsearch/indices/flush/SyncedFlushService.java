@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -212,7 +212,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                                 actionListener.onResponse(new ShardsSyncedFlushResult(shardId, totalShards, "[" + inflight + "] ongoing operations on primary"));
                             } else {
                                 // 3. now send the sync request to all the shards
-                                String syncId = Strings.base64UUID();
+                                String syncId = UUIDs.base64UUID();
                                 sendSyncRequests(syncId, activeShards, state, commitIds, shardId, totalShards, actionListener);
                             }
                         }
@@ -380,7 +380,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                 @Override
                 public void handleResponse(PreSyncedFlushResponse response) {
-                    Engine.CommitId existing = commitIds.putIfAbsent(node.id(), response.commitId());
+                    Engine.CommitId existing = commitIds.putIfAbsent(node.getId(), response.commitId());
                     assert existing == null : "got two answers for node [" + node + "]";
                     // count after the assert so we won't decrement twice in handleException
                     if (countDown.countDown()) {

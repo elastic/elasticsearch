@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.core;
 
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
@@ -29,9 +30,11 @@ import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
+import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -40,12 +43,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TimeZone;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
  */
 public final class IngestDocument {
 
     public final static String INGEST_KEY = "_ingest";
+    private static final String INGEST_KEY_PREFIX = INGEST_KEY + ".";
+    private static final String SOURCE_PREFIX = SourceFieldMapper.NAME + ".";
 
     static final String TIMESTAMP = "timestamp";
 
@@ -109,6 +116,53 @@ public final class IngestDocument {
             context = resolve(pathElement, path, context);
         }
         return cast(path, context, clazz);
+    }
+
+    /**
+     * Returns the value contained in the document with the provided templated path
+     * @param pathTemplate The path within the document in dot-notation
+     * @param clazz The expected class fo the field value
+     * @return the value fro the provided path if existing, null otherwise
+     * @throws IllegalArgumentException if the pathTemplate is null, empty, invalid, if the field doesn't exist,
+     * or if the field that is found at the provided path is not of the expected type.
+     */
+    public <T> T getFieldValue(TemplateService.Template pathTemplate, Class<T> clazz) {
+        return getFieldValue(renderTemplate(pathTemplate), clazz);
+    }
+
+    /**
+     * Returns the value contained in the document for the provided path as a byte array.
+     * If the path value is a string, a base64 decode operation will happen.
+     * If the path value is a byte array, it is just returned
+     * @param path The path within the document in dot-notation
+     * @return the byte array for the provided path if existing
+     * @throws IllegalArgumentException if the path is null, empty, invalid, if the field doesn't exist
+     * or if the field that is found at the provided path is not of the expected type.
+     */
+    public byte[] getFieldValueAsBytes(String path) {
+        Object object = getFieldValue(path, Object.class);
+        if (object instanceof byte[]) {
+            return (byte[]) object;
+        } else if (object instanceof String) {
+            try {
+                return Base64.decode(object.toString().getBytes(UTF_8));
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Could not base64 decode path [ " + path + "]", e);
+            }
+        } else {
+            throw new IllegalArgumentException("Content field [" + path + "] of unknown type [" + object.getClass().getName() +
+                "], must be string or byte array");
+        }
+    }
+
+    /**
+     * Checks whether the document contains a value for the provided templated path
+     * @param fieldPathTemplate the template for the path within the document in dot-notation
+     * @return true if the document contains a value for the field, false otherwise
+     * @throws IllegalArgumentException if the path is null, empty or invalid
+     */
+    public boolean hasField(TemplateService.Template fieldPathTemplate) {
+        return hasField(renderTemplate(fieldPathTemplate));
     }
 
     /**
@@ -490,6 +544,9 @@ public final class IngestDocument {
                 copy.add(deepCopy(itemValue));
             }
             return copy;
+        } else if (value instanceof byte[]) {
+            byte[] bytes = (byte[]) value;
+            return Arrays.copyOf(bytes, bytes.length);
         } else if (value == null || value instanceof String || value instanceof Integer ||
             value instanceof Long || value instanceof Float ||
             value instanceof Double || value instanceof Boolean) {
@@ -545,6 +602,7 @@ public final class IngestDocument {
     }
 
     private class FieldPath {
+
         private final String[] pathElements;
         private final Object initialContext;
 
@@ -553,21 +611,22 @@ public final class IngestDocument {
                 throw new IllegalArgumentException("path cannot be null nor empty");
             }
             String newPath;
-            if (path.startsWith(INGEST_KEY + ".")) {
+            if (path.startsWith(INGEST_KEY_PREFIX)) {
                 initialContext = ingestMetadata;
-                newPath = path.substring(8, path.length());
+                newPath = path.substring(INGEST_KEY_PREFIX.length(), path.length());
             } else {
                 initialContext = sourceAndMetadata;
-                if (path.startsWith(SourceFieldMapper.NAME + ".")) {
-                    newPath = path.substring(8, path.length());
+                if (path.startsWith(SOURCE_PREFIX)) {
+                    newPath = path.substring(SOURCE_PREFIX.length(), path.length());
                 } else {
                     newPath = path;
                 }
             }
-            this.pathElements = Strings.splitStringToArray(newPath, '.');
-            if (pathElements.length == 0) {
+            this.pathElements = newPath.split("\\.");
+            if (pathElements.length == 1 && pathElements[0].isEmpty()) {
                 throw new IllegalArgumentException("path [" + path + "] is not valid");
             }
         }
+
     }
 }

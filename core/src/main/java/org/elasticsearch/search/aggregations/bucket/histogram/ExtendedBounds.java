@@ -24,27 +24,23 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Objects;
 
-/**
- *
- */
-public class ExtendedBounds implements ToXContent {
+public class ExtendedBounds implements ToXContent, Writeable {
 
     static final ParseField EXTENDED_BOUNDS_FIELD = new ParseField("extended_bounds");
     static final ParseField MIN_FIELD = new ParseField("min");
     static final ParseField MAX_FIELD = new ParseField("max");
-
-    private static final ExtendedBounds PROTOTYPE = new ExtendedBounds();
 
     Long min;
     Long max;
@@ -52,7 +48,7 @@ public class ExtendedBounds implements ToXContent {
     String minAsStr;
     String maxAsStr;
 
-    ExtendedBounds() {} //for serialization
+    ExtendedBounds() {} //for parsing
 
     public ExtendedBounds(Long min, Long max) {
         this.min = min;
@@ -64,25 +60,22 @@ public class ExtendedBounds implements ToXContent {
         this.maxAsStr = maxAsStr;
     }
 
-    void processAndValidate(String aggName, SearchContext context, ValueParser parser) {
-        assert parser != null;
-        if (minAsStr != null) {
-            min = parser.parseLong(minAsStr, context);
+    /**
+     * Read from a stream.
+     */
+    public ExtendedBounds(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            min = in.readLong();
         }
-        if (maxAsStr != null) {
-            max = parser.parseLong(maxAsStr, context);
+        if (in.readBoolean()) {
+            max = in.readLong();
         }
-        if (min != null && max != null && min.compareTo(max) > 0) {
-            throw new SearchParseException(context, "[extended_bounds.min][" + min + "] cannot be greater than " +
-                    "[extended_bounds.max][" + max + "] for histogram aggregation [" + aggName + "]", null);
-        }
+        minAsStr = in.readOptionalString();
+        maxAsStr = in.readOptionalString();
     }
 
-    ExtendedBounds round(Rounding rounding) {
-        return new ExtendedBounds(min != null ? rounding.round(min) : null, max != null ? rounding.round(max) : null);
-    }
-
-    void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         if (min != null) {
             out.writeBoolean(true);
             out.writeLong(min);
@@ -99,20 +92,27 @@ public class ExtendedBounds implements ToXContent {
         out.writeOptionalString(maxAsStr);
     }
 
-    static ExtendedBounds readFrom(StreamInput in) throws IOException {
-        ExtendedBounds bounds = new ExtendedBounds();
-        if (in.readBoolean()) {
-            bounds.min = in.readLong();
+
+    void processAndValidate(String aggName, SearchContext context, DocValueFormat format) {
+        assert format != null;
+        if (minAsStr != null) {
+            min = format.parseLong(minAsStr, false, context.nowCallable());
         }
-        if (in.readBoolean()) {
-            bounds.max = in.readLong();
+        if (maxAsStr != null) {
+            // TODO: Should we rather pass roundUp=true?
+            max = format.parseLong(maxAsStr, false, context.nowCallable());
         }
-        bounds.minAsStr = in.readOptionalString();
-        bounds.maxAsStr = in.readOptionalString();
-        return bounds;
+        if (min != null && max != null && min.compareTo(max) > 0) {
+            throw new SearchParseException(context, "[extended_bounds.min][" + min + "] cannot be greater than " +
+                    "[extended_bounds.max][" + max + "] for histogram aggregation [" + aggName + "]", null);
+        }
     }
 
-    public ExtendedBounds fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher, String aggregationName)
+    ExtendedBounds round(Rounding rounding) {
+        return new ExtendedBounds(min != null ? rounding.round(min) : null, max != null ? rounding.round(max) : null);
+    }
+
+    public static ExtendedBounds fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher, String aggregationName)
             throws IOException {
         XContentParser.Token token = null;
         String currentFieldName = null;
@@ -176,10 +176,5 @@ public class ExtendedBounds implements ToXContent {
         ExtendedBounds other = (ExtendedBounds) obj;
         return Objects.equals(min, other.min)
                 && Objects.equals(min, other.min);
-    }
-
-    public static ExtendedBounds parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, String aggregationName)
-            throws IOException {
-        return PROTOTYPE.fromXContent(parser, parseFieldMatcher, aggregationName);
     }
 }

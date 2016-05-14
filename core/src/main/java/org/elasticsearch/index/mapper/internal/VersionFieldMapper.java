@@ -54,18 +54,6 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, VersionFieldMapper> {
-
-        public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-        }
-
-        @Override
-        public VersionFieldMapper build(BuilderContext context) {
-            return new VersionFieldMapper(context.indexSettings());
-        }
-    }
-
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
@@ -95,15 +83,6 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public Long value(Object value) {
-            if (value == null || (value instanceof Long)) {
-                return (Long) value;
-            } else {
-                return Long.parseLong(value.toString());
-            }
         }
     }
 

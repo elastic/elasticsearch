@@ -477,14 +477,14 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     private static List<ShardRouting> collectAttributeShards(AttributesKey key, DiscoveryNodes nodes, ArrayList<ShardRouting> from) {
         final ArrayList<ShardRouting> to = new ArrayList<>();
         for (final String attribute : key.attributes) {
-            final String localAttributeValue = nodes.localNode().attributes().get(attribute);
+            final String localAttributeValue = nodes.getLocalNode().getAttributes().get(attribute);
             if (localAttributeValue != null) {
                 for (Iterator<ShardRouting> iterator = from.iterator(); iterator.hasNext(); ) {
                     ShardRouting fromShard = iterator.next();
                     final DiscoveryNode discoveryNode = nodes.get(fromShard.currentNodeId());
                     if (discoveryNode == null) {
                         iterator.remove(); // node is not present anymore - ignore shard
-                    } else if (localAttributeValue.equals(discoveryNode.attributes().get(attribute))) {
+                    } else if (localAttributeValue.equals(discoveryNode.getAttributes().get(attribute))) {
                         iterator.remove();
                         to.add(fromShard);
                     }
@@ -590,11 +590,12 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
         public static IndexShardRoutingTable readFromThin(StreamInput in, Index index) throws IOException {
             int iShardId = in.readVInt();
-            Builder builder = new Builder(new ShardId(index, iShardId));
+            ShardId shardId = new ShardId(index, iShardId);
+            Builder builder = new Builder(shardId);
 
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
-                ShardRouting shard = ShardRouting.readShardRoutingEntry(in, index, iShardId);
+                ShardRouting shard = new ShardRouting(shardId, in);
                 builder.addShard(shard);
             }
 

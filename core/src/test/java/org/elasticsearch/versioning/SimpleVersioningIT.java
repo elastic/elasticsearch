@@ -350,7 +350,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
 
     private IDSource getRandomIDs() {
         IDSource ids;
-        final Random random = getRandom();
+        final Random random = random();
         switch (random.nextInt(6)) {
             case 0:
                 // random simple
@@ -516,7 +516,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         newSettings.put("index.gc_deletes", "1000000h");
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet());
 
-        Random random = getRandom();
+        Random random = random();
 
         // Generate random IDs:
         IDSource idSource = getRandomIDs();
@@ -596,7 +596,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 public void run() {
                     try {
                         //final Random threadRandom = RandomizedContext.current().getRandom();
-                        final Random threadRandom = getRandom();
+                        final Random threadRandom = random();
                         startingGun.await();
                         while (true) {
 
@@ -701,7 +701,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 .admin()
                 .indices()
                 .prepareCreate("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.number_of_shards", 1))
                 .execute().
                 actionGet();

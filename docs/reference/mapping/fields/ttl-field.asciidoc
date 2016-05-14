@@ -44,7 +44,7 @@ PUT my_index/my_type/2 <2>
   "text": "Will not expire"
 }
 -------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> This document will expire 10 minutes after being indexed.
 <2> This document has no TTL set and will not expire.
 
@@ -80,7 +80,7 @@ PUT my_index/my_type/2 <2>
   "text": "Will expire in 5 minutes"
 }
 -------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> This document will expire 10 minutes after being indexed.
 <2> This document has no TTL set and so will expire after the default 5 minutes.
 

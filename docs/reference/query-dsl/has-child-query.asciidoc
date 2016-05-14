@@ -72,3 +72,12 @@ a match:
 
 The  `min_children` and `max_children` parameters can be combined with
 the `score_mode` parameter.
+
+[float]
+==== Ignore Unmapped
+
+When set to `true` the `ignore_unmapped` option will ignore an unmapped `type`
+and will not match any documents for this query. This can be useful when
+querying multiple indexes which might have different mappings. When set to
+`false` (the default value) the query will throw an exception if the `type`
+is not mapped.

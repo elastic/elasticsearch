@@ -31,6 +31,7 @@ import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -85,14 +86,15 @@ public class SearchPhaseController extends AbstractComponent {
     public static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
     private final BigArrays bigArrays;
-
-    private ScriptService scriptService;
+    private final ScriptService scriptService;
+    private final ClusterService clusterService;
 
     @Inject
-    public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService) {
+    public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService, ClusterService clusterService) {
         super(settings);
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
+        this.clusterService = clusterService;
     }
 
     public AggregatedDfs aggregateDfs(AtomicArray<DfsSearchResult> results) {
@@ -360,7 +362,7 @@ public class SearchPhaseController extends AbstractComponent {
 
                     if (sorted) {
                         FieldDoc fieldDoc = (FieldDoc) shardDoc;
-                        searchHit.sortValues(fieldDoc.fields);
+                        searchHit.sortValues(fieldDoc.fields, firstResult.sortValueFormats());
                         if (sortScoreIndex != -1) {
                             searchHit.score(((Number) fieldDoc.fields[sortScoreIndex]).floatValue());
                         }
@@ -397,7 +399,8 @@ public class SearchPhaseController extends AbstractComponent {
                 for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
                     aggregationsList.add((InternalAggregations) entry.value.queryResult().aggregations());
                 }
-                aggregations = InternalAggregations.reduce(aggregationsList, new ReduceContext(bigArrays, scriptService));
+                ReduceContext reduceContext = new ReduceContext(bigArrays, scriptService, clusterService.state());
+                aggregations = InternalAggregations.reduce(aggregationsList, reduceContext);
             }
         }
 
@@ -419,8 +422,8 @@ public class SearchPhaseController extends AbstractComponent {
                     return (InternalAggregation) p;
                 }).collect(Collectors.toList());
                 for (SiblingPipelineAggregator pipelineAggregator : pipelineAggregators) {
-                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new ReduceContext(
-                            bigArrays, scriptService));
+                    ReduceContext reduceContext = new ReduceContext(bigArrays, scriptService, clusterService.state());
+                    InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), reduceContext);
                     newAggs.add(newAgg);
                 }
                 aggregations = new InternalAggregations(newAggs);

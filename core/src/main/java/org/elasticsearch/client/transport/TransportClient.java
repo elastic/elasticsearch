@@ -43,7 +43,6 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
@@ -57,8 +56,6 @@ import org.elasticsearch.transport.netty.NettyTransport;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
@@ -108,11 +105,10 @@ public class TransportClient extends AbstractClient {
         }
 
         private PluginsService newPluginService(final Settings settings) {
-            final Settings.Builder settingsBuilder = settingsBuilder()
+            final Settings.Builder settingsBuilder = Settings.builder()
                     .put(NettyTransport.PING_SCHEDULE.getKey(), "5s") // enable by default the transport schedule ping interval
                     .put(InternalSettingsPreparer.prepareSettings(settings))
                     .put(NetworkService.NETWORK_SERVER.getKey(), false)
-                    .put(Node.NODE_CLIENT_SETTING.getKey(), true)
                     .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
             return new PluginsService(settingsBuilder.build(), null, null, pluginClasses);
         }

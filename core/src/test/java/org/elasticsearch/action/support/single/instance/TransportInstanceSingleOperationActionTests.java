@@ -141,7 +141,7 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = new TransportService(transport, THREAD_POOL);
+        transportService = new TransportService(transport, THREAD_POOL, clusterService.state().getClusterName());
         transportService.start();
         transportService.acceptIncomingRequests();
         action = new TestTransportInstanceSingleOperationAction(

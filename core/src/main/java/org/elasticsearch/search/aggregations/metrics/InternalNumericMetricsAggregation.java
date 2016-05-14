@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.util.List;
 import java.util.Map;
@@ -29,7 +29,9 @@ import java.util.Map;
  */
 public abstract class InternalNumericMetricsAggregation extends InternalMetricsAggregation {
 
-    protected ValueFormatter valueFormatter;
+    private static final DocValueFormat DEFAULT_FORMAT = DocValueFormat.RAW;
+
+    protected DocValueFormat format = DEFAULT_FORMAT;
 
     public static abstract class SingleValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.SingleValue {
 
@@ -41,7 +43,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
         @Override
         public String getValueAsString() {
-            return valueFormatter.format(value());
+            return format.format(value());
         }
 
         @Override
@@ -68,7 +70,7 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
         public abstract double value(String name);
 
         public String valueAsString(String name) {
-            return valueFormatter.format(value(name));
+            return format.format(value(name));
         }
 
         @Override

@@ -20,12 +20,23 @@
 package org.elasticsearch.common.network;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.client.transport.support.TransportProxyClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
+import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,6 +49,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.action.admin.cluster.allocation.RestClusterAllocationExplainAction;
 import org.elasticsearch.rest.action.admin.cluster.health.RestClusterHealthAction;
 import org.elasticsearch.rest.action.admin.cluster.node.hotthreads.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.node.info.RestNodesInfoAction;
@@ -63,7 +75,6 @@ import org.elasticsearch.rest.action.admin.cluster.tasks.RestPendingClusterTasks
 import org.elasticsearch.rest.action.admin.indices.alias.RestIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.RestIndexDeleteAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.get.RestGetAliasesAction;
-import org.elasticsearch.rest.action.admin.indices.alias.get.RestGetIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.head.RestAliasesExistAction;
 import org.elasticsearch.rest.action.admin.indices.alias.put.RestIndexPutAliasAction;
 import org.elasticsearch.rest.action.admin.indices.analyze.RestAnalyzeAction;
@@ -111,6 +122,7 @@ import org.elasticsearch.rest.action.cat.RestRepositoriesAction;
 import org.elasticsearch.rest.action.cat.RestSegmentsAction;
 import org.elasticsearch.rest.action.cat.RestShardsAction;
 import org.elasticsearch.rest.action.cat.RestSnapshotAction;
+import org.elasticsearch.rest.action.cat.RestTasksAction;
 import org.elasticsearch.rest.action.cat.RestThreadPoolAction;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
 import org.elasticsearch.rest.action.explain.RestExplainAction;
@@ -127,17 +139,17 @@ import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.elasticsearch.rest.action.main.RestMainAction;
 import org.elasticsearch.rest.action.percolate.RestMultiPercolateAction;
 import org.elasticsearch.rest.action.percolate.RestPercolateAction;
-import org.elasticsearch.rest.action.script.RestDeleteIndexedScriptAction;
-import org.elasticsearch.rest.action.script.RestGetIndexedScriptAction;
-import org.elasticsearch.rest.action.script.RestPutIndexedScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestDeleteStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestGetStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.rest.action.suggest.RestSuggestAction;
-import org.elasticsearch.rest.action.template.RestDeleteSearchTemplateAction;
-import org.elasticsearch.rest.action.template.RestGetSearchTemplateAction;
-import org.elasticsearch.rest.action.template.RestPutSearchTemplateAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestDeleteSearchTemplateAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestGetSearchTemplateAction;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutSearchTemplateAction;
 import org.elasticsearch.rest.action.termvectors.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
@@ -171,6 +183,7 @@ public class NetworkModule extends AbstractModule {
         RestNodesInfoAction.class,
         RestNodesStatsAction.class,
         RestNodesHotThreadsAction.class,
+        RestClusterAllocationExplainAction.class,
         RestClusterStatsAction.class,
         RestClusterStateAction.class,
         RestClusterHealthAction.class,
@@ -200,7 +213,6 @@ public class NetworkModule extends AbstractModule {
         RestIndexDeleteAliasesAction.class,
         RestIndexPutAliasAction.class,
         RestIndicesAliasesAction.class,
-        RestGetIndicesAliasesAction.class,
         RestCreateIndexAction.class,
         RestDeleteIndexAction.class,
         RestCloseIndexAction.class,
@@ -259,9 +271,9 @@ public class NetworkModule extends AbstractModule {
         RestDeleteSearchTemplateAction.class,
 
         // Scripts API
-        RestGetIndexedScriptAction.class,
-        RestPutIndexedScriptAction.class,
-        RestDeleteIndexedScriptAction.class,
+        RestGetStoredScriptAction.class,
+        RestPutStoredScriptAction.class,
+        RestDeleteStoredScriptAction.class,
 
         RestFieldStatsAction.class,
 
@@ -284,6 +296,7 @@ public class NetworkModule extends AbstractModule {
         RestShardsAction.class,
         RestMasterAction.class,
         RestNodesAction.class,
+        RestTasksAction.class,
         RestIndicesAction.class,
         RestSegmentsAction.class,
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
@@ -305,6 +318,7 @@ public class NetworkModule extends AbstractModule {
     private final Settings settings;
     private final boolean transportClient;
 
+    private final AllocationCommandRegistry allocationCommandRegistry = new AllocationCommandRegistry();
     private final ExtensionPoint.SelectedType<TransportService> transportServiceTypes = new ExtensionPoint.SelectedType<>("transport_service", TransportService.class);
     private final ExtensionPoint.SelectedType<Transport> transportTypes = new ExtensionPoint.SelectedType<>("transport", Transport.class);
     private final ExtensionPoint.SelectedType<HttpServerTransport> httpTransportTypes = new ExtensionPoint.SelectedType<>("http_transport", HttpServerTransport.class);
@@ -330,6 +344,7 @@ public class NetworkModule extends AbstractModule {
         registerTransport(LOCAL_TRANSPORT, LocalTransport.class);
         registerTransport(NETTY_TRANSPORT, NettyTransport.class);
         registerTaskStatus(ReplicationTask.Status.NAME, ReplicationTask.Status::new);
+        registerBuiltinAllocationCommands();
 
         if (transportClient == false) {
             registerHttpTransport(NETTY_TRANSPORT, NettyHttpServerTransport.class);
@@ -379,13 +394,36 @@ public class NetworkModule extends AbstractModule {
         namedWriteableRegistry.register(Task.Status.class, name, reader);
     }
 
+    /**
+     * Register an allocation command.
+     * <p>
+     * This lives here instead of the more aptly named ClusterModule because the Transport client needs these to be registered.
+     * </p>
+     * @param reader the reader to read it from a stream
+     * @param parser the parser to read it from XContent
+     * @param commandName the names under which the command should be parsed. The {@link ParseField#getPreferredName()} is special because
+     *        it is the name under which the command's reader is registered.
+     */
+    public <T extends AllocationCommand> void registerAllocationCommand(Writeable.Reader<T> reader, AllocationCommand.Parser<T> parser,
+            ParseField commandName) {
+        allocationCommandRegistry.register(parser, commandName);
+        namedWriteableRegistry.register(AllocationCommand.class, commandName.getPreferredName(), reader);
+    }
+
+    /**
+     * The registry of allocation command parsers.
+     */
+    public AllocationCommandRegistry getAllocationCommandRegistry() {
+        return allocationCommandRegistry;
+    }
+
     @Override
     protected void configure() {
         bind(NetworkService.class).toInstance(networkService);
         bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
 
         transportServiceTypes.bindType(binder(), settings, TRANSPORT_SERVICE_TYPE_KEY, NETTY_TRANSPORT);
-        String defaultTransport = DiscoveryNode.localNode(settings) ? LOCAL_TRANSPORT : NETTY_TRANSPORT;
+        String defaultTransport = DiscoveryNode.isLocalNode(settings) ? LOCAL_TRANSPORT : NETTY_TRANSPORT;
         transportTypes.bindType(binder(), settings, TRANSPORT_TYPE_KEY, defaultTransport);
 
         if (transportClient) {
@@ -399,6 +437,22 @@ public class NetworkModule extends AbstractModule {
             bind(RestController.class).asEagerSingleton();
             catHandlers.bind(binder());
             restHandlers.bind(binder());
+            // Bind the AllocationCommandRegistry so RestClusterRerouteAction can get it.
+            bind(AllocationCommandRegistry.class).toInstance(allocationCommandRegistry);
         }
+    }
+
+    private void registerBuiltinAllocationCommands() {
+        registerAllocationCommand(CancelAllocationCommand::new, CancelAllocationCommand::fromXContent,
+                CancelAllocationCommand.COMMAND_NAME_FIELD);
+        registerAllocationCommand(MoveAllocationCommand::new, MoveAllocationCommand::fromXContent,
+                MoveAllocationCommand.COMMAND_NAME_FIELD);
+        registerAllocationCommand(AllocateReplicaAllocationCommand::new, AllocateReplicaAllocationCommand::fromXContent,
+                AllocateReplicaAllocationCommand.COMMAND_NAME_FIELD);
+        registerAllocationCommand(AllocateEmptyPrimaryAllocationCommand::new, AllocateEmptyPrimaryAllocationCommand::fromXContent,
+                AllocateEmptyPrimaryAllocationCommand.COMMAND_NAME_FIELD);
+        registerAllocationCommand(AllocateStalePrimaryAllocationCommand::new, AllocateStalePrimaryAllocationCommand::fromXContent,
+                AllocateStalePrimaryAllocationCommand.COMMAND_NAME_FIELD);
+
     }
 }

@@ -22,15 +22,16 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermContext;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,12 +40,12 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  *
@@ -69,20 +70,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, TypeFieldMapper> {
-
-        public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
-            indexName = Defaults.NAME;
-        }
-
-        @Override
-        public TypeFieldMapper build(BuilderContext context) {
-            fieldType.setName(buildFullName(context));
-            return new TypeFieldMapper(fieldType, context.indexSettings());
         }
     }
 
@@ -118,25 +105,55 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public String value(Object value) {
-            if (value == null) {
-                return null;
-            }
-            return value.toString();
-        }
-
-        @Override
-        public boolean useTermQueryWithQueryString() {
-            return true;
-        }
-
-        @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
             if (indexOptions() == IndexOptions.NONE) {
-                return new ConstantScoreQuery(new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.typePrefixAsBytes(BytesRefs.toBytesRef(value)))));
+                throw new AssertionError();
             }
-            return new ConstantScoreQuery(new TermQuery(createTerm(value)));
+            return new TypeQuery(indexedValueForSearch(value));
         }
+    }
+
+    public static class TypeQuery extends Query {
+
+        private final BytesRef type;
+
+        public TypeQuery(BytesRef type) {
+            this.type = Objects.requireNonNull(type);
+        }
+
+        @Override
+        public Query rewrite(IndexReader reader) throws IOException {
+            Term term = new Term(CONTENT_TYPE, type);
+            TermContext context = TermContext.build(reader.getContext(), term);
+            if (context.docFreq() == reader.maxDoc()) {
+                // All docs have the same type.
+                // Using a match_all query will help Lucene perform some optimizations
+                // For instance, match_all queries as filter clauses are automatically removed
+                return new MatchAllDocsQuery();
+            } else {
+                return new ConstantScoreQuery(new TermQuery(term, context));
+            }
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (super.equals(obj) == false) {
+                return false;
+            }
+            TypeQuery that = (TypeQuery) obj;
+            return type.equals(that.type);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * super.hashCode() + type.hashCode();
+        }
+
+        @Override
+        public String toString(String field) {
+            return "_type:" + type;
+        }
+
     }
 
     private TypeFieldMapper(Settings indexSettings, MappedFieldType existing) {
@@ -177,9 +194,9 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
             return;
         }
-        fields.add(new Field(fieldType().name(), context.type(), fieldType()));
+        fields.add(new Field(fieldType().name(), context.sourceToParse().type(), fieldType()));
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(context.type())));
+            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(context.sourceToParse().type())));
         }
     }
 

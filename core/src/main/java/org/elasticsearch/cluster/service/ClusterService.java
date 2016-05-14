@@ -158,8 +158,8 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
     }
 
     synchronized public void setLocalNode(DiscoveryNode localNode) {
-        assert clusterState.nodes().localNodeId() == null : "local node is already set";
-        DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.nodes()).put(localNode).localNodeId(localNode.id());
+        assert clusterState.nodes().getLocalNodeId() == null : "local node is already set";
+        DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.nodes()).put(localNode).localNodeId(localNode.getId());
         this.clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).build();
     }
 
@@ -198,7 +198,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
     @Override
     synchronized protected void doStart() {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
-        Objects.requireNonNull(clusterState.nodes().localNode(), "please set the local node before starting");
+        Objects.requireNonNull(clusterState.nodes().getLocalNode(), "please set the local node before starting");
         Objects.requireNonNull(nodeConnectionsService, "please set the node connection service before starting");
         add(localNodeMasterListeners);
         this.clusterState = ClusterState.builder(clusterState).blocks(initialBlocks).build();
@@ -210,6 +210,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
     @Override
     synchronized protected void doStop() {
         for (NotifyTimeout onGoingTimeout : onGoingTimeouts) {
+            onGoingTimeout.cancel();
             try {
                 onGoingTimeout.cancel();
                 onGoingTimeout.listener.onClose();
@@ -218,6 +219,12 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
             }
         }
         ThreadPool.terminate(updateTasksExecutor, 10, TimeUnit.SECONDS);
+        // close timeout listeners that did not have an ongoing timeout
+        postAppliedListeners
+                .stream()
+                .filter(listener -> listener instanceof TimeoutClusterStateListener)
+                .map(listener -> (TimeoutClusterStateListener)listener)
+                .forEach(TimeoutClusterStateListener::onClose);
         remove(localNodeMasterListeners);
     }
 
@@ -229,7 +236,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
      * The local node.
      */
     public DiscoveryNode localNode() {
-        return clusterState.getNodes().localNode();
+        return clusterState.getNodes().getLocalNode();
     }
 
     public OperationRouting operationRouting() {
@@ -494,7 +501,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
         }
         logger.debug("processing [{}]: execute", source);
         ClusterState previousClusterState = clusterState;
-        if (!previousClusterState.nodes().localNodeMaster() && executor.runOnlyOnMaster()) {
+        if (!previousClusterState.nodes().isLocalNodeElectedMaster() && executor.runOnlyOnMaster()) {
             logger.debug("failing [{}]: local node is no longer master", source);
             toExecute.stream().forEach(task -> task.listener.onNoLongerMaster(task.source));
             return;
@@ -561,7 +568,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
 
         try {
             ArrayList<Discovery.AckListener> ackListeners = new ArrayList<>();
-            if (newClusterState.nodes().localNodeMaster()) {
+            if (newClusterState.nodes().isLocalNodeElectedMaster()) {
                 // only the master controls the version numbers
                 Builder builder = ClusterState.builder(newClusterState).incrementVersion();
                 if (previousClusterState.routingTable() != newClusterState.routingTable()) {
@@ -617,7 +624,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
             // if we are the master, publish the new state to all nodes
             // we publish here before we send a notification to all the listeners, since if it fails
             // we don't want to notify
-            if (newClusterState.nodes().localNodeMaster()) {
+            if (newClusterState.nodes().isLocalNodeElectedMaster()) {
                 logger.debug("publishing cluster state version [{}]", newClusterState.version());
                 try {
                     clusterStatePublisher.accept(clusterChangedEvent, ackListener);
@@ -663,11 +670,11 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
             }
 
             //manual ack only from the master at the end of the publish
-            if (newClusterState.nodes().localNodeMaster()) {
+            if (newClusterState.nodes().isLocalNodeElectedMaster()) {
                 try {
-                    ackListener.onNodeAck(newClusterState.nodes().localNode(), null);
+                    ackListener.onNodeAck(newClusterState.nodes().getLocalNode(), null);
                 } catch (Throwable t) {
-                    logger.debug("error while processing ack for master node [{}]", t, newClusterState.nodes().localNode());
+                    logger.debug("error while processing ack for master node [{}]", t, newClusterState.nodes().getLocalNode());
                 }
             }
 
@@ -975,7 +982,7 @@ public class ClusterService extends AbstractLifecycleComponent<ClusterService> {
         public void onNodeAck(DiscoveryNode node, @Nullable Throwable t) {
             if (!ackedTaskListener.mustAck(node)) {
                 //we always wait for the master ack anyway
-                if (!node.equals(nodes.masterNode())) {
+                if (!node.equals(nodes.getMasterNode())) {
                     return;
                 }
             }

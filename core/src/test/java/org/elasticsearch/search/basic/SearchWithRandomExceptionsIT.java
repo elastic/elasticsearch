@@ -48,7 +48,6 @@ import java.util.Collection;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
@@ -90,7 +89,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
             lowLevelRate = 0d;
         }
 
-        Builder settings = settingsBuilder()
+        Builder settings = Settings.builder()
                 .put(indexSettings())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)

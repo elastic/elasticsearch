@@ -19,11 +19,16 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -33,10 +38,10 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorBuilder> {
+    public static final String NAME = InternalFilter.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
-    static final FilterAggregatorBuilder PROTOTYPE = new FilterAggregatorBuilder("", EmptyQueryBuilder.PROTOTYPE);
-
-    private final QueryBuilder<?> filter;
+    private final QueryBuilder filter;
 
     /**
      * @param name
@@ -46,12 +51,29 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
      *            filter will fall into the bucket defined by this
      *            {@link Filter} aggregation.
      */
-    public FilterAggregatorBuilder(String name, QueryBuilder<?> filter) {
+    public FilterAggregatorBuilder(String name, QueryBuilder filter) {
         super(name, InternalFilter.TYPE);
         if (filter == null) {
             throw new IllegalArgumentException("[filter] must not be null: [" + name + "]");
         }
-        this.filter = filter;
+        if (filter instanceof EmptyQueryBuilder) {
+            this.filter = new MatchAllQueryBuilder();
+        } else {
+            this.filter = filter;
+        }
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public FilterAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalFilter.TYPE);
+        filter = in.readNamedWriteable(QueryBuilder.class);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(filter);
     }
 
     @Override
@@ -68,16 +90,17 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
         return builder;
     }
 
-    @Override
-    protected FilterAggregatorBuilder doReadFrom(String name, StreamInput in) throws IOException {
-        FilterAggregatorBuilder factory = new FilterAggregatorBuilder(name, in.readQuery());
-        return factory;
+    public static FilterAggregatorBuilder parse(String aggregationName, QueryParseContext context)
+            throws IOException {
+        QueryBuilder filter = context.parseInnerQueryBuilder();
+
+        if (filter == null) {
+            throw new ParsingException(null, "filter cannot be null in filter aggregation [{}]", aggregationName);
+        }
+
+        return new FilterAggregatorBuilder(aggregationName, filter);
     }
 
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(filter);
-    }
 
     @Override
     protected int doHashCode() {
@@ -90,4 +113,8 @@ public class FilterAggregatorBuilder extends AggregatorBuilder<FilterAggregatorB
         return Objects.equals(filter, other.filter);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

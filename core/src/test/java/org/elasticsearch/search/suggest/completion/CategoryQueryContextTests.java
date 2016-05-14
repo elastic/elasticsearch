@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.suggest.completion;
 
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 
 import java.io.IOException;
@@ -39,8 +40,8 @@ public class CategoryQueryContextTests extends QueryContextTestCase<CategoryQuer
     }
 
     @Override
-    protected CategoryQueryContext prototype() {
-        return CategoryQueryContext.PROTOTYPE;
+    protected CategoryQueryContext fromXContent(QueryParseContext context) throws IOException {
+        return CategoryQueryContext.fromXContent(context);
     }
 
     public void testNullCategoryIsIllegal() {

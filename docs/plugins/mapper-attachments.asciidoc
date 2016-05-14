@@ -51,7 +51,7 @@ POST /trying-out-mapper-attachments
         "cv": { "type": "attachment" }
 }}}}
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 Index a new document populated with a `base64`-encoded attachment:
 
@@ -62,7 +62,7 @@ POST /trying-out-mapper-attachments/person/1
   "cv": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 Search for the document using words in the attachment:
 
@@ -75,7 +75,7 @@ POST /trying-out-mapper-attachments/person/_search
       "query": "ipsum"
 }}}
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 If you get a hit for your indexed document, the plugin should be installed and working.
 
@@ -96,7 +96,7 @@ PUT /test/person/_mapping
     }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 In this case, the JSON to index can be:
 
@@ -107,7 +107,7 @@ PUT /test/person/1
     "my_attachment" : "... base64 encoded attachment ..."
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 Or it is possible to use more elaborated JSON if content type, resource name or language need to be set explicitly:
 
@@ -123,7 +123,7 @@ PUT /test/person/1
     }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 The `attachment` type not only indexes the content of the doc in `content` sub field, but also automatically adds meta
 data on the attachment as well (when available).
@@ -141,7 +141,7 @@ The metadata supported are:
 
 They can be queried using the "dot notation", for example: `my_attachment.author`.
 
-Both the meta data and the actual content are simple core type mappers (string, date, …), thus, they can be controlled
+Both the meta data and the actual content are simple core type mappers (text, date, …), thus, they can be controlled
 in the mappings. For example:
 
 [source,js]
@@ -167,11 +167,11 @@ PUT /test/person/_mapping
     }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 In the above example, the actual content indexed is mapped under `fields` name `content`, and we decide not to index it, so
 it will only be available in the `_all` field. The other fields map to their respective metadata names, but there is no
-need to specify the `type` (like `string` or `date`) since it is already known.
+need to specify the `type` (like `text` or `date`) since it is already known.
 
 [[mapper-attachments-copy-to]]
 ==== Copy To feature
@@ -189,19 +189,19 @@ PUT /test/person/_mapping
         "type": "attachment",
         "fields": {
           "content": {
-            "type": "string",
+            "type": "text",
             "copy_to": "copy"
           }
         }
       },
       "copy": {
-        "type": "string"
+        "type": "text"
       }
     }
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 In this example, the extracted content will be copy as well to `copy` field.
 
@@ -222,7 +222,7 @@ PUT /test/person/_mapping
         "type": "attachment",
         "fields": {
           "content_type": {
-            "type": "string",
+            "type": "text",
             "store": true
           }
         }
@@ -244,7 +244,7 @@ GET /test/person/_search
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 Will give you:
 
@@ -296,7 +296,7 @@ PUT /test/person/1
     }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 [[mapper-attachments-error-handling]]
 ==== Metadata parsing error handling
@@ -343,7 +343,7 @@ PUT /test/person/_mapping
         "type": "attachment",
         "fields": {
           "content": {
-            "type": "string",
+            "type": "text",
             "term_vector":"with_positions_offsets",
             "store": true
           }
@@ -372,7 +372,7 @@ GET /test/person/_search
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 It gives back:
 

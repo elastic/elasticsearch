@@ -176,19 +176,12 @@ public class CustomBoostMappingTests extends ESSingleNodeTestCase {
             assertThat(doc.rootDoc().getField("s_field").boost(), equalTo(1f));
             assertThat(doc.rootDoc().getField("s_field").fieldType().omitNorms(), equalTo(true));
             assertThat(doc.rootDoc().getField("l_field").boost(), equalTo(1f));
-            assertThat(doc.rootDoc().getField("l_field").fieldType().omitNorms(), equalTo(true));
             assertThat(doc.rootDoc().getField("i_field").boost(), equalTo(1f));
-            assertThat(doc.rootDoc().getField("i_field").fieldType().omitNorms(), equalTo(true));
             assertThat(doc.rootDoc().getField("sh_field").boost(), equalTo(1f));
-            assertThat(doc.rootDoc().getField("sh_field").fieldType().omitNorms(), equalTo(true));
             assertThat(doc.rootDoc().getField("b_field").boost(), equalTo(1f));
-            assertThat(doc.rootDoc().getField("b_field").fieldType().omitNorms(), equalTo(true));
             assertThat(doc.rootDoc().getField("d_field").boost(), equalTo(1f));
-            assertThat(doc.rootDoc().getField("d_field").fieldType().omitNorms(), equalTo(true));
             assertThat(doc.rootDoc().getField("f_field").boost(), equalTo(1f));
-            assertThat(doc.rootDoc().getField("f_field").fieldType().omitNorms(), equalTo(true));
             assertThat(doc.rootDoc().getField("date_field").boost(), equalTo(1f));
-            assertThat(doc.rootDoc().getField("date_field").fieldType().omitNorms(), equalTo(true));
         }
     }
 }

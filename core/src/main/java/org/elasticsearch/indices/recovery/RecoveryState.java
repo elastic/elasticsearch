@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -270,9 +269,9 @@ public class RecoveryState implements ToXContent, Streamable {
         stage = Stage.fromId(in.readByte());
         shardId = ShardId.readShardId(in);
         restoreSource = RestoreSource.readOptionalRestoreSource(in);
-        targetNode = DiscoveryNode.readNode(in);
+        targetNode = new DiscoveryNode(in);
         if (in.readBoolean()) {
-            sourceNode = DiscoveryNode.readNode(in);
+            sourceNode = new DiscoveryNode(in);
         }
         index.readFrom(in);
         translog.readFrom(in);
@@ -316,20 +315,20 @@ public class RecoveryState implements ToXContent, Streamable {
             restoreSource.toXContent(builder, params);
         } else {
             builder.startObject(Fields.SOURCE);
-            builder.field(Fields.ID, sourceNode.id());
+            builder.field(Fields.ID, sourceNode.getId());
             builder.field(Fields.HOST, sourceNode.getHostName());
-            builder.field(Fields.TRANSPORT_ADDRESS, sourceNode.address().toString());
+            builder.field(Fields.TRANSPORT_ADDRESS, sourceNode.getAddress().toString());
             builder.field(Fields.IP, sourceNode.getHostAddress());
-            builder.field(Fields.NAME, sourceNode.name());
+            builder.field(Fields.NAME, sourceNode.getName());
             builder.endObject();
         }
 
         builder.startObject(Fields.TARGET);
-        builder.field(Fields.ID, targetNode.id());
+        builder.field(Fields.ID, targetNode.getId());
         builder.field(Fields.HOST, targetNode.getHostName());
-        builder.field(Fields.TRANSPORT_ADDRESS, targetNode.address().toString());
+        builder.field(Fields.TRANSPORT_ADDRESS, targetNode.getAddress().toString());
         builder.field(Fields.IP, targetNode.getHostAddress());
-        builder.field(Fields.NAME, targetNode.name());
+        builder.field(Fields.NAME, targetNode.getName());
         builder.endObject();
 
         builder.startObject(Fields.INDEX);
@@ -348,44 +347,44 @@ public class RecoveryState implements ToXContent, Streamable {
     }
 
     static final class Fields {
-        static final XContentBuilderString ID = new XContentBuilderString("id");
-        static final XContentBuilderString TYPE = new XContentBuilderString("type");
-        static final XContentBuilderString STAGE = new XContentBuilderString("stage");
-        static final XContentBuilderString PRIMARY = new XContentBuilderString("primary");
-        static final XContentBuilderString START_TIME = new XContentBuilderString("start_time");
-        static final XContentBuilderString START_TIME_IN_MILLIS = new XContentBuilderString("start_time_in_millis");
-        static final XContentBuilderString STOP_TIME = new XContentBuilderString("stop_time");
-        static final XContentBuilderString STOP_TIME_IN_MILLIS = new XContentBuilderString("stop_time_in_millis");
-        static final XContentBuilderString TOTAL_TIME = new XContentBuilderString("total_time");
-        static final XContentBuilderString TOTAL_TIME_IN_MILLIS = new XContentBuilderString("total_time_in_millis");
-        static final XContentBuilderString SOURCE = new XContentBuilderString("source");
-        static final XContentBuilderString HOST = new XContentBuilderString("host");
-        static final XContentBuilderString TRANSPORT_ADDRESS = new XContentBuilderString("transport_address");
-        static final XContentBuilderString IP = new XContentBuilderString("ip");
-        static final XContentBuilderString NAME = new XContentBuilderString("name");
-        static final XContentBuilderString TARGET = new XContentBuilderString("target");
-        static final XContentBuilderString INDEX = new XContentBuilderString("index");
-        static final XContentBuilderString TRANSLOG = new XContentBuilderString("translog");
-        static final XContentBuilderString TOTAL_ON_START = new XContentBuilderString("total_on_start");
-        static final XContentBuilderString VERIFY_INDEX = new XContentBuilderString("verify_index");
-        static final XContentBuilderString RECOVERED = new XContentBuilderString("recovered");
-        static final XContentBuilderString RECOVERED_IN_BYTES = new XContentBuilderString("recovered_in_bytes");
-        static final XContentBuilderString CHECK_INDEX_TIME = new XContentBuilderString("check_index_time");
-        static final XContentBuilderString CHECK_INDEX_TIME_IN_MILLIS = new XContentBuilderString("check_index_time_in_millis");
-        static final XContentBuilderString LENGTH = new XContentBuilderString("length");
-        static final XContentBuilderString LENGTH_IN_BYTES = new XContentBuilderString("length_in_bytes");
-        static final XContentBuilderString FILES = new XContentBuilderString("files");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
-        static final XContentBuilderString REUSED = new XContentBuilderString("reused");
-        static final XContentBuilderString REUSED_IN_BYTES = new XContentBuilderString("reused_in_bytes");
-        static final XContentBuilderString PERCENT = new XContentBuilderString("percent");
-        static final XContentBuilderString DETAILS = new XContentBuilderString("details");
-        static final XContentBuilderString SIZE = new XContentBuilderString("size");
-        static final XContentBuilderString SOURCE_THROTTLE_TIME = new XContentBuilderString("source_throttle_time");
-        static final XContentBuilderString SOURCE_THROTTLE_TIME_IN_MILLIS = new XContentBuilderString("source_throttle_time_in_millis");
-        static final XContentBuilderString TARGET_THROTTLE_TIME = new XContentBuilderString("target_throttle_time");
-        static final XContentBuilderString TARGET_THROTTLE_TIME_IN_MILLIS = new XContentBuilderString("target_throttle_time_in_millis");
+        static final String ID = "id";
+        static final String TYPE = "type";
+        static final String STAGE = "stage";
+        static final String PRIMARY = "primary";
+        static final String START_TIME = "start_time";
+        static final String START_TIME_IN_MILLIS = "start_time_in_millis";
+        static final String STOP_TIME = "stop_time";
+        static final String STOP_TIME_IN_MILLIS = "stop_time_in_millis";
+        static final String TOTAL_TIME = "total_time";
+        static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
+        static final String SOURCE = "source";
+        static final String HOST = "host";
+        static final String TRANSPORT_ADDRESS = "transport_address";
+        static final String IP = "ip";
+        static final String NAME = "name";
+        static final String TARGET = "target";
+        static final String INDEX = "index";
+        static final String TRANSLOG = "translog";
+        static final String TOTAL_ON_START = "total_on_start";
+        static final String VERIFY_INDEX = "verify_index";
+        static final String RECOVERED = "recovered";
+        static final String RECOVERED_IN_BYTES = "recovered_in_bytes";
+        static final String CHECK_INDEX_TIME = "check_index_time";
+        static final String CHECK_INDEX_TIME_IN_MILLIS = "check_index_time_in_millis";
+        static final String LENGTH = "length";
+        static final String LENGTH_IN_BYTES = "length_in_bytes";
+        static final String FILES = "files";
+        static final String TOTAL = "total";
+        static final String TOTAL_IN_BYTES = "total_in_bytes";
+        static final String REUSED = "reused";
+        static final String REUSED_IN_BYTES = "reused_in_bytes";
+        static final String PERCENT = "percent";
+        static final String DETAILS = "details";
+        static final String SIZE = "size";
+        static final String SOURCE_THROTTLE_TIME = "source_throttle_time";
+        static final String SOURCE_THROTTLE_TIME_IN_MILLIS = "source_throttle_time_in_millis";
+        static final String TARGET_THROTTLE_TIME = "target_throttle_time";
+        static final String TARGET_THROTTLE_TIME_IN_MILLIS = "target_throttle_time_in_millis";
     }
 
     public static class Timer implements Streamable {

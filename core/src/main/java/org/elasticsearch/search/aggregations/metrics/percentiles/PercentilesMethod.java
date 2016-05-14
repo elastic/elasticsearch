@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * An enum representing the methods for calculating percentiles
  */
-public enum PercentilesMethod implements Writeable<PercentilesMethod> {
+public enum PercentilesMethod implements Writeable {
     /**
      * The TDigest method for calculating percentiles
      */
@@ -51,8 +51,7 @@ public enum PercentilesMethod implements Writeable<PercentilesMethod> {
         return name;
     }
 
-    @Override
-    public PercentilesMethod readFrom(StreamInput in) throws IOException {
+    public static PercentilesMethod readFromStream(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
             throw new IOException("Unknown PercentilesMethod ordinal [" + ordinal + "]");

@@ -1,5 +1,5 @@
 Elasticsearch
-Copyright 2009-2015 Elasticsearch
+Copyright 2009-2016 Elasticsearch
 
 This product includes software developed by The Apache Software
 Foundation (http://www.apache.org/).

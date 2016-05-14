@@ -19,6 +19,8 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -26,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,7 +48,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class NativeScriptTests extends ESTestCase {
     public void testNativeScript() throws InterruptedException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("node.name", "testNativeScript")
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
@@ -61,14 +64,15 @@ public class NativeScriptTests extends ESTestCase {
 
         ScriptService scriptService = injector.getInstance(ScriptService.class);
 
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
         ExecutableScript executable = scriptService.executable(new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null),
-                ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                ScriptContext.Standard.SEARCH, Collections.emptyMap(), state);
         assertThat(executable.run().toString(), equalTo("test"));
         terminate(injector.getInstance(ThreadPool.class));
     }
 
     public void testFineGrainedSettingsDontAffectNativeScripts() throws IOException {
-        Settings.Builder builder = Settings.settingsBuilder();
+        Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
             ScriptType scriptType = randomFrom(ScriptType.values());
             builder.put("script" + "." + scriptType.getScriptType(), randomFrom(ScriptMode.values()));
@@ -82,14 +86,14 @@ public class NativeScriptTests extends ESTestCase {
         Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
         nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
         Set<ScriptEngineService> scriptEngineServices = singleton(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.TYPES)));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.NAME, ScriptMode.ON)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(new ArrayList<>());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             assertThat(scriptService.compile(new Script("my", ScriptType.INLINE, NativeScriptEngineService.NAME, null), scriptContext,
-                    Collections.emptyMap()), notNullValue());
+                    Collections.emptyMap(), null), notNullValue());
         }
     }
 

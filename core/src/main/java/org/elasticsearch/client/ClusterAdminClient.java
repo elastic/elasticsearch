@@ -21,6 +21,9 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -81,6 +84,15 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequestBuilder;
+import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequestBuilder;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequestBuilder;
+import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
@@ -98,6 +110,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 
 /**
@@ -572,4 +585,74 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Simulates an ingest pipeline
      */
     SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source);
+
+    /**
+     * Explain the allocation of a shard
+     */
+    void allocationExplain(ClusterAllocationExplainRequest request, ActionListener<ClusterAllocationExplainResponse> listener);
+
+    /**
+     * Explain the allocation of a shard
+     */
+    ActionFuture<ClusterAllocationExplainResponse> allocationExplain(ClusterAllocationExplainRequest request);
+
+    /**
+     * Explain the allocation of a shard
+     */
+    ClusterAllocationExplainRequestBuilder prepareAllocationExplain();
+
+    /**
+     * Store a script in the cluster state
+     */
+    PutStoredScriptRequestBuilder preparePutStoredScript();
+
+    /**
+     * Delete a script from the cluster state
+     */
+    void deleteStoredScript(DeleteStoredScriptRequest request, ActionListener<DeleteStoredScriptResponse> listener);
+
+    /**
+     * Delete a script from the cluster state
+     */
+    ActionFuture<DeleteStoredScriptResponse> deleteStoredScript(DeleteStoredScriptRequest request);
+
+    /**
+     * Delete a script from the cluster state
+     */
+    DeleteStoredScriptRequestBuilder prepareDeleteStoredScript();
+
+    /**
+     * Delete a script from the cluster state
+     */
+    DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(String scriptLang, String id);
+
+    /**
+     * Store a script in the cluster state
+     */
+    void putStoredScript(PutStoredScriptRequest request, ActionListener<PutStoredScriptResponse> listener);
+
+    /**
+     * Store a script in the cluster state
+     */
+    ActionFuture<PutStoredScriptResponse> putStoredScript(PutStoredScriptRequest request);
+
+    /**
+     * Get a script from the cluster state
+     */
+    GetStoredScriptRequestBuilder prepareGetStoredScript();
+
+    /**
+     * Get a script from the cluster state
+     */
+    GetStoredScriptRequestBuilder prepareGetStoredScript(@Nullable String scriptLang, String id);
+
+    /**
+     * Get a script from the cluster state
+     */
+    void getStoredScript(GetStoredScriptRequest request, ActionListener<GetStoredScriptResponse> listener);
+
+    /**
+     * Get a script from the cluster state
+     */
+    ActionFuture<GetStoredScriptResponse> getStoredScript(GetStoredScriptRequest request);
 }

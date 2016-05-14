@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -70,7 +71,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * 1   2   3   4   5   6   7
          */
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(3, 2), new GeoPoint(4, 1)};
@@ -136,7 +137,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * d2 = (0, 1), (0, 5), (0, 6); so avg. distance is 4, median distance is 5
          */
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(0, 1), new GeoPoint(0, 4), new GeoPoint(0, 10)};
@@ -198,7 +199,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * 1   2   3   4   5   6
          */
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(2.5, 1), new GeoPoint(2.75, 2), new GeoPoint(3, 3), new GeoPoint(3.25, 4)};
@@ -314,7 +315,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
                 .setSource(
                         new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, 2.0, 2.0)
                                 .unit(DistanceUnit.KILOMETERS).geoDistance(GeoDistance.PLANE)
-                                .ignoreMalformed(true).coerce(true))).execute().actionGet();
+                                .validation(GeoValidationMethod.COERCE))).execute().actionGet();
         checkCorrectSortOrderForGeoSort(searchResponse);
     }
 
@@ -333,7 +334,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
     public void testCrossIndexIgnoreUnmapped() throws Exception {
         assertAcked(prepareCreate("test1").addMapping(
-                "type", "str_field1", "type=keyword",
+                "type", "str_field", "type=keyword",
                 "long_field", "type=long",
                 "double_field", "type=double").get());
         assertAcked(prepareCreate("test2").get());
@@ -349,7 +350,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
                 .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("keyword")).get();
 
         assertSortValues(resp,
-                new Object[] {new Text("bcd"), null},
+                new Object[] {"bcd", null},
                 new Object[] {null, null});
 
         resp = client().prepareSearch("test1", "test2")

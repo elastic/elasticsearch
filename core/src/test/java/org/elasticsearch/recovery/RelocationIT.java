@@ -74,7 +74,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -101,10 +100,9 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> creating test index ...");
         client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.settingsBuilder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 0)
-                )
+                .setSettings(Settings.builder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0))
                 .execute().actionGet();
 
         logger.info("--> index 10 docs");
@@ -156,10 +154,9 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> creating test index ...");
         client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", numberOfReplicas)
-                ).execute().actionGet();
+                .setSettings(Settings.builder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", numberOfReplicas)).execute().actionGet();
 
 
         for (int i = 1; i < numberOfNodes; i++) {
@@ -264,7 +261,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> creating test index ...");
         client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", numberOfReplicas)
                         .put("index.refresh_interval", -1) // we want to control refreshes c

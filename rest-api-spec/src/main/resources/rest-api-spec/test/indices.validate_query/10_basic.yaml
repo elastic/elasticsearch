@@ -35,7 +35,7 @@ setup:
             invalid_query: {}
 
   - is_false: valid
-  - match: {error: 'org.elasticsearch.common.ParsingException: No query registered for [invalid_query]'}
+  - match: {error: 'org.elasticsearch.common.ParsingException: no [query] registered for [invalid_query]'}
 
   - do:
       indices.validate_query:

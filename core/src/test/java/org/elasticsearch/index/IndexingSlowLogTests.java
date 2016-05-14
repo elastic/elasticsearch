@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index;
 
-import org.apache.lucene.document.Field.Store;
-import org.apache.lucene.document.LegacyIntField;
-import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,8 +39,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class IndexingSlowLogTests extends ESTestCase {
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {
         BytesReference source = JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject().bytes();
-        ParsedDocument pd = new ParsedDocument(new StringField("uid", "test:id", Store.YES), new LegacyIntField("version", 1, Store.YES),
-                new LegacyIntField("seqNo", 1, Store.YES) , "id",
+        ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1), new NumericDocValuesField("seqNo", 1), "id",
                 "test", null, 0, -1, null, source, null);
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -64,7 +61,7 @@ public class IndexingSlowLogTests extends ESTestCase {
     }
 
     public void testReformatSetting() {
-        IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING.getKey(), false)
             .build());
@@ -80,7 +77,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
         assertTrue(log.isReformat());
 
-        metaData = newIndexMeta("index", Settings.settingsBuilder()
+        metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build());
         settings = new IndexSettings(metaData, Settings.EMPTY);
@@ -97,7 +94,7 @@ public class IndexingSlowLogTests extends ESTestCase {
 
     public void testLevelSetting() {
         SlowLogLevel level = randomFrom(SlowLogLevel.values());
-        IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), level)
             .build());
@@ -118,7 +115,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
 
-        metaData = newIndexMeta("index", Settings.settingsBuilder()
+        metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build());
         settings = new IndexSettings(metaData, Settings.EMPTY);
@@ -134,7 +131,7 @@ public class IndexingSlowLogTests extends ESTestCase {
     }
 
     public void testSetLevels() {
-        IndexMetaData metaData = newIndexMeta("index", Settings.settingsBuilder()
+        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING.getKey(), "100ms")
             .put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING.getKey(), "200ms")
@@ -159,7 +156,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertEquals(TimeValue.timeValueMillis(320).nanos(), log.getIndexInfoThreshold());
         assertEquals(TimeValue.timeValueMillis(420).nanos(), log.getIndexWarnThreshold());
 
-        metaData = newIndexMeta("index", Settings.settingsBuilder()
+        metaData = newIndexMeta("index", Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build());
         settings.updateIndexMetaData(metaData);
@@ -205,7 +202,7 @@ public class IndexingSlowLogTests extends ESTestCase {
     }
 
     private IndexMetaData newIndexMeta(String name, Settings indexSettings) {
-        Settings build = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+        Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(indexSettings)

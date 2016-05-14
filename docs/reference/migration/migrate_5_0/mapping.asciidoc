@@ -36,6 +36,46 @@ String mappings now have the following default mappings:
 This allows to perform full-text search on the original field name and to sort
 and run aggregations on the sub keyword field.
 
+==== Numeric fields
+
+Numeric fields are now indexed with a completely different data-structure, called
+BKD tree, that is expected to require less disk space and be faster for range
+queries than the previous way that numerics were indexed.
+
+Term queries will return constant scores now, while they used to return higher
+scores for rare terms due to the contribution of the document frequency, which
+this new BKD structure does not record. If scoring is needed, then it is advised
+to map the numeric fields as <<keyword,`keyword`s>> too.
+
+Note that this <<keyword,`keyword`>> mapping do not need to replace the numeric
+mapping. For instance if you need both sorting and scoring on your numeric field,
+you could map it both as a number and a `keyword` using <<multi-fields>>:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "my_number": {
+          "type": "long",
+          "fields": {
+            "keyword": {
+              "type":  "keyword"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+Also the `precision_step` parameter is now irrelevant and will be rejected on
+indices that are created on or after 5.0.
+
 ==== `index` property
 
 On all field datatypes (except for the deprecated `string` field), the `index`
@@ -67,7 +107,7 @@ Setting `fielddata.format: doc_values` in the mappings used to implicitly
 enable doc-values on a field. This no longer works: the only way to enable or
 disable doc-values is by using the `doc_values` property of mappings.
 
-==== `fielddata.frequency.regex`
+==== `fielddata.filter.regex`
 
 Regex filters are not supported anymore and will be dropped on upgrade.
 
@@ -79,7 +119,7 @@ The source `transform` feature has been removed. Instead, use an ingest pipeline
 
 The join between parent and child documents no longer relies on indexed fields
 and therefore from 5.0.0 onwards the `_parent` field is no longer indexed. In
-order to find documents that referrer to a specific parent id the new
+order to find documents that refer to a specific parent id, the new
 `parent_id` query can be used. The GET response and hits inside the search
 response still include the parent id under the `_parent` key.
 
@@ -109,4 +149,3 @@ Per-field boosts on the `_all` are now compressed into a single byte instead
 of the 4 bytes used previously. While this will make the index much more
 space-efficient, it also means that index time boosts will be less accurately
 encoded.
-

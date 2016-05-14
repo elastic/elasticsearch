@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -27,7 +28,6 @@ import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
@@ -55,7 +55,7 @@ public class SumBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     private SumBucketPipelineAggregator() {
     }
 
-    protected SumBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, ValueFormatter formatter,
+    protected SumBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat formatter,
             Map<String, Object> metaData) {
         super(name, bucketsPaths, gapPolicy, formatter, metaData);
     }
@@ -77,7 +77,7 @@ public class SumBucketPipelineAggregator extends BucketMetricsPipelineAggregator
 
     @Override
     protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
-        return new InternalSimpleValue(name(), sum, formatter, pipelineAggregators, metadata);
+        return new InternalSimpleValue(name(), sum, format, pipelineAggregators, metadata);
     }
 
 }

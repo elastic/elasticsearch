@@ -113,7 +113,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
 
-        if (DiscoveryNode.masterNode(settings)) {
+        if (DiscoveryNode.isMasterNode(settings)) {
             // addLast to make sure that Repository will be created before snapshot
             clusterService.addLast(this);
         }
@@ -126,7 +126,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @return snapshot
      * @throws SnapshotMissingException if snapshot is not found
      */
-    public Snapshot snapshot(SnapshotId snapshotId) {
+    public SnapshotInfo snapshot(SnapshotId snapshotId) {
         validate(snapshotId);
         List<SnapshotsInProgress.Entry> entries = currentSnapshots(snapshotId.getRepository(), new String[]{snapshotId.getSnapshot()});
         if (!entries.isEmpty()) {
@@ -141,8 +141,8 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @param repositoryName repository name
      * @return list of snapshots
      */
-    public List<Snapshot> snapshots(String repositoryName, boolean ignoreUnavailable) {
-        Set<Snapshot> snapshotSet = new HashSet<>();
+    public List<SnapshotInfo> snapshots(String repositoryName, boolean ignoreUnavailable) {
+        Set<SnapshotInfo> snapshotSet = new HashSet<>();
         List<SnapshotsInProgress.Entry> entries = currentSnapshots(repositoryName, null);
         for (SnapshotsInProgress.Entry entry : entries) {
             snapshotSet.add(inProgressSnapshot(entry));
@@ -161,7 +161,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
             }
         }
 
-        ArrayList<Snapshot> snapshotList = new ArrayList<>(snapshotSet);
+        ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotSet);
         CollectionUtil.timSort(snapshotList);
         return Collections.unmodifiableList(snapshotList);
     }
@@ -172,8 +172,8 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @param repositoryName repository name
      * @return list of snapshots
      */
-    public List<Snapshot> currentSnapshots(String repositoryName) {
-        List<Snapshot> snapshotList = new ArrayList<>();
+    public List<SnapshotInfo> currentSnapshots(String repositoryName) {
+        List<SnapshotInfo> snapshotList = new ArrayList<>();
         List<SnapshotsInProgress.Entry> entries = currentSnapshots(repositoryName, null);
         for (SnapshotsInProgress.Entry entry : entries) {
             snapshotList.add(inProgressSnapshot(entry));
@@ -408,8 +408,8 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         }
     }
 
-    private Snapshot inProgressSnapshot(SnapshotsInProgress.Entry entry) {
-        return new Snapshot(entry.snapshotId().getSnapshot(), entry.indices(), entry.startTime());
+    private SnapshotInfo inProgressSnapshot(SnapshotsInProgress.Entry entry) {
+        return new SnapshotInfo(entry.snapshotId().getSnapshot(), entry.indices(), entry.startTime());
     }
 
     /**
@@ -482,7 +482,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
         Repository repository = repositoriesService.repository(snapshotId.getRepository());
         IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(snapshotId.getRepository());
-        Snapshot snapshot = repository.readSnapshot(snapshotId);
+        SnapshotInfo snapshot = repository.readSnapshot(snapshotId);
         MetaData metaData = repository.readSnapshotMetaData(snapshotId, snapshot, snapshot.indices());
         for (String index : snapshot.indices()) {
             IndexMetaData indexMetaData = metaData.indices().get(index);
@@ -540,7 +540,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     private void processSnapshotsOnRemovedNodes(ClusterChangedEvent event) {
         if (removedNodesCleanupNeeded(event)) {
             // Check if we just became the master
-            final boolean newMaster = !event.previousState().nodes().localNodeMaster();
+            final boolean newMaster = !event.previousState().nodes().isLocalNodeElectedMaster();
             clusterService.submitStateUpdateTask("update snapshot state after node removal", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -719,7 +719,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
     private boolean removedNodesCleanupNeeded(ClusterChangedEvent event) {
         // Check if we just became the master
-        boolean newMaster = !event.previousState().nodes().localNodeMaster();
+        boolean newMaster = !event.previousState().nodes().isLocalNodeElectedMaster();
         SnapshotsInProgress snapshotsInProgress = event.state().custom(SnapshotsInProgress.TYPE);
         if (snapshotsInProgress == null) {
             return false;
@@ -800,8 +800,8 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                             shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
                         }
                     }
-                    Snapshot snapshot = repository.finalizeSnapshot(snapshotId, entry.indices(), entry.startTime(), failure, entry.shards().size(), Collections.unmodifiableList(shardFailures));
-                    removeSnapshotFromClusterState(snapshotId, new SnapshotInfo(snapshot), null);
+                    SnapshotInfo snapshot = repository.finalizeSnapshot(snapshotId, entry.indices(), entry.startTime(), failure, entry.shards().size(), Collections.unmodifiableList(shardFailures));
+                    removeSnapshotFromClusterState(snapshotId, snapshot, null);
                 } catch (Throwable t) {
                     logger.warn("[{}] failed to finalize snapshot", t, snapshotId);
                     removeSnapshotFromClusterState(snapshotId, null, t);

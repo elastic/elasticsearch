@@ -28,7 +28,7 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
     @Override
     protected void createTestRepository(String name) {
         assertAcked(client().admin().cluster().preparePutRepository(name)
-            .setType("fs").setSettings(Settings.settingsBuilder()
+            .setType("fs").setSettings(Settings.builder()
                 .put("location", randomRepoPath())
                 .put("compress", randomBoolean())
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));

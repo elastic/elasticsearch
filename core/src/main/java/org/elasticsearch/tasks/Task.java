@@ -44,10 +44,6 @@ public class Task {
 
     private final long startTimeNanos;
 
-    public Task(long id, String type, String action, String description) {
-        this(id, type, action, description, TaskId.EMPTY_TASK_ID);
-    }
-
     public Task(long id, String type, String action, String description, TaskId parentTask) {
         this(id, type, action, description, parentTask, System.currentTimeMillis(), System.nanoTime());
     }
@@ -80,7 +76,7 @@ public class Task {
             status = getStatus();
         }
         return new TaskInfo(node, getId(), getType(), getAction(), description, status, startTime, System.nanoTime() - startTimeNanos,
-            parentTask);
+            this instanceof CancellableTask, parentTask);
     }
 
     /**
@@ -135,5 +131,5 @@ public class Task {
         return null;
     }
 
-    public interface Status extends ToXContent, NamedWriteable<Status> {}
+    public interface Status extends ToXContent, NamedWriteable {}
 }

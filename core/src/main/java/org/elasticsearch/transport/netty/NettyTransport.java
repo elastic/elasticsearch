@@ -26,6 +26,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
@@ -57,6 +57,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
@@ -127,7 +128,6 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -244,6 +244,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     protected volatile BoundTransportAddress boundAddress;
     protected final KeyedLock<String> connectionLock = new KeyedLock<>();
     protected final NamedWriteableRegistry namedWriteableRegistry;
+    private final CircuitBreakerService circuitBreakerService;
 
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on... (this might help with 100% CPU when stopping the transport?)
@@ -254,7 +255,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Inject
     public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
-            NamedWriteableRegistry namedWriteableRegistry) {
+                          NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super(settings);
         this.threadPool = threadPool;
         this.networkService = networkService;
@@ -290,6 +291,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, scheduledPing);
         }
         this.namedWriteableRegistry = namedWriteableRegistry;
+        this.circuitBreakerService = circuitBreakerService;
     }
 
     public Settings settings() {
@@ -307,6 +309,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     ThreadPool threadPool() {
         return threadPool;
+    }
+
+    CircuitBreaker inFlightRequestsBreaker() {
+        // We always obtain a fresh breaker to reflect changes to the breaker configuration.
+        return circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
     }
 
     @Override
@@ -338,7 +345,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                                 profileSettings.toDelimitedString(','));
                         continue;
                     } else if (TransportSettings.DEFAULT_PROFILE.equals(name)) {
-                        profileSettings = settingsBuilder()
+                        profileSettings = Settings.builder()
                                 .put(profileSettings)
                                 .put("port", profileSettings.get("port", TransportSettings.PORT.get(this.settings)))
                                 .build();
@@ -349,7 +356,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     }
 
                     // merge fallback settings with default settings with profile settings so we have complete settings with default values
-                    Settings mergedSettings = settingsBuilder()
+                    Settings mergedSettings = Settings.builder()
                             .put(fallbackSettings)
                             .put(defaultSettings)
                             .put(profileSettings)
@@ -415,7 +422,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     private Settings createFallbackSettings() {
-        Settings.Builder fallbackSettingsBuilder = settingsBuilder();
+        Settings.Builder fallbackSettingsBuilder = Settings.builder();
 
         List<String> fallbackBindHost = TransportSettings.BIND_HOST.get(settings);
         if (fallbackBindHost.isEmpty() == false) {
@@ -887,7 +894,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             // we pick the smallest of the 2, to support both backward and forward compatibility
             // note, this is the only place we need to do this, since from here on, we use the serialized version
             // as the version to use also when the node receiving this request will send the response with
-            Version version = Version.smallest(this.version, node.version());
+            Version version = Version.smallest(this.version, node.getVersion());
 
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);
@@ -900,7 +907,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             // more explicit).
             if (request instanceof BytesTransportRequest) {
                 BytesTransportRequest bRequest = (BytesTransportRequest) request;
-                assert node.version().equals(bRequest.version());
+                assert node.getVersion().equals(bRequest.version());
                 bRequest.writeThin(stream);
                 stream.close();
                 bytes = bStream.bytes();
@@ -951,7 +958,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         globalLock.readLock().lock();
         try {
 
-            try (Releasable ignored = connectionLock.acquire(node.id())) {
+            try (Releasable ignored = connectionLock.acquire(node.getId())) {
                 if (!lifecycle.started()) {
                     throw new IllegalStateException("can't add nodes to a stopped transport");
                 }
@@ -993,7 +1000,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     protected NodeChannels connectToChannelsLight(DiscoveryNode node) {
-        InetSocketAddress address = ((InetSocketTransportAddress) node.address()).address();
+        InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
         ChannelFuture connect = clientBootstrap.connect(address);
         connect.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
         if (!connect.isSuccess()) {
@@ -1011,7 +1018,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         ChannelFuture[] connectReg = new ChannelFuture[nodeChannels.reg.length];
         ChannelFuture[] connectState = new ChannelFuture[nodeChannels.state.length];
         ChannelFuture[] connectPing = new ChannelFuture[nodeChannels.ping.length];
-        InetSocketAddress address = ((InetSocketTransportAddress) node.address()).address();
+        InetSocketAddress address = ((InetSocketTransportAddress) node.getAddress()).address();
         for (int i = 0; i < connectRecovery.length; i++) {
             connectRecovery[i] = clientBootstrap.connect(address);
         }
@@ -1109,7 +1116,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     @Override
     public void disconnectFromNode(DiscoveryNode node) {
 
-        try (Releasable ignored = connectionLock.acquire(node.id())) {
+        try (Releasable ignored = connectionLock.acquire(node.getId())) {
             NodeChannels nodeChannels = connectedNodes.remove(node);
             if (nodeChannels != null) {
                 try {
@@ -1131,7 +1138,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         // check outside of the lock
         NodeChannels nodeChannels = connectedNodes.get(node);
         if (nodeChannels != null && nodeChannels.hasChannel(channel)) {
-            try (Releasable ignored = connectionLock.acquire(node.id())) {
+            try (Releasable ignored = connectionLock.acquire(node.getId())) {
                 nodeChannels = connectedNodes.get(node);
                 // check again within the connection lock, if its still applicable to remove it
                 if (nodeChannels != null && nodeChannels.hasChannel(channel)) {
@@ -1311,15 +1318,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         public Channel channel(TransportRequestOptions.Type type) {
             if (type == TransportRequestOptions.Type.REG) {
-                return reg[MathUtils.mod(regCounter.incrementAndGet(), reg.length)];
+                return reg[Math.floorMod(regCounter.incrementAndGet(), reg.length)];
             } else if (type == TransportRequestOptions.Type.STATE) {
-                return state[MathUtils.mod(stateCounter.incrementAndGet(), state.length)];
+                return state[Math.floorMod(stateCounter.incrementAndGet(), state.length)];
             } else if (type == TransportRequestOptions.Type.PING) {
-                return ping[MathUtils.mod(pingCounter.incrementAndGet(), ping.length)];
+                return ping[Math.floorMod(pingCounter.incrementAndGet(), ping.length)];
             } else if (type == TransportRequestOptions.Type.BULK) {
-                return bulk[MathUtils.mod(bulkCounter.incrementAndGet(), bulk.length)];
+                return bulk[Math.floorMod(bulkCounter.incrementAndGet(), bulk.length)];
             } else if (type == TransportRequestOptions.Type.RECOVERY) {
-                return recovery[MathUtils.mod(recoveryCounter.incrementAndGet(), recovery.length)];
+                return recovery[Math.floorMod(recoveryCounter.incrementAndGet(), recovery.length)];
             } else {
                 throw new IllegalArgumentException("no type channel for [" + type + "]");
             }

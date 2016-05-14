@@ -155,7 +155,7 @@ Elasticsearch this can be implemented via a bucket aggregator that wraps a `top_
 
 In the example below we search across crawled webpages. For each webpage we store the body and the domain the webpage
 belong to. By defining a `terms` aggregator on the `domain` field we group the result set of webpages by domain. The
-`top_docs` aggregator is then defined as sub-aggregator, so that the top matching hits are collected per bucket.
+`top_hits` aggregator is then defined as sub-aggregator, so that the top matching hits are collected per bucket.
 
 Also a `max` aggregator is defined which is used by the `terms` aggregator's order feature the return the buckets by
 relevancy order of the most relevant document in a bucket.
@@ -192,8 +192,8 @@ relevancy order of the most relevant document in a bucket.
 --------------------------------------------------
 
 At the moment the `max` (or `min`) aggregator is needed to make sure the buckets from the `terms` aggregator are
-ordered according to the score of the most relevant webpage per domain. The `top_hits` aggregator isn't a metric aggregator
-and therefore can't be used in the `order` option of the `terms` aggregator.
+ordered according to the score of the most relevant webpage per domain. Unfortunately the `top_hits` aggregator
+can't be used in the `order` option of the `terms` aggregator yet.
 
 ==== top_hits support in a nested or reverse_nested aggregator
 

@@ -46,7 +46,7 @@ public class FsService extends AbstractComponent {
         this.probe = new FsProbe(settings, nodeEnvironment);
         TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
         fsStatsCache = new FsInfoCache(refreshInterval, probe.stats());
-        logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);
+        logger.debug("using refresh_interval [{}]", refreshInterval);
     }
 
     public FsInfo stats() {
@@ -64,7 +64,7 @@ public class FsService extends AbstractComponent {
                 return probe.stats();
             } catch (IOException ex) {
                 logger.warn("Failed to fetch fs stats - returning empty instance");
-                return new FsInfo();
+                return new FsInfo(0, null);
             }
         }
     }

@@ -1,7 +1,7 @@
 ---
 "no body fails":
   - do:
-      catch: /body required/
+      catch: param
       reindex: {}
 
 ---
@@ -148,3 +148,79 @@
           dest:
             index: dest
             timestamp: "123"
+
+---
+"requests_per_second cannot be an empty string":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      reindex:
+        requests_per_second: ""
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"requests_per_second cannot be negative":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      reindex:
+        requests_per_second: -12
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"requests_per_second cannot be zero":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      reindex:
+        requests_per_second: 0
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"reindex without source gives useful error message":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            test:
+              _source:
+                enabled: false
+  - do:
+      index:
+        index:  test
+        type:   test
+        id:     1
+        body:   { age: 23 }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /\[test\]\[test\]\[1\] didn't store _source/
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"source fields may not be modified":
+  - do:
+      catch: /fields is not supported in this context/
+      reindex:
+        body:
+          source:
+            index: test
+            fields: [_id]
+          dest:
+            index: dest

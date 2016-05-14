@@ -29,6 +29,7 @@ dependencies {
   compile 'org.ow2.asm:asm:5.0.4'
   compile 'org.ow2.asm:asm-commons:5.0.4'
   compile 'org.ow2.asm:asm-tree:5.0.4'
+  testCompile 'org.ow2.asm:asm-util:5.0.4'
 }
 
 dependencyLicenses {

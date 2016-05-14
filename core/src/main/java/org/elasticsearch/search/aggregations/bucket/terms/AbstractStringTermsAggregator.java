@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -35,15 +36,15 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
     protected final boolean showTermDocCountError;
 
     public AbstractStringTermsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
-            Terms.Order order, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode subAggCollectMode,
+            Terms.Order order, DocValueFormat format, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode subAggCollectMode,
             boolean showTermDocCountError, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, bucketCountThresholds, order, subAggCollectMode, pipelineAggregators, metaData);
+        super(name, factories, context, parent, bucketCountThresholds, order, format, subAggCollectMode, pipelineAggregators, metaData);
         this.showTermDocCountError = showTermDocCountError;
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(),
+        return new StringTerms(name, order, format, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getShardSize(),
                 bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket> emptyList(), showTermDocCountError, 0, 0,
                 pipelineAggregators(), metaData());
     }

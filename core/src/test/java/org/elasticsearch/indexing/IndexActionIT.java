@@ -132,7 +132,7 @@ public class IndexActionIT extends ESIntegTestCase {
         final AtomicIntegerArray createdCounts = new AtomicIntegerArray(docCount);
         ExecutorService threadPool = Executors.newFixedThreadPool(threadCount);
         List<Callable<Void>> tasks = new ArrayList<>(taskCount);
-        final Random random = getRandom();
+        final Random random = random();
         for (int i=0;i< taskCount; i++ ) {
             tasks.add(new Callable<Void>() {
                 @Override

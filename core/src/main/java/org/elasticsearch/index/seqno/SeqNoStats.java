@@ -23,11 +23,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
-public class SeqNoStats implements ToXContent, Writeable<SeqNoStats> {
+public class SeqNoStats implements ToXContent, Writeable {
+
+    private static final String SEQ_NO = "seq_no";
+    private static final String MAX_SEQ_NO = "max";
+    private static final String LOCAL_CHECKPOINT = "local_checkpoint";
 
     public static final SeqNoStats PROTO  = new SeqNoStats(0,0);
 
@@ -54,11 +57,6 @@ public class SeqNoStats implements ToXContent, Writeable<SeqNoStats> {
     }
 
     @Override
-    public SeqNoStats readFrom(StreamInput in) throws IOException {
-        return new SeqNoStats(in.readLong(), in.readLong());
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeZLong(maxSeqNo);
         out.writeZLong(localCheckpoint);
@@ -66,17 +64,11 @@ public class SeqNoStats implements ToXContent, Writeable<SeqNoStats> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.SEQ_NO);
-        builder.field(Fields.MAX_SEQ_NO, maxSeqNo);
-        builder.field(Fields.LOCAL_CHECKPOINT, localCheckpoint);
+        builder.startObject(SEQ_NO);
+        builder.field(MAX_SEQ_NO, maxSeqNo);
+        builder.field(LOCAL_CHECKPOINT, localCheckpoint);
         builder.endObject();
         return builder;
     }
 
-
-    static final class Fields {
-        static final XContentBuilderString SEQ_NO = new XContentBuilderString("seq_no");
-        static final XContentBuilderString MAX_SEQ_NO = new XContentBuilderString("max");
-        static final XContentBuilderString LOCAL_CHECKPOINT = new XContentBuilderString("local_checkpoint");
-    }
 }

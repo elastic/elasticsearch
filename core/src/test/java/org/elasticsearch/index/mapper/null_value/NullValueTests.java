@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class NullValueTests extends ESSingleNodeTestCase {
     public void testNullNullValue() throws Exception {
-        IndexService indexService = createIndex("test", Settings.settingsBuilder().build());
+        IndexService indexService = createIndex("test", Settings.builder().build());
         String[] typesToTest = {"integer", "long", "double", "float", "short", "date", "ip", "keyword", "boolean", "byte"};
 
         for (String type : typesToTest) {

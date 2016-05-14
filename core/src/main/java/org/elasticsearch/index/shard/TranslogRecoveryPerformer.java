@@ -151,14 +151,14 @@ public class TranslogRecoveryPerformer {
             switch (operation.opType()) {
                 case INDEX:
                     Translog.Index index = (Translog.Index) operation;
-                    Engine.Index engineIndex = IndexShard.prepareIndex(docMapper(index.type()), source(index.source()).type(index.type()).id(index.id())
+                    Engine.Index engineIndex = IndexShard.prepareIndex(docMapper(index.type()), source(shardId.getIndexName(), index.type(), index.id(), index.source())
                                     .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
                             index.seqNo(), index.version(), index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY);
                     maybeAddMappingUpdate(engineIndex.type(), engineIndex.parsedDoc().dynamicMappingsUpdate(), engineIndex.id(), allowMappingUpdates);
                     if (logger.isTraceEnabled()) {
                         logger.trace("[translog] recover [index] op of [{}][{}]", index.type(), index.id());
                     }
-                    engine.index(engineIndex);
+                    index(engine, engineIndex);
                     break;
                 case DELETE:
                     Translog.Delete delete = (Translog.Delete) operation;
@@ -166,9 +166,9 @@ public class TranslogRecoveryPerformer {
                     if (logger.isTraceEnabled()) {
                         logger.trace("[translog] recover [delete] op of [{}][{}]", uid.type(), uid.id());
                     }
-                    Engine.Delete engineDelete = IndexShard.prepareDelete(uid.type(), uid.id(), delete.uid(), delete.seqNo(),
+                    final Engine.Delete engineDelete = IndexShard.prepareDelete(uid.type(), uid.id(), delete.uid(), delete.seqNo(),
                             delete.version(), delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY);
-                    engine.delete(engineDelete);
+                    delete(engine, engineDelete);
                     break;
                 default:
                     throw new IllegalStateException("No operation defined for [" + operation + "]");
@@ -192,6 +192,14 @@ public class TranslogRecoveryPerformer {
             }
         }
         operationProcessed();
+    }
+
+    protected void index(Engine engine, Engine.Index engineIndex) {
+        engine.index(engineIndex);
+    }
+
+    protected void delete(Engine engine, Engine.Delete engineDelete) {
+        engine.delete(engineDelete);
     }
 
 

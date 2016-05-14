@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
-import org.apache.lucene.search.Sort;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -35,6 +34,7 @@ import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SubSearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
@@ -42,6 +42,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregatorFactory> {
 
@@ -54,12 +55,12 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     private final HighlightBuilder highlightBuilder;
     private final List<String> fieldNames;
     private final List<String> fieldDataFields;
-    private final List<ScriptField> scriptFields;
+    private final Set<ScriptField> scriptFields;
     private final FetchSourceContext fetchSourceContext;
 
     public TopHitsAggregatorFactory(String name, Type type, int from, int size, boolean explain, boolean version, boolean trackScores,
             List<SortBuilder<?>> sorts, HighlightBuilder highlightBuilder, List<String> fieldNames, List<String> fieldDataFields,
-            List<ScriptField> scriptFields, FetchSourceContext fetchSourceContext, AggregationContext context, AggregatorFactory<?> parent,
+            Set<ScriptField> scriptFields, FetchSourceContext fetchSourceContext, AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactories, metaData);
         this.from = from;
@@ -79,13 +80,14 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
         SubSearchContext subSearchContext = new SubSearchContext(context.searchContext());
+        subSearchContext.parsedQuery(context.searchContext().parsedQuery());
         subSearchContext.explain(explain);
         subSearchContext.version(version);
         subSearchContext.trackScores(trackScores);
         subSearchContext.from(from);
         subSearchContext.size(size);
         if (sorts != null) {
-            Optional<Sort> optionalSort = SortBuilder.buildSort(sorts, subSearchContext.getQueryShardContext());
+            Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(sorts, subSearchContext.getQueryShardContext());
             if (optionalSort.isPresent()) {
                 subSearchContext.sort(optionalSort.get());
             }
@@ -104,7 +106,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {
                 SearchScript searchScript = subSearchContext.scriptService().search(subSearchContext.lookup(), field.script(),
-                        ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                        ScriptContext.Standard.SEARCH, Collections.emptyMap(), subSearchContext.getQueryShardContext().getClusterState());
                 subSearchContext.scriptFields().add(new org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField(
                         field.fieldName(), searchScript, field.ignoreFailure()));
             }

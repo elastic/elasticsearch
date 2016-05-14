@@ -161,7 +161,7 @@ For example, in a N shards with 2 replicas index, there will have to be
 at least 2 active shards within the relevant partition (`quorum`) for
 the operation to succeed. In a N shards with 1 replica scenario, there
 will need to be a single shard active (in this case, `one` and `quorum`
-is the same).
+are the same).
 
 [float]
 [[bulk-refresh]]
@@ -192,7 +192,7 @@ the options. Curl example with update actions:
 { "update" : {"_id" : "1", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"} }
 { "update" : { "_id" : "0", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
-{ "script" : { "inline": "ctx._source.counter += param1", "lang" : "js", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
+{ "script" : { "inline": "ctx._source.counter += param1", "lang" : "javascript", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
 { "update" : {"_id" : "2", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"}, "doc_as_upsert" : true }
 { "update" : {"_id" : "3", "_type" : "type1", "_index" : "index1", "fields" : ["_source"]} }

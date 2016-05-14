@@ -22,9 +22,15 @@ task buildTar(type: Tar) {
   extension = 'tar.gz'
   with archivesFiles
   compression = Compression.GZIP
+  dirMode 0755
+  fileMode 0644
 }
 
 artifacts {
   'default' buildTar
-  archives buildTar
+  project.afterEvaluate {
+    // gradle is broken for extensions that contain a dot, so we must be explicit about the name of the .asc file
+    project.signArchives.singleSignature.type = 'tar.gz.asc'
+  }
 }
+

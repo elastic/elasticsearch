@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -32,25 +33,28 @@ import org.elasticsearch.transport.TransportSettings;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 
 public class SimpleNettyTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
-    protected MockTransportService build(Settings settings, Version version, NamedWriteableRegistry namedWriteableRegistry) {
+    protected MockTransportService build(Settings settings, Version version, ClusterName clusterName) {
         settings = Settings.builder().put(settings).put(TransportSettings.PORT.getKey(), "0").build();
-        MockTransportService transportService = MockTransportService.nettyFromThreadPool(settings, version, threadPool);
+        MockTransportService transportService = MockTransportService.nettyFromThreadPool(settings, version, threadPool, clusterName);
         transportService.start();
         return transportService;
     }
 
     public void testConnectException() throws UnknownHostException {
         try {
-            serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9876), Version.CURRENT));
+            serviceA.connectToNode(new DiscoveryNode("C", new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9876),
+                    emptyMap(), emptySet(),Version.CURRENT));
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
             assertThat(e.getMessage(), containsString("connect_timeout"));
-            assertThat(e.getMessage(), containsString("[localhost/127.0.0.1:9876]"));
+            assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
         }
     }
 }

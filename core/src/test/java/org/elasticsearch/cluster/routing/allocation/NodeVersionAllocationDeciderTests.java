@@ -53,13 +53,13 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.shuffle;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -73,11 +73,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(NodeVersionAllocationDeciderTests.class);
 
     public void testDoNotAllocateFromPrimary() {
-        AllocationService strategy = createAllocationService(settingsBuilder()
-            .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-            .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-            .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-            .build());
+        AllocationService strategy = createAllocationService(Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
+                .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
+                .build());
 
         logger.info("Building initial routing table");
 
@@ -187,11 +187,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testRandom() {
-        AllocationService service = createAllocationService(settingsBuilder()
-            .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-            .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-            .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-            .build());
+        AllocationService service = createAllocationService(Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
+                .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
+                .build());
 
         logger.info("Building initial routing table");
         MetaData.Builder builder = MetaData.builder();
@@ -216,7 +216,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
             int numNodes = between(1, 20);
             if (nodes.size() > numNodes) {
-                Collections.shuffle(nodes, random());
+                shuffle(nodes, random());
                 nodes = nodes.subList(0, numNodes);
             } else {
                 for (int j = nodes.size(); j < numNodes; j++) {
@@ -236,11 +236,11 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testRollingRestart() {
-        AllocationService service = createAllocationService(settingsBuilder()
-            .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
-            .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
-            .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
-            .build());
+        AllocationService service = createAllocationService(Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
+                .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
+                .build());
 
         logger.info("Building initial routing table");
 
@@ -305,9 +305,12 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     public void testRebalanceDoesNotAllocatePrimaryAndReplicasOnDifferentVersionNodes() {
         ShardId shard1 = new ShardId("test1", "_na_", 0);
         ShardId shard2 = new ShardId("test2", "_na_", 0);
-        final DiscoveryNode newNode = new DiscoveryNode("newNode", DummyTransportAddress.INSTANCE, Version.CURRENT);
-        final DiscoveryNode oldNode1 = new DiscoveryNode("oldNode1", DummyTransportAddress.INSTANCE, VersionUtils.getPreviousVersion());
-        final DiscoveryNode oldNode2 = new DiscoveryNode("oldNode2", DummyTransportAddress.INSTANCE, VersionUtils.getPreviousVersion());
+        final DiscoveryNode newNode = new DiscoveryNode("newNode", DummyTransportAddress.INSTANCE, emptyMap(),
+                MASTER_DATA_ROLES, Version.CURRENT);
+        final DiscoveryNode oldNode1 = new DiscoveryNode("oldNode1", DummyTransportAddress.INSTANCE, emptyMap(),
+                MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
+        final DiscoveryNode oldNode2 = new DiscoveryNode("oldNode2", DummyTransportAddress.INSTANCE, emptyMap(),
+                MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
         MetaData metaData = MetaData.builder()
             .put(IndexMetaData.builder(shard1.getIndexName()).settings(settings(Version.CURRENT).put(Settings.EMPTY)).numberOfShards(1).numberOfReplicas(1))
             .put(IndexMetaData.builder(shard2.getIndexName()).settings(settings(Version.CURRENT).put(Settings.EMPTY)).numberOfShards(1).numberOfReplicas(1))
@@ -315,14 +318,14 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
             .add(IndexRoutingTable.builder(shard1.getIndex())
                 .addIndexShard(new IndexShardRoutingTable.Builder(shard1)
-                    .addShard(TestShardRouting.newShardRouting(shard1.getIndexName(), shard1.getId(), newNode.id(), true, ShardRoutingState.STARTED))
-                    .addShard(TestShardRouting.newShardRouting(shard1.getIndexName(), shard1.getId(), oldNode1.id(), false, ShardRoutingState.STARTED))
+                    .addShard(TestShardRouting.newShardRouting(shard1.getIndexName(), shard1.getId(), newNode.getId(), true, ShardRoutingState.STARTED))
+                    .addShard(TestShardRouting.newShardRouting(shard1.getIndexName(), shard1.getId(), oldNode1.getId(), false, ShardRoutingState.STARTED))
                     .build())
             )
             .add(IndexRoutingTable.builder(shard2.getIndex())
                 .addIndexShard(new IndexShardRoutingTable.Builder(shard2)
-                    .addShard(TestShardRouting.newShardRouting(shard2.getIndexName(), shard2.getId(), newNode.id(), true, ShardRoutingState.STARTED))
-                    .addShard(TestShardRouting.newShardRouting(shard2.getIndexName(), shard2.getId(), oldNode1.id(), false, ShardRoutingState.STARTED))
+                    .addShard(TestShardRouting.newShardRouting(shard2.getIndexName(), shard2.getId(), newNode.getId(), true, ShardRoutingState.STARTED))
+                    .addShard(TestShardRouting.newShardRouting(shard2.getIndexName(), shard2.getId(), oldNode1.getId(), false, ShardRoutingState.STARTED))
                     .build())
             )
             .build();
@@ -341,11 +344,13 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(result.routingTable().index(shard1.getIndex()).shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(0));
     }
 
-
     public void testRestoreDoesNotAllocateSnapshotOnOlderNodes() {
-        final DiscoveryNode newNode = new DiscoveryNode("newNode", DummyTransportAddress.INSTANCE, Version.CURRENT);
-        final DiscoveryNode oldNode1 = new DiscoveryNode("oldNode1", DummyTransportAddress.INSTANCE, VersionUtils.getPreviousVersion());
-        final DiscoveryNode oldNode2 = new DiscoveryNode("oldNode2", DummyTransportAddress.INSTANCE, VersionUtils.getPreviousVersion());
+        final DiscoveryNode newNode = new DiscoveryNode("newNode", DummyTransportAddress.INSTANCE, emptyMap(),
+                MASTER_DATA_ROLES, Version.CURRENT);
+        final DiscoveryNode oldNode1 = new DiscoveryNode("oldNode1", DummyTransportAddress.INSTANCE, emptyMap(),
+                MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
+        final DiscoveryNode oldNode2 = new DiscoveryNode("oldNode2", DummyTransportAddress.INSTANCE, emptyMap(),
+                MASTER_DATA_ROLES, VersionUtils.getPreviousVersion());
 
         int numberOfShards = randomIntBetween(1, 3);
         MetaData metaData = MetaData.builder()
@@ -409,17 +414,17 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 String fromId = r.currentNodeId();
                 assertThat(fromId, notNullValue());
                 assertThat(toId, notNullValue());
-                logger.trace("From: {} with Version: {} to: {} with Version: {}", fromId, routingNodes.node(fromId).node().version(),
-                    toId, routingNodes.node(toId).node().version());
-                assertTrue(routingNodes.node(toId).node().version().onOrAfter(routingNodes.node(fromId).node().version()));
+                logger.trace("From: {} with Version: {} to: {} with Version: {}", fromId, routingNodes.node(fromId).node().getVersion(),
+                    toId, routingNodes.node(toId).node().getVersion());
+                assertTrue(routingNodes.node(toId).node().getVersion().onOrAfter(routingNodes.node(fromId).node().getVersion()));
             } else {
                 ShardRouting primary = routingNodes.activePrimary(r);
                 assertThat(primary, notNullValue());
                 String fromId = primary.currentNodeId();
                 String toId = r.relocatingNodeId();
-                logger.trace("From: {} with Version: {} to: {} with Version: {}", fromId, routingNodes.node(fromId).node().version(),
-                    toId, routingNodes.node(toId).node().version());
-                assertTrue(routingNodes.node(toId).node().version().onOrAfter(routingNodes.node(fromId).node().version()));
+                logger.trace("From: {} with Version: {} to: {} with Version: {}", fromId, routingNodes.node(fromId).node().getVersion(),
+                    toId, routingNodes.node(toId).node().getVersion());
+                assertTrue(routingNodes.node(toId).node().getVersion().onOrAfter(routingNodes.node(fromId).node().getVersion()));
             }
         }
 
@@ -430,9 +435,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 assertThat(primary, notNullValue());
                 String fromId = primary.currentNodeId();
                 String toId = r.currentNodeId();
-                logger.trace("From: {} with Version: {} to: {} with Version: {}", fromId, routingNodes.node(fromId).node().version(),
-                    toId, routingNodes.node(toId).node().version());
-                assertTrue(routingNodes.node(toId).node().version().onOrAfter(routingNodes.node(fromId).node().version()));
+                logger.trace("From: {} with Version: {} to: {} with Version: {}", fromId, routingNodes.node(fromId).node().getVersion(),
+                    toId, routingNodes.node(toId).node().getVersion());
+                assertTrue(routingNodes.node(toId).node().getVersion().onOrAfter(routingNodes.node(fromId).node().getVersion()));
             }
         }
 

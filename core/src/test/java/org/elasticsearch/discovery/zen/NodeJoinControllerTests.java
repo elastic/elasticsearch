@@ -49,10 +49,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -63,6 +62,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.shuffle;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
@@ -92,10 +94,10 @@ public class NodeJoinControllerTests extends ESTestCase {
         super.setUp();
         clusterService = createClusterService(threadPool);
         final DiscoveryNodes initialNodes = clusterService.state().nodes();
-        final DiscoveryNode localNode = initialNodes.localNode();
+        final DiscoveryNode localNode = initialNodes.getLocalNode();
         // make sure we have a master
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(
-                DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.id())));
+                DiscoveryNodes.builder(initialNodes).masterNodeId(localNode.getId())));
         nodeJoinController = new NodeJoinController(clusterService, new NoopRoutingService(Settings.EMPTY),
                 new DiscoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
                 Settings.EMPTY);
@@ -206,7 +208,7 @@ public class NodeJoinControllerTests extends ESTestCase {
                 nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.ElectionCallback() {
                     @Override
                     public void onElectedAsMaster(ClusterState state) {
-                        assertThat("callback called with elected as master, but state disagrees", state.nodes().localNodeMaster(), equalTo(true));
+                        assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
                         electionFuture.markAsDone();
                     }
 
@@ -254,7 +256,7 @@ public class NodeJoinControllerTests extends ESTestCase {
                 nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.ElectionCallback() {
                     @Override
                     public void onElectedAsMaster(ClusterState state) {
-                        assertThat("callback called with elected as master, but state disagrees", state.nodes().localNodeMaster(), equalTo(true));
+                        assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
                         electionFuture.markAsDone();
                     }
 
@@ -289,7 +291,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         // add
 
-        Collections.shuffle(nodesToJoin, random());
+        shuffle(nodesToJoin, random());
         logger.debug("--> joining [{}] unique master nodes. Total of [{}] join requests", initialJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
@@ -314,7 +316,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             }
         }
 
-        Collections.shuffle(nodesToJoin, random());
+        shuffle(nodesToJoin, random());
         logger.debug("--> joining [{}] nodes, with repetition a total of [{}]", finalJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
@@ -361,7 +363,7 @@ public class NodeJoinControllerTests extends ESTestCase {
                 nodesToJoin.add(node);
             }
         }
-        Collections.shuffle(nodesToJoin, random());
+        shuffle(nodesToJoin, random());
         logger.debug("--> joining [{}] nodes, with repetition a total of [{}]", initialJoins, nodesToJoin.size());
         for (DiscoveryNode node : nodesToJoin) {
             pendingJoins.add(joinNodeAsync(node));
@@ -372,7 +374,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueMillis(1), new NodeJoinController.ElectionCallback() {
             @Override
             public void onElectedAsMaster(ClusterState state) {
-                assertThat("callback called with elected as master, but state disagrees", state.nodes().localNodeMaster(), equalTo(true));
+                assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
                 latch.countDown();
             }
 
@@ -401,7 +403,8 @@ public class NodeJoinControllerTests extends ESTestCase {
     public void testNewClusterStateOnExistingNodeJoin() throws InterruptedException, ExecutionException {
         ClusterState state = clusterService.state();
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(state.nodes());
-        final DiscoveryNode other_node = new DiscoveryNode("other_node", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        final DiscoveryNode other_node = new DiscoveryNode("other_node", DummyTransportAddress.INSTANCE,
+                emptyMap(), emptySet(), Version.CURRENT);
         nodesBuilder.put(other_node);
         setState(clusterService, ClusterState.builder(state).nodes(nodesBuilder));
 
@@ -489,7 +492,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         nodeJoinController.waitToBeElectedAsMaster(requiredJoins, TimeValue.timeValueHours(30), new NodeJoinController.ElectionCallback() {
             @Override
             public void onElectedAsMaster(ClusterState state) {
-                assertThat("callback called with elected as master, but state disagrees", state.nodes().localNodeMaster(), equalTo(true));
+                assertThat("callback called with elected as master, but state disagrees", state.nodes().isLocalNodeElectedMaster(), equalTo(true));
                 latch.countDown();
             }
 
@@ -552,9 +555,9 @@ public class NodeJoinControllerTests extends ESTestCase {
         logger.info("assert for [{}] in:\n{}", expectedNodes, state.prettyPrint());
         DiscoveryNodes discoveryNodes = state.nodes();
         for (DiscoveryNode node : expectedNodes) {
-            assertThat("missing " + node + "\n" + discoveryNodes.prettyPrint(), discoveryNodes.get(node.id()), equalTo(node));
+            assertThat("missing " + node + "\n" + discoveryNodes.prettyPrint(), discoveryNodes.get(node.getId()), equalTo(node));
         }
-        assertThat(discoveryNodes.size(), equalTo(expectedNodes.size()));
+        assertThat(discoveryNodes.getSize(), equalTo(expectedNodes.size()));
     }
 
     static class SimpleFuture extends BaseFuture<Void> {
@@ -608,9 +611,11 @@ public class NodeJoinControllerTests extends ESTestCase {
     }
 
     protected DiscoveryNode newNode(int i, boolean master) {
-        Map<String, String> attributes = new HashMap<>();
-        attributes.put("master", Boolean.toString(master));
+        Set<DiscoveryNode.Role> roles = new HashSet<>();
+        if (master) {
+            roles.add(DiscoveryNode.Role.MASTER);
+        }
         final String prefix = master ? "master_" : "data_";
-        return new DiscoveryNode(prefix + i, i + "", new LocalTransportAddress("test_" + i), attributes, Version.CURRENT);
+        return new DiscoveryNode(prefix + i, i + "", new LocalTransportAddress("test_" + i), emptyMap(), roles, Version.CURRENT);
     }
 }

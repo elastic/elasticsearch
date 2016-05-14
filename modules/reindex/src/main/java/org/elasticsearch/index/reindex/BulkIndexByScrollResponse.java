@@ -51,7 +51,7 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
     }
 
     public BulkIndexByScrollResponse(TimeValue took, BulkByScrollTask.Status status, List<Failure> indexingFailures,
-            List<ShardSearchFailure> searchFailures, boolean timedOut) {
+                                     List<ShardSearchFailure> searchFailures, boolean timedOut) {
         this.took = took;
         this.status = requireNonNull(status, "Null status not supported");
         this.indexingFailures = indexingFailures;
@@ -65,6 +65,14 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
 
     protected BulkByScrollTask.Status getStatus() {
         return status;
+    }
+
+    public long getCreated() {
+        return status.getCreated();
+    }
+
+    public long getDeleted() {
+        return status.getDeleted();
     }
 
     public long getUpdated() {
@@ -136,7 +144,7 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         int indexingFailuresCount = in.readVInt();
         List<Failure> indexingFailures = new ArrayList<>(indexingFailuresCount);
         for (int i = 0; i < indexingFailuresCount; i++) {
-            indexingFailures.add(Failure.PROTOTYPE.readFrom(in));
+            indexingFailures.add(new Failure(in));
         }
         this.indexingFailures = unmodifiableList(indexingFailures);
         int searchFailuresCount = in.readVInt();
@@ -152,7 +160,7 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("took", took.millis());
         builder.field("timed_out", timedOut);
-        status.innerXContent(builder, params, false, false);
+        status.innerXContent(builder, params);
         builder.startArray("failures");
         for (Failure failure: indexingFailures) {
             builder.startObject();
@@ -173,7 +181,8 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
         StringBuilder builder = new StringBuilder();
         builder.append("BulkIndexByScrollResponse[");
         builder.append("took=").append(took).append(',');
-        status.innerToString(builder, false, false);
+        builder.append("timed_out=").append(timedOut).append(',');
+        status.innerToString(builder);
         builder.append(",indexing_failures=").append(getIndexingFailures().subList(0, min(3, getIndexingFailures().size())));
         builder.append(",search_failures=").append(getSearchFailures().subList(0, min(3, getSearchFailures().size())));
         return builder.append(']').toString();

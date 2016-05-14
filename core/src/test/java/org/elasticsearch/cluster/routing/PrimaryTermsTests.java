@@ -40,7 +40,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -60,7 +59,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        this.allocationService = createAllocationService(settingsBuilder()
+        this.allocationService = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", Integer.MAX_VALUE) // don't limit recoveries
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", Integer.MAX_VALUE)
                 .build());

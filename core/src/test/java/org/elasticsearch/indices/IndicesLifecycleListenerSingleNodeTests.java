@@ -38,6 +38,8 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -95,17 +97,17 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             NodeServicesProvider nodeServicesProvider = getInstanceFromNode(NodeServicesProvider.class);
             IndexService index = indicesService.createIndex(nodeServicesProvider, metaData, Arrays.asList(countingListener));
             idx = index.index();
-            ShardRouting newRouting = new ShardRouting(shardRouting);
+            ShardRouting newRouting = shardRouting;
             String nodeId = newRouting.currentNodeId();
-            ShardRoutingHelper.moveToUnassigned(newRouting, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom"));
-            ShardRoutingHelper.initialize(newRouting, nodeId);
+            newRouting = ShardRoutingHelper.moveToUnassigned(newRouting, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom"));
+            newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
             IndexShard shard = index.createShard(newRouting);
             shard.updateRoutingEntry(newRouting, true);
-            final DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+            final DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE,
+                    emptyMap(), emptySet(), Version.CURRENT);
             shard.markAsRecovering("store", new RecoveryState(shard.shardId(), newRouting.primary(), RecoveryState.Type.SNAPSHOT, newRouting.restoreSource(), localNode));
             shard.recoverFromStore(localNode);
-            newRouting = new ShardRouting(newRouting);
-            ShardRoutingHelper.moveToStarted(newRouting);
+            newRouting = ShardRoutingHelper.moveToStarted(newRouting);
             shard.updateRoutingEntry(newRouting, true);
         } finally {
             indicesService.deleteIndex(idx, "simon says");

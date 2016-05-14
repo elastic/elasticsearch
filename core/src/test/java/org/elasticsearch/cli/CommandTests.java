@@ -34,6 +34,16 @@ public class CommandTests extends ESTestCase {
         }
     }
 
+    static class UsageErrorCommand extends Command {
+        UsageErrorCommand() {
+            super("Throws a usage error");
+        }
+        @Override
+        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+            throw new UserError(ExitCodes.USAGE, "something was no good");
+        }
+    }
+
     static class NoopCommand extends Command {
         boolean executed = false;
         NoopCommand() {
@@ -119,5 +129,16 @@ public class CommandTests extends ESTestCase {
         String output = terminal.getOutput();
         assertEquals(output, ExitCodes.DATA_ERROR, status);
         assertTrue(output, output.contains("ERROR: Bad input"));
+    }
+
+    public void testUsageError() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        UsageErrorCommand command = new UsageErrorCommand();
+        String[] args = {};
+        int status = command.main(args, terminal);
+        String output = terminal.getOutput();
+        assertEquals(output, ExitCodes.USAGE, status);
+        assertTrue(output, output.contains("Throws a usage error"));
+        assertTrue(output, output.contains("ERROR: something was no good"));
     }
 }

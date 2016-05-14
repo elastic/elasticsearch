@@ -1,13 +1,17 @@
 [[modules-advanced-scripting]]
-=== Text scoring in scripts
+=== Advanced text scoring in scripts
 
+experimental[The functionality described on this page is considered experimental and may be changed or removed in a future release]
 
-Text features, such as term or document frequency for a specific term can be accessed in scripts (see <<modules-scripting, scripting documentation>> ) with the `_index` variable. This can be useful if, for example, you want to implement your own scoring model using for example a script inside a <<query-dsl-function-score-query,function score query>>.
+Text features, such as term or document frequency for a specific term can be
+accessed in scripts with the `_index` variable. This can be useful if, for
+example, you want to implement your own scoring model using for example a
+script inside a <<query-dsl-function-score-query,function score query>>.
 Statistics over the document collection are computed *per shard*, not per
 index.
 
 [float]
-==== Nomenclature:
+=== Nomenclature:
 
 
 [horizontal]
@@ -33,7 +37,7 @@ depending on the shard the current document resides in.
 
 
 [float]
-==== Shard statistics:
+=== Shard statistics:
 
 `_index.numDocs()`::
 
@@ -49,7 +53,7 @@ depending on the shard the current document resides in.
 
 
 [float]
-==== Field statistics:
+=== Field statistics:
 
 Field statistics can be accessed with a subscript operator like this:
 `_index['FIELD']`.
@@ -74,7 +78,7 @@ depending on the shard the current document resides in.
 The number of terms in a field cannot be accessed using the `_index` variable. See <<token-count>> for how to do that.
 
 [float]
-==== Term statistics:
+=== Term statistics:
 
 Term statistics for a field can be accessed with a subscript operator like
 this: `_index['FIELD']['TERM']`. This will never return null, even if term or field does not exist.
@@ -101,7 +105,7 @@ affect is your set the <<index-options,`index_options`>> to `docs`.
 
 
 [float]
-==== Term positions, offsets and payloads:
+=== Term positions, offsets and payloads:
 
 If you need information on the positions of terms in a field, call
 `_index['FIELD'].get('TERM', flag)` where flag can be
@@ -174,7 +178,7 @@ return score;
 
 
 [float]
-==== Term vectors:
+=== Term vectors:
 
 The `_index` variable can only be used to gather statistics for single terms. If you want to use information on all terms in a field, you must store the term vectors (see <<term-vector>>). To access them, call
 `_index.termVectors()` to get a

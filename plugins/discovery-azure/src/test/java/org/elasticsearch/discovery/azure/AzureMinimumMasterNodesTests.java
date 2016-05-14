@@ -49,7 +49,7 @@ public class AzureMinimumMasterNodesTests extends AbstractAzureComputeServiceTes
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.settingsBuilder()
+        Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.zen.minimum_master_nodes", 2)
                 // Make the test run faster
@@ -63,20 +63,20 @@ public class AzureMinimumMasterNodesTests extends AbstractAzureComputeServiceTes
         logger.info("--> start data node / non master node");
         internalCluster().startNode();
         try {
-            assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().masterNodeId(), nullValue());
+            assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("100ms").execute().actionGet().getState().nodes().getMasterNodeId(), nullValue());
             fail("should not be able to find master");
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected
         }
         logger.info("--> start another node");
         internalCluster().startNode();
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().getMasterNodeId(), notNullValue());
 
         logger.info("--> stop master node");
         internalCluster().stopCurrentMasterNode();
 
         try {
-            assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), nullValue());
+            assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().getMasterNodeId(), nullValue());
             fail("should not be able to find master");
         } catch (MasterNotDiscoveredException e) {
             // all is well, no master elected
@@ -84,6 +84,6 @@ public class AzureMinimumMasterNodesTests extends AbstractAzureComputeServiceTes
 
         logger.info("--> start another node");
         internalCluster().startNode();
-        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().getMasterNodeId(), notNullValue());
     }
 }

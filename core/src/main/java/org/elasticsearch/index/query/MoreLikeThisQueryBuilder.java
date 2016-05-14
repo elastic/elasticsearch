@@ -37,6 +37,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -51,17 +52,17 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
+import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
+import org.elasticsearch.index.mapper.core.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -79,7 +80,8 @@ import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
  */
 public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
 
-    public static final String NAME = "mlt";
+    public static final String NAME = "more_like_this";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME, "mlt");
 
     public static final int DEFAULT_MAX_QUERY_TERMS = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
     public static final int DEFAULT_MIN_TERM_FREQ = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
@@ -91,6 +93,30 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public static final float DEFAULT_BOOST_TERMS = 0;  // no boost terms
     public static final boolean DEFAULT_INCLUDE = false;
     public static final boolean DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS = true;
+
+    private static final Set<Class<? extends MappedFieldType>> SUPPORTED_FIELD_TYPES = new HashSet<>(
+            Arrays.asList(StringFieldType.class, TextFieldType.class, KeywordFieldType.class));
+
+    private interface Field {
+        ParseField FIELDS = new ParseField("fields");
+        ParseField LIKE = new ParseField("like");
+        ParseField UNLIKE = new ParseField("unlike");
+        ParseField LIKE_TEXT = new ParseField("like_text").withAllDeprecated("like");
+        ParseField IDS = new ParseField("ids").withAllDeprecated("like");
+        ParseField DOCS = new ParseField("docs").withAllDeprecated("like");
+        ParseField MAX_QUERY_TERMS = new ParseField("max_query_terms");
+        ParseField MIN_TERM_FREQ = new ParseField("min_term_freq");
+        ParseField MIN_DOC_FREQ = new ParseField("min_doc_freq");
+        ParseField MAX_DOC_FREQ = new ParseField("max_doc_freq");
+        ParseField MIN_WORD_LENGTH = new ParseField("min_word_length", "min_word_len");
+        ParseField MAX_WORD_LENGTH = new ParseField("max_word_length", "max_word_len");
+        ParseField STOP_WORDS = new ParseField("stop_words");
+        ParseField ANALYZER = new ParseField("analyzer");
+        ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
+        ParseField BOOST_TERMS = new ParseField("boost_terms");
+        ParseField INCLUDE = new ParseField("include");
+        ParseField FAIL_ON_UNSUPPORTED_FIELD = new ParseField("fail_on_unsupported_field");
+    }
 
     // document inputs
     private final String[] fields;
@@ -117,12 +143,10 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     // other parameters
     private boolean failOnUnsupportedField = DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS;
 
-    static final MoreLikeThisQueryBuilder PROTOTYPE = new MoreLikeThisQueryBuilder(new String[]{"_na_"}, null);
-
     /**
      * A single item to be used for a {@link MoreLikeThisQueryBuilder}.
      */
-    public static final class Item implements ToXContent, Writeable<Item> {
+    public static final class Item implements ToXContent, Writeable {
         public static final Item[] EMPTY_ARRAY = new Item[0];
 
         public interface Field {
@@ -147,10 +171,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
 
-        static final Item PROTOTYPE = new Item();
-
         public Item() {
-
         }
 
         Item(Item copy) {
@@ -197,6 +218,41 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             this.index = index;
             this.type = type;
             this.doc = doc.bytes();
+        }
+
+        /**
+         * Read from a stream.
+         */
+        Item(StreamInput in) throws IOException {
+            index = in.readOptionalString();
+            type = in.readOptionalString();
+            if (in.readBoolean()) {
+                doc = (BytesReference) in.readGenericValue();
+            } else {
+                id = in.readString();
+            }
+            fields = in.readOptionalStringArray();
+            perFieldAnalyzer = (Map<String, String>) in.readGenericValue();
+            routing = in.readOptionalString();
+            version = in.readLong();
+            versionType = VersionType.readFromStream(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(index);
+            out.writeOptionalString(type);
+            out.writeBoolean(doc != null);
+            if (doc != null) {
+                out.writeGenericValue(doc);
+            } else {
+                out.writeString(id);
+            }
+            out.writeOptionalStringArray(fields);
+            out.writeGenericValue(perFieldAnalyzer);
+            out.writeOptionalString(routing);
+            out.writeLong(version);
+            versionType.writeTo(out);
         }
 
         public String index() {
@@ -368,10 +424,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 if (contentType == builder.contentType()) {
                     builder.rawField(Field.DOC.getPreferredName(), this.doc);
                 } else {
-                    XContentParser parser = XContentFactory.xContent(contentType).createParser(this.doc);
-                    parser.nextToken();
-                    builder.field(Field.DOC.getPreferredName());
-                    builder.copyCurrentStructure(parser);
+                    try (XContentParser parser = XContentFactory.xContent(contentType).createParser(this.doc)) {
+                        parser.nextToken();
+                        builder.field(Field.DOC.getPreferredName());
+                        builder.copyCurrentStructure(parser);
+                    }
                 }
             }
             if (this.fields != null) {
@@ -402,45 +459,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             } catch (Exception e) {
                 return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
             }
-        }
-
-        @Override
-        public Item readFrom(StreamInput in) throws IOException {
-            Item item = new Item();
-            item.index = in.readOptionalString();
-            item.type = in.readOptionalString();
-            if (in.readBoolean()) {
-                item.doc = (BytesReference) in.readGenericValue();
-            } else {
-                item.id = in.readString();
-            }
-            item.fields = in.readOptionalStringArray();
-            item.perFieldAnalyzer = (Map<String, String>) in.readGenericValue();
-            item.routing = in.readOptionalString();
-            item.version = in.readLong();
-            item.versionType = VersionType.readVersionTypeFrom(in);
-            return item;
-        }
-
-        public static Item readItemFrom(StreamInput in) throws IOException {
-            return PROTOTYPE.readFrom(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalString(index);
-            out.writeOptionalString(type);
-            out.writeBoolean(doc != null);
-            if (doc != null) {
-                out.writeGenericValue(doc);
-            } else {
-                out.writeString(id);
-            }
-            out.writeOptionalStringArray(fields);
-            out.writeGenericValue(perFieldAnalyzer);
-            out.writeOptionalString(routing);
-            out.writeLong(version);
-            versionType.writeTo(out);
         }
 
         @Override
@@ -485,14 +503,59 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     public MoreLikeThisQueryBuilder(@Nullable String[] fields, @Nullable String[] likeTexts, @Nullable Item[] likeItems) {
         // TODO we allow null here for the _all field, but this is forbidden in the parser. Re-check
         if (fields != null && fields.length == 0) {
-            throw new IllegalArgumentException("mlt query requires 'fields' to be specified");
+            throw new IllegalArgumentException(NAME + " query requires 'fields' to be specified");
         }
         if ((likeTexts == null || likeTexts.length == 0) && (likeItems == null || likeItems.length == 0)) {
-            throw new IllegalArgumentException("mlt query requires either 'like' texts or items to be specified.");
+            throw new IllegalArgumentException(NAME + " query requires either 'like' texts or items to be specified.");
         }
         this.fields = fields;
         this.likeTexts = Optional.ofNullable(likeTexts).orElse(Strings.EMPTY_ARRAY);
         this.likeItems = Optional.ofNullable(likeItems).orElse(new Item[0]);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MoreLikeThisQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        fields = in.readOptionalStringArray();
+        likeTexts = in.readStringArray();
+        likeItems = in.readList(Item::new).toArray(new Item[0]);
+        unlikeTexts = in.readStringArray();
+        unlikeItems = in.readList(Item::new).toArray(new Item[0]);
+        maxQueryTerms = in.readVInt();
+        minTermFreq = in.readVInt();
+        minDocFreq = in.readVInt();
+        maxDocFreq = in.readVInt();
+        minWordLength = in.readVInt();
+        maxWordLength = in.readVInt();
+        stopWords = in.readOptionalStringArray();
+        analyzer = in.readOptionalString();
+        minimumShouldMatch = in.readString();
+        boostTerms = (Float) in.readGenericValue();
+        include = in.readBoolean();
+        failOnUnsupportedField = in.readBoolean();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalStringArray(fields);
+        out.writeStringArray(likeTexts);
+        out.writeList(Arrays.asList(likeItems));
+        out.writeStringArray(unlikeTexts);
+        out.writeList(Arrays.asList(unlikeItems));
+        out.writeVInt(maxQueryTerms);
+        out.writeVInt(minTermFreq);
+        out.writeVInt(minDocFreq);
+        out.writeVInt(maxDocFreq);
+        out.writeVInt(minWordLength);
+        out.writeVInt(maxWordLength);
+        out.writeOptionalStringArray(stopWords);
+        out.writeOptionalString(analyzer);
+        out.writeString(minimumShouldMatch);
+        out.writeGenericValue(boostTerms);
+        out.writeBoolean(include);
+        out.writeBoolean(failOnUnsupportedField);
     }
 
     public String[] fields() {
@@ -718,28 +781,192 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         if (fields != null) {
-            builder.field(MoreLikeThisQueryParser.Field.FIELDS.getPreferredName(), fields);
+            builder.field(Field.FIELDS.getPreferredName(), fields);
         }
-        buildLikeField(builder, MoreLikeThisQueryParser.Field.LIKE.getPreferredName(), likeTexts, likeItems);
-        buildLikeField(builder, MoreLikeThisQueryParser.Field.UNLIKE.getPreferredName(), unlikeTexts, unlikeItems);
-        builder.field(MoreLikeThisQueryParser.Field.MAX_QUERY_TERMS.getPreferredName(), maxQueryTerms);
-        builder.field(MoreLikeThisQueryParser.Field.MIN_TERM_FREQ.getPreferredName(), minTermFreq);
-        builder.field(MoreLikeThisQueryParser.Field.MIN_DOC_FREQ.getPreferredName(), minDocFreq);
-        builder.field(MoreLikeThisQueryParser.Field.MAX_DOC_FREQ.getPreferredName(), maxDocFreq);
-        builder.field(MoreLikeThisQueryParser.Field.MIN_WORD_LENGTH.getPreferredName(), minWordLength);
-        builder.field(MoreLikeThisQueryParser.Field.MAX_WORD_LENGTH.getPreferredName(), maxWordLength);
+        buildLikeField(builder, Field.LIKE.getPreferredName(), likeTexts, likeItems);
+        buildLikeField(builder, Field.UNLIKE.getPreferredName(), unlikeTexts, unlikeItems);
+        builder.field(Field.MAX_QUERY_TERMS.getPreferredName(), maxQueryTerms);
+        builder.field(Field.MIN_TERM_FREQ.getPreferredName(), minTermFreq);
+        builder.field(Field.MIN_DOC_FREQ.getPreferredName(), minDocFreq);
+        builder.field(Field.MAX_DOC_FREQ.getPreferredName(), maxDocFreq);
+        builder.field(Field.MIN_WORD_LENGTH.getPreferredName(), minWordLength);
+        builder.field(Field.MAX_WORD_LENGTH.getPreferredName(), maxWordLength);
         if (stopWords != null) {
-            builder.field(MoreLikeThisQueryParser.Field.STOP_WORDS.getPreferredName(), stopWords);
+            builder.field(Field.STOP_WORDS.getPreferredName(), stopWords);
         }
         if (analyzer != null) {
-            builder.field(MoreLikeThisQueryParser.Field.ANALYZER.getPreferredName(), analyzer);
+            builder.field(Field.ANALYZER.getPreferredName(), analyzer);
         }
-        builder.field(MoreLikeThisQueryParser.Field.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);
-        builder.field(MoreLikeThisQueryParser.Field.BOOST_TERMS.getPreferredName(), boostTerms);
-        builder.field(MoreLikeThisQueryParser.Field.INCLUDE.getPreferredName(), include);
-        builder.field(MoreLikeThisQueryParser.Field.FAIL_ON_UNSUPPORTED_FIELD.getPreferredName(), failOnUnsupportedField);
+        builder.field(Field.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);
+        builder.field(Field.BOOST_TERMS.getPreferredName(), boostTerms);
+        builder.field(Field.INCLUDE.getPreferredName(), include);
+        builder.field(Field.FAIL_ON_UNSUPPORTED_FIELD.getPreferredName(), failOnUnsupportedField);
         printBoostAndQueryName(builder);
         builder.endObject();
+    }
+
+    public static MoreLikeThisQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+
+        // document inputs
+        List<String> fields = null;
+        List<String> likeTexts = new ArrayList<>();
+        List<String> unlikeTexts = new ArrayList<>();
+        List<Item> likeItems = new ArrayList<>();
+        List<Item> unlikeItems = new ArrayList<>();
+
+        // term selection parameters
+        int maxQueryTerms = MoreLikeThisQueryBuilder.DEFAULT_MAX_QUERY_TERMS;
+        int minTermFreq = MoreLikeThisQueryBuilder.DEFAULT_MIN_TERM_FREQ;
+        int minDocFreq = MoreLikeThisQueryBuilder.DEFAULT_MIN_DOC_FREQ;
+        int maxDocFreq = MoreLikeThisQueryBuilder.DEFAULT_MAX_DOC_FREQ;
+        int minWordLength = MoreLikeThisQueryBuilder.DEFAULT_MIN_WORD_LENGTH;
+        int maxWordLength = MoreLikeThisQueryBuilder.DEFAULT_MAX_WORD_LENGTH;
+        List<String> stopWords = null;
+        String analyzer = null;
+
+        // query formation parameters
+        String minimumShouldMatch = MoreLikeThisQueryBuilder.DEFAULT_MINIMUM_SHOULD_MATCH;
+        float boostTerms = MoreLikeThisQueryBuilder.DEFAULT_BOOST_TERMS;
+        boolean include = MoreLikeThisQueryBuilder.DEFAULT_INCLUDE;
+
+        // other parameters
+        boolean failOnUnsupportedField = MoreLikeThisQueryBuilder.DEFAULT_FAIL_ON_UNSUPPORTED_FIELDS;
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        String queryName = null;
+
+        XContentParser.Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.LIKE)) {
+                    parseLikeField(parseContext, likeTexts, likeItems);
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.UNLIKE)) {
+                    parseLikeField(parseContext, unlikeTexts, unlikeItems);
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.LIKE_TEXT)) {
+                    likeTexts.add(parser.text());
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.MAX_QUERY_TERMS)) {
+                    maxQueryTerms = parser.intValue();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.MIN_TERM_FREQ)) {
+                    minTermFreq =parser.intValue();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.MIN_DOC_FREQ)) {
+                    minDocFreq = parser.intValue();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.MAX_DOC_FREQ)) {
+                    maxDocFreq = parser.intValue();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.MIN_WORD_LENGTH)) {
+                    minWordLength = parser.intValue();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.MAX_WORD_LENGTH)) {
+                    maxWordLength = parser.intValue();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.ANALYZER)) {
+                    analyzer = parser.text();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.MINIMUM_SHOULD_MATCH)) {
+                    minimumShouldMatch = parser.text();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.BOOST_TERMS)) {
+                    boostTerms = parser.floatValue();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.INCLUDE)) {
+                    include = parser.booleanValue();
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.FAIL_ON_UNSUPPORTED_FIELD)) {
+                    failOnUnsupportedField = parser.booleanValue();
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[mlt] query does not support [" + currentFieldName + "]");
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.FIELDS)) {
+                    fields = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        fields.add(parser.text());
+                    }
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.LIKE)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        parseLikeField(parseContext, likeTexts, likeItems);
+                    }
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.UNLIKE)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        parseLikeField(parseContext, unlikeTexts, unlikeItems);
+                    }
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.IDS)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (!token.isValue()) {
+                            throw new IllegalArgumentException("ids array element should only contain ids");
+                        }
+                        likeItems.add(new Item(null, null, parser.text()));
+                    }
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.DOCS)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token != XContentParser.Token.START_OBJECT) {
+                            throw new IllegalArgumentException("docs array element should include an object");
+                        }
+                        likeItems.add(Item.parse(parser, parseContext.getParseFieldMatcher(), new Item()));
+                    }
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.STOP_WORDS)) {
+                    stopWords = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        stopWords.add(parser.text());
+                    }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[mlt] query does not support [" + currentFieldName + "]");
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.LIKE)) {
+                    parseLikeField(parseContext, likeTexts, likeItems);
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, Field.UNLIKE)) {
+                    parseLikeField(parseContext, unlikeTexts, unlikeItems);
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "[mlt] query does not support [" + currentFieldName + "]");
+                }
+            }
+        }
+
+        if (likeTexts.isEmpty() && likeItems.isEmpty()) {
+            throw new ParsingException(parser.getTokenLocation(), "more_like_this requires 'like' to be specified");
+        }
+        if (fields != null && fields.isEmpty()) {
+            throw new ParsingException(parser.getTokenLocation(), "more_like_this requires 'fields' to be non-empty");
+        }
+
+        String[] fieldsArray = fields == null ? null : fields.toArray(new String[fields.size()]);
+        String[] likeTextsArray = likeTexts.isEmpty() ? null : likeTexts.toArray(new String[likeTexts.size()]);
+        String[] unlikeTextsArray = unlikeTexts.isEmpty() ? null : unlikeTexts.toArray(new String[unlikeTexts.size()]);
+        Item[] likeItemsArray = likeItems.isEmpty() ? null : likeItems.toArray(new Item[likeItems.size()]);
+        Item[] unlikeItemsArray = unlikeItems.isEmpty() ? null : unlikeItems.toArray(new Item[unlikeItems.size()]);
+
+        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder(fieldsArray, likeTextsArray, likeItemsArray)
+                .unlike(unlikeTextsArray)
+                .unlike(unlikeItemsArray)
+                .maxQueryTerms(maxQueryTerms)
+                .minTermFreq(minTermFreq)
+                .minDocFreq(minDocFreq)
+                .maxDocFreq(maxDocFreq)
+                .minWordLength(minWordLength)
+                .maxWordLength(maxWordLength)
+                .analyzer(analyzer)
+                .minimumShouldMatch(minimumShouldMatch)
+                .boostTerms(boostTerms)
+                .include(include)
+                .failOnUnsupportedField(failOnUnsupportedField)
+                .boost(boost)
+                .queryName(queryName);
+        if (stopWords != null) {
+            moreLikeThisQueryBuilder.stopWords(stopWords);
+        }
+        return moreLikeThisQueryBuilder;
+    }
+
+    private static void parseLikeField(QueryParseContext parseContext, List<String> texts, List<Item> items) throws IOException {
+        XContentParser parser = parseContext.parser();
+        if (parser.currentToken().isValue()) {
+            texts.add(parser.text());
+        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            items.add(Item.parse(parser, parseContext.getParseFieldMatcher(), new Item()));
+        } else {
+            throw new IllegalArgumentException("Content of 'like' parameter should either be a string or an object");
+        }
     }
 
     private static void buildLikeField(XContentBuilder builder, String fieldName, String[] texts, Item[] items) throws IOException {
@@ -809,16 +1036,22 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         } else {
             for (String field : fields) {
                 MappedFieldType fieldType = context.fieldMapper(field);
+                if (fieldType != null && SUPPORTED_FIELD_TYPES.contains(fieldType.getClass()) == false) {
+                    if (failOnUnsupportedField) {
+                        throw new IllegalArgumentException("more_like_this only supports text/keyword fields: [" + field + "]");
+                    } else {
+                        // skip
+                        continue;
+                    }
+                }
                 moreLikeFields.add(fieldType == null ? field : fieldType.name());
             }
         }
 
-        // possibly remove unsupported fields
-        removeUnsupportedFields(moreLikeFields, analyzerObj, failOnUnsupportedField);
         if (moreLikeFields.isEmpty()) {
             return null;
         }
-        mltQuery.setMoreLikeFields(moreLikeFields.toArray(Strings.EMPTY_ARRAY));
+        mltQuery.setMoreLikeFields(moreLikeFields.toArray(new String[moreLikeFields.size()]));
 
         // handle like texts
         if (likeTexts.length > 0) {
@@ -836,20 +1069,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
     }
 
-    private static List<String> removeUnsupportedFields(List<String> moreLikeFields, Analyzer analyzer, boolean failOnUnsupportedField) throws IOException {
-        for (Iterator<String> it = moreLikeFields.iterator(); it.hasNext(); ) {
-            final String fieldName = it.next();
-            if (!Analysis.generatesCharacterTokenStream(analyzer, fieldName)) {
-                if (failOnUnsupportedField) {
-                    throw new IllegalArgumentException("more_like_this doesn't support binary/numeric fields: [" + fieldName + "]");
-                } else {
-                    it.remove();
-                }
-            }
-        }
-        return moreLikeFields;
-    }
-
     private Query handleItems(QueryShardContext context, MoreLikeThisQuery mltQuery, Item[] likeItems, Item[] unlikeItems,
                               boolean include, List<String> moreLikeFields, boolean useDefaultField) throws IOException {
         // set default index, type and fields if not specified
@@ -861,14 +1080,14 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
 
         // fetching the items with multi-termvectors API
-        MultiTermVectorsResponse responses = fetchResponse(context.getClient(), likeItems, unlikeItems, SearchContext.current());
-
+        MultiTermVectorsResponse likeItemsResponse = fetchResponse(context.getClient(), likeItems);
         // getting the Fields for liked items
-        mltQuery.setLikeText(getFieldsFor(responses, likeItems));
+        mltQuery.setLikeText(getFieldsFor(likeItemsResponse));
 
         // getting the Fields for unliked items
         if (unlikeItems.length > 0) {
-            org.apache.lucene.index.Fields[] unlikeFields = getFieldsFor(responses, unlikeItems);
+            MultiTermVectorsResponse unlikeItemsResponse = fetchResponse(context.getClient(), unlikeItems);
+            org.apache.lucene.index.Fields[] unlikeFields = getFieldsFor(unlikeItemsResponse);
             if (unlikeFields.length > 0) {
                 mltQuery.setUnlikeText(unlikeFields);
             }
@@ -907,30 +1126,19 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
     }
 
-    private MultiTermVectorsResponse fetchResponse(Client client, Item[] likeItems, @Nullable Item[] unlikeItems,
-                                                   SearchContext searchContext) throws IOException {
+    private MultiTermVectorsResponse fetchResponse(Client client, Item[] items) throws IOException {
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
-        for (Item item : likeItems) {
+        for (Item item : items) {
             request.add(item.toTermVectorsRequest());
         }
-        for (Item item : unlikeItems) {
-            request.add(item.toTermVectorsRequest());
-        }
+
         return client.multiTermVectors(request).actionGet();
     }
 
-    private static Fields[] getFieldsFor(MultiTermVectorsResponse responses, Item[] items) throws IOException {
+    private static Fields[] getFieldsFor(MultiTermVectorsResponse responses) throws IOException {
         List<Fields> likeFields = new ArrayList<>();
 
-        Set<Item> selectedItems = new HashSet<>();
-        for (Item request : items) {
-            selectedItems.add(new Item(request.index(), request.type(), request.id()));
-        }
-
         for (MultiTermVectorsItemResponse response : responses) {
-            if (!hasResponseFromRequest(response, selectedItems)) {
-                continue;
-            }
             if (response.isFailed()) {
                 continue;
             }
@@ -943,10 +1151,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return likeFields.toArray(Fields.EMPTY_ARRAY);
     }
 
-    private static boolean hasResponseFromRequest(MultiTermVectorsItemResponse response, Set<Item> selectedItems) {
-        return selectedItems.contains(new Item(response.getIndex(), response.getType(), response.getId()));
-    }
-
     private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems) {
         // artificial docs get assigned a random id and should be disregarded
         List<BytesRef> uids = new ArrayList<>();
@@ -957,68 +1161,8 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             uids.add(createUidAsBytes(item.type(), item.id()));
         }
         if (!uids.isEmpty()) {
-            TermsQuery query = new TermsQuery(UidFieldMapper.NAME, uids.toArray(new BytesRef[0]));
+            TermsQuery query = new TermsQuery(UidFieldMapper.NAME, uids.toArray(new BytesRef[uids.size()]));
             boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
-        }
-    }
-
-    @Override
-    protected MoreLikeThisQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        String[] fields = in.readOptionalStringArray();
-        String[] likeTexts = in.readStringArray();
-        Item[] likeItems = readItems(in);
-        MoreLikeThisQueryBuilder moreLikeThisQueryBuilder = new MoreLikeThisQueryBuilder(fields, likeTexts, likeItems);
-        moreLikeThisQueryBuilder.unlikeTexts = in.readStringArray();
-        moreLikeThisQueryBuilder.unlikeItems = readItems(in);
-        moreLikeThisQueryBuilder.maxQueryTerms = in.readVInt();
-        moreLikeThisQueryBuilder.minTermFreq = in.readVInt();
-        moreLikeThisQueryBuilder.minDocFreq = in.readVInt();
-        moreLikeThisQueryBuilder.maxDocFreq = in.readVInt();
-        moreLikeThisQueryBuilder.minWordLength = in.readVInt();
-        moreLikeThisQueryBuilder.maxWordLength = in.readVInt();
-        moreLikeThisQueryBuilder.stopWords = in.readOptionalStringArray();
-        moreLikeThisQueryBuilder.analyzer = in.readOptionalString();
-        moreLikeThisQueryBuilder.minimumShouldMatch = in.readString();
-        moreLikeThisQueryBuilder.boostTerms = (Float) in.readGenericValue();
-        moreLikeThisQueryBuilder.include = in.readBoolean();
-        moreLikeThisQueryBuilder.failOnUnsupportedField = in.readBoolean();
-        return moreLikeThisQueryBuilder;
-    }
-
-    private static Item[] readItems(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        Item[] items = new Item[size];
-        for (int i = 0; i < size; i++) {
-            items[i] = Item.readItemFrom(in);
-        }
-        return items;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeOptionalStringArray(fields);
-        out.writeStringArray(likeTexts);
-        writeItems(likeItems, out);
-        out.writeStringArray(unlikeTexts);
-        writeItems(unlikeItems, out);
-        out.writeVInt(maxQueryTerms);
-        out.writeVInt(minTermFreq);
-        out.writeVInt(minDocFreq);
-        out.writeVInt(maxDocFreq);
-        out.writeVInt(minWordLength);
-        out.writeVInt(maxWordLength);
-        out.writeOptionalStringArray(stopWords);
-        out.writeOptionalString(analyzer);
-        out.writeString(minimumShouldMatch);
-        out.writeGenericValue(boostTerms);
-        out.writeBoolean(include);
-        out.writeBoolean(failOnUnsupportedField);
-    }
-
-    private static void writeItems(Item[] items, StreamOutput out) throws IOException {
-        out.writeVInt(items.length);
-        for (Item item : items) {
-            item.writeTo(out);
         }
     }
 
@@ -1052,7 +1196,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         // TODO this needs heavy cleanups before we can rewrite it
         return this;
     }

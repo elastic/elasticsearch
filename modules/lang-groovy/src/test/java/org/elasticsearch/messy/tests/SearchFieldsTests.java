@@ -201,7 +201,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertNoFailures(response);
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
-        assertThat(response.getHits().getAt(0).isSourceEmpty(), equalTo(true));
+        assertThat(response.getHits().getAt(0).hasSource(), equalTo(true));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
         Set<String> fields = new HashSet<>(response.getHits().getAt(0).fields().keySet());
         fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
@@ -482,7 +482,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
     public void testGetFieldsComplexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1))
+                .setSettings(Settings.builder().put("index.refresh_interval", -1))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")
@@ -539,7 +539,8 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
     // see #8203
     public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
-        createIndex("test");
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type", "test_field", "type=keyword").get());
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("test_field", "foobar"));
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setSource(
@@ -554,7 +555,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_source").field("enabled", false).endObject().startObject("properties")
-                .startObject("text_field").field("type", "text").endObject()
+                .startObject("text_field").field("type", "text").field("fielddata", true).endObject()
                 .startObject("keyword_field").field("type", "keyword").endObject()
                 .startObject("byte_field").field("type", "byte").endObject()
                 .startObject("short_field").field("type", "short").endObject()

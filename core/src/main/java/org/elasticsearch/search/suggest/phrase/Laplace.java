@@ -44,15 +44,15 @@ import java.util.Objects;
  * </p>
  */
 public final class Laplace extends SmoothingModel {
-    private double alpha = DEFAULT_LAPLACE_ALPHA;
-    private static final String NAME = "laplace";
+    public static final String NAME = "laplace";
     private static final ParseField ALPHA_FIELD = new ParseField("alpha");
     static final ParseField PARSE_FIELD = new ParseField(NAME);
     /**
      * Default alpha parameter for laplace smoothing
      */
     public static final double DEFAULT_LAPLACE_ALPHA = 0.5;
-    public static final Laplace PROTOTYPE = new Laplace(DEFAULT_LAPLACE_ALPHA);
+
+    private double alpha = DEFAULT_LAPLACE_ALPHA;
 
     /**
      * Creates a Laplace smoothing model.
@@ -60,6 +60,18 @@ public final class Laplace extends SmoothingModel {
      */
     public Laplace(double alpha) {
         this.alpha = alpha;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public Laplace(StreamInput in) throws IOException {
+        alpha = in.readDouble();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeDouble(alpha);
     }
 
     /**
@@ -81,16 +93,6 @@ public final class Laplace extends SmoothingModel {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeDouble(alpha);
-    }
-
-    @Override
-    public SmoothingModel readFrom(StreamInput in) throws IOException {
-        return new Laplace(in.readDouble());
-    }
-
-    @Override
     protected boolean doEquals(SmoothingModel other) {
         Laplace otherModel = (Laplace) other;
         return Objects.equals(alpha, otherModel.alpha);
@@ -101,8 +103,7 @@ public final class Laplace extends SmoothingModel {
         return Objects.hash(alpha);
     }
 
-    @Override
-    public SmoothingModel innerFromXContent(QueryParseContext parseContext) throws IOException {
+    public static SmoothingModel innerFromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         XContentParser.Token token;
         String fieldName = null;
@@ -111,7 +112,7 @@ public final class Laplace extends SmoothingModel {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             }
-            if (token.isValue() && parseContext.parseFieldMatcher().match(fieldName, ALPHA_FIELD)) {
+            if (token.isValue() && parseContext.getParseFieldMatcher().match(fieldName, ALPHA_FIELD)) {
                 alpha = parser.doubleValue();
             }
         }

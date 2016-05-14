@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.valuecount;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,30 +34,35 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 
-public class ValueCountAggregatorBuilder
-        extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource, ValueCountAggregatorBuilder> {
-
-    static final ValueCountAggregatorBuilder PROTOTYPE = new ValueCountAggregatorBuilder("", null);
+public class ValueCountAggregatorBuilder extends ValuesSourceAggregatorBuilder.LeafOnly<ValuesSource, ValueCountAggregatorBuilder> {
+    public static final String NAME = InternalValueCount.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public ValueCountAggregatorBuilder(String name, ValueType targetValueType) {
         super(name, InternalValueCount.TYPE, ValuesSourceType.ANY, targetValueType);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ValueCountAggregatorBuilder(StreamInput in) throws IOException {
+        super(in, InternalValueCount.TYPE, ValuesSourceType.ANY);
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) {
+        // Do nothing, no extra state to write to stream
+    }
+
+    @Override
+    protected boolean serializeTargetValueType() {
+        return true;
     }
 
     @Override
     protected ValueCountAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig<ValuesSource> config,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new ValueCountAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
-    }
-
-    @Override
-    protected ValuesSourceAggregatorBuilder<ValuesSource, ValueCountAggregatorBuilder> innerReadFrom(String name,
-            ValuesSourceType valuesSourceType, ValueType targetValueType, StreamInput in) {
-        return new ValueCountAggregatorBuilder(name, targetValueType);
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) {
-        // Do nothing, no extra state to write to stream
     }
 
     @Override
@@ -74,4 +80,8 @@ public class ValueCountAggregatorBuilder
         return true;
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

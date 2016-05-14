@@ -41,7 +41,7 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.settingsBuilder()
+        Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put("discovery.type", "azure")
                 // We need the network to make the mock working
@@ -65,6 +65,6 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().execute().actionGet();
         assertNotNull(nodeInfos);
         assertNotNull(nodeInfos.getNodes());
-        assertEquals(expected, nodeInfos.getNodes().length);
+        assertEquals(expected, nodeInfos.getNodes().size());
     }
 }

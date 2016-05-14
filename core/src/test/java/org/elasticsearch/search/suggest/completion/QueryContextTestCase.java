@@ -19,22 +19,20 @@
 
 package org.elasticsearch.search.suggest.completion;
 
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.suggest.completion.context.QueryContext;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static junit.framework.TestCase.assertEquals;
 
-
-public abstract class QueryContextTestCase<QC extends QueryContext> extends ESTestCase {
-
+public abstract class QueryContextTestCase<QC extends ToXContent> extends ESTestCase {
     private static final int NUMBER_OF_RUNS = 20;
 
     /**
@@ -43,19 +41,19 @@ public abstract class QueryContextTestCase<QC extends QueryContext> extends ESTe
     protected abstract QC createTestModel();
 
     /**
-     * query context prototype to read serialized format
+     * read the context
      */
-    protected abstract QC prototype();
+    protected abstract QC fromXContent(QueryParseContext context) throws IOException;
 
     public void testToXContext() throws IOException {
         for (int i = 0; i < NUMBER_OF_RUNS; i++) {
-            QueryContext toXContent = createTestModel();
+            QC toXContent = createTestModel();
             XContentBuilder builder = XContentFactory.jsonBuilder();
             toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
             BytesReference bytesReference = builder.bytes();
             XContentParser parser = XContentFactory.xContent(bytesReference).createParser(bytesReference);
             parser.nextToken();
-            QueryContext fromXContext = prototype().fromXContext(parser);
+            QC fromXContext = fromXContent(new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT));
             assertEquals(toXContent, fromXContext);
             assertEquals(toXContent.hashCode(), fromXContext.hashCode());
         }

@@ -50,7 +50,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -190,7 +190,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             // Read snapshot info and metadata from the repository
             Repository repository = repositoriesService.repository(request.repository());
             final SnapshotId snapshotId = new SnapshotId(request.repository(), request.name());
-            final Snapshot snapshot = repository.readSnapshot(snapshotId);
+            final SnapshotInfo snapshot = repository.readSnapshot(snapshotId);
             List<String> filteredIndices = SnapshotUtils.filterIndices(snapshot.indices(), request.indices(), request.indicesOptions());
             MetaData metaDataIn = repository.readSnapshotMetaData(snapshotId, snapshot, filteredIndices);
 
@@ -255,7 +255,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 createIndexService.validateIndexName(renamedIndexName, currentState);
                                 createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings());
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN).index(renamedIndexName);
-                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, Strings.randomBase64UUID()));
+                                indexMdBuilder.settings(Settings.builder().put(snapshotIndexMetaData.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
                                 if (!request.includeAliases() && !snapshotIndexMetaData.getAliases().isEmpty()) {
                                     // Remove all aliases - they shouldn't be restored
                                     indexMdBuilder.removeAllAliases();
@@ -291,7 +291,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                         aliases.add(alias.value);
                                     }
                                 }
-                                indexMdBuilder.settings(Settings.settingsBuilder().put(snapshotIndexMetaData.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, currentIndexMetaData.getIndexUUID()));
+                                indexMdBuilder.settings(Settings.builder().put(snapshotIndexMetaData.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, currentIndexMetaData.getIndexUUID()));
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndexName).build();
                                 rtBuilder.addAsRestore(updatedIndexMetaData, restoreSource);
                                 blocks.updateBlocks(updatedIndexMetaData);
@@ -301,9 +301,9 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                             for (int shard = 0; shard < snapshotIndexMetaData.getNumberOfShards(); shard++) {
                                 if (!ignoreShards.contains(shard)) {
-                                    shardsBuilder.put(new ShardId(renamedIndex, shard), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().localNodeId()));
+                                    shardsBuilder.put(new ShardId(renamedIndex, shard), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId()));
                                 } else {
-                                    shardsBuilder.put(new ShardId(renamedIndex, shard), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().localNodeId(), RestoreInProgress.State.FAILURE));
+                                    shardsBuilder.put(new ShardId(renamedIndex, shard), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId(), RestoreInProgress.State.FAILURE));
                                 }
                             }
                         }
@@ -388,7 +388,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     if (changeSettings.names().isEmpty() && ignoreSettings.length == 0) {
                         return indexMetaData;
                     }
-                    Settings normalizedChangeSettings = Settings.settingsBuilder().put(changeSettings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
+                    Settings normalizedChangeSettings = Settings.builder().put(changeSettings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
                     IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
                     Map<String, String> settingsMap = new HashMap<>(indexMetaData.getSettings().getAsMap());
                     List<String> simpleMatchPatterns = new ArrayList<>();
@@ -486,8 +486,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     public void indexShardRestoreCompleted(SnapshotId snapshotId, ShardId shardId) {
         logger.trace("[{}] successfully restored shard  [{}]", snapshotId, shardId);
         UpdateIndexShardRestoreStatusRequest request = new UpdateIndexShardRestoreStatusRequest(snapshotId, shardId,
-                new ShardRestoreStatus(clusterService.state().nodes().localNodeId(), RestoreInProgress.State.SUCCESS));
-            transportService.sendRequest(clusterService.state().nodes().masterNode(),
+                new ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId(), RestoreInProgress.State.SUCCESS));
+            transportService.sendRequest(clusterService.state().nodes().getMasterNode(),
                     UPDATE_RESTORE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
     }
 
@@ -708,7 +708,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
      * @param snapshotId snapshot id
      * @param snapshot   snapshot metadata
      */
-    private void validateSnapshotRestorable(SnapshotId snapshotId, Snapshot snapshot) {
+    private void validateSnapshotRestorable(SnapshotId snapshotId, SnapshotInfo snapshot) {
         if (!snapshot.state().restorable()) {
             throw new SnapshotRestoreException(snapshotId, "unsupported snapshot state [" + snapshot.state() + "]");
         }
@@ -760,12 +760,12 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     public void failRestore(SnapshotId snapshotId, ShardId shardId) {
         logger.debug("[{}] failed to restore shard  [{}]", snapshotId, shardId);
         UpdateIndexShardRestoreStatusRequest request = new UpdateIndexShardRestoreStatusRequest(snapshotId, shardId,
-                new ShardRestoreStatus(clusterService.state().nodes().localNodeId(), RestoreInProgress.State.FAILURE));
-            transportService.sendRequest(clusterService.state().nodes().masterNode(),
+                new ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId(), RestoreInProgress.State.FAILURE));
+            transportService.sendRequest(clusterService.state().nodes().getMasterNode(),
                     UPDATE_RESTORE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
     }
 
-    private boolean failed(Snapshot snapshot, String index) {
+    private boolean failed(SnapshotInfo snapshot, String index) {
         for (SnapshotShardFailure failure : snapshot.shardFailures()) {
             if (index.equals(failure.index())) {
                 return true;

@@ -116,7 +116,7 @@ public class AzureRepository extends BlobStoreRepository {
             // Remove starting / if any
             basePath = Strings.trimLeadingCharacter(basePath, '/');
             BlobPath path = new BlobPath();
-            for(String elem : Strings.splitStringToArray(basePath, '/')) {
+            for(String elem : basePath.split("/")) {
                 path = path.add(elem);
             }
             this.basePath = path;

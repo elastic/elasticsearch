@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -29,7 +30,10 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
@@ -166,7 +170,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         // Check whether it was a data node that was added
         boolean dataNodeAdded = false;
         for (DiscoveryNode addedNode : event.nodesDelta().addedNodes()) {
-            if (addedNode.dataNode()) {
+            if (addedNode.isDataNode()) {
                 dataNodeAdded = true;
                 break;
             }
@@ -181,7 +185,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
 
         if (this.isMaster && event.nodesRemoved()) {
             for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
-                if (removedNode.dataNode()) {
+                if (removedNode.isDataNode()) {
                     if (logger.isTraceEnabled()) {
                         logger.trace("Removing node from cluster info: {}", removedNode.getId());
                     }
@@ -307,7 +311,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             @Override
             public void onFailure(Throwable e) {
                 if (e instanceof ReceiveTimeoutTransportException) {
-                    logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
+                    logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob", e);
                 } else {
                     if (e instanceof ClusterBlockException) {
                         if (logger.isTraceEnabled()) {
@@ -329,7 +333,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                 ShardStats[] stats = indicesStatsResponse.getShards();
                 ImmutableOpenMap.Builder<String, Long> newShardSizes = ImmutableOpenMap.builder();
                 ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath = ImmutableOpenMap.builder();
-                buildShardLevelInfo(logger, stats, newShardSizes, newShardRoutingToDataPath);
+                buildShardLevelInfo(logger, stats, newShardSizes, newShardRoutingToDataPath, clusterService.state());
                 shardSizes = newShardSizes.build();
                 shardRoutingToDataPath = newShardRoutingToDataPath.build();
             }
@@ -337,7 +341,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             @Override
             public void onFailure(Throwable e) {
                 if (e instanceof ReceiveTimeoutTransportException) {
-                    logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
+                    logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob", e);
                 } else {
                     if (e instanceof ClusterBlockException) {
                         if (logger.isTraceEnabled()) {
@@ -378,24 +382,34 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
     }
 
     static void buildShardLevelInfo(ESLogger logger, ShardStats[] stats, ImmutableOpenMap.Builder<String, Long> newShardSizes,
-            ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath) {
+                                    ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath, ClusterState state) {
+        MetaData meta = state.getMetaData();
         for (ShardStats s : stats) {
+            IndexMetaData indexMeta = meta.index(s.getShardRouting().index());
+            Settings indexSettings = indexMeta == null ? null : indexMeta.getSettings();
             newShardRoutingToDataPath.put(s.getShardRouting(), s.getDataPath());
             long size = s.getStats().getStore().sizeInBytes();
             String sid = ClusterInfo.shardIdentifierFromRouting(s.getShardRouting());
             if (logger.isTraceEnabled()) {
                 logger.trace("shard: {} size: {}", sid, size);
             }
+            if (indexSettings != null && IndexMetaData.isIndexUsingShadowReplicas(indexSettings)) {
+                // Shards on a shared filesystem should be considered of size 0
+                if (logger.isTraceEnabled()) {
+                    logger.trace("shard: {} is using shadow replicas and will be treated as size 0", sid);
+                }
+                size = 0;
+            }
             newShardSizes.put(sid, size);
         }
     }
 
-    static void fillDiskUsagePerNode(ESLogger logger, NodeStats[] nodeStatsArray,
+    static void fillDiskUsagePerNode(ESLogger logger, List<NodeStats> nodeStatsArray,
             ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvaiableUsages,
             ImmutableOpenMap.Builder<String, DiskUsage> newMostAvaiableUsages) {
         for (NodeStats nodeStats : nodeStatsArray) {
             if (nodeStats.getFs() == null) {
-                logger.warn("Unable to retrieve node FS stats for {}", nodeStats.getNode().name());
+                logger.warn("Unable to retrieve node FS stats for {}", nodeStats.getNode().getName());
             } else {
                 FsInfo.Path leastAvailablePath = null;
                 FsInfo.Path mostAvailablePath = null;
@@ -409,7 +423,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
                         mostAvailablePath = info;
                     }
                 }
-                String nodeId = nodeStats.getNode().id();
+                String nodeId = nodeStats.getNode().getId();
                 String nodeName = nodeStats.getNode().getName();
                 if (logger.isTraceEnabled()) {
                     logger.trace("node: [{}], most available: total disk: {}, available disk: {} / least available: total disk: {}, available disk: {}",

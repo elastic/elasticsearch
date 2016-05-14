@@ -60,7 +60,8 @@ public class StatsBucketIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        createIndex("idx");
+        assertAcked(client().admin().indices().prepareCreate("idx")
+                .addMapping("type", "tag", "type=keyword").get());
         createIndex("idx_unmapped");
 
         numDocs = randomIntBetween(6, 20);

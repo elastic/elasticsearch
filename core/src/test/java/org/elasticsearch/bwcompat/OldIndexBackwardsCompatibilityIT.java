@@ -276,6 +276,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         SortedSet<String> expectedVersions = new TreeSet<>();
         for (Version v : VersionUtils.allVersions()) {
             if (VersionUtils.isSnapshot(v)) continue;  // snapshots are unreleased, so there is no backcompat yet
+            if (v.isAlpha()) continue; // no guarantees for alpha releases
             if (v.onOrBefore(Version.V_2_0_0_beta1)) continue; // we can only test back one major lucene version
             if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
             expectedVersions.add("index-" + v.toString() + ".zip");
@@ -294,7 +295,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             fail(msg.toString());
         }
     }
-
+    
     public void testOldIndexes() throws Exception {
         setupCluster();
 

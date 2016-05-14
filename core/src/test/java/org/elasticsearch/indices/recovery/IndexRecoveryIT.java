@@ -67,13 +67,12 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -215,7 +214,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         // force a shard recovery from nodeA to nodeB
         logger.info("--> bump replica count");
         client().admin().indices().prepareUpdateSettings(INDEX_NAME)
-                .setSettings(settingsBuilder().put("number_of_replicas", 1)).execute().actionGet();
+                .setSettings(Settings.builder().put("number_of_replicas", 1)).execute().actionGet();
         ensureGreen();
 
         logger.info("--> request recoveries");
@@ -297,12 +296,12 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         long nodeBThrottling = Long.MAX_VALUE;
         for (NodeStats nodeStats : statsResponse.getNodes()) {
             final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
-            if (nodeStats.getNode().name().equals(nodeA)) {
+            if (nodeStats.getNode().getName().equals(nodeA)) {
                 assertThat("node A should have ongoing recovery as source", recoveryStats.currentAsSource(), equalTo(1));
                 assertThat("node A should not have ongoing recovery as target", recoveryStats.currentAsTarget(), equalTo(0));
                 nodeAThrottling = recoveryStats.throttleTime().millis();
             }
-            if (nodeStats.getNode().name().equals(nodeB)) {
+            if (nodeStats.getNode().getName().equals(nodeB)) {
                 assertThat("node B should not have ongoing recovery as source", recoveryStats.currentAsSource(), equalTo(0));
                 assertThat("node B should have ongoing recovery as target", recoveryStats.currentAsTarget(), equalTo(1));
                 nodeBThrottling = recoveryStats.throttleTime().millis();
@@ -316,13 +315,13 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             @Override
             public void run() {
                 NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
-                assertThat(statsResponse.getNodes(), arrayWithSize(2));
+                assertThat(statsResponse.getNodes(), hasSize(2));
                 for (NodeStats nodeStats : statsResponse.getNodes()) {
                     final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
-                    if (nodeStats.getNode().name().equals(nodeA)) {
+                    if (nodeStats.getNode().getName().equals(nodeA)) {
                         assertThat("node A throttling should increase", recoveryStats.throttleTime().millis(), greaterThan(finalNodeAThrottling));
                     }
-                    if (nodeStats.getNode().name().equals(nodeB)) {
+                    if (nodeStats.getNode().getName().equals(nodeB)) {
                         assertThat("node B throttling should increase", recoveryStats.throttleTime().millis(), greaterThan(finalNodeBThrottling));
                     }
                 }
@@ -345,34 +344,34 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         validateIndexRecoveryState(recoveryStates.get(0).getIndex());
 
         statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
-        assertThat(statsResponse.getNodes(), arrayWithSize(2));
+        assertThat(statsResponse.getNodes(), hasSize(2));
         for (NodeStats nodeStats : statsResponse.getNodes()) {
             final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
             assertThat(recoveryStats.currentAsSource(), equalTo(0));
             assertThat(recoveryStats.currentAsTarget(), equalTo(0));
-            if (nodeStats.getNode().name().equals(nodeA)) {
+            if (nodeStats.getNode().getName().equals(nodeA)) {
                 assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
-            if (nodeStats.getNode().name().equals(nodeB)) {
+            if (nodeStats.getNode().getName().equals(nodeB)) {
                 assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
         }
 
         logger.info("--> bump replica count");
         client().admin().indices().prepareUpdateSettings(INDEX_NAME)
-                .setSettings(settingsBuilder().put("number_of_replicas", 1)).execute().actionGet();
+                .setSettings(Settings.builder().put("number_of_replicas", 1)).execute().actionGet();
         ensureGreen();
 
         statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
-        assertThat(statsResponse.getNodes(), arrayWithSize(2));
+        assertThat(statsResponse.getNodes(), hasSize(2));
         for (NodeStats nodeStats : statsResponse.getNodes()) {
             final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
             assertThat(recoveryStats.currentAsSource(), equalTo(0));
             assertThat(recoveryStats.currentAsTarget(), equalTo(0));
-            if (nodeStats.getNode().name().equals(nodeA)) {
+            if (nodeStats.getNode().getName().equals(nodeA)) {
                 assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
-            if (nodeStats.getNode().name().equals(nodeB)) {
+            if (nodeStats.getNode().getName().equals(nodeB)) {
                 assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0L));
             }
         }
@@ -437,7 +436,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         logger.info("--> create repository");
         assertAcked(client().admin().cluster().preparePutRepository(REPO_NAME)
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                                 .put("location", randomRepoPath())
                                 .put("compress", false)
                 ).get());
@@ -496,7 +495,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             throws ExecutionException, InterruptedException {
 
         logger.info("--> creating test index: {}", name);
-        assertAcked(prepareCreate(name, nodeCount, settingsBuilder().put("number_of_shards", shardCount)
+        assertAcked(prepareCreate(name, nodeCount, Settings.builder().put("number_of_shards", shardCount)
                 .put("number_of_replicas", replicaCount).put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), 0)));
         ensureGreen();
 
@@ -535,8 +534,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         // start a master node
         internalCluster().startNode(nodeSettings);
 
-        InternalTestCluster.Async<String> blueFuture = internalCluster().startNodeAsync(Settings.builder().put("node.color", "blue").put(nodeSettings).build());
-        InternalTestCluster.Async<String> redFuture = internalCluster().startNodeAsync(Settings.builder().put("node.color", "red").put(nodeSettings).build());
+        InternalTestCluster.Async<String> blueFuture = internalCluster().startNodeAsync(Settings.builder().put("node.attr.color", "blue").put(nodeSettings).build());
+        InternalTestCluster.Async<String> redFuture = internalCluster().startNodeAsync(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
         final String blueNodeName = blueFuture.get();
         final String redNodeName = redFuture.get();
 
@@ -561,7 +560,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         ensureSearchable(indexName);
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
-        final String blueNodeId = internalCluster().getInstance(ClusterService.class, blueNodeName).localNode().id();
+        final String blueNodeId = internalCluster().getInstance(ClusterService.class, blueNodeName).localNode().getId();
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
 

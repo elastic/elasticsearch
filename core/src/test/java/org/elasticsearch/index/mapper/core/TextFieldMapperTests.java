@@ -405,22 +405,44 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                     .field("type", "text")
-                    .field("fielddata", false)
                 .endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-                () -> mapper.mappers().getMapper("field").fieldType().fielddataBuilder());
+        DocumentMapper disabledMapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, disabledMapper.mappingSource().toString());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> disabledMapper.mappers().getMapper("field").fieldType().fielddataBuilder());
         assertThat(e.getMessage(), containsString("Fielddata is disabled"));
+
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                    .field("type", "text")
+                    .field("fielddata", true)
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper enabledMapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, enabledMapper.mappingSource().toString());
+        enabledMapper.mappers().getMapper("field").fieldType().fielddataBuilder(); // no exception this time
+
+        String illegalMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                    .field("type", "text")
+                    .field("index", false)
+                    .field("fielddata", true)
+                .endObject().endObject()
+                .endObject().endObject().string();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(illegalMapping)));
+        assertThat(ex.getMessage(), containsString("Cannot enable fielddata on a [text] field that is not indexed"));
     }
 
     public void testFrequencyFilter() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                     .field("type", "text")
+                    .field("fielddata", true)
                     .startObject("fielddata_frequency_filter")
                         .field("min", 2d)
                         .field("min_segment_size", 1000)

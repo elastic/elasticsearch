@@ -25,7 +25,6 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ChildTaskRequest;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,6 +43,7 @@ import org.elasticsearch.transport.BaseTransportResponseHandler;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -61,10 +61,10 @@ import java.util.function.Supplier;
  * The base class for transport actions that are interacting with currently running tasks.
  */
 public abstract class TransportTasksAction<
-    OperationTask extends Task,
-    TasksRequest extends BaseTasksRequest<TasksRequest>,
-    TasksResponse extends BaseTasksResponse,
-    TaskResponse extends Writeable<TaskResponse>
+        OperationTask extends Task,
+        TasksRequest extends BaseTasksRequest<TasksRequest>,
+        TasksResponse extends BaseTasksResponse,
+        TaskResponse extends Writeable
     > extends HandledTransportAction<TasksRequest, TasksResponse> {
 
     protected final ClusterName clusterName;
@@ -113,10 +113,10 @@ public abstract class TransportTasksAction<
                     results.add(response);
                 }
             } catch (Exception ex) {
-                exceptions.add(new TaskOperationFailure(clusterService.localNode().id(), task.getId(), ex));
+                exceptions.add(new TaskOperationFailure(clusterService.localNode().getId(), task.getId(), ex));
             }
         });
-        return new NodeTasksResponse(clusterService.localNode().id(), results, exceptions);
+        return new NodeTasksResponse(clusterService.localNode().getId(), results, exceptions);
     }
 
     protected String[] filterNodeIds(DiscoveryNodes nodes, String[] nodesIds) {
@@ -205,10 +205,10 @@ public abstract class TransportTasksAction<
             ClusterState clusterState = clusterService.state();
             String[] nodesIds = resolveNodes(request, clusterState);
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
-            ImmutableOpenMap<String, DiscoveryNode> nodes = clusterState.nodes().nodes();
+            ImmutableOpenMap<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();
             this.nodes = new DiscoveryNode[nodesIds.length];
-            for (int i = 0; i < nodesIds.length; i++) {
-                this.nodes[i] = nodes.get(nodesIds[i]);
+            for (int i = 0; i < this.nodesIds.length; i++) {
+                this.nodes[i] = nodes.get(this.nodesIds[i]);
             }
             this.responses = new AtomicReferenceArray<>(this.nodesIds.length);
         }
@@ -237,7 +237,7 @@ public abstract class TransportTasksAction<
                             onFailure(idx, nodeId, new NoSuchNodeException(nodeId));
                         } else {
                             NodeTaskRequest nodeRequest = new NodeTaskRequest(request);
-                            nodeRequest.setParentTask(clusterService.localNode().id(), task.getId());
+                            nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                             taskManager.registerChildTask(task, node.getId());
                             transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
                                 new BaseTransportResponseHandler<NodeTasksResponse>() {
@@ -253,7 +253,7 @@ public abstract class TransportTasksAction<
 
                                     @Override
                                     public void handleException(TransportException exp) {
-                                        onFailure(idx, node.id(), exp);
+                                        onFailure(idx, node.getId(), exp);
                                     }
 
                                     @Override
@@ -310,7 +310,7 @@ public abstract class TransportTasksAction<
     }
 
 
-    private class NodeTaskRequest extends ChildTaskRequest {
+    private class NodeTaskRequest extends TransportRequest {
         private TasksRequest tasksRequest;
 
         protected NodeTaskRequest() {

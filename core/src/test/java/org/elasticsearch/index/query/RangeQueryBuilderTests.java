@@ -19,16 +19,17 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.LegacyNumericRangeQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.index.fieldstats.FieldStatsProvider;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
@@ -39,6 +40,7 @@ import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -124,29 +126,48 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         } else if (queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
             //we can't properly test unmapped dates because LateParsingQuery is package private
         } else if (queryBuilder.fieldName().equals(INT_FIELD_NAME)) {
-            assertThat(query, instanceOf(LegacyNumericRangeQuery.class));
-            LegacyNumericRangeQuery numericRangeQuery = (LegacyNumericRangeQuery) query;
-            assertThat(numericRangeQuery.getField(), equalTo(queryBuilder.fieldName()));
-            assertThat(numericRangeQuery.getMin(), equalTo(queryBuilder.from()));
-            assertThat(numericRangeQuery.getMax(), equalTo(queryBuilder.to()));
-            assertThat(numericRangeQuery.includesMin(), equalTo(queryBuilder.includeLower()));
-            assertThat(numericRangeQuery.includesMax(), equalTo(queryBuilder.includeUpper()));
+            assertThat(query, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
+            if (query instanceof LegacyNumericRangeQuery) {
+                LegacyNumericRangeQuery numericRangeQuery = (LegacyNumericRangeQuery) query;
+                assertThat(numericRangeQuery.getField(), equalTo(queryBuilder.fieldName()));
+                assertThat(numericRangeQuery.getMin(), equalTo(queryBuilder.from()));
+                assertThat(numericRangeQuery.getMax(), equalTo(queryBuilder.to()));
+                assertThat(numericRangeQuery.includesMin(), equalTo(queryBuilder.includeLower()));
+                assertThat(numericRangeQuery.includesMax(), equalTo(queryBuilder.includeUpper()));
+            } else {
+                Integer min = (Integer) queryBuilder.from();
+                Integer max = (Integer) queryBuilder.to();
+                int minInt, maxInt;
+                if (min == null) {
+                    minInt = Integer.MIN_VALUE;
+                } else {
+                    minInt = min.intValue();
+                    if (queryBuilder.includeLower() == false && minInt != Integer.MAX_VALUE) {
+                        minInt++;
+                    }
+                }
+                if (max == null) {
+                    maxInt = Integer.MAX_VALUE;
+                } else {
+                    maxInt = max.intValue();
+                    if (queryBuilder.includeUpper() == false && maxInt != Integer.MIN_VALUE) {
+                        maxInt--;
+                    }
+                }
+                try {
+                assertEquals(IntPoint.newRangeQuery(INT_FIELD_NAME, minInt, maxInt), query);
+                }catch(AssertionError e) {
+                    throw e;
+                }
+            }
         } else {
             throw new UnsupportedOperationException();
         }
     }
 
     public void testIllegalArguments() {
-        try {
-            if (randomBoolean()) {
-                new RangeQueryBuilder(null);
-            } else {
-                new RangeQueryBuilder("");
-            }
-            fail("cannot be null or empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new RangeQueryBuilder((String) null));
+        expectThrows(IllegalArgumentException.class, () -> new RangeQueryBuilder(""));
 
         RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("test");
         try {
@@ -204,13 +225,17 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query parsedQuery = rangeQuery(INT_FIELD_NAME).from(23).to(54).includeLower(true).includeUpper(false).toQuery(createShardContext());
         // since age is automatically registered in data, we encode it as numeric
-        assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
-        LegacyNumericRangeQuery rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
-        assertThat(rangeQuery.getField(), equalTo(INT_FIELD_NAME));
-        assertThat(rangeQuery.getMin().intValue(), equalTo(23));
-        assertThat(rangeQuery.getMax().intValue(), equalTo(54));
-        assertThat(rangeQuery.includesMin(), equalTo(true));
-        assertThat(rangeQuery.includesMax(), equalTo(false));
+        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
+        if (parsedQuery instanceof LegacyNumericRangeQuery) {
+            LegacyNumericRangeQuery rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
+            assertThat(rangeQuery.getField(), equalTo(INT_FIELD_NAME));
+            assertThat(rangeQuery.getMin().intValue(), equalTo(23));
+            assertThat(rangeQuery.getMax().intValue(), equalTo(54));
+            assertThat(rangeQuery.includesMin(), equalTo(true));
+            assertThat(rangeQuery.includesMax(), equalTo(false));
+        } else {
+            assertEquals(IntPoint.newRangeQuery(INT_FIELD_NAME, 23, 53), parsedQuery);
+        }
     }
 
     public void testDateRangeQueryFormat() throws IOException {
@@ -226,15 +251,22 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "    }\n" +
                 "}";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext()).rewrite(null);
-        assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
+        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
 
-        // Min value was 01/01/2012 (dd/MM/yyyy)
-        DateTime min = DateTime.parse("2012-01-01T00:00:00.000+00");
-        assertThat(((LegacyNumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
+        if (parsedQuery instanceof LegacyNumericRangeQuery) {
+            // Min value was 01/01/2012 (dd/MM/yyyy)
+            DateTime min = DateTime.parse("2012-01-01T00:00:00.000+00");
+            assertThat(((LegacyNumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
 
-        // Max value was 2030 (yyyy)
-        DateTime max = DateTime.parse("2030-01-01T00:00:00.000+00");
-        assertThat(((LegacyNumericRangeQuery) parsedQuery).getMax().longValue(), is(max.getMillis()));
+            // Max value was 2030 (yyyy)
+            DateTime max = DateTime.parse("2030-01-01T00:00:00.000+00");
+            assertThat(((LegacyNumericRangeQuery) parsedQuery).getMax().longValue(), is(max.getMillis()));
+        } else {
+            assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
+                    DateTime.parse("2012-01-01T00:00:00.000+00").getMillis(),
+                    DateTime.parse("2030-01-01T00:00:00.000+00").getMillis() - 1),
+                    parsedQuery);
+        }
 
         // Test Invalid format
         query = "{\n" +
@@ -265,16 +297,23 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "    }\n" +
                 "}\n";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext()).rewrite(null);
-        assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
-        LegacyNumericRangeQuery rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
+        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
+        if (parsedQuery instanceof LegacyNumericRangeQuery) {
+            LegacyNumericRangeQuery rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
 
-        DateTime min = DateTime.parse("2014-11-01T00:00:00.000+00");
-        assertThat(rangeQuery.getMin().longValue(), is(min.getMillis()));
-        assertTrue(rangeQuery.includesMin());
+            DateTime min = DateTime.parse("2014-11-01T00:00:00.000+00");
+            assertThat(rangeQuery.getMin().longValue(), is(min.getMillis()));
+            assertTrue(rangeQuery.includesMin());
 
-        DateTime max = DateTime.parse("2014-12-08T23:59:59.999+00");
-        assertThat(rangeQuery.getMax().longValue(), is(max.getMillis()));
-        assertTrue(rangeQuery.includesMax());
+            DateTime max = DateTime.parse("2014-12-08T23:59:59.999+00");
+            assertThat(rangeQuery.getMax().longValue(), is(max.getMillis()));
+            assertTrue(rangeQuery.includesMax());
+        } else {
+            assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
+                    DateTime.parse("2014-11-01T00:00:00.000+00").getMillis(),
+                    DateTime.parse("2014-12-08T23:59:59.999+00").getMillis()),
+                    parsedQuery);
+        }
 
         query = "{\n" +
                 "    \"range\" : {\n" +
@@ -285,16 +324,23 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "    }\n" +
                 "}";
         parsedQuery = parseQuery(query).toQuery(createShardContext()).rewrite(null);
-        assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
-        rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
+        assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
+        if (parsedQuery instanceof LegacyNumericRangeQuery) {
+            LegacyNumericRangeQuery rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
 
-        min = DateTime.parse("2014-11-30T23:59:59.999+00");
-        assertThat(rangeQuery.getMin().longValue(), is(min.getMillis()));
-        assertFalse(rangeQuery.includesMin());
+            DateTime min = DateTime.parse("2014-11-30T23:59:59.999+00");
+            assertThat(rangeQuery.getMin().longValue(), is(min.getMillis()));
+            assertFalse(rangeQuery.includesMin());
 
-        max = DateTime.parse("2014-12-08T00:00:00.000+00");
-        assertThat(rangeQuery.getMax().longValue(), is(max.getMillis()));
-        assertFalse(rangeQuery.includesMax());
+            DateTime max = DateTime.parse("2014-12-08T00:00:00.000+00");
+            assertThat(rangeQuery.getMax().longValue(), is(max.getMillis()));
+            assertFalse(rangeQuery.includesMax());
+        } else {
+            assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME,
+                    DateTime.parse("2014-11-30T23:59:59.999+00").getMillis() + 1,
+                    DateTime.parse("2014-12-08T00:00:00.000+00").getMillis() - 1),
+                    parsedQuery);
+        }
     }
 
     public void testDateRangeQueryTimezone() throws IOException {
@@ -310,17 +356,21 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "    }\n" +
                 "}";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext()).rewrite(null);
-        assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
+        if (parsedQuery instanceof PointRangeQuery) {
+            // TODO what can we assert
+        } else {
+            assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
 
-        // Min value was 2012-01-01 (UTC) so we need to remove one hour
-        DateTime min = DateTime.parse("2012-01-01T00:00:00.000+01:00");
-        // Max value is when we started the test. So it should be some ms from now
-        DateTime max = new DateTime(startDate, DateTimeZone.UTC);
+            // Min value was 2012-01-01 (UTC) so we need to remove one hour
+            DateTime min = DateTime.parse("2012-01-01T00:00:00.000+01:00");
+            // Max value is when we started the test. So it should be some ms from now
+            DateTime max = new DateTime(startDate, DateTimeZone.UTC);
 
-        assertThat(((LegacyNumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
+            assertThat(((LegacyNumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
 
-        // We should not have a big difference here (should be some ms)
-        assertThat(((LegacyNumericRangeQuery) parsedQuery).getMax().longValue() - max.getMillis(), lessThanOrEqualTo(60000L));
+            // We should not have a big difference here (should be some ms)
+            assertThat(((LegacyNumericRangeQuery) parsedQuery).getMax().longValue() - max.getMillis(), lessThanOrEqualTo(60000L));
+        }
 
         query = "{\n" +
                 "    \"range\" : {\n" +
@@ -399,377 +449,22 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         }
     }
 
-    public void testRewriteLongToMatchAll() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
-        int queryFromValue = randomIntBetween(-1000000, 1000000);
-        int queryToValue = randomIntBetween(queryFromValue, 2000000);
-        long shardMinValue = randomIntBetween(queryFromValue, queryToValue);
-        long shardMaxValue = randomIntBetween((int) shardMinValue, queryToValue);
-        query.from((long) queryFromValue);
-        query.to((long) queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.WITHIN;
-            }
-
-            @SuppressWarnings("unchecked")
-            @Override
-            public <T extends Comparable<T>> FieldStats<T> get(String field) throws IOException {
-                assertThat(field, equalTo(fieldName));
-                return (FieldStats<T>) new FieldStats.Long(randomLong(), randomLong(), randomLong(), randomLong(), shardMinValue,
-                        shardMaxValue);
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
-        RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
-        assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
-        assertThat(rewrittenRange.from(), equalTo(null));
-        assertThat(rewrittenRange.to(), equalTo(null));
-    }
-
-    public void testRewriteLongToMatchNone() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
-        int queryFromValue = randomIntBetween(-1000000, 1000000);
-        int queryToValue = randomIntBetween(queryFromValue, 2000000);
-        query.from((long) queryFromValue);
-        query.to((long) queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.DISJOINT;
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
-    }
-
-    public void testRewriteLongToSame() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
-        int queryFromValue = randomIntBetween(-1000000, 1000000);
-        int queryToValue = randomIntBetween(queryFromValue, 2000000);
-        query.from((long) queryFromValue);
-        query.to((long) queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.INTERSECTS;
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, sameInstance(query));
-    }
-
-    public void testRewriteDoubleToMatchAll() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
-        double queryFromValue = randomDoubleBetween(-1000000.0, 1000000.0, true);
-        double queryToValue = randomDoubleBetween(queryFromValue, 2000000, true);
-        double shardMinValue = randomDoubleBetween(queryFromValue, queryToValue, true);
-        double shardMaxValue = randomDoubleBetween(shardMinValue, queryToValue, true);
-        query.from(queryFromValue);
-        query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.WITHIN;
-            }
-
-            @SuppressWarnings("unchecked")
-            @Override
-            public <T extends Comparable<T>> FieldStats<T> get(String field) throws IOException {
-                assertThat(field, equalTo(fieldName));
-                return (FieldStats<T>) new FieldStats.Double(randomLong(), randomLong(), randomLong(), randomLong(), shardMinValue,
-                        shardMaxValue);
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
-        RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
-        assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
-        assertThat(rewrittenRange.from(), equalTo(null));
-        assertThat(rewrittenRange.to(), equalTo(null));
-    }
-
-    public void testRewriteDoubleToMatchNone() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
-        double queryFromValue = randomDoubleBetween(-1000000, 1000000, true);
-        double queryToValue = randomDoubleBetween(queryFromValue, 2000000, true);
-        query.from(queryFromValue);
-        query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.DISJOINT;
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
-    }
-
-    public void testRewriteDoubleToSame() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
-        double queryFromValue = randomDoubleBetween(-1000000, 1000000, true);
-        double queryToValue = randomDoubleBetween(queryFromValue, 2000000, true);
-        query.from(queryFromValue);
-        query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.INTERSECTS;
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, sameInstance(query));
-    }
-
-    public void testRewriteFloatToMatchAll() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
-        float queryFromValue = (float) randomDoubleBetween(-1000000.0, 1000000.0, true);
-        float queryToValue = (float) randomDoubleBetween(queryFromValue, 2000000, true);
-        float shardMinValue = (float) randomDoubleBetween(queryFromValue, queryToValue, true);
-        float shardMaxValue = (float) randomDoubleBetween(shardMinValue, queryToValue, true);
-        query.from(queryFromValue);
-        query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.WITHIN;
-            }
-
-            @SuppressWarnings("unchecked")
-            @Override
-            public <T extends Comparable<T>> FieldStats<T> get(String field) throws IOException {
-                assertThat(field, equalTo(fieldName));
-                return (FieldStats<T>) new FieldStats.Float(randomLong(), randomLong(), randomLong(), randomLong(), shardMinValue,
-                        shardMaxValue);
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
-        RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
-        assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
-        assertThat(rewrittenRange.from(), equalTo(null));
-        assertThat(rewrittenRange.to(), equalTo(null));
-    }
-
-    public void testRewriteFloatToMatchNone() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
-        float queryFromValue = (float) randomDoubleBetween(-1000000, 1000000, true);
-        float queryToValue = (float) randomDoubleBetween(queryFromValue, 2000000, true);
-        query.from(queryFromValue);
-        query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.DISJOINT;
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
-    }
-
-    public void testRewriteFloatToSame() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
-        float queryFromValue = (float) randomDoubleBetween(-1000000, 1000000, true);
-        float queryToValue = (float) randomDoubleBetween(queryFromValue, 2000000, true);
-        query.from(queryFromValue);
-        query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.INTERSECTS;
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, sameInstance(query));
-    }
-
-    public void testRewriteTextToMatchAll() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
-        String queryFromValue = "damson";
-        String queryToValue = "plum";
-        String shardMinValue = "grape";
-        String shardMaxValue = "orange";
-        query.from(queryFromValue);
-        query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.WITHIN;
-            }
-
-            @SuppressWarnings("unchecked")
-            @Override
-            public <T extends Comparable<T>> FieldStats<T> get(String field) throws IOException {
-                assertThat(field, equalTo(fieldName));
-                return (FieldStats<T>) new FieldStats.Text(randomLong(), randomLong(), randomLong(), randomLong(),
-                        new BytesRef(shardMinValue), new BytesRef(shardMaxValue));
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
-        RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
-        assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
-        assertThat(rewrittenRange.from(), equalTo(null));
-        assertThat(rewrittenRange.to(), equalTo(null));
-    }
-
-    public void testRewriteTextToMatchNone() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
-        String queryFromValue = "damson";
-        String queryToValue = "plum";
-        query.from(queryFromValue);
-        query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.DISJOINT;
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
-    }
-
-    public void testRewriteTextToSame() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
-        String queryFromValue = "damson";
-        String queryToValue = "plum";
-        query.from(queryFromValue);
-        query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.INTERSECTS;
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, sameInstance(query));
-    }
-
     public void testRewriteDateToMatchAll() throws IOException {
         String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
+        RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
+            @Override
+            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
+                return Relation.WITHIN;
+            }
+        };
         DateTime queryFromValue = new DateTime(2015, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         DateTime queryToValue = new DateTime(2016, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         DateTime shardMinValue = new DateTime(2015, 3, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         DateTime shardMaxValue = new DateTime(2015, 9, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         query.from(queryFromValue);
         query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.WITHIN;
-            }
-
-            @SuppressWarnings("unchecked")
-            @Override
-            public <T extends Comparable<T>> FieldStats<T> get(String field) throws IOException {
-                assertThat(field, equalTo(fieldName));
-                return (FieldStats<T>) new FieldStats.Date(randomLong(), randomLong(), randomLong(), randomLong(),
-                        shardMinValue.getMillis(), shardMaxValue.getMillis(), null);
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
-        RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
-        assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
-        assertThat(rewrittenRange.from(), equalTo(null));
-        assertThat(rewrittenRange.to(), equalTo(null));
-    }
-
-    public void testRewriteDateWithNowToMatchAll() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
-        String queryFromValue = "now-2d";
-        String queryToValue = "now";
-        DateTime shardMinValue = new DateTime().minusHours(12);
-        DateTime shardMaxValue = new DateTime().minusHours(24);
-        query.from(queryFromValue);
-        query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.WITHIN;
-            }
-
-            @SuppressWarnings("unchecked")
-            @Override
-            public <T extends Comparable<T>> FieldStats<T> get(String field) throws IOException {
-                assertThat(field, equalTo(fieldName));
-                return (FieldStats<T>) new FieldStats.Date(randomLong(), randomLong(), randomLong(), randomLong(),
-                        shardMinValue.getMillis(), shardMaxValue.getMillis(), null);
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
         RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
         assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
@@ -779,85 +474,48 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
     public void testRewriteDateToMatchNone() throws IOException {
         String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
+        RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
+            @Override
+            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
+                return Relation.DISJOINT;
+            }
+        };
         DateTime queryFromValue = new DateTime(2015, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         DateTime queryToValue = new DateTime(2016, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         query.from(queryFromValue);
         query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.DISJOINT;
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
-    }
-
-    public void testRewriteDateWithNowToMatchNone() throws IOException {
-        String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
-        String queryFromValue = "now-2d";
-        String queryToValue = "now";
-        query.from(queryFromValue);
-        query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.DISJOINT;
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
     }
 
     public void testRewriteDateToSame() throws IOException {
         String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
+        RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
+            @Override
+            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
+                return Relation.INTERSECTS;
+            }
+        };
         DateTime queryFromValue = new DateTime(2015, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         DateTime queryToValue = new DateTime(2016, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         query.from(queryFromValue);
         query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
-            @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
-                return Relation.INTERSECTS;
-            }
-        };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, sameInstance(query));
     }
 
-    public void testRewriteDateWithNowToSame() throws IOException {
+    public void testRewriteOpenBoundsToSame() throws IOException {
         String fieldName = randomAsciiOfLengthBetween(1, 20);
-        RangeQueryBuilder query = new RangeQueryBuilder(fieldName);
-        String queryFromValue = "now-2d";
-        String queryToValue = "now";
-        query.from(queryFromValue);
-        query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        FieldStatsProvider fieldStatsProvider = new FieldStatsProvider(null, null) {
-
+        RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            public Relation isFieldWithinQuery(String fieldName, Object from, Object to, boolean includeLower, boolean includeUpper,
-                    DateTimeZone timeZone, DateMathParser dateMathParser) throws IOException {
+            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
                 return Relation.INTERSECTS;
             }
         };
-        queryShardContext.setFieldStatsProvider(fieldStatsProvider);
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, sameInstance(query));
     }
 }

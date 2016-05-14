@@ -37,7 +37,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -47,7 +46,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(ThrottlingAllocationTests.class);
 
     public void testPrimaryRecoveryThrottling() {
-        AllocationService strategy = createAllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 3)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
                 .build());
@@ -107,7 +106,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
     }
 
     public void testReplicaAndPrimaryRecoveryThrottling() {
-        AllocationService strategy = createAllocationService(settingsBuilder()
+        AllocationService strategy = createAllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 3)
                 .put("cluster.routing.allocation.concurrent_source_recoveries", 3)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 3)
@@ -177,7 +176,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
     }
 
     public void testThrottleIncomingAndOutgoing() {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", 5)
             .put("cluster.routing.allocation.node_initial_primaries_recoveries", 5)
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", 5)
@@ -244,7 +243,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
     }
 
     public void testOutgoingThrottlesAllocaiton() {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", 1)
             .put("cluster.routing.allocation.node_initial_primaries_recoveries", 1)
             .put("cluster.routing.allocation.cluster_concurrent_rebalance", 1)
@@ -284,7 +283,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node2"), 0);
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node3"), 0);
 
-        RoutingAllocation.Result reroute = strategy.reroute(clusterState, new AllocationCommands(new MoveAllocationCommand("test", clusterState.getRoutingNodes().node("node1").get(0).shardId().id(), "node1", "node2")));
+        RoutingAllocation.Result reroute = strategy.reroute(clusterState, new AllocationCommands(new MoveAllocationCommand("test", clusterState.getRoutingNodes().node("node1").iterator().next().shardId().id(), "node1", "node2")));
         assertEquals(reroute.explanations().explanations().size(), 1);
         assertEquals(reroute.explanations().explanations().get(0).decisions().type(), Decision.Type.YES);
         routingTable = reroute.routingTable();
@@ -297,7 +296,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         assertEquals(clusterState.getRoutingNodes().getOutgoingRecoveries("node3"), 0);
 
         // outgoing throttles
-        reroute = strategy.reroute(clusterState, new AllocationCommands(new MoveAllocationCommand("test", clusterState.getRoutingNodes().node("node3").get(0).shardId().id(), "node3", "node1")), true);
+        reroute = strategy.reroute(clusterState, new AllocationCommands(new MoveAllocationCommand("test", clusterState.getRoutingNodes().node("node3").iterator().next().shardId().id(), "node3", "node1")), true);
         assertEquals(reroute.explanations().explanations().size(), 1);
         assertEquals(reroute.explanations().explanations().get(0).decisions().type(), Decision.Type.THROTTLE);
         assertEquals(clusterState.getRoutingNodes().getIncomingRecoveries("node1"), 0);
@@ -312,7 +311,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         assertThat(routingTable.shardsWithState(UNASSIGNED).size(), equalTo(0));
 
         // incoming throttles
-        reroute = strategy.reroute(clusterState, new AllocationCommands(new MoveAllocationCommand("test", clusterState.getRoutingNodes().node("node3").get(0).shardId().id(), "node3", "node2")), true);
+        reroute = strategy.reroute(clusterState, new AllocationCommands(new MoveAllocationCommand("test", clusterState.getRoutingNodes().node("node3").iterator().next().shardId().id(), "node3", "node2")), true);
         assertEquals(reroute.explanations().explanations().size(), 1);
         assertEquals(reroute.explanations().explanations().get(0).decisions().type(), Decision.Type.THROTTLE);
 

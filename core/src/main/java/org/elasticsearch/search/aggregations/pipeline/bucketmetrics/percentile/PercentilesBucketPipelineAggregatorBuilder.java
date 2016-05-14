@@ -19,15 +19,21 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
+import com.carrotsearch.hppc.DoubleArrayList;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregatorBuilder;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -35,17 +41,29 @@ import java.util.Objects;
 
 public class PercentilesBucketPipelineAggregatorBuilder
         extends BucketMetricsPipelineAggregatorBuilder<PercentilesBucketPipelineAggregatorBuilder> {
+    public static final String NAME = PercentilesBucketPipelineAggregator.TYPE.name();
+    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
-    static final PercentilesBucketPipelineAggregatorBuilder PROTOTYPE = new PercentilesBucketPipelineAggregatorBuilder("", "");
+    private static final ParseField PERCENTS_FIELD = new ParseField("percents");
 
     private double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
 
     public PercentilesBucketPipelineAggregatorBuilder(String name, String bucketsPath) {
-        this(name, new String[] { bucketsPath });
+        super(name, PercentilesBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
     }
 
-    private PercentilesBucketPipelineAggregatorBuilder(String name, String[] bucketsPaths) {
-        super(name, PercentilesBucketPipelineAggregator.TYPE.name(), bucketsPaths);
+    /**
+     * Read from a stream.
+     */
+    public PercentilesBucketPipelineAggregatorBuilder(StreamInput in)
+            throws IOException {
+        super(in, NAME);
+        percents = in.readDoubleArray();
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeDoubleArray(percents);
     }
 
     /**
@@ -64,7 +82,7 @@ public class PercentilesBucketPipelineAggregatorBuilder
         }
         for (Double p : percents) {
             if (p == null || p < 0.0 || p > 100.0) {
-                throw new IllegalArgumentException(PercentilesBucketParser.PERCENTS.getPreferredName()
+                throw new IllegalArgumentException(PERCENTS_FIELD.getPreferredName()
                         + " must only contain non-null doubles from 0.0-100.0 inclusive");
             }
         }
@@ -87,7 +105,7 @@ public class PercentilesBucketPipelineAggregatorBuilder
 
         for (Double p : percents) {
             if (p == null || p < 0.0 || p > 100.0) {
-                throw new IllegalStateException(PercentilesBucketParser.PERCENTS.getPreferredName()
+                throw new IllegalStateException(PERCENTS_FIELD.getPreferredName()
                         + " must only contain non-null doubles from 0.0-100.0 inclusive");
             }
         }
@@ -96,23 +114,43 @@ public class PercentilesBucketPipelineAggregatorBuilder
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (percents != null) {
-            builder.field(PercentilesBucketParser.PERCENTS.getPreferredName(), percents);
+            builder.field(PERCENTS_FIELD.getPreferredName(), percents);
         }
         return builder;
     }
 
-    @Override
-    protected PercentilesBucketPipelineAggregatorBuilder innerReadFrom(String name, String[] bucketsPaths, StreamInput in)
-            throws IOException {
-        PercentilesBucketPipelineAggregatorBuilder factory = new PercentilesBucketPipelineAggregatorBuilder(name, bucketsPaths);
-        factory.percents = in.readDoubleArray();
-        return factory;
-    }
+    public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
 
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeDoubleArray(percents);
-    }
+        @Override
+        protected PercentilesBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
+                                                                          String bucketsPath, Map<String, Object> params) {
+
+            PercentilesBucketPipelineAggregatorBuilder factory = new
+                PercentilesBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+
+            double[] percents = (double[]) params.get(PERCENTS_FIELD.getPreferredName());
+            if (percents != null) {
+                factory.percents(percents);
+            }
+
+            return factory;
+        }
+
+        @Override
+        protected boolean token(XContentParser parser, QueryParseContext context, String field,
+                                XContentParser.Token token, Map<String, Object> params) throws IOException {
+            if (context.getParseFieldMatcher().match(field, PERCENTS_FIELD) && token == XContentParser.Token.START_ARRAY) {
+                DoubleArrayList percents = new DoubleArrayList(10);
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    percents.add(parser.doubleValue());
+                }
+                params.put(PERCENTS_FIELD.getPreferredName(), percents.toArray());
+                return true;
+            }
+            return false;
+        }
+
+    };
 
     @Override
     protected int innerHashCode() {
@@ -125,4 +163,8 @@ public class PercentilesBucketPipelineAggregatorBuilder
         return Objects.deepEquals(percents, other.percents);
     }
 
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
 }

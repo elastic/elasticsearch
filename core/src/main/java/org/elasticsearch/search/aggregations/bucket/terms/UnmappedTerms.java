@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -56,9 +57,9 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, InternalTerms.Bu
 
     UnmappedTerms() {} // for serialization
 
-    public UnmappedTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, order, requiredSize, shardSize, minDocCount, BUCKETS, false, 0, 0, pipelineAggregators, metaData);
+    public UnmappedTerms(String name, Terms.Order order, DocValueFormat format, int requiredSize, int shardSize, long minDocCount,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, order, format, requiredSize, shardSize, minDocCount, BUCKETS, false, 0, 0, pipelineAggregators, metaData);
     }
 
     @Override
@@ -68,7 +69,7 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, InternalTerms.Bu
 
     @Override
     public UnmappedTerms create(List<InternalTerms.Bucket> buckets) {
-        return new UnmappedTerms(this.name, this.order, this.requiredSize, this.shardSize, this.minDocCount, this.pipelineAggregators(), this.metaData);
+        return new UnmappedTerms(this.name, this.order, this.format, this.requiredSize, this.shardSize, this.minDocCount, this.pipelineAggregators(), this.metaData);
     }
 
     @Override

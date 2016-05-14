@@ -74,7 +74,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "classic")
             .put("index.similarity.my_similarity.discount_overlaps", false)
             .build();
@@ -93,7 +93,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "BM25")
             .put("index.similarity.my_similarity.k1", 2.0f)
             .put("index.similarity.my_similarity.b", 0.5f)
@@ -116,7 +116,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "DFR")
             .put("index.similarity.my_similarity.basic_model", "g")
             .put("index.similarity.my_similarity.after_effect", "l")
@@ -141,7 +141,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "IB")
             .put("index.similarity.my_similarity.distribution", "spl")
             .put("index.similarity.my_similarity.lambda", "ttf")
@@ -166,7 +166,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "DFI")
             .put("index.similarity.my_similarity.independence_measure", "chisquared")
             .build();
@@ -185,7 +185,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "LMDirichlet")
             .put("index.similarity.my_similarity.mu", 3000f)
             .build();
@@ -204,7 +204,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().string();
 
-        Settings indexSettings = Settings.settingsBuilder()
+        Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "LMJelinekMercer")
             .put("index.similarity.my_similarity.lambda", 0.7f)
             .build();

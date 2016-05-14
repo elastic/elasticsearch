@@ -296,7 +296,7 @@ public class MetaDataMappingService extends AbstractComponent {
             }
             assert mappingType != null;
 
-            if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && !PercolatorFieldMapper.TYPE_NAME.equals(mappingType) && mappingType.charAt(0) == '_') {
+            if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && mappingType.charAt(0) == '_') {
                 throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
             }
             MetaData.Builder builder = MetaData.builder(metaData);

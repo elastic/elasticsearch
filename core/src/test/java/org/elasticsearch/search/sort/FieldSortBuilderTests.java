@@ -20,8 +20,16 @@ x * Licensed to Elasticsearch under one or more contributor
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder> {
 
@@ -30,31 +38,38 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         return randomFieldSortBuilder();
     }
 
-    public static FieldSortBuilder randomFieldSortBuilder() {
+    private List<Object> missingContent = Arrays.asList(
+            "_last",
+            "_first",
+            randomAsciiOfLength(10), randomUnicodeOfCodepointLengthBetween(5, 15),
+            randomInt());
+
+
+    public FieldSortBuilder randomFieldSortBuilder() {
         String fieldName = rarely() ? FieldSortBuilder.DOC_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
         FieldSortBuilder builder = new FieldSortBuilder(fieldName);
         if (randomBoolean()) {
-            builder.order(RandomSortDataGenerator.order(null));
+            builder.order(randomFrom(SortOrder.values()));
         }
 
         if (randomBoolean()) {
-            builder.missing(RandomSortDataGenerator.missing(builder.missing()));
+            builder.missing(randomFrom(missingContent));
         }
 
         if (randomBoolean()) {
-            builder.unmappedType(RandomSortDataGenerator.randomAscii(builder.unmappedType()));
+            builder.unmappedType(randomAsciiOfLengthBetween(1, 10));
         }
 
         if (randomBoolean()) {
-            builder.sortMode(RandomSortDataGenerator.mode(builder.sortMode()));
+            builder.sortMode(randomFrom(SortMode.values()));
         }
 
         if (randomBoolean()) {
-            builder.setNestedFilter(RandomSortDataGenerator.nestedFilter(builder.getNestedFilter()));
+            builder.setNestedFilter(randomNestedFilter());
         }
 
         if (randomBoolean()) {
-            builder.setNestedPath(RandomSortDataGenerator.randomAscii(builder.getNestedPath()));
+            builder.setNestedPath(randomAsciiOfLengthBetween(1, 10));
         }
 
         return builder;
@@ -66,22 +81,28 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         int parameter = randomIntBetween(0, 5);
         switch (parameter) {
         case 0:
-            mutated.setNestedPath(RandomSortDataGenerator.randomAscii(mutated.getNestedPath()));
+            mutated.setNestedPath(randomValueOtherThan(
+                    original.getNestedPath(),
+                    () -> randomAsciiOfLengthBetween(1, 10)));
             break;
         case 1:
-            mutated.setNestedFilter(RandomSortDataGenerator.nestedFilter(mutated.getNestedFilter()));
+            mutated.setNestedFilter(randomValueOtherThan(
+                    original.getNestedFilter(),
+                    () -> randomNestedFilter()));
             break;
         case 2:
-            mutated.sortMode(RandomSortDataGenerator.mode(mutated.sortMode()));
+            mutated.sortMode(randomValueOtherThan(original.sortMode(), () -> randomFrom(SortMode.values())));
             break;
         case 3:
-            mutated.unmappedType(RandomSortDataGenerator.randomAscii(mutated.unmappedType()));
+            mutated.unmappedType(randomValueOtherThan(
+                    original.unmappedType(),
+                    () -> randomAsciiOfLengthBetween(1, 10)));
             break;
         case 4:
-            mutated.missing(RandomSortDataGenerator.missing(mutated.missing()));
+            mutated.missing(randomValueOtherThan(original.missing(), () -> randomFrom(missingContent)));
             break;
         case 5:
-            mutated.order(RandomSortDataGenerator.order(mutated.order()));
+            mutated.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
             break;
         default:
             throw new IllegalStateException("Unsupported mutation.");
@@ -90,7 +111,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     }
 
     @Override
-    protected void sortFieldAssertions(FieldSortBuilder builder, SortField sortField) throws IOException {
+    protected void sortFieldAssertions(FieldSortBuilder builder, SortField sortField, DocValueFormat format) throws IOException {
         SortField.Type expectedType;
         if (builder.getFieldName().equals(FieldSortBuilder.DOC_FIELD_NAME)) {
             expectedType = SortField.Type.DOC;
@@ -102,5 +123,31 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         if (expectedType == SortField.Type.CUSTOM) {
             assertEquals(builder.getFieldName(), sortField.getField());
         }
+        assertEquals(DocValueFormat.RAW, format);
+    }
+
+    public void testReverseOptionFails() throws IOException {
+        String json = "{ \"post_date\" : {\"reverse\" : true} },\n";
+
+        XContentParser parser = XContentFactory.xContent(json).createParser(json);
+        // need to skip until parser is located on second START_OBJECT
+        parser.nextToken();
+        parser.nextToken();
+        parser.nextToken();
+
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+
+        try {
+          FieldSortBuilder.fromXContent(context, "");
+          fail("adding reverse sorting option should fail with an exception");
+        } catch (ParsingException e) {
+            // all good
+        }
+    }
+
+
+    @Override
+    protected FieldSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
+        return FieldSortBuilder.fromXContent(context, fieldName);
     }
 }

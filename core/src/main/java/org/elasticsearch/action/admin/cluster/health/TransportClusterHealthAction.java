@@ -54,7 +54,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     public TransportClusterHealthAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                         ThreadPool threadPool, ClusterName clusterName, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver, GatewayAllocator gatewayAllocator) {
-        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterHealthRequest::new);
+        super(settings, ClusterHealthAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
+            indexNameExpressionResolver, ClusterHealthRequest::new);
         this.clusterName = clusterName;
         this.gatewayAllocator = gatewayAllocator;
     }
@@ -143,7 +144,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         assert waitFor >= 0;
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
         final ClusterState state = observer.observedState();
-        if (waitFor == 0 || request.timeout().millis() == 0) {
+        if (request.timeout().millis() == 0) {
             listener.onResponse(getResponse(request, state, waitFor, request.timeout().millis() == 0));
             return;
         }

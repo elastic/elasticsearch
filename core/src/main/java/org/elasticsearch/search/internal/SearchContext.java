@@ -59,12 +59,14 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class SearchContext implements Releasable {
@@ -128,8 +130,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SearchType searchType();
 
-    public abstract SearchContext searchType(SearchType searchType);
-
     public abstract SearchShardTarget shardTarget();
 
     public abstract int numberOfShards();
@@ -144,6 +144,15 @@ public abstract class SearchContext implements Releasable {
         nowInMillisUsed = true;
         return nowInMillisImpl();
     }
+
+    public final Callable<Long> nowCallable() {
+        return new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                return nowInMillis();
+            }
+        };
+    };
 
     public final boolean nowInMillisUsed() {
         return nowInMillisUsed;
@@ -236,9 +245,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract Float minimumScore();
 
-    public abstract SearchContext sort(Sort sort);
+    public abstract SearchContext sort(SortAndFormats sort);
 
-    public abstract Sort sort();
+    public abstract SortAndFormats sort();
 
     public abstract SearchContext trackScores(boolean trackScores);
 
@@ -393,4 +402,16 @@ public abstract class SearchContext implements Releasable {
 
     public abstract QueryShardContext getQueryShardContext();
 
+    @Override
+    public String toString() {
+        StringBuilder result = new StringBuilder().append(shardTarget());
+        if (searchType() != SearchType.DEFAULT) {
+            result.append("searchType=[").append(searchType()).append("]");
+        }
+        if (scrollContext() != null) {
+            result.append("scroll=[").append(scrollContext().scroll.keepAlive()).append("]");
+        }
+        result.append(" query=[").append(query()).append("]");
+        return result.toString();
+    }
 }

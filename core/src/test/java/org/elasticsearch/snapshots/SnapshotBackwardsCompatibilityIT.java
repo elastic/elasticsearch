@@ -51,7 +51,7 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
     public void testSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", randomRepoPath().toAbsolutePath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
@@ -72,11 +72,11 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
         logger.info("--> indexing some data");
         IndexRequestBuilder[] buildersBefore = new IndexRequestBuilder[randomIntBetween(10, 200)];
         for (int i = 0; i < buildersBefore.length; i++) {
-            buildersBefore[i] = client().prepareIndex(RandomPicks.randomFrom(getRandom(), indicesBefore), "foo", Integer.toString(i)).setSource("{ \"foo\" : \"bar\" } ");
+            buildersBefore[i] = client().prepareIndex(RandomPicks.randomFrom(random(), indicesBefore), "foo", Integer.toString(i)).setSource("{ \"foo\" : \"bar\" } ");
         }
         IndexRequestBuilder[] buildersAfter = new IndexRequestBuilder[randomIntBetween(10, 200)];
         for (int i = 0; i < buildersAfter.length; i++) {
-            buildersAfter[i] = client().prepareIndex(RandomPicks.randomFrom(getRandom(), indicesBefore), "bar", Integer.toString(i)).setSource("{ \"foo\" : \"bar\" } ");
+            buildersAfter[i] = client().prepareIndex(RandomPicks.randomFrom(random(), indicesBefore), "bar", Integer.toString(i)).setSource("{ \"foo\" : \"bar\" } ");
         }
         indexRandom(true, buildersBefore);
         indexRandom(true, buildersAfter);
@@ -97,7 +97,7 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
         int howMany = randomIntBetween(1, buildersBefore.length);
 
         for (int i = 0; i < howMany; i++) {
-            IndexRequestBuilder indexRequestBuilder = RandomPicks.randomFrom(getRandom(), buildersBefore);
+            IndexRequestBuilder indexRequestBuilder = RandomPicks.randomFrom(random(), buildersBefore);
             IndexRequest request = indexRequestBuilder.request();
             client().prepareDelete(request.index(), request.type(), request.id()).get();
         }
@@ -144,7 +144,7 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
 
         // Test restore after index deletion
         logger.info("--> delete indices");
-        String index = RandomPicks.randomFrom(getRandom(), indices);
+        String index = RandomPicks.randomFrom(random(), indices);
         cluster().wipeIndices(index);
         logger.info("--> restore one index after deletion");
         restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2").setWaitForCompletion(true).setIndices(index).execute().actionGet();
@@ -161,7 +161,7 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
         final Path tempDir = randomRepoPath().toAbsolutePath();
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
+                .setType("fs").setSettings(Settings.builder()
                         .put("location", tempDir)
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));

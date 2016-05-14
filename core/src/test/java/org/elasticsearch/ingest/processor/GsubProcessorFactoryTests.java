@@ -21,13 +21,13 @@ package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.Processor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 
 public class GsubProcessorFactoryTests extends ESTestCase {
 
@@ -82,6 +82,20 @@ public class GsubProcessorFactoryTests extends ESTestCase {
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[replacement] required property is missing"));
+        }
+    }
+
+    public void testCreateInvalidPattern() throws Exception {
+        GsubProcessor.Factory factory = new GsubProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("pattern", "[");
+        config.put("replacement", "-");
+        try {
+            factory.create(config);
+            fail("factory create should have failed");
+        } catch(ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("[pattern] Invalid regex pattern. Unclosed character class"));
         }
     }
 }

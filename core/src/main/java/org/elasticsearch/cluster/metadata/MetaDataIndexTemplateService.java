@@ -106,7 +106,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     }
 
     public void putTemplate(final PutRequest request, final PutListener listener) {
-        Settings.Builder updatedSettingsBuilder = Settings.settingsBuilder();
+        Settings.Builder updatedSettingsBuilder = Settings.builder();
         updatedSettingsBuilder.put(request.settings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         request.settings(updatedSettingsBuilder.build());
 

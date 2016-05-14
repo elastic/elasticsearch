@@ -29,23 +29,25 @@ import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
-
-import static java.util.Collections.singletonMap;
 
 /**
  */
 public class RescorePhase extends AbstractComponent implements SearchPhase {
-    private static final Map<String, SearchParseElement> PARSE_ELEMENTS = singletonMap("rescore", new RescoreParseElement());
 
     @Inject
     public RescorePhase(Settings settings) {
         super(settings);
     }
 
+    /**
+     * rescorers do not have a parse element, they use
+     * {@link RescoreBuilder#parseFromXContent(org.elasticsearch.index.query.QueryParseContext)} for parsing instead.
+     */
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        return PARSE_ELEMENTS;
+        return Collections.emptyMap();
     }
 
     @Override
@@ -59,7 +61,7 @@ public class RescorePhase extends AbstractComponent implements SearchPhase {
             for (RescoreSearchContext ctx : context.rescore()) {
                 topDocs = ctx.rescorer().rescore(topDocs, context, ctx);
             }
-            context.queryResult().topDocs(topDocs);
+            context.queryResult().topDocs(topDocs, context.queryResult().sortValueFormats());
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
         }

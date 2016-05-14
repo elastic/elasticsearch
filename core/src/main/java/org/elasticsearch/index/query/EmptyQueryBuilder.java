@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,8 +35,22 @@ public final class EmptyQueryBuilder extends AbstractQueryBuilder<EmptyQueryBuil
 
     public static final String NAME = "empty_query";
 
-    /** the one and only empty query builder */
-    public static final EmptyQueryBuilder PROTOTYPE = new EmptyQueryBuilder();
+    /**
+     * Construct an empty query. This query can *technically* be named and given a boost.
+     */
+    public EmptyQueryBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public EmptyQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+    }
 
     @Override
     public String getWriteableName() {
@@ -56,16 +69,6 @@ public final class EmptyQueryBuilder extends AbstractQueryBuilder<EmptyQueryBuil
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-    }
-
-
-    @Override
-    protected EmptyQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new EmptyQueryBuilder();
     }
 
     @Override

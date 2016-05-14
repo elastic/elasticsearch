@@ -10,7 +10,7 @@ during the "get" and "reindex".
 
 Note, this operation still means full reindex of the document, it just
 removes some network roundtrips and reduces chances of version conflicts
-between the get and the index. The `_source` field need to be enabled
+between the get and the index. The `_source` field needs to be enabled
 for this feature to work.
 
 For example, lets index a simple doc:
@@ -110,7 +110,7 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 }'
 --------------------------------------------------
 
-If both `doc` and `script` is specified, then `doc` is ignored. Best is
+If both `doc` and `script` are specified, then `doc` is ignored. Best is
 to put your field pairs of the partial document in the script itself.
 
 [float]

@@ -35,8 +35,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
-
-
     public void testGet() {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope);
         assertFalse(booleanSetting.get(Settings.EMPTY));
@@ -62,7 +60,8 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY);
             fail("no unit");
         } catch (IllegalArgumentException ex) {
-            assertEquals("failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized", ex.getMessage());
+            assertEquals("failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized",
+                    ex.getMessage());
         }
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
@@ -86,7 +85,8 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(build, Settings.EMPTY);
             fail("not a boolean");
         } catch (IllegalArgumentException ex) {
-            assertEquals("Failed to parse value [I am not a boolean] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]", ex.getMessage());
+            assertEquals("Failed to parse value [I am not a boolean] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]",
+                    ex.getMessage());
         }
     }
 
@@ -113,23 +113,37 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testDefault() {
-        TimeValue defautlValue = TimeValue.timeValueMillis(randomIntBetween(0, 1000000));
+        TimeValue defaultValue = TimeValue.timeValueMillis(randomIntBetween(0, 1000000));
         Setting<TimeValue> setting =
-            Setting.positiveTimeSetting("my.time.value", defautlValue, Property.NodeScope);
+            Setting.positiveTimeSetting("my.time.value", defaultValue, Property.NodeScope);
         assertFalse(setting.isGroupSetting());
         String aDefault = setting.getDefaultRaw(Settings.EMPTY);
-        assertEquals(defautlValue.millis() + "ms", aDefault);
-        assertEquals(defautlValue.millis(), setting.get(Settings.EMPTY).millis());
-        assertEquals(defautlValue, setting.getDefault(Settings.EMPTY));
+        assertEquals(defaultValue.millis() + "ms", aDefault);
+        assertEquals(defaultValue.millis(), setting.get(Settings.EMPTY).millis());
+        assertEquals(defaultValue, setting.getDefault(Settings.EMPTY));
 
         Setting<String> secondaryDefault =
             new Setting<>("foo.bar", (s) -> s.get("old.foo.bar", "some_default"), Function.identity(), Property.NodeScope);
         assertEquals("some_default", secondaryDefault.get(Settings.EMPTY));
         assertEquals("42", secondaryDefault.get(Settings.builder().put("old.foo.bar", 42).build()));
+
         Setting<String> secondaryDefaultViaSettings =
             new Setting<>("foo.bar", secondaryDefault, Function.identity(), Property.NodeScope);
         assertEquals("some_default", secondaryDefaultViaSettings.get(Settings.EMPTY));
         assertEquals("42", secondaryDefaultViaSettings.get(Settings.builder().put("old.foo.bar", 42).build()));
+
+        // It gets more complicated when there are two settings objects....
+        Settings hasFallback = Settings.builder().put("foo.bar", "o").build();
+        Setting<String> fallsback =
+                new Setting<>("foo.baz", secondaryDefault, Function.identity(), Property.NodeScope);
+        assertEquals("o", fallsback.get(hasFallback));
+        assertEquals("some_default", fallsback.get(Settings.EMPTY));
+        assertEquals("some_default", fallsback.get(Settings.EMPTY, Settings.EMPTY));
+        assertEquals("o", fallsback.get(Settings.EMPTY, hasFallback));
+        assertEquals("o", fallsback.get(hasFallback, Settings.EMPTY));
+        assertEquals("a", fallsback.get(
+                Settings.builder().put("foo.bar", "a").build(),
+                Settings.builder().put("foo.bar", "b").build()));
     }
 
     public void testComplexType() {
@@ -170,7 +184,10 @@ public class SettingTests extends ESTestCase {
         assertTrue(setting.isGroupSetting());
         ClusterSettings.SettingUpdater<Settings> settingUpdater = setting.newUpdater(ref::set, logger);
 
-        Settings currentInput = Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").put("foo.bar.3.value", "3").build();
+        Settings currentInput = Settings.builder()
+                .put("foo.bar.1.value", "1")
+                .put("foo.bar.2.value", "2")
+                .put("foo.bar.3.value", "3").build();
         Settings previousInput = Settings.EMPTY;
         assertTrue(settingUpdater.apply(currentInput, previousInput));
         assertNotNull(ref.get());
@@ -214,7 +231,8 @@ public class SettingTests extends ESTestCase {
 
         ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger,(s) -> assertFalse(true));
         try {
-            predicateSettingUpdater.apply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build(), Settings.EMPTY);
+            predicateSettingUpdater.apply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build(),
+                    Settings.EMPTY);
             fail("not accepted");
         } catch (IllegalArgumentException ex) {
             assertEquals(ex.getMessage(), "illegal value can't update [foo.bar.] from [{}] to [{1.value=1, 2.value=2}]");
@@ -276,11 +294,13 @@ public class SettingTests extends ESTestCase {
         Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(),
             Property.Dynamic, Property.NodeScope);
         List<String> value = listSetting.get(Settings.EMPTY);
+        assertFalse(listSetting.exists(Settings.EMPTY));
         assertEquals(1, value.size());
         assertEquals("foo,bar", value.get(0));
 
         List<String> input = Arrays.asList("test", "test1, test2", "test", ",,,,");
         Settings.Builder builder = Settings.builder().putArray("foo.bar", input.toArray(new String[0]));
+        assertTrue(listSetting.exists(builder.build()));
         value = listSetting.get(builder.build());
         assertEquals(input.size(), value.size());
         assertArrayEquals(value.toArray(new String[0]), input.toArray(new String[0]));
@@ -293,6 +313,7 @@ public class SettingTests extends ESTestCase {
         value = listSetting.get(builder.build());
         assertEquals(input.size(), value.size());
         assertArrayEquals(value.toArray(new String[0]), input.toArray(new String[0]));
+        assertTrue(listSetting.exists(builder.build()));
 
         AtomicReference<List<String>> ref = new AtomicReference<>();
         AbstractScopedSettings.SettingUpdater<List<String>> settingUpdater = listSetting.newUpdater(ref::set, logger);

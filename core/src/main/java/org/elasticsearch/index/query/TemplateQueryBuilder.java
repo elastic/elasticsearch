@@ -19,6 +19,8 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,6 +34,7 @@ import org.elasticsearch.script.Template;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -39,14 +42,19 @@ import java.util.Objects;
  * Facilitates creating template query requests.
  * */
 public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuilder> {
-
     /** Name to reference this type of query. */
     public static final String NAME = "template";
+    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
+
+    private final static Map<String, ScriptService.ScriptType> parametersToTypes = new HashMap<>();
+    static {
+        parametersToTypes.put("query", ScriptService.ScriptType.INLINE);
+        parametersToTypes.put("file", ScriptService.ScriptType.FILE);
+        parametersToTypes.put("id", ScriptService.ScriptType.STORED);
+    }
 
     /** Template to fill. */
     private final Template template;
-
-    static final TemplateQueryBuilder PROTOTYPE = new TemplateQueryBuilder(new Template("proto"));
 
     /**
      * @param template
@@ -89,10 +97,59 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
         this(new Template(template, templateType, null, null, vars));
     }
 
+    /**
+     * Read from a stream.
+     */
+    public TemplateQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+        template = new Template(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        template.writeTo(out);
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.field(TemplateQueryBuilder.NAME);
         template.toXContent(builder, builderParams);
+    }
+
+    /**
+     * In the simplest case, parse template string and variables from the request,
+     * compile the template and execute the template against the given variables.
+     */
+    public static TemplateQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        Template template = parse(parser, parseContext.getParseFieldMatcher());
+        return new TemplateQueryBuilder(template);
+    }
+
+    public static Template parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, String... parameters) throws IOException {
+        Map<String, ScriptService.ScriptType> parameterMap = new HashMap<>(parametersToTypes);
+        for (String parameter : parameters) {
+            parameterMap.put(parameter, ScriptService.ScriptType.INLINE);
+        }
+        return parse(parser, parameterMap, parseFieldMatcher);
+    }
+
+    public static Template parse(String defaultLang, XContentParser parser,
+                                 ParseFieldMatcher parseFieldMatcher, String... parameters) throws IOException {
+        Map<String, ScriptService.ScriptType> parameterMap = new HashMap<>(parametersToTypes);
+        for (String parameter : parameters) {
+            parameterMap.put(parameter, ScriptService.ScriptType.INLINE);
+        }
+        return Template.parse(parser, parameterMap, defaultLang, parseFieldMatcher);
+    }
+
+    public static Template parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return parse(parser, parametersToTypes, parseFieldMatcher);
+    }
+
+    public static Template parse(XContentParser parser, Map<String, ScriptService.ScriptType> parameterMap,
+                                 ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return Template.parse(parser, parameterMap, parseFieldMatcher);
     }
 
     @Override
@@ -106,17 +163,6 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     }
 
     @Override
-    protected TemplateQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        TemplateQueryBuilder templateQueryBuilder = new TemplateQueryBuilder(Template.readTemplate(in));
-        return templateQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        template.writeTo(out);
-    }
-
-    @Override
     protected int doHashCode() {
         return Objects.hash(template);
     }
@@ -127,14 +173,13 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         ExecutableScript executable = queryRewriteContext.getScriptService().executable(template,
-            ScriptContext.Standard.SEARCH, Collections.emptyMap());
+            ScriptContext.Standard.SEARCH, Collections.emptyMap(), queryRewriteContext.getClusterState());
         BytesReference querySource = (BytesReference) executable.run();
-        final QueryParseContext queryParseContext = queryRewriteContext.newParseContext();
         try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
-            queryParseContext.reset(qSourceParser);
-            final QueryBuilder<?> queryBuilder = queryParseContext.parseInnerQueryBuilder();
+            final QueryParseContext queryParseContext = queryRewriteContext.newParseContext(qSourceParser);
+            final QueryBuilder queryBuilder = queryParseContext.parseInnerQueryBuilder();
             if (boost() != DEFAULT_BOOST || queryName() != null) {
                 final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                 boolQueryBuilder.must(queryBuilder);

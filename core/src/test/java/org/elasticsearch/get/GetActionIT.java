@@ -67,7 +67,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testSimpleGet() {
         assertAcked(prepareCreate("test")
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1))
+                .setSettings(Settings.builder().put("index.refresh_interval", -1))
                 .addAlias(new Alias("alias")));
         ensureGreen();
 
@@ -195,7 +195,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testSimpleMultiGet() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         MultiGetResponse response = client().prepareMultiGet().add(indexOrAlias(), "type1", "1").get();
@@ -259,7 +259,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", mapping1)
                 .addMapping("type2", mapping2)
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         GetResponse response = client().prepareGet("test", "type1", "1").get();
@@ -321,7 +321,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGetWithVersion() {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         GetResponse response = client().prepareGet("test", "type1", "1").get();
@@ -420,7 +420,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testMultiGetWithVersion() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         MultiGetResponse response = client().prepareMultiGet().add(indexOrAlias(), "type1", "1").get();
@@ -538,7 +538,7 @@ public class GetActionIT extends ESIntegTestCase {
                 .addMapping("parent")
                 .addMapping("my-type1", "_timestamp", "enabled=true", "_ttl", "enabled=true", "_parent", "type=parent")
                 .addAlias(new Alias("alias"))
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
 
         client().prepareIndex("test", "my-type1", "1")
                 .setRouting("1")
@@ -594,7 +594,7 @@ public class GetActionIT extends ESIntegTestCase {
                         .startObject("field2").field("type", "text").endObject()
                         .endObject().endObject()
                         .endObject().endObject().endObject())
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
+                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
 
         client().prepareIndex("test", "my-type1", "1")
                 .setSource(jsonBuilder().startObject().startObject("field1").field("field2", "value1").endObject().endObject())
@@ -619,7 +619,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGetFieldsComplexField() throws Exception {
         assertAcked(prepareCreate("my-index")
-                .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1))
+                .setSettings(Settings.builder().put("index.refresh_interval", -1))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")
@@ -729,7 +729,7 @@ public class GetActionIT extends ESIntegTestCase {
 
         GetResponse getResponse = client().prepareGet(indexOrAlias(), "my-type1", "1").setFields("_all").get();
         assertNotNull(getResponse.getField("_all").getValue());
-        assertThat(getResponse.getField("_all").getValue().toString(), equalTo("some text" + " "));
+        assertThat(getResponse.getField("_all").getValue().toString(), equalTo("some text"));
     }
 
     public void testUngeneratedFieldsThatAreNeverStored() throws IOException {

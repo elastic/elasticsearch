@@ -22,7 +22,6 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.delete.TransportDeleteAction;
@@ -37,9 +36,9 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -61,6 +60,9 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
+
+import static org.elasticsearch.action.support.replication.ReplicationOperation.ignoreReplicaException;
+import static org.elasticsearch.action.support.replication.ReplicationOperation.isConflictException;
 
 /**
  * Performs the index operation.
@@ -105,10 +107,11 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
     }
 
     @Override
-    protected Tuple<BulkShardResponse, BulkShardRequest> shardOperationOnPrimary(MetaData metaData, BulkShardRequest request) {
+    protected Tuple<BulkShardResponse, BulkShardRequest> shardOperationOnPrimary(BulkShardRequest request) {
         ShardId shardId = request.shardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
+        final IndexMetaData metaData = indexService.getIndexSettings().getIndexMetaData();
 
         long[] preVersions = new long[request.items().length];
         VersionType[] preVersionTypes = new VersionType[request.items().length];
@@ -127,7 +130,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
         return new Tuple<>(new BulkShardResponse(request.shardId(), responses), request);
     }
 
-    private Translog.Location handleItem(MetaData metaData, BulkShardRequest request, IndexShard indexShard, long[] preVersions, VersionType[] preVersionTypes, Translog.Location location, int requestIndex, BulkItemRequest item) {
+    private Translog.Location handleItem(IndexMetaData metaData, BulkShardRequest request, IndexShard indexShard, long[] preVersions, VersionType[] preVersionTypes, Translog.Location location, int requestIndex, BulkItemRequest item) {
         if (item.request() instanceof IndexRequest) {
             location = index(metaData, request, indexShard, preVersions, preVersionTypes, location, requestIndex, item);
         } else if (item.request() instanceof DeleteRequest) {
@@ -145,7 +148,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
         return location;
     }
 
-    private Translog.Location index(MetaData metaData, BulkShardRequest request, IndexShard indexShard, long[] preVersions, VersionType[] preVersionTypes, Translog.Location location, int requestIndex, BulkItemRequest item) {
+    private Translog.Location index(IndexMetaData metaData, BulkShardRequest request, IndexShard indexShard, long[] preVersions, VersionType[] preVersionTypes, Translog.Location location, int requestIndex, BulkItemRequest item) {
         IndexRequest indexRequest = (IndexRequest) item.request();
         preVersions[requestIndex] = indexRequest.version();
         preVersionTypes[requestIndex] = indexRequest.versionType();
@@ -224,7 +227,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
         return location;
     }
 
-    private Tuple<Translog.Location, BulkItemRequest> update(MetaData metaData, BulkShardRequest request, IndexShard indexShard, long[] preVersions, VersionType[] preVersionTypes, Translog.Location location, int requestIndex, BulkItemRequest item) {
+    private Tuple<Translog.Location, BulkItemRequest> update(IndexMetaData metaData, BulkShardRequest request, IndexShard indexShard, long[] preVersions, VersionType[] preVersionTypes, Translog.Location location, int requestIndex, BulkItemRequest item) {
         UpdateRequest updateRequest = (UpdateRequest) item.request();
         preVersions[requestIndex] = updateRequest.version();
         preVersionTypes[requestIndex] = updateRequest.versionType();
@@ -332,19 +335,12 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
         }
     }
 
-    private WriteResult shardIndexOperation(BulkShardRequest request, IndexRequest indexRequest, MetaData metaData,
+    private WriteResult shardIndexOperation(BulkShardRequest request, IndexRequest indexRequest, IndexMetaData metaData,
                                             IndexShard indexShard, boolean processed) throws Throwable {
 
-        // validate, if routing is required, that we got routing
-        MappingMetaData mappingMd = metaData.index(request.index()).mappingOrDefault(indexRequest.type());
-        if (mappingMd != null && mappingMd.routing().required()) {
-            if (indexRequest.routing() == null) {
-                throw new RoutingMissingException(request.index(), indexRequest.type(), indexRequest.id());
-            }
-        }
-
+        MappingMetaData mappingMd = metaData.mappingOrDefault(indexRequest.type());
         if (!processed) {
-            indexRequest.process(metaData, mappingMd, allowIdGeneration, request.index());
+            indexRequest.process(mappingMd, allowIdGeneration, request.index());
         }
         return TransportIndexAction.executeIndexRequestOnPrimary(indexRequest, indexShard, mappingUpdatedAction);
     }
@@ -402,7 +398,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
 
     }
 
-    private UpdateResult shardUpdateOperation(MetaData metaData, BulkShardRequest bulkShardRequest, UpdateRequest updateRequest, IndexShard indexShard) {
+    private UpdateResult shardUpdateOperation(IndexMetaData metaData, BulkShardRequest bulkShardRequest, UpdateRequest updateRequest, IndexShard indexShard) {
         UpdateHelper.Result translate = updateHelper.prepare(updateRequest, indexShard);
         switch (translate.operation()) {
             case UPSERT:

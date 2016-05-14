@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -30,14 +31,20 @@ import org.elasticsearch.cluster.routing.allocation.command.AbstractAllocateAllo
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -46,11 +53,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.test.ESAllocationTestCase;
 
-import static java.util.Collections.singletonMap;
+import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -60,7 +66,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(AllocationCommandsTests.class);
 
     public void testMoveShardCommand() {
-        AllocationService allocation = createAllocationService(settingsBuilder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
+        AllocationService allocation = createAllocationService(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
 
         logger.info("creating an index with 1 shard, no replica");
         MetaData metaData = MetaData.builder()
@@ -91,15 +97,15 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         rerouteResult = allocation.reroute(clusterState, new AllocationCommands(new MoveAllocationCommand("test", 0, existingNodeId, toNodeId)));
         assertThat(rerouteResult.changed(), equalTo(true));
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
-        assertThat(clusterState.getRoutingNodes().node(existingNodeId).get(0).state(), equalTo(ShardRoutingState.RELOCATING));
-        assertThat(clusterState.getRoutingNodes().node(toNodeId).get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
+        assertThat(clusterState.getRoutingNodes().node(existingNodeId).iterator().next().state(), equalTo(ShardRoutingState.RELOCATING));
+        assertThat(clusterState.getRoutingNodes().node(toNodeId).iterator().next().state(), equalTo(ShardRoutingState.INITIALIZING));
 
         logger.info("finish moving the shard");
         rerouteResult = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
         assertThat(clusterState.getRoutingNodes().node(existingNodeId).isEmpty(), equalTo(true));
-        assertThat(clusterState.getRoutingNodes().node(toNodeId).get(0).state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(clusterState.getRoutingNodes().node(toNodeId).iterator().next().state(), equalTo(ShardRoutingState.STARTED));
     }
 
     private AbstractAllocateAllocationCommand randomAllocateCommand(String index, int shardId, String node) {
@@ -111,7 +117,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
     }
 
     public void testAllocateCommand() {
-        AllocationService allocation = createAllocationService(settingsBuilder()
+        AllocationService allocation = createAllocationService(Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
                 .build());
@@ -134,7 +140,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 .put(newNode("node1"))
                 .put(newNode("node2"))
                 .put(newNode("node3"))
-                .put(newNode("node4", singletonMap("data", Boolean.FALSE.toString())))
+                .put(newNode("node4", singleton(DiscoveryNode.Role.MASTER)))
         ).build();
         RoutingAllocation.Result rerouteResult = allocation.reroute(clusterState, "reroute");
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
@@ -237,7 +243,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
     }
 
     public void testCancelCommand() {
-        AllocationService allocation = createAllocationService(settingsBuilder()
+        AllocationService allocation = createAllocationService(Settings.builder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
                 .build());
@@ -380,7 +386,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         rerouteResult = allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand("test", 0, "node1", true)));
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
         assertThat(rerouteResult.changed(), equalTo(true));
-        assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(STARTED).get(0).primary(), equalTo(true));
+        logger.error(clusterState.prettyPrint());
+        assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(STARTED).iterator().next().primary(), equalTo(true));
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(0));
     }
@@ -395,7 +402,15 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         );
         BytesStreamOutput bytes = new BytesStreamOutput();
         AllocationCommands.writeTo(commands, bytes);
-        AllocationCommands sCommands = AllocationCommands.readFrom(StreamInput.wrap(bytes.bytes()));
+        StreamInput in = StreamInput.wrap(bytes.bytes());
+
+        // Since the commands are named writeable we need to register them and wrap the input stream
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        new NetworkModule(null, Settings.EMPTY, true, namedWriteableRegistry);
+        in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
+
+        // Now we can read them!
+        AllocationCommands sCommands = AllocationCommands.readFrom(in);
 
         assertThat(sCommands.commands().size(), equalTo(5));
         assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).shardId(), equalTo(1));
@@ -437,7 +452,9 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         // move two tokens, parser expected to be "on" `commands` field
         parser.nextToken();
         parser.nextToken();
-        AllocationCommands sCommands = AllocationCommands.fromXContent(parser);
+        AllocationCommandRegistry registry = new NetworkModule(null, Settings.EMPTY, true, new NamedWriteableRegistry())
+                .getAllocationCommandRegistry();
+        AllocationCommands sCommands = AllocationCommands.fromXContent(parser, ParseFieldMatcher.STRICT, registry);
 
         assertThat(sCommands.commands().size(), equalTo(5));
         assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).shardId(), equalTo(1));

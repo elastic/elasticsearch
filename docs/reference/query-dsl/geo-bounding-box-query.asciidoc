@@ -52,8 +52,12 @@ Then the following simple query can be executed with a
 |Option |Description
 |`_name` |Optional name field to identify the filter
 
-|`ignore_malformed` |Set to `true` to
+|`ignore_malformed` |deprecated[5.0.0,Use `validation_method` instead] Set to `true` to
 accept geo points with invalid latitude or longitude (default is `false`).
+
+|`validation_method` |Set to `IGNORE_MALFORMED` to
+accept geo points with invalid latitude or longitude, set to
+`COERCE` to also try to infer correct latitude or longitude. (default is `STRICT`).
 
 |`type` |Set to one of `indexed` or `memory` to defines whether this filter will
 be executed in memory or indexed. See <<geo-bbox-type,Type>> below for further details
@@ -247,3 +251,11 @@ are not supported. Here is an example:
 }
 --------------------------------------------------
 
+[float]
+==== Ignore Unmapped
+
+When set to `true` the `ignore_unmapped` option will ignore an unmapped field
+and will not match any documents for this query. This can be useful when
+querying multiple indexes which might have different mappings. When set to
+`false` (the default value) the query will throw an exception if the field
+is not mapped.

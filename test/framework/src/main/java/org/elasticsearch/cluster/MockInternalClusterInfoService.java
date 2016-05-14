@@ -38,7 +38,12 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 /**
  * Fake ClusterInfoService class that allows updating the nodes stats disk
@@ -70,7 +75,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
             usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes());
         paths[0] = path;
         FsInfo fsInfo = new FsInfo(System.currentTimeMillis(), paths);
-        return new NodeStats(new DiscoveryNode(nodeName, DummyTransportAddress.INSTANCE, Version.CURRENT),
+        return new NodeStats(new DiscoveryNode(nodeName, DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT),
             System.currentTimeMillis(),
             null, null, null, null, null,
             fsInfo,
@@ -104,7 +109,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
 
     @Override
     public CountDownLatch updateNodeStats(final ActionListener<NodesStatsResponse> listener) {
-        NodesStatsResponse response = new NodesStatsResponse(clusterName, stats);
+        NodesStatsResponse response = new NodesStatsResponse(clusterName, Arrays.asList(stats), Collections.emptyList());
         listener.onResponse(response);
         return new CountDownLatch(0);
     }

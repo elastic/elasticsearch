@@ -35,6 +35,7 @@ public class FieldDataLoadingIT extends ESIntegTestCase {
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
                         .startObject("name")
                         .field("type", "text")
+                        .field("fielddata", true)
                         .field("eager_global_ordinals", true)
                         .endObject()
                         .endObject().endObject().endObject()));

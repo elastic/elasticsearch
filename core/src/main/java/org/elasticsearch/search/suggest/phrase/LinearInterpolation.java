@@ -45,15 +45,15 @@ import java.util.Objects;
  * </p>
  */
 public final class LinearInterpolation extends SmoothingModel {
-    private static final String NAME = "linear";
-    public static final LinearInterpolation PROTOTYPE = new LinearInterpolation(0.8, 0.1, 0.1);
-    private final double trigramLambda;
-    private final double bigramLambda;
-    private final double unigramLambda;
+    public static final String NAME = "linear";
     static final ParseField PARSE_FIELD = new ParseField(NAME);
     private static final ParseField TRIGRAM_FIELD = new ParseField("trigram_lambda");
     private static final ParseField BIGRAM_FIELD = new ParseField("bigram_lambda");
     private static final ParseField UNIGRAM_FIELD = new ParseField("unigram_lambda");
+
+    private final double trigramLambda;
+    private final double bigramLambda;
+    private final double unigramLambda;
 
     /**
      * Creates a linear interpolation smoothing model.
@@ -75,6 +75,22 @@ public final class LinearInterpolation extends SmoothingModel {
         this.trigramLambda = trigramLambda;
         this.bigramLambda = bigramLambda;
         this.unigramLambda = unigramLambda;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public LinearInterpolation(StreamInput in) throws IOException {
+        trigramLambda = in.readDouble();
+        bigramLambda = in.readDouble();
+        unigramLambda = in.readDouble();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeDouble(trigramLambda);
+        out.writeDouble(bigramLambda);
+        out.writeDouble(unigramLambda);
     }
 
     public double getTrigramLambda() {
@@ -103,18 +119,6 @@ public final class LinearInterpolation extends SmoothingModel {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeDouble(trigramLambda);
-        out.writeDouble(bigramLambda);
-        out.writeDouble(unigramLambda);
-    }
-
-    @Override
-    public LinearInterpolation readFrom(StreamInput in) throws IOException {
-        return new LinearInterpolation(in.readDouble(), in.readDouble(), in.readDouble());
-    }
-
-    @Override
     protected boolean doEquals(SmoothingModel other) {
         final LinearInterpolation otherModel = (LinearInterpolation) other;
         return Objects.equals(trigramLambda, otherModel.trigramLambda) &&
@@ -127,15 +131,14 @@ public final class LinearInterpolation extends SmoothingModel {
         return Objects.hash(trigramLambda, bigramLambda, unigramLambda);
     }
 
-    @Override
-    public LinearInterpolation innerFromXContent(QueryParseContext parseContext) throws IOException {
+    public static LinearInterpolation innerFromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         XContentParser.Token token;
         String fieldName = null;
         double trigramLambda = 0.0;
         double bigramLambda = 0.0;
         double unigramLambda = 0.0;
-        ParseFieldMatcher matcher = parseContext.parseFieldMatcher();
+        ParseFieldMatcher matcher = parseContext.getParseFieldMatcher();
         while ((token = parser.nextToken()) != Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
@@ -170,7 +173,7 @@ public final class LinearInterpolation extends SmoothingModel {
     @Override
     public WordScorerFactory buildWordScorerFactory() {
         return (IndexReader reader, Terms terms, String field, double realWordLikelyhood, BytesRef separator) ->
-                    new LinearInterpoatingScorer(reader, terms, field, realWordLikelyhood, separator, trigramLambda, bigramLambda,
+                    new LinearInterpolatingScorer(reader, terms, field, realWordLikelyhood, separator, trigramLambda, bigramLambda,
                         unigramLambda);
     }
 }

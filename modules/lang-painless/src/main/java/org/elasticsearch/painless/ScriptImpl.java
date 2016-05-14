@@ -22,7 +22,7 @@ package org.elasticsearch.painless;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
-import org.elasticsearch.script.ScoreAccessor;
+import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 
 import java.util.HashMap;
@@ -33,6 +33,7 @@ import java.util.Map;
  * to run a previously compiled Painless script.
  */
 final class ScriptImpl implements ExecutableScript, LeafSearchScript {
+
     /**
      * The Painless Executable script that can be run.
      */
@@ -47,6 +48,23 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      * The lookup is used to access search field values at run-time.
      */
     private final LeafSearchLookup lookup;
+
+    /**
+     * the 'doc' object accessed by the script, if available.
+     */
+    private final LeafDocLookup doc;
+
+    /**
+     * Current scorer being used
+     * @see #setScorer(Scorer)
+     */
+    private Scorer scorer;
+
+    /**
+     * Current _value for aggregation
+     * @see #setNextAggregationValue(Object)
+     */
+    private Object aggregationValue;
 
     /**
      * Creates a ScriptImpl for the a previously compiled Painless script.
@@ -65,6 +83,9 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
 
         if (lookup != null) {
             variables.putAll(lookup.asMap());
+            doc = lookup.doc();
+        } else {
+            doc = null;
         }
     }
 
@@ -79,12 +100,21 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     }
 
     /**
+     * Set the next aggregation value.
+     * @param value Per-document value, typically a String, Long, or Double.
+     */
+    @Override
+    public void setNextAggregationValue(Object value) {
+        this.aggregationValue = value;
+    }
+
+    /**
      * Run the script.
      * @return The script result.
      */
     @Override
     public Object run() {
-        return executable.execute(variables);
+        return executable.execute(variables, scorer, doc, aggregationValue);
     }
 
     /**
@@ -120,7 +150,7 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
      */
     @Override
     public void setScorer(final Scorer scorer) {
-        variables.put("#score", new ScoreAccessor(scorer));
+        this.scorer = scorer;
     }
 
     /**

@@ -200,7 +200,7 @@ The second error value can be enabled by setting the `show_term_doc_count_error`
 for each term returned by the aggregation which represents the 'worst case' error in the document count and can be useful when
 deciding on a value for the `shard_size` parameter. This is calculated by summing the document counts for the last term returned
 by all shards which did not return the term. In the example above the error in the document count for Product C would be 15 as
-Shard B was the only shard not to return the term and the document count of the last termit did return was 15. The actual document
+Shard B was the only shard not to return the term and the document count of the last term it did return was 15. The actual document
 count of Product C was 54 so the document count was only actually off by 4 even though the worst case was that it would be off by
 15.  Product A, however has an error of 0 for its document count, since every shard returned it we can be confident that the count
 returned is accurate.
@@ -313,6 +313,15 @@ Ordering the buckets by multi value metrics sub-aggregation (identified by the a
     }
 }
 --------------------------------------------------
+
+WARNING: Sorting by ascending `_count` or by sub aggregation is discouraged as it increases the
+<<search-aggregations-bucket-terms-aggregation-approximate-counts,error>> on document counts.
+It is fine when a single shard is queried, or when the field that is being aggregated was used
+as a routing key at index time: in these cases results will be accurate since shards have disjoint
+values. However otherwise, errors are unbounded. One particular case that could still be useful
+is sorting by <<search-aggregations-metrics-min-aggregation,`min`>> or
+<<search-aggregations-metrics-max-aggregation,`max`>> aggregation: counts will not be accurate
+but at least the top buckets will be correctly picked.
 
 It is also possible to order the buckets based on a "deeper" aggregation in the hierarchy. This is supported as long
 as the aggregations path are of a single-bucket type, where the last aggregation in the path may either be a single-bucket
@@ -434,7 +443,10 @@ Generating the terms using a script:
     "aggs" : {
         "genders" : {
             "terms" : {
-                "script" : "doc['gender'].value"
+                "script" : { 
+                    "inline": "doc['gender'].value"
+                    "lang": "painless"
+                }
             }
         }
     }
@@ -473,7 +485,10 @@ TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
         "genders" : {
             "terms" : {
                 "field" : "gender",
-                "script" : "'Gender: ' +_value"
+                "script" : { 
+                    "inline" : "'Gender: ' +_value"
+                    "lang" : "painless" 
+                }
             }
         }
     }
@@ -626,9 +641,8 @@ elasticsearch will always use the `depth_first` collect_mode unless explicitly i
 Note that the `order` parameter can still be used to refer to data from a child aggregation when using the `breadth_first` setting - the parent
 aggregation understands that this child aggregation will need to be called first before any of the other child aggregations.
 
-WARNING: It is not possible to nest aggregations such as `top_hits` which require access to match score information under an aggregation that uses
-the `breadth_first` collection mode. This is because this would require a RAM buffer to hold the float score value for every document and
-this would typically be too costly in terms of RAM.
+WARNING: Nested aggregations such as `top_hits` which require access to score information under an aggregation that uses the `breadth_first`
+collection mode need to replay the query on the second pass but only for the documents belonging to the top buckets.
 
 [[search-aggregations-bucket-terms-aggregation-execution-hint]]
 ==== Execution hint

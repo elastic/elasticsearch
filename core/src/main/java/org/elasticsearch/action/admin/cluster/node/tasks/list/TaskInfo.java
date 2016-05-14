@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
  * and use in APIs. Instead, immutable and streamable TaskInfo objects are used to represent
  * snapshot information about currently running tasks.
  */
-public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
+public class TaskInfo implements Writeable, ToXContent {
 
     private final DiscoveryNode node;
 
@@ -57,10 +57,12 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
 
     private final Task.Status status;
 
+    private final boolean cancellable;
+
     private final TaskId parentTaskId;
 
     public TaskInfo(DiscoveryNode node, long id, String type, String action, String description, Task.Status status, long startTime,
-                    long runningTimeNanos, TaskId parentTaskId) {
+                    long runningTimeNanos, boolean cancellable, TaskId parentTaskId) {
         this.node = node;
         this.taskId = new TaskId(node.getId(), id);
         this.type = type;
@@ -69,23 +71,38 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         this.status = status;
         this.startTime = startTime;
         this.runningTimeNanos = runningTimeNanos;
+        this.cancellable = cancellable;
         this.parentTaskId = parentTaskId;
     }
 
+    /**
+     * Read from a stream.
+     */
     public TaskInfo(StreamInput in) throws IOException {
-        node = DiscoveryNode.readNode(in);
+        node = new DiscoveryNode(in);
         taskId = new TaskId(node.getId(), in.readLong());
         type = in.readString();
         action = in.readString();
         description = in.readOptionalString();
-        if (in.readBoolean()) {
-            status = in.readTaskStatus();
-        } else {
-            status = null;
-        }
+        status = in.readOptionalNamedWriteable(Task.Status.class);
         startTime = in.readLong();
         runningTimeNanos = in.readLong();
-        parentTaskId = new TaskId(in);
+        cancellable = in.readBoolean();
+        parentTaskId = TaskId.readFromStream(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        node.writeTo(out);
+        out.writeLong(taskId.getId());
+        out.writeString(type);
+        out.writeString(action);
+        out.writeOptionalString(description);
+        out.writeOptionalNamedWriteable(status);
+        out.writeLong(startTime);
+        out.writeLong(runningTimeNanos);
+        out.writeBoolean(cancellable);
+        parentTaskId.writeTo(out);
     }
 
     public TaskId getTaskId() {
@@ -135,33 +152,17 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
     }
 
     /**
+     * Returns true if the task supports cancellation
+     */
+    public boolean isCancellable() {
+        return cancellable;
+    }
+
+    /**
      * Returns the parent task id
      */
     public TaskId getParentTaskId() {
         return parentTaskId;
-    }
-
-    @Override
-    public TaskInfo readFrom(StreamInput in) throws IOException {
-        return new TaskInfo(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        node.writeTo(out);
-        out.writeLong(taskId.getId());
-        out.writeString(type);
-        out.writeString(action);
-        out.writeOptionalString(description);
-        if (status != null) {
-            out.writeBoolean(true);
-            out.writeTaskStatus(status);
-        } else {
-            out.writeBoolean(false);
-        }
-        out.writeLong(startTime);
-        out.writeLong(runningTimeNanos);
-        parentTaskId.writeTo(out);
     }
 
     @Override
@@ -178,6 +179,7 @@ public class TaskInfo implements Writeable<TaskInfo>, ToXContent {
         }
         builder.dateValueField("start_time_in_millis", "start_time", startTime);
         builder.timeValueField("running_time_in_nanos", "running_time", runningTimeNanos, TimeUnit.NANOSECONDS);
+        builder.field("cancellable", cancellable);
         if (parentTaskId.isSet()) {
             builder.field("parent_task_id", parentTaskId.toString());
         }

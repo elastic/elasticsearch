@@ -40,7 +40,7 @@ import java.io.IOException;
 /**
  * Holds additional information as to why the shard is in unassigned state.
  */
-public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
+public final class UnassignedInfo implements ToXContent, Writeable {
 
     public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
     private static final TimeValue DEFAULT_DELAYED_NODE_LEFT_TIMEOUT = TimeValue.timeValueMinutes(1);
@@ -109,7 +109,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     private final Reason reason;
     private final long unassignedTimeMillis; // used for display and log messages, in milliseconds
     private final long unassignedTimeNanos; // in nanoseconds, used to calculate delay for delayed shard allocation
-    private volatile long lastComputedLeftDelayNanos = 0L; // how long to delay shard allocation, not serialized (always positive, 0 means no delay)
+    private final long lastComputedLeftDelayNanos; // how long to delay shard allocation, not serialized (always positive, 0 means no delay)
     private final String message;
     private final Throwable failure;
 
@@ -134,17 +134,28 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
         this.reason = reason;
         this.unassignedTimeMillis = unassignedTimeMillis;
         this.unassignedTimeNanos = unassignedTimeNanos;
+        this.lastComputedLeftDelayNanos = 0L;
         this.message = message;
         this.failure = failure;
         assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
     }
 
-    UnassignedInfo(StreamInput in) throws IOException {
+    public UnassignedInfo(UnassignedInfo unassignedInfo, long newComputedLeftDelayNanos) {
+        this.reason = unassignedInfo.reason;
+        this.unassignedTimeMillis = unassignedInfo.unassignedTimeMillis;
+        this.unassignedTimeNanos = unassignedInfo.unassignedTimeNanos;
+        this.lastComputedLeftDelayNanos = newComputedLeftDelayNanos;
+        this.message = unassignedInfo.message;
+        this.failure = unassignedInfo.failure;
+    }
+
+    public UnassignedInfo(StreamInput in) throws IOException {
         this.reason = Reason.values()[(int) in.readByte()];
         this.unassignedTimeMillis = in.readLong();
         // As System.nanoTime() cannot be compared across different JVMs, reset it to now.
         // This means that in master failover situations, elapsed delay time is forgotten.
         this.unassignedTimeNanos = System.nanoTime();
+        this.lastComputedLeftDelayNanos = 0L;
         this.message = in.readOptionalString();
         this.failure = in.readThrowable();
     }
@@ -232,21 +243,31 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     }
 
     /**
-     * Updates delay left based on current time (in nanoseconds) and index/node settings.
+     * Calculates the delay left based on current time (in nanoseconds) and index/node settings.
      *
-     * @return updated delay in nanoseconds
+     * @return calculated delay in nanoseconds
      */
-    public long updateDelay(long nanoTimeNow, Settings settings, Settings indexSettings) {
-        long delayTimeoutNanos = getAllocationDelayTimeoutSettingNanos(settings, indexSettings);
-        final long newComputedLeftDelayNanos;
+    public long getRemainingDelay(final long nanoTimeNow, final Settings settings, final Settings indexSettings) {
+        final long delayTimeoutNanos = getAllocationDelayTimeoutSettingNanos(settings, indexSettings);
         if (delayTimeoutNanos == 0L) {
-            newComputedLeftDelayNanos = 0L;
+            return 0L;
         } else {
             assert nanoTimeNow >= unassignedTimeNanos;
-            newComputedLeftDelayNanos = Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
+            return Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
         }
-        lastComputedLeftDelayNanos = newComputedLeftDelayNanos;
-        return newComputedLeftDelayNanos;
+    }
+
+    /**
+     * Creates new UnassignedInfo object if delay needs updating.
+     *
+     * @return new Unassigned with updated delay, or this if no change in delay
+     */
+    public UnassignedInfo updateDelay(final long nanoTimeNow, final Settings settings, final Settings indexSettings) {
+        final long newComputedLeftDelayNanos = getRemainingDelay(nanoTimeNow, settings, indexSettings);
+        if (lastComputedLeftDelayNanos == newComputedLeftDelayNanos) {
+            return this;
+        }
+        return new UnassignedInfo(this, newComputedLeftDelayNanos);
     }
 
     /**

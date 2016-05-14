@@ -46,7 +46,9 @@ import org.hamcrest.CustomTypeSafeMatcher;
 import org.mockito.stubbing.Answer;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -72,12 +74,11 @@ public class IngestProxyActionFilterTests extends ESTestCase {
         for (int i = 0; i < totalNodes; i++) {
             String nodeId = "node" + i;
             Map<String, String> attributes = new HashMap<>();
-            if (i >= ingestNodes) {
-                attributes.put("ingest", "false");
-            } else if (randomBoolean()) {
-                attributes.put("ingest", "true");
+            Set<DiscoveryNode.Role> roles = new HashSet<>();
+            if (i < ingestNodes) {
+                roles.add(DiscoveryNode.Role.INGEST);
             }
-            DiscoveryNode node = new DiscoveryNode(nodeId, nodeId, DummyTransportAddress.INSTANCE, attributes, VersionUtils.randomVersion(random()));
+            DiscoveryNode node = new DiscoveryNode(nodeId, nodeId, DummyTransportAddress.INSTANCE, attributes, roles, VersionUtils.randomVersion(random()));
             builder.put(node);
             if (i == totalNodes - 1) {
                 localNode = node;

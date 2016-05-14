@@ -22,7 +22,6 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -55,6 +54,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
@@ -103,11 +103,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public SearchType searchType() {
         return in.searchType();
-    }
-
-    @Override
-    public SearchContext searchType(SearchType searchType) {
-        return in.searchType(searchType);
     }
 
     @Override
@@ -311,12 +306,12 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext sort(Sort sort) {
+    public SearchContext sort(SortAndFormats sort) {
         return in.sort(sort);
     }
 
     @Override
-    public Sort sort() {
+    public SortAndFormats sort() {
         return in.sort();
     }
 

@@ -40,10 +40,6 @@ public class BytesRestResponse extends RestResponse {
     private final BytesReference content;
     private final String contentType;
 
-    public BytesRestResponse(RestStatus status) {
-        this(status, TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-    }
-
     /**
      * Creates a new response based on {@link XContentBuilder}.
      */

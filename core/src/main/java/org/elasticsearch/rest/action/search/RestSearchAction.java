@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.TemplateQueryParser;
+import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -48,8 +48,8 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 import org.elasticsearch.search.suggest.Suggesters;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -122,15 +122,13 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
         if (restContent != null) {
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                context.reset(parser);
-                context.parseFieldMatcher(parseFieldMatcher);
+                QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, parseFieldMatcher);
                 if (isTemplateRequest) {
-                    Template template = TemplateQueryParser.parse(parser, context.parseFieldMatcher(), "params", "template");
+                    Template template = TemplateQueryBuilder.parse(parser, context.getParseFieldMatcher(), "params", "template");
                     searchRequest.template(template);
                 } else {
-                    searchRequest.source().parseXContent(parser, context, aggParsers, suggesters);
+                    searchRequest.source().parseXContent(context, aggParsers, suggesters);
                 }
             }
         }
@@ -164,7 +162,7 @@ public class RestSearchAction extends BaseRestHandler {
      * values that are not overridden by the rest request.
      */
     private static void parseSearchSource(final SearchSourceBuilder searchSourceBuilder, RestRequest request) {
-        QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+        QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
         if (queryBuilder != null) {
             searchSourceBuilder.query(queryBuilder);
         }

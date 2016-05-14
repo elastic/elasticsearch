@@ -19,21 +19,26 @@
 
 package org.elasticsearch.index.query;
 
+import static java.util.Collections.unmodifiableMap;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -47,23 +52,12 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.percolator.PercolatorQueryCache;
-import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * Context object used to create lucene queries on the shard level.
@@ -92,11 +86,13 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
-    boolean isFilter; // pkg private for testing
+    private boolean isFilter;
 
-    public QueryShardContext(IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache, IndexFieldDataService indexFieldDataService, MapperService mapperService, SimilarityService similarityService, ScriptService scriptService,
-                             final IndicesQueriesRegistry indicesQueriesRegistry, PercolatorQueryCache percolatorQueryCache) {
-        super(indexSettings, scriptService, indicesQueriesRegistry);
+    public QueryShardContext(IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache, IndexFieldDataService indexFieldDataService,
+                             MapperService mapperService, SimilarityService similarityService, ScriptService scriptService,
+                             final IndicesQueriesRegistry indicesQueriesRegistry, Client client, PercolatorQueryCache percolatorQueryCache,
+                             IndexReader reader, ClusterState clusterState) {
+        super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, client, reader, clusterState);
         this.indexSettings = indexSettings;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
@@ -109,48 +105,22 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public QueryShardContext(QueryShardContext source) {
-        this(source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService, source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.percolatorQueryCache);
+        this(source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
+                source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.client,
+                source.percolatorQueryCache, source.reader, source.clusterState);
         this.types = source.getTypes();
     }
 
-
-    @Override
-    public QueryShardContext clone() {
-        return new QueryShardContext(indexSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry, percolatorQueryCache);
-    }
-
-    public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
-        this.parseContext.parseFieldMatcher(parseFieldMatcher);
-    }
-
-    public ParseFieldMatcher parseFieldMatcher() {
-        return parseContext.parseFieldMatcher();
-    }
-
-    public void reset() {
+    private void reset() {
         allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
-        this.parseFieldMatcher(ParseFieldMatcher.EMPTY);
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
         this.isFilter = false;
     }
 
-    public void reset(XContentParser jp) {
-        this.reset();
-        this.parseContext.reset(jp);
-    }
-
-    public InnerHitsSubSearchContext getInnerHitsContext(XContentParser parser) throws IOException {
-        return InnerHitsQueryParserHelper.parse(parser);
-    }
-
     public AnalysisService getAnalysisService() {
         return mapperService.analysisService();
-    }
-
-    public MapperService getMapperService() {
-        return mapperService;
     }
 
     public PercolatorQueryCache getPercolatorQueryCache() {
@@ -208,14 +178,8 @@ public class QueryShardContext extends QueryRewriteContext {
         return isFilter;
     }
 
-    public void addInnerHits(String name, InnerHitsContext.BaseInnerHits context) {
-        SearchContext sc = SearchContext.current();
-        if (sc == null) {
-            throw new QueryShardException(this, "inner_hits unsupported");
-        }
-
-        InnerHitsContext innerHitsContext = sc.innerHits();
-        innerHitsContext.addInnerHitDefinition(name, context);
+    void setIsFilter(boolean isFilter) {
+        this.isFilter = isFilter;
     }
 
     public Collection<String> simpleMatchToIndexNames(String pattern) {
@@ -314,10 +278,6 @@ public class QueryShardContext extends QueryRewriteContext {
         return indexSettings.getIndexVersionCreated();
     }
 
-    public QueryParseContext parseContext() {
-        return this.parseContext;
-    }
-
     public boolean matchesIndices(String... indices) {
         for (String index : indices) {
             if (indexSettings.matchesIndexName(index)) {
@@ -327,89 +287,46 @@ public class QueryShardContext extends QueryRewriteContext {
         return false;
     }
 
-    public ParsedQuery parse(BytesReference source) {
-        XContentParser parser = null;
-        try {
-            parser = XContentFactory.xContent(source).createParser(source);
-            return innerParse(parser);
-        } catch (ParsingException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ParsingException(parser == null ? null : parser.getTokenLocation(), "Failed to parse", e);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
-        }
-    }
-
-    public ParsedQuery parse(XContentParser parser) {
-        try {
-            return innerParse(parser);
-        } catch(IOException e) {
-            throw new ParsingException(parser.getTokenLocation(), "Failed to parse", e);
-        }
-    }
-
-    /**
-     * Parses an inner filter, returning null if the filter should be ignored.
-     */
-    @Nullable
-    public ParsedQuery parseInnerFilter(XContentParser parser) throws IOException {
-        reset(parser);
-        try {
-            parseFieldMatcher(indexSettings.getParseFieldMatcher());
-            Query filter = QueryBuilder.rewriteQuery(parseContext().parseInnerQueryBuilder(), this).toFilter(this);
+    public ParsedQuery toFilter(QueryBuilder queryBuilder) {
+        return toQuery(queryBuilder, q -> {
+            Query filter = q.toFilter(this);
             if (filter == null) {
                 return null;
             }
-            return new ParsedQuery(filter, copyNamedQueries());
-        } finally {
-            reset(null);
-        }
+            return filter;
+        });
     }
 
-
-    private ParsedQuery innerParse(XContentParser parser) throws IOException, QueryShardException {
-        reset(parser);
-        try {
-            parseFieldMatcher(indexSettings.getParseFieldMatcher());
-            Query query = parseInnerQuery();
-            return new ParsedQuery(query, copyNamedQueries());
-        } finally {
-            reset(null);
-        }
+    public ParsedQuery toQuery(QueryBuilder queryBuilder) {
+        return toQuery(queryBuilder, q -> {
+            Query query = q.toQuery(this);
+            if (query == null) {
+                query = Queries.newMatchNoDocsQuery("No query left after rewrite.");
+            }
+            return query;
+        });
     }
 
-    public Query parseInnerQuery() throws IOException {
-        return toQuery(this.parseContext().parseInnerQueryBuilder(), this);
+    @FunctionalInterface
+    private interface CheckedFunction<T, R> {
+       R apply(T t) throws IOException;
     }
 
-    public ParsedQuery toQuery(QueryBuilder<?> queryBuilder) {
+    private ParsedQuery toQuery(QueryBuilder queryBuilder, CheckedFunction<QueryBuilder, Query> filterOrQuery) {
         reset();
-        parseFieldMatcher(indexSettings.getParseFieldMatcher());
         try {
-            Query query = toQuery(queryBuilder, this);
-            return new ParsedQuery(query, copyNamedQueries());
+            QueryBuilder rewriteQuery = QueryBuilder.rewriteQuery(queryBuilder, this);
+            return new ParsedQuery(filterOrQuery.apply(rewriteQuery), copyNamedQueries());
         } catch(QueryShardException | ParsingException e ) {
             throw e;
         } catch(Exception e) {
             throw new QueryShardException(this, "failed to create query: {}", e, queryBuilder);
         } finally {
-            this.reset();
+            reset();
         }
-    }
-
-    private static Query toQuery(final QueryBuilder<?> queryBuilder, final QueryShardContext context) throws IOException {
-        final Query query = QueryBuilder.rewriteQuery(queryBuilder, context).toQuery(context);
-        if (query == null) {
-            return Queries.newMatchNoDocsQuery();
-        }
-        return query;
     }
 
     public final Index index() {
         return indexSettings.getIndex();
     }
-
 }

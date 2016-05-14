@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.percolator;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockAnalyzer;
+import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -28,6 +30,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
@@ -40,6 +43,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -54,16 +58,18 @@ import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.query.BoolQueryParser;
-import org.elasticsearch.index.query.PercolatorQuery;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.PercolateQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.TermQueryParser;
-import org.elasticsearch.index.query.WildcardQueryParser;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -77,8 +83,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -94,19 +98,20 @@ public class PercolatorQueryCacheTests extends ESTestCase {
     private PercolatorQueryCache cache;
 
     void initialize(Object... fields) throws IOException {
-        Settings settings = Settings.settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("node.name", PercolatorQueryCacheTests.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
-        Map<String, QueryParser<?>> queryParsers = new HashMap<>();
-        queryParsers.put("term", new TermQueryParser());
-        queryParsers.put("wildcard", new WildcardQueryParser());
-        queryParsers.put("bool", new BoolQueryParser());
-        IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(settings, queryParsers);
+        IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry();
+        QueryParser<TermQueryBuilder> termParser = TermQueryBuilder::fromXContent;
+        indicesQueriesRegistry.register(termParser, TermQueryBuilder.QUERY_NAME_FIELD);
+        QueryParser<WildcardQueryBuilder> wildcardParser = WildcardQueryBuilder::fromXContent;
+        indicesQueriesRegistry.register(wildcardParser, WildcardQueryBuilder.QUERY_NAME_FIELD);
+        QueryParser<BoolQueryBuilder> boolQueryParser = BoolQueryBuilder::fromXContent;
+        indicesQueriesRegistry.register(boolQueryParser, BoolQueryBuilder.QUERY_NAME_FIELD);
 
-        Settings indexSettings = Settings.settingsBuilder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("_index", ClusterState.UNKNOWN_UUID), indexSettings);
         SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
@@ -116,19 +121,22 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         mapperService.merge("type", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("type", fields).string()),
                 MapperService.MergeReason.MAPPING_UPDATE, false);
         cache = new PercolatorQueryCache(idxSettings, () -> queryShardContext);
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
         queryShardContext = new QueryShardContext(idxSettings, null, null, mapperService, similarityService, null,
-                    indicesQueriesRegistry, cache);
+                    indicesQueriesRegistry, null, cache, null, state);
     }
 
     public void testLoadQueries() throws Exception {
         Directory directory = newDirectory();
         IndexWriter indexWriter = new IndexWriter(
                 directory,
-                newIndexWriterConfig(new MockAnalyzer(random()))
+                new IndexWriterConfig(new MockAnalyzer(random()))
+                        .setMergePolicy(NoMergePolicy.INSTANCE)
         );
 
         boolean legacyFormat = randomBoolean();
         Version version = legacyFormat ? Version.V_2_0_0 : Version.CURRENT;
+        IndexShard indexShard = mockIndexShard(version, legacyFormat);
 
         storeQuery("0", indexWriter, termQuery("field1", "value1"), true, legacyFormat);
         storeQuery("1", indexWriter, wildcardQuery("field1", "v*"), true, legacyFormat);
@@ -156,7 +164,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
 
         initialize("field1", "type=keyword", "field2", "type=keyword", "field3", "type=keyword");
 
-        PercolatorQueryCache.QueriesLeaf leaf = cache.loadQueries(indexReader.leaves().get(0), version);
+        PercolatorQueryCache.QueriesLeaf leaf = cache.loadQueries(indexReader.leaves().get(0), indexShard);
         assertThat(leaf.queries.size(), equalTo(5));
         assertThat(leaf.getQuery(0), equalTo(new TermQuery(new Term("field1", "value1"))));
         assertThat(leaf.getQuery(1), equalTo(new WildcardQuery(new Term("field1", "v*"))));
@@ -176,7 +184,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         Directory directory = newDirectory();
         IndexWriter indexWriter = new IndexWriter(
                 directory,
-                newIndexWriterConfig(new MockAnalyzer(random())).setMergePolicy(NoMergePolicy.INSTANCE)
+                new IndexWriterConfig(new MockAnalyzer(random())).setMergePolicy(NoMergePolicy.INSTANCE)
         );
 
         storeQuery("0", indexWriter, termQuery("a", "0"), true, false);
@@ -207,14 +215,14 @@ public class PercolatorQueryCacheTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("queries not loaded, queries should be have been preloaded during index warming..."));
         }
 
-        IndexShard indexShard = mockIndexShard();
+        IndexShard indexShard = mockIndexShard(Version.CURRENT, false);
         ThreadPool threadPool = mockThreadPool();
         IndexWarmer.Listener listener = cache.createListener(threadPool);
         listener.warmReader(indexShard, new Engine.Searcher("test", new IndexSearcher(indexReader)));
         PercolatorQueryCacheStats stats = cache.getStats(shardId);
         assertThat(stats.getNumQueries(), equalTo(9L));
 
-        PercolatorQuery.QueryRegistry.Leaf leaf = cache.getQueries(indexReader.leaves().get(0));
+        PercolateQuery.QueryRegistry.Leaf leaf = cache.getQueries(indexReader.leaves().get(0));
         assertThat(leaf.getQuery(0), equalTo(new TermQuery(new Term("a", "0"))));
         assertThat(leaf.getQuery(1), equalTo(new TermQuery(new Term("a", "1"))));
         assertThat(leaf.getQuery(2), equalTo(new TermQuery(new Term("a", "2"))));
@@ -237,7 +245,7 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         Directory directory = newDirectory();
         IndexWriter indexWriter = new IndexWriter(
                 directory,
-                newIndexWriterConfig(new MockAnalyzer(random())).setMergePolicy(NoMergePolicy.INSTANCE)
+                new IndexWriterConfig(new MockAnalyzer(random())).setMergePolicy(NoMergePolicy.INSTANCE)
         );
 
         storeQuery("0", indexWriter, termQuery("a", "0"), true, false);
@@ -254,13 +262,13 @@ public class PercolatorQueryCacheTests extends ESTestCase {
 
         initialize("a", "type=keyword");
 
-        IndexShard indexShard = mockIndexShard();
+        IndexShard indexShard = mockIndexShard(Version.CURRENT, false);
         ThreadPool threadPool = mockThreadPool();
         IndexWarmer.Listener listener = cache.createListener(threadPool);
         listener.warmReader(indexShard, new Engine.Searcher("test", new IndexSearcher(indexReader)));
         assertThat(cache.getStats(shardId).getNumQueries(), equalTo(3L));
 
-        PercolatorQuery.QueryRegistry.Leaf leaf = cache.getQueries(indexReader.leaves().get(0));
+        PercolateQuery.QueryRegistry.Leaf leaf = cache.getQueries(indexReader.leaves().get(0));
         assertThat(leaf.getQuery(0), equalTo(new TermQuery(new Term("a", "0"))));
 
         leaf = cache.getQueries(indexReader.leaves().get(1));
@@ -307,7 +315,11 @@ public class PercolatorQueryCacheTests extends ESTestCase {
         Document doc = new Document();
         doc.add(new StringField("id", id, Field.Store.NO));
         if (typeField) {
-            doc.add(new StringField(TypeFieldMapper.NAME, PercolatorFieldMapper.TYPE_NAME, Field.Store.NO));
+            if (legacy) {
+                doc.add(new StringField(TypeFieldMapper.NAME, PercolatorFieldMapper.LEGACY_TYPE_NAME, Field.Store.NO));
+            } else {
+                doc.add(new StringField(TypeFieldMapper.NAME, "query", Field.Store.NO));
+            }
         }
         if (legacy) {
             BytesReference percolatorQuery = XContentFactory.jsonBuilder().startObject()
@@ -321,12 +333,12 @@ public class PercolatorQueryCacheTests extends ESTestCase {
             BytesRef queryBuilderAsBytes = new BytesRef(
                     XContentFactory.contentBuilder(PercolatorQueryCache.QUERY_BUILDER_CONTENT_TYPE).value(queryBuilder).bytes().toBytes()
             );
-            doc.add(new BinaryDocValuesField(PercolatorFieldMapper.QUERY_BUILDER_FULL_FIELD_NAME, queryBuilderAsBytes));
+            doc.add(new BinaryDocValuesField(PercolatorFieldMapper.QUERY_BUILDER_FIELD_NAME, queryBuilderAsBytes));
         }
         indexWriter.addDocument(doc);
     }
 
-    IndexShard mockIndexShard() {
+    IndexShard mockIndexShard(Version version, boolean legacyFormat) {
         IndexShard indexShard = mock(IndexShard.class);
         ShardIndexWarmerService shardIndexWarmerService = mock(ShardIndexWarmerService.class);
         when(shardIndexWarmerService.logger()).thenReturn(logger);
@@ -335,11 +347,37 @@ public class PercolatorQueryCacheTests extends ESTestCase {
                 IndexMetaData.builder("_index").settings(Settings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, version)
                 ).build(),
                 Settings.EMPTY
         );
         when(indexShard.indexSettings()).thenReturn(indexSettings);
+
+        PercolatorFieldMapper.PercolatorFieldType fieldType = mock(PercolatorFieldMapper.PercolatorFieldType.class);
+        when(fieldType.name()).thenReturn("query");
+        when(fieldType.getQueryBuilderFieldName()).thenReturn(PercolatorFieldMapper.QUERY_BUILDER_FIELD_NAME);
+        PercolatorFieldMapper percolatorFieldMapper = mock(PercolatorFieldMapper.class);
+        when(percolatorFieldMapper.fieldType()).thenReturn(fieldType);
+        MapperService mapperService = mock(MapperService.class);
+        DocumentMapper documentMapper = mock(DocumentMapper.class);
+        if (legacyFormat) {
+            when(documentMapper.type()).thenReturn(PercolatorFieldMapper.LEGACY_TYPE_NAME);
+            when(documentMapper.typeFilter())
+                    .thenReturn(new TermQuery(new Term(TypeFieldMapper.NAME, PercolatorFieldMapper.LEGACY_TYPE_NAME)));
+        } else {
+            when(documentMapper.type()).thenReturn("query");
+            when(documentMapper.typeFilter()).thenReturn(new TermQuery(new Term(TypeFieldMapper.NAME, "query")));
+        }
+
+        Analyzer analyzer = new SimpleAnalyzer();
+        DocumentFieldMappers documentFieldMappers =
+                new DocumentFieldMappers(Collections.singleton(percolatorFieldMapper), analyzer, analyzer, analyzer);
+        when(documentMapper.mappers()).thenReturn(documentFieldMappers);
+
+        when(mapperService.docMappers(false)).thenReturn(Collections.singleton(documentMapper));
+
+        when(indexShard.mapperService()).thenReturn(mapperService);
+
         return indexShard;
     }
 

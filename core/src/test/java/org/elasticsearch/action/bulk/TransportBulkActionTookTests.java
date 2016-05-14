@@ -41,7 +41,9 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
@@ -53,17 +55,26 @@ import static org.elasticsearch.cluster.service.ClusterServiceUtils.createCluste
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.mockito.Mockito.mock;
 
 public class TransportBulkActionTookTests extends ESTestCase {
 
-    private ThreadPool threadPool;
+    static private ThreadPool threadPool;
     private ClusterService clusterService;
+
+    @BeforeClass
+    public static void beforeClass() {
+        threadPool = new ThreadPool("TransportBulkActionTookTests");
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
+    }
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = mock(ThreadPool.class);
         clusterService = createClusterService(threadPool);
     }
 
@@ -75,7 +86,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     private TransportBulkAction createAction(boolean controlled, AtomicLong expected) {
         CapturingTransport capturingTransport = new CapturingTransport();
-        TransportService transportService = new TransportService(capturingTransport, threadPool);
+        TransportService transportService = new TransportService(capturingTransport, threadPool, clusterService.state().getClusterName());
         transportService.start();
         transportService.acceptIncomingRequests();
         IndexNameExpressionResolver resolver = new Resolver(Settings.EMPTY);
@@ -111,12 +122,13 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
                 @Override
                 void executeBulk(
+                        Task task,
                         BulkRequest bulkRequest,
                         long startTimeNanos,
                         ActionListener<BulkResponse> listener,
                         AtomicArray<BulkItemResponse> responses) {
                     expected.set(1000000);
-                    super.executeBulk(bulkRequest, startTimeNanos, listener, responses);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses);
                 }
             };
         } else {
@@ -140,13 +152,14 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
                 @Override
                 void executeBulk(
+                        Task task,
                         BulkRequest bulkRequest,
                         long startTimeNanos,
                         ActionListener<BulkResponse> listener,
                         AtomicArray<BulkItemResponse> responses) {
                     long elapsed = spinForAtLeastOneMillisecond();
                     expected.set(elapsed);
-                    super.executeBulk(bulkRequest, startTimeNanos, listener, responses);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses);
                 }
             };
         }
@@ -172,7 +185,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
         AtomicLong expected = new AtomicLong();
         TransportBulkAction action = createAction(controlled, expected);
-        action.doExecute(bulkRequest, new ActionListener<BulkResponse>() {
+        action.doExecute(null, bulkRequest, new ActionListener<BulkResponse>() {
             @Override
             public void onResponse(BulkResponse bulkItemResponses) {
                 if (controlled) {

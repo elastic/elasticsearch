@@ -27,31 +27,15 @@ import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 import java.io.IOException;
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
-
 public class LineStringBuilderTests extends AbstractShapeBuilderTestCase<LineStringBuilder> {
 
     public void testInvalidConstructorArgs() {
-        try {
-            new LineStringBuilder((List<Coordinate>) null);
-            fail("Exception expected");
-        } catch (IllegalArgumentException e) {
-            assertThat("cannot create point collection with empty set of points", equalTo(e.getMessage()));
-        }
-
-       try {
-            new LineStringBuilder(new CoordinatesBuilder());
-            fail("Exception expected");
-        } catch (IllegalArgumentException e) {
-            assertThat("cannot create point collection with empty set of points", equalTo(e.getMessage()));
-        }
-
-       try {
-           new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0));
-           fail("Exception expected");
-       } catch (IllegalArgumentException e) {
-           assertThat("invalid number of points in LineString (found [1] - must be >= 2)", equalTo(e.getMessage()));
-       }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new LineStringBuilder((List<Coordinate>) null));
+        assertEquals("cannot create point collection with empty set of points", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> new LineStringBuilder(new CoordinatesBuilder()));
+        assertEquals("cannot create point collection with empty set of points", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> new LineStringBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0)));
+        assertEquals("invalid number of points in LineString (found [1] - must be >= 2)", e.getMessage());
     }
 
     @Override
@@ -85,7 +69,7 @@ public class LineStringBuilderTests extends AbstractShapeBuilderTestCase<LineStr
     }
 
     static LineStringBuilder createRandomShape() {
-        LineStringBuilder lsb = (LineStringBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.LINESTRING);
+        LineStringBuilder lsb = (LineStringBuilder) RandomShapeGenerator.createShape(random(), ShapeType.LINESTRING);
         if (randomBoolean()) {
             lsb.close();
         }

@@ -19,18 +19,6 @@
 
 lexer grammar PainlessLexer;
 
-@header {
-    import java.util.Set;
-}
-
-@members {
-    private Set<String> types = null;
-
-    void setTypes(Set<String> types) {
-        this.types = types;
-    }
-}
-
 WS: [ \t\n\r]+ -> skip;
 COMMENT: ( '//' .*? [\n\r] | '/*' .*? '*/' ) -> skip;
 
@@ -75,7 +63,7 @@ EQR:     '===';
 NE:      '!=';
 NER:     '!==';
 BWAND:   '&';
-BWXOR:   '^';
+XOR:     '^';
 BWOR:    '|';
 BOOLAND: '&&';
 BOOLOR:  '||';
@@ -102,16 +90,13 @@ HEX: '0' [xX] [0-9a-fA-F]+ [lL]?;
 INTEGER: ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
 DECIMAL: ( '0' | [1-9] [0-9]* ) DOT [0-9]* ( [eE] [+\-]? [0-9]+ )? [fF]?;
 
-STRING: '"' ( '\\"' | '\\\\' | ~[\\"] )*? '"' {setText(getText().substring(1, getText().length() - 1));};
-CHAR: '\'' . '\''                             {setText(getText().substring(1, getText().length() - 1));};
+STRING: ( '"' ( '\\"' | '\\\\' | ~[\\"] )*? '"' ) | ( '\'' ( '\\\'' | '\\\\' | ~[\\"] )*? '\'' );
 
 TRUE:  'true';
 FALSE: 'false';
 
 NULL: 'null';
 
-TYPE: ID GENERIC? {types.contains(getText().replace(" ", ""))}? {setText(getText().replace(" ", ""));};
-fragment GENERIC: ' '* '<' ' '* ( ID GENERIC? ) ' '* ( COMMA ' '* ( ID GENERIC? ) ' '* )* '>';
 ID: [_a-zA-Z] [_a-zA-Z0-9]*;
 
 mode EXT;

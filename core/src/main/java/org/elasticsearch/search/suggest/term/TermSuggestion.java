@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -111,7 +110,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     @Override
     protected void innerReadFrom(StreamInput in) throws IOException {
         super.innerReadFrom(in);
-        sort = SortBy.PROTOTYPE.readFrom(in);
+        sort = SortBy.readFromStream(in);
     }
 
     @Override
@@ -149,7 +148,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         public static class Option extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option {
 
             static class Fields {
-                static final XContentBuilderString FREQ = new XContentBuilderString("freq");
+                static final String FREQ = "freq";
             }
 
             private int freq;

@@ -40,7 +40,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -48,7 +47,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(ClusterRebalanceRoutingTests.class);
 
     public void testAlways() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+        AllocationService strategy = createAllocationService(Settings.builder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
 
         MetaData metaData = MetaData.builder()
@@ -129,12 +128,12 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").size(), equalTo(1));
-        assertThat(routingNodes.node("node3").get(0).shardId().getIndex().getName(), equalTo("test1"));
+        assertThat(routingNodes.node("node3").iterator().next().shardId().getIndex().getName(), equalTo("test1"));
     }
 
 
     public void testClusterPrimariesActive1() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+        AllocationService strategy = createAllocationService(Settings.builder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()).build());
 
         MetaData metaData = MetaData.builder()
@@ -234,11 +233,11 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").size(), equalTo(1));
-        assertThat(routingNodes.node("node3").get(0).shardId().getIndex().getName(), equalTo("test1"));
+        assertThat(routingNodes.node("node3").iterator().next().shardId().getIndex().getName(), equalTo("test1"));
     }
 
     public void testClusterPrimariesActive2() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+        AllocationService strategy = createAllocationService(Settings.builder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()).build());
 
         MetaData metaData = MetaData.builder()
@@ -322,7 +321,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
     }
 
     public void testClusterAllActive1() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+        AllocationService strategy = createAllocationService(Settings.builder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
 
         MetaData metaData = MetaData.builder()
@@ -441,11 +440,11 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").size(), equalTo(1));
-        assertThat(routingNodes.node("node3").get(0).shardId().getIndex().getName(), anyOf(equalTo("test1"), equalTo("test2")));
+        assertThat(routingNodes.node("node3").iterator().next().shardId().getIndex().getName(), anyOf(equalTo("test1"), equalTo("test2")));
     }
 
     public void testClusterAllActive2() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+        AllocationService strategy = createAllocationService(Settings.builder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
 
         MetaData metaData = MetaData.builder()
@@ -529,7 +528,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
     }
 
     public void testClusterAllActive3() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+        AllocationService strategy = createAllocationService(Settings.builder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
 
         MetaData metaData = MetaData.builder()
@@ -739,7 +738,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
     public void testRebalanceWhileShardFetching() {
         final AtomicBoolean hasFetches = new AtomicBoolean(true);
-        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+        AllocationService strategy = createAllocationService(Settings.builder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build(), new NoopGatewayAllocator() {
             @Override
             public boolean allocateUnassigned(RoutingAllocation allocation) {

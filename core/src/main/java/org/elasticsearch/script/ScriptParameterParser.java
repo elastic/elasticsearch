@@ -92,7 +92,7 @@ public class ScriptParameterParser {
                 for (ParseField parameter : indexedParameters) {
                     if (parseFieldMatcher.match(currentFieldName, parameter)) {
                         String coreParameterName = parameter.getPreferredName().replace(INDEXED_SUFFIX, "");
-                        putParameterValue(coreParameterName, parser.textOrNull(), ScriptType.INDEXED);
+                        putParameterValue(coreParameterName, parser.textOrNull(), ScriptType.STORED);
                         return true;
                     }
                 }
@@ -155,7 +155,7 @@ public class ScriptParameterParser {
                         } else {
                             throw new ScriptParseException("Value must be of type String: [" + parameterName + "]");
                         }
-                        putParameterValue(coreParameterName, stringValue, ScriptType.INDEXED);
+                        putParameterValue(coreParameterName, stringValue, ScriptType.STORED);
                         if (removeMatchedEntries) {
                             itr.remove();
                         }
@@ -196,7 +196,7 @@ public class ScriptParameterParser {
             String value = params.param(parameter.getPreferredName());
             if (value != null) {
                 String coreParameterName = parameter.getPreferredName().replace(INDEXED_SUFFIX, "");
-                putParameterValue(coreParameterName, value, ScriptType.INDEXED);
+                putParameterValue(coreParameterName, value, ScriptType.STORED);
 
             }
         }

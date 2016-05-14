@@ -47,7 +47,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -422,7 +422,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public static boolean canOpenIndex(ESLogger logger, Path indexLocation, ShardId shardId) throws IOException {
         try {
-            tryOpenIndex(indexLocation, shardId);
+            tryOpenIndex(indexLocation, shardId, logger);
         } catch (Exception ex) {
             logger.trace("Can't open index for path [{}]", ex, indexLocation);
             return false;
@@ -435,10 +435,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * segment infos and possible corruption markers. If the index can not
      * be opened, an exception is thrown
      */
-    public static void tryOpenIndex(Path indexLocation, ShardId shardId) throws IOException {
+    public static void tryOpenIndex(Path indexLocation, ShardId shardId, ESLogger logger) throws IOException {
         try (Directory dir = new SimpleFSDirectory(indexLocation)) {
             failIfCorrupted(dir, shardId);
-            Lucene.readSegmentInfos(dir);
+            SegmentInfos segInfo = Lucene.readSegmentInfos(dir);
+            logger.trace("{} loaded segment info [{}]", shardId, segInfo);
         }
     }
 
@@ -728,9 +729,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @see StoreFileMetaData
      */
-    public final static class MetadataSnapshot implements Iterable<StoreFileMetaData>, Writeable<MetadataSnapshot> {
-        private static final ESLogger logger = Loggers.getLogger(MetadataSnapshot.class);
-
+    public final static class MetadataSnapshot implements Iterable<StoreFileMetaData>, Writeable {
         private final Map<String, StoreFileMetaData> metadata;
 
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot();
@@ -759,6 +758,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
         }
 
+        /**
+         * Read from a stream.
+         */
         public MetadataSnapshot(StreamInput in) throws IOException {
             final int size = in.readVInt();
             Map<String, StoreFileMetaData> metadata = new HashMap<>();
@@ -776,6 +778,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             this.commitUserData = unmodifiableMap(commitUserData);
             this.numDocs = in.readLong();
             assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(this.metadata.size());
+            for (StoreFileMetaData meta : this) {
+                meta.writeTo(out);
+            }
+            out.writeVInt(commitUserData.size());
+            for (Map.Entry<String, String> entry : commitUserData.entrySet()) {
+                out.writeString(entry.getKey());
+                out.writeString(entry.getValue());
+            }
+            out.writeLong(numDocs);
         }
 
         /**
@@ -1019,20 +1035,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return metadata.size();
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(this.metadata.size());
-            for (StoreFileMetaData meta : this) {
-                meta.writeTo(out);
-            }
-            out.writeVInt(commitUserData.size());
-            for (Map.Entry<String, String> entry : commitUserData.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeString(entry.getValue());
-            }
-            out.writeLong(numDocs);
-        }
-
         public Map<String, String> getCommitUserData() {
             return commitUserData;
         }
@@ -1074,11 +1076,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          */
         public String getSyncId() {
             return commitUserData.get(Engine.SYNC_COMMIT_ID);
-        }
-
-        @Override
-        public MetadataSnapshot readFrom(StreamInput in) throws IOException {
-            return new MetadataSnapshot(in);
         }
     }
 
@@ -1362,7 +1359,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public void markStoreCorrupted(IOException exception) throws IOException {
         ensureOpen();
         if (!isMarkedCorrupted()) {
-            String uuid = CORRUPTED + Strings.randomBase64UUID();
+            String uuid = CORRUPTED + UUIDs.randomBase64UUID();
             try (IndexOutput output = this.directory().createOutput(uuid, IOContext.DEFAULT)) {
                 CodecUtil.writeHeader(output, CODEC, VERSION);
                 BytesStreamOutput out = new BytesStreamOutput();

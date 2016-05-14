@@ -20,10 +20,6 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.SegmentInfoFormat;
-import org.apache.lucene.codecs.lucene50.Lucene50SegmentInfoFormat;
-import org.apache.lucene.codecs.lucene54.Lucene54Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -40,7 +36,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.NoDeletionPolicy;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
@@ -59,7 +54,7 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -91,11 +86,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.zip.Adler32;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.empty;
@@ -109,7 +101,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class StoreTests extends ESTestCase {
 
-    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
+    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build());
 
     public void testRefCount() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
@@ -1080,7 +1072,7 @@ public class StoreTests extends ESTestCase {
         Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
 
         CorruptIndexException exception = new CorruptIndexException("foo", "bar");
-        String uuid = Store.CORRUPTED + Strings.randomBase64UUID();
+        String uuid = Store.CORRUPTED + UUIDs.randomBase64UUID();
         try (IndexOutput output = dir.createOutput(uuid, IOContext.DEFAULT)) {
             CodecUtil.writeHeader(output, Store.CODEC, Store.VERSION_STACK_TRACE);
             output.writeString(ExceptionsHelper.detailedMessage(exception, true, 0));

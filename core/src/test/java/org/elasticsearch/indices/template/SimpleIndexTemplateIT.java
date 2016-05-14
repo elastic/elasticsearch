@@ -496,7 +496,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
             assertThat(e.getCause(), instanceOf(ParsingException.class));
-            assertThat(e.getCause().getMessage(), equalTo("No query registered for [invalid]"));
+            assertThat(e.getCause().getMessage(), equalTo("no [query] registered for [invalid]"));
         }
     }
 

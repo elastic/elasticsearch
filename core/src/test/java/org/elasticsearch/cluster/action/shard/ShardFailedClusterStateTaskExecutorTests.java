@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
 
@@ -55,7 +56,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
@@ -73,7 +73,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        allocationService = createAllocationService(settingsBuilder()
+        allocationService = createAllocationService(Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", 8)
             .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
             .build());
@@ -201,7 +201,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         for (ShardStateAction.ShardRoutingEntry existingShard : existingShards) {
             ShardRouting sr = existingShard.getShardRouting();
             ShardRouting nonExistentShardRouting =
-                TestShardRouting.newShardRouting(sr.index(), sr.id(), sr.currentNodeId(), sr.relocatingNodeId(), sr.restoreSource(), sr.primary(), sr.state());
+                TestShardRouting.newShardRouting(sr.shardId(), sr.currentNodeId(), sr.relocatingNodeId(), sr.restoreSource(), sr.primary(), sr.state());
             shardsWithMismatchedAllocationIds.add(new ShardStateAction.ShardRoutingEntry(nonExistentShardRouting, nonExistentShardRouting, existingShard.message, existingShard.failure));
         }
 
@@ -212,7 +212,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     }
 
     private ShardRouting nonExistentShardRouting(Index index, List<String> nodeIds, boolean primary) {
-        return TestShardRouting.newShardRouting(index, 0, randomFrom(nodeIds), primary, randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.RELOCATING, ShardRoutingState.STARTED));
+        return TestShardRouting.newShardRouting(new ShardId(index, 0), randomFrom(nodeIds), primary, randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.RELOCATING, ShardRoutingState.STARTED));
     }
 
     private static void assertTasksSuccessful(
@@ -305,7 +305,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             return randomSubsetOf(1, shards.toArray(new ShardRouting[0])).get(0);
         } else {
             return
-                    TestShardRouting.newShardRouting(shardRouting.index(), shardRouting.id(), DiscoveryNodeService.generateNodeId(Settings.EMPTY), randomBoolean(), randomFrom(ShardRoutingState.values()));
+                    TestShardRouting.newShardRouting(shardRouting.shardId(), DiscoveryNodeService.generateNodeId(Settings.EMPTY), randomBoolean(), randomFrom(ShardRoutingState.values()));
         }
     }
 

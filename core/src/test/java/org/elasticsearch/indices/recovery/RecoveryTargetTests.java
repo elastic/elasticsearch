@@ -42,6 +42,8 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.closeTo;
@@ -337,7 +339,7 @@ public class RecoveryTargetTests extends ESTestCase {
     }
 
     public void testStageSequenceEnforcement() {
-        final DiscoveryNode discoveryNode = new DiscoveryNode("1", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        final DiscoveryNode discoveryNode = new DiscoveryNode("1", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
         Stage[] stages = Stage.values();
         int i = randomIntBetween(0, stages.length - 1);
         int j;

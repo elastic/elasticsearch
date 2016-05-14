@@ -21,12 +21,13 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.core.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.ingest.core.IngestDocumentTests.assertIngestDocument;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -45,13 +46,15 @@ public class SimulateDocumentSimpleResultTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         simulateDocumentBaseResult.writeTo(out);
         StreamInput streamInput = StreamInput.wrap(out.bytes());
-        SimulateDocumentBaseResult otherSimulateDocumentBaseResult = SimulateDocumentBaseResult.readSimulateDocumentSimpleResult(streamInput);
+        SimulateDocumentBaseResult otherSimulateDocumentBaseResult = new SimulateDocumentBaseResult(streamInput);
 
-        assertThat(otherSimulateDocumentBaseResult.getIngestDocument(), equalTo(simulateDocumentBaseResult.getIngestDocument()));
         if (isFailure) {
+            assertThat(otherSimulateDocumentBaseResult.getIngestDocument(), equalTo(simulateDocumentBaseResult.getIngestDocument()));
             assertThat(otherSimulateDocumentBaseResult.getFailure(), instanceOf(IllegalArgumentException.class));
             IllegalArgumentException e = (IllegalArgumentException) otherSimulateDocumentBaseResult.getFailure();
             assertThat(e.getMessage(), equalTo("test"));
+        } else {
+            assertIngestDocument(otherSimulateDocumentBaseResult.getIngestDocument(), simulateDocumentBaseResult.getIngestDocument());
         }
     }
 }

@@ -438,7 +438,7 @@ fi
     remove_jvm_example
 
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" -Des.logger.level=DEBUG > /tmp/plugin-cli-output
+    sudo -E -u $ESPLUGIN_COMMAND_USER ES_JAVA_OPTS="-Des.logger.level=DEBUG" "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" > /tmp/plugin-cli-output
     local loglines=$(cat /tmp/plugin-cli-output | wc -l)
     if [ "$GROUP" == "TAR PLUGINS" ]; then
         [ "$loglines" -gt "3" ] || {
@@ -454,4 +454,37 @@ fi
         }
     fi
     remove_jvm_example
+}
+
+@test "[$GROUP] test java home with space" {
+    # preserve JAVA_HOME
+    local java_home=$JAVA_HOME
+
+    # create a JAVA_HOME with a space
+    local java=$(which java)
+    local temp=`mktemp -d --suffix="java home"`
+    mkdir -p "$temp/bin"
+    ln -s "$java" "$temp/bin/java"
+    export JAVA_HOME="$temp"
+
+    # this will fail if the elasticsearch-plugin script does not
+    # properly handle JAVA_HOME with spaces
+    "$ESHOME/bin/elasticsearch-plugin" list
+
+    rm -rf "$temp"
+
+    # restore JAVA_HOME
+    export JAVA_HOME=$java_home
+}
+
+@test "[$GROUP] test ES_JAVA_OPTS" {
+    # preserve ES_JAVA_OPTS
+    local es_java_opts=$ES_JAVA_OPTS
+
+    export ES_JAVA_OPTS="-XX:+PrintFlagsFinal"
+    # this will fail if ES_JAVA_OPTS is not passed through
+    "$ESHOME/bin/elasticsearch-plugin" list | grep MaxHeapSize
+
+    # restore ES_JAVA_OPTS
+    export ES_JAVA_OPTS=$es_java_opts
 }

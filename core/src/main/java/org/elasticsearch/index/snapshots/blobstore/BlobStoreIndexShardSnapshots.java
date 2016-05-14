@@ -25,7 +25,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
@@ -149,8 +148,8 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
     }
 
     static final class Fields {
-        static final XContentBuilderString FILES = new XContentBuilderString("files");
-        static final XContentBuilderString SNAPSHOTS = new XContentBuilderString("snapshots");
+        static final String FILES = "files";
+        static final String SNAPSHOTS = "snapshots";
     }
 
     static final class ParseFields {
@@ -221,7 +220,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         // Then we list all snapshots with list of all blobs that are used by the snapshot
         builder.startObject(Fields.SNAPSHOTS);
         for (SnapshotFiles snapshot : shardSnapshots) {
-            builder.startObject(snapshot.snapshot(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(snapshot.snapshot());
             builder.startArray(Fields.FILES);
             for (FileInfo fileInfo : snapshot.indexFiles()) {
                 builder.value(fileInfo.name());

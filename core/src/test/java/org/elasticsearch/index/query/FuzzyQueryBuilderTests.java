@@ -19,17 +19,21 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.LegacyNumericRangeQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -60,7 +64,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     @Override
     protected void doAssertLuceneQuery(FuzzyQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (isNumericFieldName(queryBuilder.fieldName()) || queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
-            assertThat(query, instanceOf(LegacyNumericRangeQuery.class));
+            assertThat(query, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
         } else {
             assertThat(query, instanceOf(FuzzyQuery.class));
         }
@@ -139,10 +143,13 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 "    }\n" +
                 "}\n";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
-        LegacyNumericRangeQuery fuzzyQuery = (LegacyNumericRangeQuery) parsedQuery;
-        assertThat(fuzzyQuery.getMin().longValue(), equalTo(7L));
-        assertThat(fuzzyQuery.getMax().longValue(), equalTo(17L));
+        Query expected;
+        if (getIndexVersionCreated().onOrAfter(Version.V_5_0_0_alpha2)) {
+            expected = IntPoint.newRangeQuery(INT_FIELD_NAME, 7, 17);
+        } else {
+            expected = LegacyNumericRangeQuery.newIntRange(INT_FIELD_NAME, 7, 17, true, true);
+        }
+        assertEquals(expected, parsedQuery);
     }
 
     public void testFromJson() throws IOException {

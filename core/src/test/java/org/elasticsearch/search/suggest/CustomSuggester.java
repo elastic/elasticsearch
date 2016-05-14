@@ -20,19 +20,19 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.suggest.CustomSuggesterSearchIT.CustomSuggestionBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- *
- */
 public class CustomSuggester extends Suggester<CustomSuggester.CustomSuggestionsContext> {
 
-    public static CustomSuggester PROTOTYPE = new CustomSuggester();
+    public static CustomSuggester INSTANCE = new CustomSuggester();
 
     // This is a pretty dumb implementation which returns the original text + fieldName + custom config option + 12 or 123
     @Override
@@ -65,7 +65,12 @@ public class CustomSuggester extends Suggester<CustomSuggester.CustomSuggestions
     }
 
     @Override
-    public SuggestionBuilder<?> getBuilderPrototype() {
-        return CustomSuggesterSearchIT.CustomSuggestionBuilder.PROTOTYPE;
+    public SuggestionBuilder<?> innerFromXContent(QueryParseContext context) throws IOException {
+        return CustomSuggestionBuilder.innerFromXContent(context);
+    }
+
+    @Override
+    public SuggestionBuilder<?> read(StreamInput in) throws IOException {
+        return new CustomSuggestionBuilder(in);
     }
 }

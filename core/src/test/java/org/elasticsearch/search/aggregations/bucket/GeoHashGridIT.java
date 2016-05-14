@@ -46,8 +46,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
-import static org.apache.lucene.spatial.util.GeoHashUtils.PRECISION;
-import static org.apache.lucene.spatial.util.GeoHashUtils.stringEncode;
+import static org.elasticsearch.common.geo.GeoHashUtils.PRECISION;
+import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -88,13 +88,13 @@ public class GeoHashGridIT extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx_unmapped");
 
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
 
         assertAcked(prepareCreate("idx").setSettings(settings)
                 .addMapping("type", "location", "type=geo_point", "city", "type=keyword"));
 
         List<IndexRequestBuilder> cities = new ArrayList<>();
-        Random random = getRandom();
+        Random random = random();
         expectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
         for (int i = 0; i < numDocs; i++) {
             //generate random point

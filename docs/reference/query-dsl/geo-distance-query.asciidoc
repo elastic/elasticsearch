@@ -163,9 +163,15 @@ The following are options allowed on the filter:
     Optional name field to identify the query
 
 `ignore_malformed`::
-
-    Set to `true` to accept geo points with invalid latitude or
+   
+    deprecated[5.0.0,Use `validation_method` instead] Set to `true` to accept geo points with invalid latitude or
     longitude (default is `false`).
+
+`validation_method`::
+
+    Set to `IGNORE_MALFORMED` to accept geo points with invalid latitude or
+    longitude, set to `COERCE` to additionally try and infer correct
+    coordinates (default is `STRICT`).
 
 [float]
 ==== geo_point Type
@@ -180,3 +186,11 @@ The `geo_distance` filter can work with multiple locations / points per
 document. Once a single location / point matches the filter, the
 document will be included in the filter.
 
+[float]
+==== Ignore Unmapped
+
+When set to `true` the `ignore_unmapped` option will ignore an unmapped field
+and will not match any documents for this query. This can be useful when
+querying multiple indexes which might have different mappings. When set to
+`false` (the default value) the query will throw an exception if the field
+is not mapped.

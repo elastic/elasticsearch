@@ -28,11 +28,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -42,13 +44,11 @@ import java.util.Objects;
  * A sort builder to sort based on a document field.
  */
 public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
-    public static final FieldSortBuilder PROTOTYPE = new FieldSortBuilder("_na_");
     public static final String NAME = "field_sort";
     public static final ParseField NESTED_PATH = new ParseField("nested_path");
     public static final ParseField NESTED_FILTER = new ParseField("nested_filter");
     public static final ParseField MISSING = new ParseField("missing");
     public static final ParseField ORDER = new ParseField("order");
-    public static final ParseField REVERSE = new ParseField("reverse");
     public static final ParseField SORT_MODE = new ParseField("mode");
     public static final ParseField UNMAPPED_TYPE = new ParseField("unmapped_type");
 
@@ -56,8 +56,10 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * special field name to sort by index order
      */
     public static final String DOC_FIELD_NAME = "_doc";
-    private static final SortField SORT_DOC = new SortField(null, SortField.Type.DOC);
-    private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.Type.DOC, true);
+    private static final SortFieldAndFormat SORT_DOC = new SortFieldAndFormat(
+            new SortField(null, SortField.Type.DOC), DocValueFormat.RAW);
+    private static final SortFieldAndFormat SORT_DOC_REVERSE = new SortFieldAndFormat(
+            new SortField(null, SortField.Type.DOC, true), DocValueFormat.RAW);
 
     private final String fieldName;
 
@@ -67,7 +69,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     private SortMode sortMode;
 
-    private QueryBuilder<?> nestedFilter;
+    private QueryBuilder nestedFilter;
 
     private String nestedPath;
 
@@ -95,6 +97,30 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             throw new IllegalArgumentException("fieldName must not be null");
         }
         this.fieldName = fieldName;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public FieldSortBuilder(StreamInput in) throws IOException {
+        fieldName = in.readString();
+        nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        nestedPath = in.readOptionalString();
+        missing = in.readGenericValue();
+        order = in.readOptionalWriteable(SortOrder::readFromStream);
+        sortMode = in.readOptionalWriteable(SortMode::readFromStream);
+        unmappedType = in.readOptionalString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeOptionalNamedWriteable(nestedFilter);
+        out.writeOptionalString(nestedPath);
+        out.writeGenericValue(missing);
+        out.writeOptionalWriteable(order);
+        out.writeOptionalWriteable(sortMode);
+        out.writeOptionalString(unmappedType);
     }
 
     /** Returns the document field this sort should be based on. */
@@ -166,7 +192,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * TODO should the above getters and setters be deprecated/ changed in
      * favour of real getters and setters?
      */
-    public FieldSortBuilder setNestedFilter(QueryBuilder<?> nestedFilter) {
+    public FieldSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
     }
@@ -175,7 +201,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Returns the nested filter that the nested objects should match with in
      * order to be taken into account for sorting.
      */
-    public QueryBuilder<?> getNestedFilter() {
+    public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
 
@@ -223,7 +249,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     @Override
-    public SortField build(QueryShardContext context) throws IOException {
+    public SortFieldAndFormat build(QueryShardContext context) throws IOException {
         if (DOC_FIELD_NAME.equals(fieldName)) {
             if (order == SortOrder.DESC) {
                 return SORT_DOC_REVERSE;
@@ -240,17 +266,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 }
             }
 
-            if (!fieldType.isSortable()) {
-                throw new QueryShardException(context, "Sorting not supported for field[" + fieldName + "]");
-            }
-
             MultiValueMode localSortMode = null;
             if (sortMode != null) {
                 localSortMode = MultiValueMode.fromString(sortMode.toString());
-            }
-
-            if (fieldType.isNumeric() == false && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
-                throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
             }
 
             boolean reverse = (order == SortOrder.DESC);
@@ -259,9 +277,15 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             }
 
             final Nested nested = resolveNested(context, nestedPath, nestedFilter);
-            IndexFieldData.XFieldComparatorSource fieldComparatorSource = context.getForField(fieldType)
+            IndexFieldData<?> fieldData = context.getForField(fieldType);
+            if (fieldData instanceof IndexNumericFieldData == false
+                    && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
+                throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
+            }
+            IndexFieldData.XFieldComparatorSource fieldComparatorSource = fieldData
                     .comparatorSource(missing, localSortMode, nested);
-            return new SortField(fieldType.name(), fieldComparatorSource, reverse);
+            SortField field = new SortField(fieldType.name(), fieldComparatorSource, reverse);
+            return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
         }
     }
 
@@ -292,58 +316,19 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return NAME;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(this.fieldName);
-        if (this.nestedFilter != null) {
-            out.writeBoolean(true);
-            out.writeQuery(this.nestedFilter);
-        } else {
-            out.writeBoolean(false);
-        }
-        out.writeOptionalString(this.nestedPath);
-        out.writeGenericValue(this.missing);
-
-        if (this.order != null) {
-            out.writeBoolean(true);
-            this.order.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
-
-        out.writeBoolean(this.sortMode != null);
-        if (this.sortMode != null) {
-           this.sortMode.writeTo(out);
-        }
-        out.writeOptionalString(this.unmappedType);
-    }
-
-    @Override
-    public FieldSortBuilder readFrom(StreamInput in) throws IOException {
-        String fieldName = in.readString();
-        FieldSortBuilder result = new FieldSortBuilder(fieldName);
-        if (in.readBoolean()) {
-            QueryBuilder<?> query = in.readQuery();
-            result.setNestedFilter(query);
-        }
-        result.setNestedPath(in.readOptionalString());
-        result.missing(in.readGenericValue());
-
-        if (in.readBoolean()) {
-            result.order(SortOrder.readOrderFrom(in));
-        }
-        if (in.readBoolean()) {
-            result.sortMode(SortMode.PROTOTYPE.readFrom(in));
-        }
-        result.unmappedType(in.readOptionalString());
-        return result;
-    }
-
-    @Override
-    public FieldSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
+    /**
+     * Creates a new {@link FieldSortBuilder} from the query held by the {@link QueryParseContext} in
+     * {@link org.elasticsearch.common.xcontent.XContent} format.
+     *
+     * @param context the input parse context. The state on the parser contained in this context will be changed as a side effect of this
+     *        method call
+     * @param fieldName in some sort syntax variations the field name precedes the xContent object that specifies further parameters, e.g.
+     *        in '{ "foo": { "order" : "asc"} }'. When parsing the inner object, the field name can be passed in via this argument
+     */
+    public static FieldSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
         XContentParser parser = context.parser();
 
-        QueryBuilder<?> nestedFilter = null;
+        QueryBuilder nestedFilter = null;
         String nestedPath = null;
         Object missing = null;
         SortOrder order = null;
@@ -356,36 +341,31 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (context.parseFieldMatcher().match(currentFieldName, NESTED_FILTER)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, NESTED_FILTER)) {
                     nestedFilter = context.parseInnerQueryBuilder();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Expected " + NESTED_FILTER.getPreferredName() + " element.");
                 }
             } else if (token.isValue()) {
-                if (context.parseFieldMatcher().match(currentFieldName, NESTED_PATH)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, NESTED_PATH)) {
                     nestedPath = parser.text();
-                } else if (context.parseFieldMatcher().match(currentFieldName, MISSING)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, MISSING)) {
                     missing = parser.objectText();
-                } else if (context.parseFieldMatcher().match(currentFieldName, REVERSE)) {
-                    if (parser.booleanValue()) {
-                        order = SortOrder.DESC;
-                    }
-                    // else we keep the default ASC
-                } else if (context.parseFieldMatcher().match(currentFieldName, ORDER)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, ORDER)) {
                     String sortOrder = parser.text();
                     if ("asc".equals(sortOrder)) {
                         order = SortOrder.ASC;
                     } else if ("desc".equals(sortOrder)) {
                         order = SortOrder.DESC;
                     } else {
-                        throw new IllegalStateException("Sort order " + sortOrder + " not supported.");
+                        throw new ParsingException(parser.getTokenLocation(), "Sort order [{}] not supported.", sortOrder);
                     }
-                } else if (context.parseFieldMatcher().match(currentFieldName, SORT_MODE)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_MODE)) {
                     sortMode = SortMode.fromString(parser.text());
-                } else if (context.parseFieldMatcher().match(currentFieldName, UNMAPPED_TYPE)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, UNMAPPED_TYPE)) {
                     unmappedType = parser.text();
                 } else {
-                    throw new IllegalArgumentException("Option " + currentFieldName + " not supported.");
+                    throw new ParsingException(parser.getTokenLocation(), "Option [{}] not supported.", currentFieldName);
                 }
             }
         }

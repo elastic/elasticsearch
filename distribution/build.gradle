@@ -413,7 +413,9 @@ task updateShas(type: UpdateShasTask) {
   parentTask = dependencyLicenses
 }
 
-task run(type: RunTask) {}
+task run(type: RunTask) {
+  distribution = 'zip'
+}
 
 /**
  * Build some variables that are replaced in the packages. This includes both

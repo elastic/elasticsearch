@@ -57,12 +57,12 @@ final class LDefField extends ALink {
     @Override
     void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final String desc = Type.getMethodDescriptor(after.type, definition.defType.type);
-        adapter.visitInvokeDynamicInsn(value, desc, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.LOAD });
+        adapter.visitInvokeDynamicInsn(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.LOAD);
     }
 
     @Override
     void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type, definition.defType.type);
-        adapter.visitInvokeDynamicInsn(value, desc, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.STORE });
+        adapter.visitInvokeDynamicInsn(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.STORE);
     }
 }

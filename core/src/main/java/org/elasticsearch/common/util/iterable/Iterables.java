@@ -54,6 +54,8 @@ public class Iterables {
         }
     }
 
+    /** Flattens the two level {@code Iterable} into a single {@code Iterable}.  Note that this uses the original input iterable so if it
+     *  later changes, the flattened result here will reflect the change. */
     public static <T> Iterable<T> flatten(Iterable<? extends Iterable<T>> inputs) {
         Objects.requireNonNull(inputs);
         return new FlattenedIterables<>(inputs);

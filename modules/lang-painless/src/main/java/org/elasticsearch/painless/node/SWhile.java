@@ -94,6 +94,7 @@ public final class SWhile extends AStatement {
 
     @Override
     void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        writeDebugInfo(adapter);
         final Label begin = new Label();
         final Label end = new Label();
 

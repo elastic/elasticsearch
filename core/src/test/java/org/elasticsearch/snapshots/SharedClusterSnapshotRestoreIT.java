@@ -62,6 +62,7 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
@@ -1290,9 +1291,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(0));
     }
 
+    @TestLogging("_root:DEBUG")  // this fails every now and then: https://github.com/elastic/elasticsearch/issues/18121 but without
+    // more logs we cannot find out why
     public void testReadonlyRepository() throws Exception {
         Client client = client();
-
         logger.info("-->  creating repository");
         Path repositoryLocation = randomRepoPath();
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")

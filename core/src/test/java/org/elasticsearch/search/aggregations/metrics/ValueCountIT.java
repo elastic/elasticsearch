@@ -28,6 +28,7 @@ import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.SearchScript;
@@ -223,7 +224,7 @@ public class ValueCountIT extends ESIntegTestCase {
         }
 
         public void onModule(ScriptModule module) {
-            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.TYPES));
+            module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(FieldValueScriptEngine.class, FieldValueScriptEngine.NAME, ScriptMode.ON));
         }
 
     }
@@ -235,30 +236,23 @@ public class ValueCountIT extends ESIntegTestCase {
 
         public static final String NAME = "field_value";
 
-        public static final List<String> TYPES = Collections.singletonList(NAME);
-
         @Override
         public void close() throws IOException {
         }
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override
-        public List<String> getExtensions() {
-            return TYPES;
+        public String getExtension() {
+            return NAME;
         }
 
         @Override
-        public boolean isSandboxed() {
-            return true;
-        }
-
-        @Override
-        public Object compile(String script, Map<String, String> params) {
-            return script;
+        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+            return scriptSource;
         }
 
         @Override

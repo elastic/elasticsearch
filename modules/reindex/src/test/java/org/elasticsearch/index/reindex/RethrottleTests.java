@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import static org.hamcrest.Matchers.hasSize;
 
@@ -29,6 +30,9 @@ import static org.hamcrest.Matchers.hasSize;
  * too but this is the only place that tests running against multiple nodes so it is the only integration tests that checks for
  * serialization.
  */
+// Extra logging in case of failure. We couldn't explain the last failure:
+// https://elasticsearch-ci.elastic.co/job/elastic+elasticsearch+master+g1gc/359/consoleFull
+@TestLogging("_root:DEBUG")
 public class RethrottleTests extends ReindexTestCase {
 
     public void testReindex() throws Exception {
@@ -56,6 +60,8 @@ public class RethrottleTests extends ReindexTestCase {
         // Now rethrottle it so it'll finish
         ListTasksResponse rethrottleResponse = rethrottle().setActions(actionName).setRequestsPerSecond(Float.POSITIVE_INFINITY).get();
         assertThat(rethrottleResponse.getTasks(), hasSize(1));
+        BulkByScrollTask.Status status = (BulkByScrollTask.Status) rethrottleResponse.getTasks().get(0).getStatus();
+        assertEquals(Float.POSITIVE_INFINITY, status.getRequestsPerSecond(), Float.MIN_NORMAL);
 
         // Now the response should come back quickly because we've rethrottled the request
         BulkIndexByScrollResponse response = responseListener.get();

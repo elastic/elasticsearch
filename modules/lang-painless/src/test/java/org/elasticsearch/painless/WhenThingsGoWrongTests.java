@@ -30,6 +30,41 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         });
     }
 
+    public void testLineNumbers() {
+        // trigger NPE at line 1 of the script
+        NullPointerException exception = expectThrows(NullPointerException.class, () -> {
+            exec("String x = null; boolean y = x.isEmpty();\n" +
+                 "return y;");
+        });
+        assertEquals(1, exception.getStackTrace()[0].getLineNumber());
+
+        // trigger NPE at line 2 of the script
+        exception = expectThrows(NullPointerException.class, () -> {
+            exec("String x = null;\n" +
+                 "return x.isEmpty();");
+        });
+        assertEquals(2, exception.getStackTrace()[0].getLineNumber());
+
+        // trigger NPE at line 3 of the script
+        exception = expectThrows(NullPointerException.class, () -> {
+            exec("String x = null;\n" +
+                 "String y = x;\n" +
+                 "return y.isEmpty();");
+        });
+        assertEquals(3, exception.getStackTrace()[0].getLineNumber());
+        
+        // trigger NPE at line 4 in script (inside conditional)
+        exception = expectThrows(NullPointerException.class, () -> {
+            exec("String x = null;\n" +
+                 "boolean y = false;\n" +
+                 "if (!y) {\n" +
+                 "  y = x.isEmpty();\n" + 
+                 "}\n" +
+                 "return y;");
+        });
+        assertEquals(4, exception.getStackTrace()[0].getLineNumber());
+    }
+
     public void testInvalidShift() {
         expectThrows(ClassCastException.class, () -> {
             exec("float x = 15F; x <<= 2; return x;");
@@ -143,6 +178,18 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testDynamicWrongArgs() {
         expectThrows(WrongMethodTypeException.class, () -> {
             exec("def x = new ArrayList(); return x.get('bogus');");
+        });
+    }
+
+    public void testDynamicArrayWrongIndex() {
+        expectThrows(WrongMethodTypeException.class, () -> {
+            exec("def x = new long[1]; x[0]=1; return x['bogus'];");
+        });
+    }
+
+    public void testDynamicListWrongIndex() {
+        expectThrows(WrongMethodTypeException.class, () -> {
+            exec("def x = new ArrayList(); x.add('foo'); return x['bogus'];");
         });
     }
 }

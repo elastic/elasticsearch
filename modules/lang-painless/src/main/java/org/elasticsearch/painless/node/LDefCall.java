@@ -21,7 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.DynamicCallSite;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.commons.GeneratorAdapter;
 
@@ -82,9 +82,9 @@ final class LDefCall extends ALink {
 
         signature.append(')');
         // return value
-        signature.append(definition.defType.type.getDescriptor());
+        signature.append(after.type.getDescriptor());
 
-        adapter.visitInvokeDynamicInsn(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.METHOD_CALL });
+        adapter.visitInvokeDynamicInsn(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.METHOD_CALL });
     }
 
     @Override

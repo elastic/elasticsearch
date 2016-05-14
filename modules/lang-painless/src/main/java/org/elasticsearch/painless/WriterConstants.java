@@ -37,7 +37,7 @@ import java.util.Map;
 public final class WriterConstants {
 
     public final static String BASE_CLASS_NAME = Executable.class.getName();
-    public final static String CLASS_NAME      = BASE_CLASS_NAME + "$CompiledPainlessExecutable";
+    public final static String CLASS_NAME      = BASE_CLASS_NAME + "$Script";
     public final static Type BASE_CLASS_TYPE   = Type.getType(Executable.class);
     public final static Type CLASS_TYPE        = Type.getType("L" + CLASS_NAME.replace(".", "/") + ";");
 
@@ -58,17 +58,8 @@ public final class WriterConstants {
     public final static MethodType DEF_BOOTSTRAP_TYPE =
         MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class, int.class);
     public final static Handle DEF_BOOTSTRAP_HANDLE =
-        new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(DynamicCallSite.class),
+        new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(DefBootstrap.class),
             "bootstrap", DEF_BOOTSTRAP_TYPE.toMethodDescriptorString());
-
-    public final static String DEF_DYNAMIC_LOAD_FIELD_DESC =
-        MethodType.methodType(Object.class, Object.class).toMethodDescriptorString();
-    public final static String DEF_DYNAMIC_STORE_FIELD_DESC =
-        MethodType.methodType(void.class, Object.class, Object.class).toMethodDescriptorString();
-    public final static String DEF_DYNAMIC_ARRAY_LOAD_DESC =
-        MethodType.methodType(Object.class, Object.class, Object.class).toMethodDescriptorString();
-    public final static String DEF_DYNAMIC_ARRAY_STORE_DESC =
-        MethodType.methodType(void.class, Object.class, Object.class, Object.class).toMethodDescriptorString();
 
     public final static Method DEF_NOT_CALL = getAsmMethod(Object.class, "not", Object.class);
     public final static Method DEF_NEG_CALL = getAsmMethod(Object.class, "neg", Object.class);

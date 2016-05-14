@@ -78,6 +78,7 @@ public final class STrap extends AStatement {
 
     @Override
     void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        writeDebugInfo(adapter);
         final Label jump = new Label();
 
         adapter.mark(jump);

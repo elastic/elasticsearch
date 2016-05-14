@@ -76,7 +76,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
      */
     public static final String NAME = "groovy";
 
-    public static final List<String> TYPES = Collections.singletonList(NAME);
     /**
      * The name of the Groovy compiler setting to use associated with activating <code>invokedynamic</code> support.
      */
@@ -161,34 +160,29 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    public List<String> getExtensions() {
-        return TYPES;
+    public String getExtension() {
+        return NAME;
     }
 
     @Override
-    public boolean isSandboxed() {
-        return false;
-    }
-
-    @Override
-    public Object compile(String script, Map<String, String> params) {
+    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
         try {
             // we reuse classloader, so do a security check just in case.
             SecurityManager sm = System.getSecurityManager();
             if (sm != null) {
                 sm.checkPermission(new SpecialPermission());
             }
-            String fake = MessageDigests.toHexString(MessageDigests.sha1().digest(script.getBytes(StandardCharsets.UTF_8)));
+            String fake = MessageDigests.toHexString(MessageDigests.sha1().digest(scriptSource.getBytes(StandardCharsets.UTF_8)));
             // same logic as GroovyClassLoader.parseClass() but with a different codesource string:
             return AccessController.doPrivileged(new PrivilegedAction<Object>() {
                 @Override
                 public Class<?> run() {
-                    GroovyCodeSource gcs = new GroovyCodeSource(script, fake, BootstrapInfo.UNTRUSTED_CODEBASE);
+                    GroovyCodeSource gcs = new GroovyCodeSource(scriptSource, fake, BootstrapInfo.UNTRUSTED_CODEBASE);
                     gcs.setCachable(false);
                     // TODO: we could be more complicated and paranoid, and move this to separate block, to
                     // sandbox the compilation process itself better.

@@ -47,6 +47,7 @@ public final class SBreak extends AStatement {
 
     @Override
     void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        writeDebugInfo(adapter);
         adapter.goTo(brake);
     }
 }

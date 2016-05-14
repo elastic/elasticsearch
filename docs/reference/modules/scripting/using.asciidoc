@@ -117,6 +117,9 @@ files stored on every node in the cluster.  File scripts must be saved in the
 <<rpm-layout,RPM>>, or <<deb-layout,Debian>> package.  The default may be
 changed with the `path.script` setting.
 
+The languages which are assumed to be safe by default are: `painless`,
+`expression`, and `mustache` (used for search and query templates).
+
 Any files placed in the `scripts` directory will be compiled automatically
 when the node starts up and then <<reload-scripts,every 60 seconds thereafter>>.
 

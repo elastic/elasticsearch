@@ -24,13 +24,11 @@ import java.util.Map;
 
 /**
  * Mode for a specific script, used for script settings.
- * Defines whether a certain script or category of scripts can be executed or not, or whether it can
- * only be executed by a sandboxed scripting language.
+ * Defines whether a certain script or category of scripts can be executed or not.
  */
-enum ScriptMode {
+public enum ScriptMode {
     ON("true"),
-    OFF("false"),
-    SANDBOX("sandbox");
+    OFF("false");
 
     private final String mode;
 

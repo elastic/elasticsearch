@@ -52,6 +52,7 @@ public final class SReturn extends AStatement {
 
     @Override
     void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        writeDebugInfo(adapter);
         expression.write(settings, definition, adapter);
         adapter.returnValue();
     }

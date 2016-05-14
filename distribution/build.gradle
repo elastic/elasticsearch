@@ -20,6 +20,7 @@
 
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.EmptyDirTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
@@ -114,6 +115,7 @@ subprojects {
    *****************************************************************************/
   // note: the group must be correct before applying the nexus plugin, or it will capture the wrong value...
   project.group = "org.elasticsearch.distribution.${project.name}"
+  project.archivesBaseName = 'elasticsearch'
   apply plugin: 'com.bmuschko.nexus'
   // we must create our own install task, because it is only added when the java plugin is added
   task install(type: Upload, description: "Installs the 'archives' artifacts into the local Maven repository.", group: 'Upload') {
@@ -162,6 +164,8 @@ subprojects {
    /*****************************************************************************
    *                           Publishing setup                                *
    *****************************************************************************/
+  BuildPlugin.configurePomGeneration(project)
+  apply plugin: 'nebula.info-scm'
   apply plugin: 'nebula.maven-base-publish'
   apply plugin: 'nebula.maven-scm'
   publishing {
@@ -409,7 +413,9 @@ task updateShas(type: UpdateShasTask) {
   parentTask = dependencyLicenses
 }
 
-task run(type: RunTask) {}
+task run(type: RunTask) {
+  distribution = 'zip'
+}
 
 /**
  * Build some variables that are replaced in the packages. This includes both
@@ -442,7 +448,6 @@ task run(type: RunTask) {}
  * </dl>
  */
 Map<String, String> expansionsForDistribution(distributionType) {
-  String heapSize = '512m'
   String footer = "# Built for ${project.name}-${project.version} " +
       "(${distributionType})"
   Map<String, Object> expansions = [
@@ -462,8 +467,8 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'def': '',
     ],
 
-    'heap.min': "${heapSize}",
-    'heap.max': "${heapSize}",
+    'heap.min': "256m",
+    'heap.max': "2g",
 
     'stopping.timeout': [
       'rpm': 86400,

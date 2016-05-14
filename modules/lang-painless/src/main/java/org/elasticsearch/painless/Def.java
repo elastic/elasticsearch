@@ -43,7 +43,7 @@ import java.util.stream.Stream;
  * or method depending on the receiver's class. For these, we emit an {@code invokedynamic} instruction that,
  * for each new type encountered will query a corresponding {@code lookupXXX} method to retrieve the appropriate
  * method. In most cases, the {@code lookupXXX} methods here will only be called once for a given call site, because
- * caching ({@link DynamicCallSite}) generally works: usually all objects at any call site will be consistently
+ * caching ({@link DefBootstrap}) generally works: usually all objects at any call site will be consistently
  * the same type (or just a few types).  In extreme cases, if there is type explosion, they may be called every
  * single time, but simplicity is still more valuable than performance in this code.
  */

@@ -70,12 +70,7 @@ public enum ValueType implements Writeable {
             return true;
         }
     },
-    IP((byte) 6, "ip", "ip", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.IP) {
-        @Override
-        public boolean isNumeric() {
-            return true;
-        }
-    },
+    IP((byte) 6, "ip", "ip", ValuesSourceType.BYTES, IndexFieldData.class, DocValueFormat.IP),
     NUMERIC((byte) 7, "numeric", "numeric", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW) {
         @Override
         public boolean isNumeric() {

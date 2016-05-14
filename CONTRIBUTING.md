@@ -85,7 +85,7 @@ option `Search for nested projects`. Additionally you will want to
 ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini`
 accordingly to avoid GC overhead errors.
 
-IntelliJ users acn automatically configure their IDE: `gradle idea`
+IntelliJ users can automatically configure their IDE: `gradle idea`
 then `File->New Project From Existing Sources`. Point to the root of
 the source directory, select
 `Import project from external model->Gradle`, enable

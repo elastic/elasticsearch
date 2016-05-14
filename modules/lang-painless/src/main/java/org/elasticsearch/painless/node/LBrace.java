@@ -59,14 +59,10 @@ public final class LBrace extends ALink {
             return this;
         } else if (sort == Sort.DEF) {
             return new LDefArray(line, location, index).copy(this).analyze(settings, definition, variables);
-        } else {
-            if (Map.class.isAssignableFrom(before.clazz)) {
-                return new LMapShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
-            }
-            
-            if (List.class.isAssignableFrom(before.clazz)) {
-                return new LListShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
-            }
+        } else if (Map.class.isAssignableFrom(before.clazz)) {
+            return new LMapShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
+        } else if (List.class.isAssignableFrom(before.clazz)) {
+            return new LListShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
         }
 
         throw new IllegalArgumentException(error("Illegal array access on type [" + before.name + "]."));

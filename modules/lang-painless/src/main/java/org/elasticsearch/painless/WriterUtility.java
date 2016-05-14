@@ -137,9 +137,7 @@ public final class WriterUtility {
             if (from.sort.numeric && from.sort.primitive && to.sort.numeric && to.sort.primitive) {
                 adapter.cast(from.type, to.type);
             } else {
-                try {
-                    from.clazz.asSubclass(to.clazz);
-                } catch (ClassCastException exception) {
+                if (!to.clazz.isAssignableFrom(from.clazz)) {
                     adapter.checkCast(to.type);
                 }
             }

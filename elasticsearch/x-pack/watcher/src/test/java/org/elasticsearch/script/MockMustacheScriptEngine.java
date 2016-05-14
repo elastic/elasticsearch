@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.script;
 
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.xpack.common.text.DefaultTextTemplateEngine;
 
 import java.util.Collections;
@@ -29,28 +30,27 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
 
         public void onModule(ScriptModule module) {
             module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MockMustacheScriptEngine.class,
-                    Collections.singletonList(NAME)));
+                            NAME, ScriptMode.ON));
         }
 
     }
 
     @Override
-    public List<String> getTypes() {
-        return Collections.singletonList(NAME);
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    public List<String> getExtensions() {
-        return getTypes();
+    public String getExtension() {
+        return NAME;
     }
 
     @Override
-    public Object compile(String script, Map<String, String> params) {
+    public Object compile(String name, String script, Map<String, String> params) {
         if (script.contains("{{") && script.contains("}}")) {
             throw new IllegalArgumentException("Fix your test to not rely on mustache");
         }
 
-        return script;
+        return super.compile(name, script, params);
     }
-
 }

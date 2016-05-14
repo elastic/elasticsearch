@@ -136,6 +136,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
                 .put(ShieldSettings.settings(shieldEnabled))
                 .put("xpack.watcher.trigger.schedule.engine", scheduleImplName)
+                .put("script.inline", "true")
                 .build();
     }
 

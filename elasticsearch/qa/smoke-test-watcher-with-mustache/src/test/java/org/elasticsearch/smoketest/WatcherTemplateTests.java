@@ -56,7 +56,7 @@ public class WatcherTemplateTests extends ESTestCase {
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(
                 Arrays.asList(
                         new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class,
-                                MustacheScriptEngineService.TYPES)
+                                MustacheScriptEngineService.NAME)
                 )
         );
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, registry);

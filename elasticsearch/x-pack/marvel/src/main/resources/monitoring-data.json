@@ -13,6 +13,9 @@
         "xpack.version": "${project.version}"
       }
     },
+    "kibana": {
+      "enabled": false
+    },
     "node": {
       "enabled": false
     }

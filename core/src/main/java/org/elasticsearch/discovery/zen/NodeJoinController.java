@@ -89,7 +89,7 @@ public class NodeJoinController extends AbstractComponent {
         assert accumulateJoins.get() : "waitToBeElectedAsMaster is called we are not accumulating joins";
 
         final CountDownLatch done = new CountDownLatch(1);
-        final ElectionContext newContext = new ElectionContext(callback, requiredMasterJoins, clusterService) {
+        final ElectionContext newContext = new ElectionContext(callback, requiredMasterJoins) {
             @Override
             void onClose() {
                 if (electionContext.compareAndSet(this, null)) {
@@ -307,16 +307,14 @@ public class NodeJoinController extends AbstractComponent {
     static abstract class ElectionContext implements ElectionCallback {
         private final ElectionCallback callback;
         private final int requiredMasterJoins;
-        private final ClusterService clusterService;
 
         /** set to true after enough joins have been seen and a cluster update task is submitted to become master */
         final AtomicBoolean pendingSetAsMasterTask = new AtomicBoolean();
         final AtomicBoolean closed = new AtomicBoolean();
 
-        ElectionContext(ElectionCallback callback, int requiredMasterJoins, ClusterService clusterService) {
+        ElectionContext(ElectionCallback callback, int requiredMasterJoins) {
             this.callback = callback;
             this.requiredMasterJoins = requiredMasterJoins;
-            this.clusterService = clusterService;
         }
 
         abstract void onClose();
@@ -324,7 +322,7 @@ public class NodeJoinController extends AbstractComponent {
         @Override
         public void onElectedAsMaster(ClusterState state) {
             assert pendingSetAsMasterTask.get() : "onElectedAsMaster called but pendingSetAsMasterTask is not set";
-            assertClusterStateThread();
+            ClusterService.assertClusterStateThread();
             assert state.nodes().isLocalNodeElectedMaster() : "onElectedAsMaster called but local node is not master";
             if (closed.compareAndSet(false, true)) {
                 try {
@@ -337,7 +335,7 @@ public class NodeJoinController extends AbstractComponent {
 
         @Override
         public void onFailure(Throwable t) {
-            assertClusterStateThread();
+            ClusterService.assertClusterStateThread();
             if (closed.compareAndSet(false, true)) {
                 try {
                     onClose();
@@ -345,10 +343,6 @@ public class NodeJoinController extends AbstractComponent {
                     callback.onFailure(t);
                 }
             }
-        }
-
-        private void assertClusterStateThread() {
-            assert clusterService instanceof ClusterService == false || ((ClusterService) clusterService).assertClusterStateThread();
         }
     }
 

@@ -108,7 +108,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                                 currentNode, nodeWithHighestMatch);
                         it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
                                 "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node [" + nodeWithHighestMatch + "]",
-                                null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
+                                null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false));
                         changed = true;
                     }
                 }
@@ -179,7 +179,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 }
             } else if (matchingNodes.hasAnyData() == false) {
                 // if we didn't manage to find *any* data (regardless of matching sizes), check if the allocation of the replica shard needs to be delayed
-                changed |= ignoreUnassignedIfDelayed(unassignedIterator, shard);
+                ignoreUnassignedIfDelayed(unassignedIterator, shard);
             }
         }
         return changed;
@@ -195,21 +195,16 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
      *
      * @param unassignedIterator iterator over unassigned shards
      * @param shard the shard which might be delayed
-     * @return true iff allocation is delayed for this shard
      */
-    public boolean ignoreUnassignedIfDelayed(RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator, ShardRouting shard) {
-        // calculate delay and store it in UnassignedInfo to be used by RoutingService
-        long delay = shard.unassignedInfo().getLastComputedLeftDelayNanos();
-        if (delay > 0) {
-            logger.debug("[{}][{}]: delaying allocation of [{}] for [{}]", shard.index(), shard.id(), shard, TimeValue.timeValueNanos(delay));
+    public void ignoreUnassignedIfDelayed(RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator, ShardRouting shard) {
+        if (shard.unassignedInfo().isDelayed()) {
+            logger.debug("{}: allocation of [{}] is delayed", shard.shardId(), shard);
             /**
              * mark it as changed, since we want to kick a publishing to schedule future allocation,
              * see {@link org.elasticsearch.cluster.routing.RoutingService#clusterChanged(ClusterChangedEvent)}).
              */
             unassignedIterator.removeAndIgnore();
-            return true;
         }
-        return false;
     }
 
     /**

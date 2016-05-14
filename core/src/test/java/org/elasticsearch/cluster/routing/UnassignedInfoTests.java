@@ -38,7 +38,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESAllocationTestCase;
 
 import java.util.Collections;
-import java.util.EnumSet;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -75,7 +74,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testSerialization() throws Exception {
         UnassignedInfo.Reason reason = RandomPicks.randomFrom(random(), UnassignedInfo.Reason.values());
         UnassignedInfo meta = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ?
-            new UnassignedInfo(reason, randomBoolean() ? randomAsciiOfLength(4) : null, null, randomIntBetween(1, 100), System.nanoTime(), System.currentTimeMillis()):
+            new UnassignedInfo(reason, randomBoolean() ? randomAsciiOfLength(4) : null, null, randomIntBetween(1, 100), System.nanoTime(), System.currentTimeMillis(), false):
             new UnassignedInfo(reason, randomBoolean() ? randomAsciiOfLength(4) : null);
         BytesStreamOutput out = new BytesStreamOutput();
         meta.writeTo(out);
@@ -262,59 +261,20 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     /**
      * Verifies that delayed allocation calculation are correct.
      */
-    public void testUnassignedDelayedOnlyOnNodeLeft() throws Exception {
-        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null);
-        unassignedInfo = unassignedInfo.updateDelay(unassignedInfo.getUnassignedTimeInNanos() + 1, // add 1 tick delay
-                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "10h").build(), Settings.EMPTY);
-        long delay = unassignedInfo.getLastComputedLeftDelayNanos();
-        long cachedDelay = unassignedInfo.getLastComputedLeftDelayNanos();
-        assertThat(delay, equalTo(cachedDelay));
-        assertThat(delay, equalTo(TimeValue.timeValueHours(10).nanos() - 1));
-    }
-
-    /**
-     * Verifies that delayed allocation is only computed when the reason is NODE_LEFT.
-     */
-    public void testUnassignedDelayOnlyNodeLeftNonNodeLeftReason() throws Exception {
-        EnumSet<UnassignedInfo.Reason> reasons = EnumSet.allOf(UnassignedInfo.Reason.class);
-        reasons.remove(UnassignedInfo.Reason.NODE_LEFT);
-        UnassignedInfo.Reason reason = RandomPicks.randomFrom(random(), reasons);
-        UnassignedInfo unassignedInfo = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ?
-            new UnassignedInfo(reason, null, null, 1, System.nanoTime(), System.currentTimeMillis()):
-            new UnassignedInfo(reason, null);
-        unassignedInfo = unassignedInfo.updateDelay(unassignedInfo.getUnassignedTimeInNanos() + 1, // add 1 tick delay
-                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "10h").build(), Settings.EMPTY);
-        long delay = unassignedInfo.getLastComputedLeftDelayNanos();
-        assertThat(delay, equalTo(0L));
-        delay = unassignedInfo.getLastComputedLeftDelayNanos();
-        assertThat(delay, equalTo(0L));
-    }
-
-    /**
-     * Verifies that delayed allocation calculation are correct.
-     */
-    public void testLeftDelayCalculation() throws Exception {
+    public void testRemainingDelayCalculation() throws Exception {
         final long baseTime = System.nanoTime();
-        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "test", null, 0, baseTime, System.currentTimeMillis());
+        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "test", null, 0, baseTime, System.currentTimeMillis(), randomBoolean());
         final long totalDelayNanos = TimeValue.timeValueMillis(10).nanos();
-        final Settings settings = Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueNanos(totalDelayNanos)).build();
-        unassignedInfo = unassignedInfo.updateDelay(baseTime, settings, Settings.EMPTY);
-        long delay = unassignedInfo.getLastComputedLeftDelayNanos();
+        final Settings indexSettings = Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueNanos(totalDelayNanos)).build();
+        long delay = unassignedInfo.getRemainingDelay(baseTime, indexSettings);
         assertThat(delay, equalTo(totalDelayNanos));
-        assertThat(delay, equalTo(unassignedInfo.getLastComputedLeftDelayNanos()));
         long delta1 = randomIntBetween(1, (int) (totalDelayNanos - 1));
-        unassignedInfo = unassignedInfo.updateDelay(baseTime + delta1, settings, Settings.EMPTY);
-        delay = unassignedInfo.getLastComputedLeftDelayNanos();
+        delay = unassignedInfo.getRemainingDelay(baseTime + delta1, indexSettings);
         assertThat(delay, equalTo(totalDelayNanos - delta1));
-        assertThat(delay, equalTo(unassignedInfo.getLastComputedLeftDelayNanos()));
-        unassignedInfo = unassignedInfo.updateDelay(baseTime + totalDelayNanos, settings, Settings.EMPTY);
-        delay = unassignedInfo.getLastComputedLeftDelayNanos();
+        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos, indexSettings);
         assertThat(delay, equalTo(0L));
-        assertThat(delay, equalTo(unassignedInfo.getLastComputedLeftDelayNanos()));
-        unassignedInfo = unassignedInfo.updateDelay(baseTime + totalDelayNanos + randomIntBetween(1, 20), settings, Settings.EMPTY);
-        delay = unassignedInfo.getLastComputedLeftDelayNanos();
+        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos + randomIntBetween(1, 20), indexSettings);
         assertThat(delay, equalTo(0L));
-        assertThat(delay, equalTo(unassignedInfo.getLastComputedLeftDelayNanos()));
     }
 
 
@@ -344,8 +304,6 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
 
     public void testFindNextDelayedAllocation() {
         MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
-        final long baseTime = System.nanoTime();
-        allocation.setNanoTimeOverride(baseTime);
         final TimeValue delayTest1 = TimeValue.timeValueMillis(randomIntBetween(1, 200));
         final TimeValue delayTest2 = TimeValue.timeValueMillis(randomIntBetween(1, 200));
         final long expectMinDelaySettingsNanos = Math.min(delayTest1.nanos(), delayTest2.nanos());
@@ -366,20 +324,18 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
+        final long baseTime = System.nanoTime();
+        allocation.setNanoTimeOverride(baseTime);
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
 
-        final long delta = randomBoolean() ? 0 : randomInt((int) expectMinDelaySettingsNanos);
+        final long delta = randomBoolean() ? 0 : randomInt((int) expectMinDelaySettingsNanos - 1);
 
         if (delta > 0) {
             allocation.setNanoTimeOverride(baseTime + delta);
             clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "time moved")).build();
         }
 
-        long minDelaySetting = UnassignedInfo.findSmallestDelayedAllocationSettingNanos(Settings.EMPTY, clusterState);
-        assertThat(minDelaySetting, equalTo(expectMinDelaySettingsNanos));
-
-        long nextDelay = UnassignedInfo.findNextDelayedAllocationIn(clusterState);
-        assertThat(nextDelay, equalTo(expectMinDelaySettingsNanos - delta));
+        assertThat(UnassignedInfo.findNextDelayedAllocation(baseTime + delta, clusterState), equalTo(expectMinDelaySettingsNanos - delta));
     }
 }

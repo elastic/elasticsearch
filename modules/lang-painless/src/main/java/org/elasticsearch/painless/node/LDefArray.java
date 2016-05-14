@@ -61,15 +61,13 @@ final class LDefArray extends ALink {
     @Override
     void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final String desc = Type.getMethodDescriptor(after.type, definition.defType.type, index.actual.type);
-        adapter.visitInvokeDynamicInsn(
-            "arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.ARRAY_LOAD });
+        adapter.visitInvokeDynamicInsn("arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_LOAD);
     }
 
     @Override
     void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type,
             index.actual.type, definition.defType.type);
-        adapter.visitInvokeDynamicInsn(
-            "arrayStore", desc, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.ARRAY_STORE });
+        adapter.visitInvokeDynamicInsn("arrayStore", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_STORE);
     }
 }

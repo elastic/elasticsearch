@@ -251,7 +251,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         /** Shard calls this on each indexing/delete op */
         public void bytesWritten(int bytes) {
             long totalBytes = bytesWrittenSinceCheck.addAndGet(bytes);
-            assert totalBytes >= 0      ;
+            assert totalBytes >= 0;
             while (totalBytes > indexingBuffer.bytes()/30) {
 
                 if (runLock.tryLock()) {

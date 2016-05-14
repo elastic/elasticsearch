@@ -27,6 +27,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 subprojects {
   group = 'org.elasticsearch'
   version = org.elasticsearch.gradle.VersionProperties.elasticsearch
+  description = "Elasticsearch subproject ${project.path}"
 
   // we only use maven publish to add tasks for pom generation
   plugins.withType(MavenPublishPlugin).whenPluginAdded {

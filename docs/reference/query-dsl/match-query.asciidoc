@@ -51,6 +51,9 @@ as its <<query-dsl-multi-term-rewrite,rewrite
 method>> the `fuzzy_rewrite` parameter allows to control how the query will get
 rewritten.
 
+Fuzzy transpositions (`ab` -> `ba`) are allowed by default but can be disabled
+by setting `fuzzy_transpositions` to `false`.
+
 Here is an example when providing additional parameters (note the slight
 change in structure, `message` is the field name):
 

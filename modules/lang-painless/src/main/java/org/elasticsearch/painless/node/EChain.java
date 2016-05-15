@@ -222,8 +222,17 @@ public final class EChain extends AExpression {
     private void analyzeWrite(final CompilerSettings settings, final Definition definition, final Variables variables) {
         final ALink last = links.get(links.size() - 1);
 
-        expression.expected = last.after;
-        expression.analyze(settings, definition, variables);
+        // If the store node is a DEF node, we remove the cast to DEF from the expression
+        // and promote the real type to it:
+        if (last instanceof ADefLink) {
+            final ADefLink lastDef = (ADefLink) last;
+            expression.analyze(settings, definition, variables);
+            lastDef.storeValueType = expression.expected = expression.actual;
+        } else {
+            // otherwise we adapt the type of the expression to the store type
+            expression.expected = last.after;
+            expression.analyze(settings, definition, variables);
+        }
         expression = expression.cast(settings, definition, variables);
 
         statement = true;

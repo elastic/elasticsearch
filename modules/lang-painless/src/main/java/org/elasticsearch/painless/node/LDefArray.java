@@ -31,7 +31,7 @@ import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 /**
  * Represents an array load/store or shortcut on a def type.  (Internal only.)
  */
-final class LDefArray extends ALink {
+final class LDefArray extends ADefLink {
 
     AExpression index;
 
@@ -61,13 +61,16 @@ final class LDefArray extends ALink {
     @Override
     void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final String desc = Type.getMethodDescriptor(after.type, definition.defType.type, index.actual.type);
-        adapter.visitInvokeDynamicInsn("arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_LOAD);
+        adapter.invokeDynamic("arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_LOAD);
     }
 
     @Override
     void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+        if (storeValueType == null) {
+            throw new IllegalStateException(error("Illegal tree structure."));
+        }
         final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type,
-            index.actual.type, definition.defType.type);
-        adapter.visitInvokeDynamicInsn("arrayStore", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_STORE);
+            index.actual.type, storeValueType.type);
+        adapter.invokeDynamic("arrayStore", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_STORE);
     }
 }

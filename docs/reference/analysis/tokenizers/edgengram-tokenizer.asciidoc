@@ -8,6 +8,12 @@ the N-gram is anchored to the beginning of the word.
 
 Edge N-Grams are useful for _search-as-you-type_ queries.
 
+TIP: When you need _search-as-you-type_ for text which has a widely known
+order, such as movie or song titles, the
+<<search-suggesters-completion,completion suggester>> is a much more efficient
+choice than edge N-grams.  Edge N-grams have the advantage when trying to
+autocomplete words that can appear in any order.
+
 [float]
 === Example output
 
@@ -111,15 +117,11 @@ The above example produces the following terms:
 [ Qu, Qui, Quic, Quick, Fo, Fox, Foxe, Foxes ]
 ---------------------------
 
-[TIP]
-.Index-time vs Search-time
-===========================================
-
 Usually we recommend using the same `analyzer` at index time and at search
-time. In this case, the advice is different.  It only makes sense to use the
-`edge_ngram` tokenizer at index time, to ensure that partial words are
-available for matching in the index.  At search time, just search for the
-terms the user has typed in, for instance: `Quick Fo`.
+time. In the case of the `edge_ngram` tokenizer, the advice is different.  It
+only makes sense to use the `edge_ngram` tokenizer at index time, to ensure
+that partial words are available for matching in the index.  At search time,
+just search for the terms the user has typed in, for instance: `Quick Fo`.
 
 Below is an example of how to set up a field for _search-as-you-type_:
 
@@ -185,6 +187,4 @@ GET my_index/_search
 // CONSOLE
 <1> The `autocomplete` analyzer indexes the terms `[qu, qui, quic, quick, fo, fox, foxe, foxes]`.
 <2> The `autocomplete_search` analyzer searches for the terms `[quick, fo]`, both of which appear in the index.
-
-===========================================
 

@@ -9,7 +9,7 @@ text into tokens whenever it sees any whitespace.  It would convert the text
 
 The tokenizer is also responsible for recording the order or _position_ of
 each term (used for phrase and word proximity queries) and the start and end
-_character offsets_ of the original word which the term represents (used foor
+_character offsets_ of the original word which the term represents (used for
 highlighting search snippets).
 
 Elasticsearch has a number of built in tokenizers which can be used to build
@@ -88,7 +88,8 @@ text:
 
 The `keyword` tokenizer is a ``noop'' tokenizer that accepts whatever text it
 is given and outputs the exact same text as a single term.  It can be combined
-with token filters to normalise output, e.g. lower-casing email addresses.
+with token filters like <<analysis-lowercase-tokenfilter,`lowercase`>> to
+normalise the analysed terms.
 
 <<analysis-pattern-tokenizer,Pattern Tokenizer>>::
 

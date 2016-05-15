@@ -34,7 +34,6 @@ The above sentence would produce the following terms:
 The `pattern` tokenizer accepts the following parameters:
 
 [horizontal]
-[horizontal]
 `pattern`::
 
     A http://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java regular expression], defaults to `\W+`.

@@ -70,7 +70,7 @@ PUT my_index
         "my_tokenizer": {
           "type": "path_hierarchy",
           "delimiter": "-",
-          "replacement": "/"
+          "replacement": "/",
           "skip": 2
         }
       }

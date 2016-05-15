@@ -7,8 +7,8 @@ will be treated the same as the
 <<analysis-standard-tokenizer,`standard` tokenizer>>.
 
 WARNING: This tokenizer may not be supported by all JREs. It is known to work
-with Sun/Oracle and Harmony JREs. If your application needs to be fully
-portable, consider using  the ICUTokenizer instead.
+with Sun/Oracle and OpenJDK. If your application needs to be fully portable,
+consider using the {plugins}/analysis-icu-tokenizer.html[ICU Tokenizer] instead.
 
 [float]
 === Example output

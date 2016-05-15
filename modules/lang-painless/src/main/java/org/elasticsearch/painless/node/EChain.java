@@ -242,6 +242,11 @@ public final class EChain extends AExpression {
     private void analyzeRead() {
         final ALink last = links.get(links.size() - 1);
 
+        // If the load node is a DEF node, we adapt its after type to use _this_ expected output type:
+        if (last instanceof ADefLink && this.expected != null) {
+            last.after = this.expected;
+        }
+
         constant = last.string;
         statement = last.statement;
         actual = last.after;

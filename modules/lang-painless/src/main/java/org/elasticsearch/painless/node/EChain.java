@@ -215,6 +215,12 @@ public final class EChain extends AExpression {
         there = AnalyzerCaster.getLegalCast(definition, location, last.after, promote, false);
         back = AnalyzerCaster.getLegalCast(definition, location, promote, last.after, true);
 
+        if (last instanceof ADefLink) {
+            final ADefLink lastDef = (ADefLink) last;
+            // Unfortunately, we don't know the real type because we load from DEF and store to DEF!
+            lastDef.storeValueType = last.after;
+        }
+
         statement = true;
         actual = read ? last.after : definition.voidType;
     }

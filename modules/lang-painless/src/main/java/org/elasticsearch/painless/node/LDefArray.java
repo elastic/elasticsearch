@@ -36,7 +36,7 @@ final class LDefArray extends ADefLink {
     AExpression index;
 
     LDefArray(final int line, final String location, final AExpression index) {
-        super(line, location, 0);
+        super(line, location, 2);
 
         this.index = index;
     }

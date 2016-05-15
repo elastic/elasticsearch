@@ -54,6 +54,14 @@ public class ArrayTests extends ScriptTestCase {
         assertEquals(5, exec("def x = new def[4]; x[0] = 5; return x[0];"));
     }
     
+    public void testArrayCompoundInt() {
+        assertEquals(6, exec("int[] x = new int[5]; x[0] = 5; x[0]++; return x[0];"));
+    }
+    
+    public void testArrayCompoundDef() {
+        assertEquals(6, exec("def x = new int[5]; x[0] = 5; x[0]++; return x[0];"));
+    }
+    
     public void testForLoop() {
         assertEquals(999*1000/2, exec("def a = new int[1000]; for (int x = 0; x < a.length; x++) { a[x] = x; } "+
             "int total = 0; for (int x = 0; x < a.length; x++) { total += a[x]; } return total;"));

@@ -46,8 +46,8 @@ public abstract class TimeZoneRounding extends Rounding {
 
     public static class Builder {
 
-        private DateTimeUnit unit;
-        private long interval = -1;
+        private final DateTimeUnit unit;
+        private final long interval;
 
         private DateTimeZone timeZone = DateTimeZone.UTC;
 
@@ -142,10 +142,15 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long nextRoundingValue(long time) {
-            long timeLocal = time;
-            timeLocal = timeZone.convertUTCToLocal(time);
-            long nextInLocalTime = durationField.add(timeLocal, 1);
-            return timeZone.convertLocalToUTC(nextInLocalTime, false);
+            if (DateTimeUnit.isDayOrLonger(unit)) {
+                time = timeZone.convertUTCToLocal(time);
+            }
+            long next = durationField.add(time, 1);
+            if (DateTimeUnit.isDayOrLonger(unit)) {
+                return timeZone.convertLocalToUTC(next, false);
+            } else {
+                return next;
+            }
         }
 
         @Override
@@ -161,12 +166,12 @@ public abstract class TimeZoneRounding extends Rounding {
             out.writeByte(unit.id());
             out.writeString(timeZone.getID());
         }
-        
+
         @Override
         public int hashCode() {
             return Objects.hash(unit, timeZone);
         }
-        
+
         @Override
         public boolean equals(Object obj) {
             if (obj == null) {
@@ -236,12 +241,12 @@ public abstract class TimeZoneRounding extends Rounding {
             out.writeVLong(interval);
             out.writeString(timeZone.getID());
         }
-        
+
         @Override
         public int hashCode() {
             return Objects.hash(interval, timeZone);
         }
-        
+
         @Override
         public boolean equals(Object obj) {
             if (obj == null) {

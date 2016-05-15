@@ -36,6 +36,27 @@ POST _analyze
 ---------------------------
 // CONSOLE
 
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "and consistent godel is said sentence this yes",
+      "start_offset": 0,
+      "end_offset": 52,
+      "type": "fingerprint",
+      "position": 0
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
 The above sentence would produce the following single term:
 
 [source,text]
@@ -109,6 +130,34 @@ POST my_index/_analyze
 }
 ----------------------------
 // CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "consistent godel said sentence yes",
+      "start_offset": 0,
+      "end_offset": 52,
+      "type": "fingerprint",
+      "position": 0
+    },
+    {
+      "token": "consistent gödel said sentence yes",
+      "start_offset": 0,
+      "end_offset": 52,
+      "type": "fingerprint",
+      "position": 0
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
 
 The above example produces the following two terms:
 

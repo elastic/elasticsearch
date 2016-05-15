@@ -84,6 +84,48 @@ POST my_index/_analyze
 --------------------------------
 // CONSOLE
 
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "is",
+      "start_offset": 0,
+      "end_offset": 2,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "this",
+      "start_offset": 3,
+      "end_offset": 7,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "deja",
+      "start_offset": 11,
+      "end_offset": 15,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "vu",
+      "start_offset": 16,
+      "end_offset": 22,
+      "type": "<ALPHANUM>",
+      "position": 3
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
 The above example produces the following terms:
 
 [source,text]
@@ -169,6 +211,48 @@ POST my_index/_analyze
 <1> The `emoticon` character filter, `punctuation` tokenizer and
     `english_stop` token filter are custom implementations which are defined
     in the same index settings.
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "i'm",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "_happy_",
+      "start_offset": 6,
+      "end_offset": 8,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "person",
+      "start_offset": 9,
+      "end_offset": 15,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "you",
+      "start_offset": 21,
+      "end_offset": 24,
+      "type": "word",
+      "position": 5
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
 
 The above example produces the following terms:
 

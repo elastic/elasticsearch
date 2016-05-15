@@ -27,6 +27,139 @@ POST _analyze
 ---------------------------
 // CONSOLE
 
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "Q",
+      "start_offset": 0,
+      "end_offset": 1,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "Qu",
+      "start_offset": 0,
+      "end_offset": 2,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "u",
+      "start_offset": 1,
+      "end_offset": 2,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "ui",
+      "start_offset": 1,
+      "end_offset": 3,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "i",
+      "start_offset": 2,
+      "end_offset": 3,
+      "type": "word",
+      "position": 4
+    },
+    {
+      "token": "ic",
+      "start_offset": 2,
+      "end_offset": 4,
+      "type": "word",
+      "position": 5
+    },
+    {
+      "token": "c",
+      "start_offset": 3,
+      "end_offset": 4,
+      "type": "word",
+      "position": 6
+    },
+    {
+      "token": "ck",
+      "start_offset": 3,
+      "end_offset": 5,
+      "type": "word",
+      "position": 7
+    },
+    {
+      "token": "k",
+      "start_offset": 4,
+      "end_offset": 5,
+      "type": "word",
+      "position": 8
+    },
+    {
+      "token": "k ",
+      "start_offset": 4,
+      "end_offset": 6,
+      "type": "word",
+      "position": 9
+    },
+    {
+      "token": " ",
+      "start_offset": 5,
+      "end_offset": 6,
+      "type": "word",
+      "position": 10
+    },
+    {
+      "token": " F",
+      "start_offset": 5,
+      "end_offset": 7,
+      "type": "word",
+      "position": 11
+    },
+    {
+      "token": "F",
+      "start_offset": 6,
+      "end_offset": 7,
+      "type": "word",
+      "position": 12
+    },
+    {
+      "token": "Fo",
+      "start_offset": 6,
+      "end_offset": 8,
+      "type": "word",
+      "position": 13
+    },
+    {
+      "token": "o",
+      "start_offset": 7,
+      "end_offset": 8,
+      "type": "word",
+      "position": 14
+    },
+    {
+      "token": "ox",
+      "start_offset": 7,
+      "end_offset": 9,
+      "type": "word",
+      "position": 15
+    },
+    {
+      "token": "x",
+      "start_offset": 8,
+      "end_offset": 9,
+      "type": "word",
+      "position": 16
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
 The above sentence would produce the following terms:
 
 [source,text]
@@ -106,6 +239,62 @@ POST my_index/_analyze
 }
 ----------------------------
 // CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "Qui",
+      "start_offset": 2,
+      "end_offset": 5,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "uic",
+      "start_offset": 3,
+      "end_offset": 6,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "ick",
+      "start_offset": 4,
+      "end_offset": 7,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "Fox",
+      "start_offset": 8,
+      "end_offset": 11,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "oxe",
+      "start_offset": 9,
+      "end_offset": 12,
+      "type": "word",
+      "position": 4
+    },
+    {
+      "token": "xes",
+      "start_offset": 10,
+      "end_offset": 13,
+      "type": "word",
+      "position": 5
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
 
 The above example produces the following terms:
 

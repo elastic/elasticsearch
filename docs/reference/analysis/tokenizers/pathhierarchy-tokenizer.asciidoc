@@ -18,6 +18,42 @@ POST _analyze
 ---------------------------
 // CONSOLE
 
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "/one",
+      "start_offset": 0,
+      "end_offset": 4,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "/one/two",
+      "start_offset": 0,
+      "end_offset": 8,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "/one/two/three",
+      "start_offset": 0,
+      "end_offset": 14,
+      "type": "word",
+      "position": 0
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+
 The above text would produce the following terms:
 
 [source,text]
@@ -88,6 +124,41 @@ POST my_index/_analyze
 ----------------------------
 // CONSOLE
 
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "/three",
+      "start_offset": 7,
+      "end_offset": 13,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "/three/four",
+      "start_offset": 7,
+      "end_offset": 18,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "/three/four/five",
+      "start_offset": 7,
+      "end_offset": 23,
+      "type": "word",
+      "position": 0
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
 The above example produces the following terms:
 
 [source,text]
@@ -101,6 +172,4 @@ If we were to set `reverse` to `true`, it would produce the following:
 ---------------------------
 [ one/two/three/, two/three/, three/ ]
 ---------------------------
-
-
 

@@ -31,6 +31,34 @@ POST _analyze
 ---------------------------
 // CONSOLE
 
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "Q",
+      "start_offset": 0,
+      "end_offset": 1,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "Qu",
+      "start_offset": 0,
+      "end_offset": 2,
+      "type": "word",
+      "position": 1
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
 The above sentence would produce the following terms:
 
 [source,text]
@@ -110,6 +138,75 @@ POST my_index/_analyze
 ----------------------------
 // CONSOLE
 
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "Qu",
+      "start_offset": 2,
+      "end_offset": 4,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "Qui",
+      "start_offset": 2,
+      "end_offset": 5,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "Quic",
+      "start_offset": 2,
+      "end_offset": 6,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "Quick",
+      "start_offset": 2,
+      "end_offset": 7,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "Fo",
+      "start_offset": 8,
+      "end_offset": 10,
+      "type": "word",
+      "position": 4
+    },
+    {
+      "token": "Fox",
+      "start_offset": 8,
+      "end_offset": 11,
+      "type": "word",
+      "position": 5
+    },
+    {
+      "token": "Foxe",
+      "start_offset": 8,
+      "end_offset": 12,
+      "type": "word",
+      "position": 6
+    },
+    {
+      "token": "Foxes",
+      "start_offset": 8,
+      "end_offset": 13,
+      "type": "word",
+      "position": 7
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
 The above example produces the following terms:
 
 [source,text]
@@ -172,6 +269,8 @@ PUT my_index/doc/1
   "title": "Quick Foxes" <1>
 }
 
+POST my_index/_refresh
+
 GET my_index/_search
 {
   "query": {
@@ -185,6 +284,41 @@ GET my_index/_search
 }
 -----------------------------------
 // CONSOLE
+// TEST[skip:The took value will change on every request]
+
 <1> The `autocomplete` analyzer indexes the terms `[qu, qui, quic, quick, fo, fox, foxe, foxes]`.
 <2> The `autocomplete_search` analyzer searches for the terms `[quick, fo]`, both of which appear in the index.
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "took": 3,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "failed": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 0.44194174,
+    "hits": [
+      {
+        "_index": "my_index",
+        "_type": "doc",
+        "_id": "1",
+        "_score": 0.44194174,
+        "_source": {
+          "title": "Quick Foxes"
+        }
+      }
+    ]
+  }
+}
+----------------------------
+// TESTRESPONSE
+/////////////////////
+
 

@@ -21,6 +21,62 @@ POST _analyze
 ---------------------------
 // CONSOLE
 
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "The",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "foo_bar_size",
+      "start_offset": 4,
+      "end_offset": 16,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "s",
+      "start_offset": 17,
+      "end_offset": 18,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "default",
+      "start_offset": 19,
+      "end_offset": 26,
+      "type": "word",
+      "position": 3
+    },
+    {
+      "token": "is",
+      "start_offset": 27,
+      "end_offset": 29,
+      "type": "word",
+      "position": 4
+    },
+    {
+      "token": "5",
+      "start_offset": 30,
+      "end_offset": 31,
+      "type": "word",
+      "position": 5
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
 The above sentence would produce the following terms:
 
 [source,text]
@@ -84,6 +140,41 @@ POST my_index/_analyze
 ----------------------------
 // CONSOLE
 
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "comma",
+      "start_offset": 0,
+      "end_offset": 5,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "separated",
+      "start_offset": 6,
+      "end_offset": 15,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "values",
+      "start_offset": 16,
+      "end_offset": 22,
+      "type": "word",
+      "position": 2
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
 The above example produces the following terms:
 
 [source,text]
@@ -141,6 +232,33 @@ POST my_index/_analyze
 }
 ----------------------------
 // CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "value",
+      "start_offset": 1,
+      "end_offset": 6,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "value with embedded \\\" quote",
+      "start_offset": 10,
+      "end_offset": 38,
+      "type": "word",
+      "position": 1
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
 
 The above example produces the following two terms:
 

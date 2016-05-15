@@ -26,6 +26,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
+import java.util.regex.Pattern;
+
 /**
  */
 public class CharFilterTests extends ESTokenStreamTestCase {
@@ -64,5 +66,23 @@ public class CharFilterTests extends ESTokenStreamTestCase {
 
         // Repeat one more time to make sure that char filter is reinitialized correctly
         assertTokenStreamContents(analyzer1.tokenStream("test", "<b>hello</b>!"), new String[]{"hello"});
+    }
+
+    public void testPatternReplaceCharFilter() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("index.analysis.char_filter.my_mapping.type", "pattern_replace")
+            .put("index.analysis.char_filter.my_mapping.pattern", "ab*")
+            .put("index.analysis.char_filter.my_mapping.replacement", "oo")
+            .put("index.analysis.char_filter.my_mapping.flags", Pattern.CASE_INSENSITIVE)
+            .put("index.analysis.analyzer.custom_with_char_filter.tokenizer", "standard")
+            .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "my_mapping")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
+        NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");
+
+        assertTokenStreamContents(analyzer1.tokenStream("test", "faBBbBB aBbbbBf"), new String[]{"foo", "oof"});
     }
 }

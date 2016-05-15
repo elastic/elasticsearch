@@ -35,10 +35,11 @@ public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory {
     public PatternReplaceCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name);
 
-        if (!Strings.hasLength(settings.get("pattern"))) {
+        String sPattern = settings.get("pattern");
+        if (!Strings.hasLength(sPattern)) {
             throw new IllegalArgumentException("pattern is missing for [" + name + "] char filter of type 'pattern_replace'");
         }
-        pattern = Pattern.compile(settings.get("pattern"));
+        pattern = Pattern.compile(sPattern, settings.getAsInt("flags", 0));
         replacement = settings.get("replacement", ""); // when not set or set to "", use "".
     }
 

@@ -1028,7 +1028,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         logger.info("memory: {}", XContentHelper.toString(client().admin().cluster().prepareNodesStats().clear().setJvm(true).get()));
     }
 
-    void ensureClusterSizeConsistency() {
+    protected void ensureClusterSizeConsistency() {
         if (cluster() != null) { // if static init fails the cluster can be null
             logger.trace("Check consistency for [{}] nodes", cluster().size());
             assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(cluster().size())).get());

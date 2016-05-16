@@ -417,6 +417,19 @@ task run(type: RunTask) {
   distribution = 'zip'
 }
 
+// meta assemble task for all the silly subprojects for each package type
+task assemble(type: Copy, dependsOn: ['zip:buildZip', 'tar:buildTar', 'deb:buildDeb', 'rpm:buildRpm']) {
+  into "${buildDir}/distributions"
+  for (String pkg : ['zip', 'tar', 'deb', 'rpm']) {
+    from("${project(pkg).buildDir}/distributions") {
+      if (pkg == 'tar') {
+        pkg = 'tar.gz'
+      }
+      include "*.${pkg}"
+    }
+  }
+}
+
 /**
  * Build some variables that are replaced in the packages. This includes both
  * scripts like bin/elasticsearch and bin/elasticsearch-plugin that a user might run and also

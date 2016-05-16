@@ -22,11 +22,8 @@ package org.elasticsearch.painless;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.util.TraceClassVisitor;
 
-import java.io.ByteArrayOutputStream;
-import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
+import java.io.StringWriter;
 
 /** quick and dirty tools for debugging */
 final class Debugger {
@@ -39,17 +36,13 @@ final class Debugger {
     /** compiles to bytecode, and returns debugging output */
     static String toString(String source, CompilerSettings settings) {
         final byte[] bytes = Compiler.compile("<debugging>", source, settings);
-        final ByteArrayOutputStream output = new ByteArrayOutputStream();
-        final PrintWriter outputWriter = new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
+        final StringWriter output = new StringWriter();
+        final PrintWriter outputWriter = new PrintWriter(output);
         final ClassReader reader = new ClassReader(bytes);
 
         reader.accept(new TraceClassVisitor(outputWriter), 0);
         outputWriter.flush();
-
-        try {
-            return output.toString("UTF-8");
-        } catch (final UnsupportedEncodingException e) {
-            throw new RuntimeException(e);
-        }
+        
+        return output.toString();
     }
 }

@@ -317,11 +317,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         }
 
         @Override
-        public float runAsFloat() {
-            return ((Number) run()).floatValue();
-        }
-
-        @Override
         public long runAsLong() {
             return ((Number) run()).longValue();
         }

@@ -97,26 +97,26 @@
                 "load": {
                   "properties": {
                     "1m": {
-                      "type": "double"
+                      "type": "float"
                     },
                     "5m": {
-                      "type": "double"
+                      "type": "float"
                     },
                     "15m": {
-                      "type": "double"
+                      "type": "float"
                     }
                   }
                 },
                 "memory": {
                   "properties": {
                     "total_in_bytes": {
-                      "type": "double"
+                      "type": "float"
                     },
                     "free_in_bytes": {
-                      "type": "double"
+                      "type": "float"
                     },
                     "used_in_bytes": {
-                      "type": "double"
+                      "type": "float"
                     }
                   }
                 },
@@ -132,20 +132,20 @@
                     "heap": {
                       "properties": {
                         "total_in_bytes": {
-                          "type": "double"
+                          "type": "float"
                         },
                         "used_in_bytes": {
-                          "type": "double"
+                          "type": "float"
                         }
                       }
                     },
                     "resident_set_size_in_bytes": {
-                      "type": "double"
+                      "type": "float"
                     }
                   }
                 },
                 "event_loop_delay": {
-                  "type": "double"
+                  "type": "float"
                 },
                 "uptime_in_millis": {
                   "type": "long"
@@ -189,10 +189,10 @@
             "response_times": {
               "properties": {
                 "average": {
-                  "type": "double"
+                  "type": "float"
                 },
                 "max": {
-                  "type": "double"
+                  "type": "float"
                 }
               }
             },

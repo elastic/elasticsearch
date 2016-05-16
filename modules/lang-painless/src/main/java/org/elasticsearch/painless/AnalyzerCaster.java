@@ -467,23 +467,10 @@ public final class AnalyzerCaster {
                 }
         }
 
-        try {
-            actual.clazz.asSubclass(expected.clazz);
-
+        if (expected.clazz.isAssignableFrom(actual.clazz) || (explicit && actual.clazz.isAssignableFrom(expected.clazz))) {
             return cast;
-        } catch (final ClassCastException cce0) {
-            try {
-                if (explicit) {
-                    expected.clazz.asSubclass(actual.clazz);
-
-                    return cast;
-                } else {
-                    throw new ClassCastException(
-                        "Error" + location + ": Cannot cast from [" + actual.name + "] to [" + expected.name + "].");
-                }
-            } catch (final ClassCastException cce1) {
-                throw new ClassCastException("Error" + location + ": Cannot cast from [" + actual.name + "] to [" + expected.name + "].");
-            }
+        } else {
+            throw new ClassCastException("Error" + location + ": Cannot cast from [" + actual.name + "] to [" + expected.name + "].");
         }
     }
 

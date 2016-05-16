@@ -259,7 +259,7 @@ public class TransportClusterAllocationExplainAction
     protected void masterOperation(final ClusterAllocationExplainRequest request, final ClusterState state,
                                    final ActionListener<ClusterAllocationExplainResponse> listener) {
         final RoutingNodes routingNodes = state.getRoutingNodes();
-        final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, state.nodes(),
+        final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, state,
                 clusterInfoService.getClusterInfo(), System.nanoTime());
 
         ShardRouting foundShard = null;

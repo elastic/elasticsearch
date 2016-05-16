@@ -1,5 +1,9 @@
 ---
 setup:
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
   - do:
       # Waits for the monitoring data index to be available:
       # it indicates that the local exporter is ready

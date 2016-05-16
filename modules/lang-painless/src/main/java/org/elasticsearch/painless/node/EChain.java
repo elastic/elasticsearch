@@ -221,8 +221,8 @@ public final class EChain extends AExpression {
             lastDef.storeValueType = last.after;
         }
 
-        statement = true;
-        actual = read ? last.after : definition.voidType;
+        this.statement = true;
+        this.actual = read ? last.after : definition.voidType;
     }
 
     private void analyzeWrite(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -234,16 +234,16 @@ public final class EChain extends AExpression {
             final ADefLink lastDef = (ADefLink) last;
             expression.analyze(settings, definition, variables);
             lastDef.storeValueType = expression.expected = expression.actual;
-            actual = read ? lastDef.storeValueType : definition.voidType;
+            this.actual = read ? lastDef.storeValueType : definition.voidType;
         } else {
             // otherwise we adapt the type of the expression to the store type
             expression.expected = last.after;
             expression.analyze(settings, definition, variables);
-            actual = read ? last.after : definition.voidType;
+            this.actual = read ? last.after : definition.voidType;
         }
+        
         expression = expression.cast(settings, definition, variables);
-
-        statement = true;
+        this.statement = true;
     }
 
     private void analyzeRead() {

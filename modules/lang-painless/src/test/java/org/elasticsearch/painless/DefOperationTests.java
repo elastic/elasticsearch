@@ -19,7 +19,7 @@
 
 package org.elasticsearch.painless;
 
-public class DefTests extends ScriptTestCase {
+public class DefOperationTests extends ScriptTestCase {
     public void testNot() {
         assertEquals(~1, exec("def x = (byte)1 return ~x"));
         assertEquals(~1, exec("def x = (short)1 return ~x"));

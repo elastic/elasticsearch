@@ -215,12 +215,6 @@ public final class EChain extends AExpression {
         there = AnalyzerCaster.getLegalCast(definition, location, last.after, promote, false);
         back = AnalyzerCaster.getLegalCast(definition, location, promote, last.after, true);
 
-        if (last instanceof ADefLink) {
-            final ADefLink lastDef = (ADefLink) last;
-            // Unfortunately, we don't know the real type because we load from DEF and store to DEF!
-            lastDef.storeValueType = last.after;
-        }
-
         this.statement = true;
         this.actual = read ? last.after : definition.voidType;
     }
@@ -230,27 +224,26 @@ public final class EChain extends AExpression {
 
         // If the store node is a DEF node, we remove the cast to DEF from the expression
         // and promote the real type to it:
-        if (last instanceof ADefLink) {
-            final ADefLink lastDef = (ADefLink) last;
+        if (last instanceof IDefLink) {
             expression.analyze(settings, definition, variables);
-            lastDef.storeValueType = expression.expected = expression.actual;
-            this.actual = read ? lastDef.storeValueType : definition.voidType;
+            last.after = expression.expected = expression.actual;
         } else {
             // otherwise we adapt the type of the expression to the store type
             expression.expected = last.after;
             expression.analyze(settings, definition, variables);
-            this.actual = read ? last.after : definition.voidType;
         }
-        
+
         expression = expression.cast(settings, definition, variables);
+
         this.statement = true;
+        this.actual = read ? last.after : definition.voidType;
     }
 
     private void analyzeRead() {
         final ALink last = links.get(links.size() - 1);
 
         // If the load node is a DEF node, we adapt its after type to use _this_ expected output type:
-        if (last instanceof ADefLink && this.expected != null) {
+        if (last instanceof IDefLink && this.expected != null) {
             last.after = this.expected;
         }
 

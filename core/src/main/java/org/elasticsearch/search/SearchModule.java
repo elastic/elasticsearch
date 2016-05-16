@@ -97,51 +97,51 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.children.InternalChildren;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.InternalFilters;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridParser;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramParser;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
-import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingParser;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNested;
-import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
-import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeParser;
 import org.elasticsearch.search.aggregations.bucket.range.date.InternalDateRange;
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceParser;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.InternalGeoDistance;
-import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.InternalBinaryRange;
 import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeParser;
-import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedSamplerParser;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
-import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.UnmappedSampler;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsParser;
 import org.elasticsearch.search.aggregations.bucket.significant.UnmappedSignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
@@ -155,50 +155,50 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsParser;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgParser;
 import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
-import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityParser;
 import org.elasticsearch.search.aggregations.metrics.cardinality.InternalCardinality;
-import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsParser;
 import org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds;
-import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidParser;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxParser;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinParser;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksParser;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesParser;
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.InternalHDRPercentiles;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.scripted.InternalScriptedMetric;
-import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
-import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.StatsParser;
-import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsParser;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
-import org.elasticsearch.search.aggregations.metrics.sum.SumAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumParser;
 import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
-import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
-import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountParser;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -421,10 +421,10 @@ public class SearchModule extends AbstractModule {
      * @param aggregationName names by which the aggregation may be parsed. The first name is special because it is the name that the reader
      *        is registered under.
      */
-    public <AB extends AggregatorBuilder<AB>> void registerAggregation(Writeable.Reader<AB> reader, Aggregator.Parser aggregationParser,
-            ParseField aggregationName) {
+    public <AB extends AggregationBuilder<AB>> void registerAggregation(Writeable.Reader<AB> reader, Aggregator.Parser aggregationParser,
+                                                                        ParseField aggregationName) {
         aggregationParserRegistry.register(aggregationParser, aggregationName);
-        namedWriteableRegistry.register(AggregatorBuilder.class, aggregationName.getPreferredName(), reader);
+        namedWriteableRegistry.register(AggregationBuilder.class, aggregationName.getPreferredName(), reader);
     }
 
     /**
@@ -478,55 +478,57 @@ public class SearchModule extends AbstractModule {
     }
 
     protected void configureAggs() {
-        registerAggregation(AvgAggregatorBuilder::new, new AvgParser(), AvgAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(SumAggregatorBuilder::new, new SumParser(), SumAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(MinAggregatorBuilder::new, new MinParser(), MinAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(MaxAggregatorBuilder::new, new MaxParser(), MaxAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(StatsAggregatorBuilder::new, new StatsParser(), StatsAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(ExtendedStatsAggregatorBuilder::new, new ExtendedStatsParser(),
-        ExtendedStatsAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(ValueCountAggregatorBuilder::new, new ValueCountParser(), ValueCountAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(PercentilesAggregatorBuilder::new, new PercentilesParser(),
-                PercentilesAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(PercentileRanksAggregatorBuilder::new, new PercentileRanksParser(),
-                PercentileRanksAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(CardinalityAggregatorBuilder::new, new CardinalityParser(),
-                CardinalityAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(GlobalAggregatorBuilder::new, GlobalAggregatorBuilder::parse, GlobalAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(MissingAggregatorBuilder::new, new MissingParser(), MissingAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(FilterAggregatorBuilder::new, FilterAggregatorBuilder::parse, FilterAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(FiltersAggregatorBuilder::new, FiltersAggregatorBuilder::parse,
-                FiltersAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(SamplerAggregatorBuilder::new, SamplerAggregatorBuilder::parse,
-                SamplerAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(DiversifiedAggregatorBuilder::new, new DiversifiedSamplerParser(),
-                DiversifiedAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(TermsAggregatorBuilder::new, new TermsParser(), TermsAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(SignificantTermsAggregatorBuilder::new,
+        registerAggregation(AvgAggregationBuilder::new, new AvgParser(), AvgAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(SumAggregationBuilder::new, new SumParser(), SumAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(MinAggregationBuilder::new, new MinParser(), MinAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(MaxAggregationBuilder::new, new MaxParser(), MaxAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(StatsAggregationBuilder::new, new StatsParser(), StatsAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(ExtendedStatsAggregationBuilder::new, new ExtendedStatsParser(),
+        ExtendedStatsAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(ValueCountAggregationBuilder::new, new ValueCountParser(), ValueCountAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(PercentilesAggregationBuilder::new, new PercentilesParser(),
+                PercentilesAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(PercentileRanksAggregationBuilder::new, new PercentileRanksParser(),
+                PercentileRanksAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(CardinalityAggregationBuilder::new, new CardinalityParser(),
+                CardinalityAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(GlobalAggregationBuilder::new, GlobalAggregationBuilder::parse,
+                GlobalAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(MissingAggregationBuilder::new, new MissingParser(), MissingAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(FilterAggregationBuilder::new, FilterAggregationBuilder::parse,
+                FilterAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(FiltersAggregationBuilder::new, FiltersAggregationBuilder::parse,
+                FiltersAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(SamplerAggregationBuilder::new, SamplerAggregationBuilder::parse,
+                SamplerAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(DiversifiedAggregationBuilder::new, new DiversifiedSamplerParser(),
+                DiversifiedAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(TermsAggregationBuilder::new, new TermsParser(), TermsAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(SignificantTermsAggregationBuilder::new,
                 new SignificantTermsParser(significanceHeuristicParserRegistry, queryParserRegistry),
-                SignificantTermsAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(RangeAggregatorBuilder::new, new RangeParser(), RangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(DateRangeAggregatorBuilder::new, new DateRangeParser(), DateRangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(IpRangeAggregatorBuilder::new, new IpRangeParser(), IpRangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(HistogramAggregatorBuilder::new, new HistogramParser(), HistogramAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(DateHistogramAggregatorBuilder::new, new DateHistogramParser(),
-                DateHistogramAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(GeoDistanceAggregatorBuilder::new, new GeoDistanceParser(),
-                GeoDistanceAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(GeoGridAggregatorBuilder::new, new GeoHashGridParser(), GeoGridAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(NestedAggregatorBuilder::new, NestedAggregatorBuilder::parse, NestedAggregatorBuilder.AGGREGATION_FIELD_NAME);
-        registerAggregation(ReverseNestedAggregatorBuilder::new, ReverseNestedAggregatorBuilder::parse,
-                ReverseNestedAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(TopHitsAggregatorBuilder::new, TopHitsAggregatorBuilder::parse,
-                TopHitsAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(GeoBoundsAggregatorBuilder::new, new GeoBoundsParser(), GeoBoundsAggregatorBuilder.AGGREGATION_NAME_FIED);
-        registerAggregation(GeoCentroidAggregatorBuilder::new, new GeoCentroidParser(),
-                GeoCentroidAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(ScriptedMetricAggregatorBuilder::new, ScriptedMetricAggregatorBuilder::parse,
-                ScriptedMetricAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(ChildrenAggregatorBuilder::new, ChildrenAggregatorBuilder::parse,
-                ChildrenAggregatorBuilder.AGGREGATION_NAME_FIELD);
-
+                SignificantTermsAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(RangeAggregationBuilder::new, new RangeParser(), RangeAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(DateRangeAggregationBuilder::new, new DateRangeParser(), DateRangeAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(IpRangeAggregationBuilder::new, new IpRangeParser(), IpRangeAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(HistogramAggregationBuilder::new, new HistogramParser(), HistogramAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(DateHistogramAggregationBuilder::new, new DateHistogramParser(),
+                DateHistogramAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(GeoDistanceAggregationBuilder::new, new GeoDistanceParser(),
+                GeoDistanceAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(GeoGridAggregationBuilder::new, new GeoHashGridParser(), GeoGridAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(NestedAggregationBuilder::new, NestedAggregationBuilder::parse,
+                NestedAggregationBuilder.AGGREGATION_FIELD_NAME);
+        registerAggregation(ReverseNestedAggregationBuilder::new, ReverseNestedAggregationBuilder::parse,
+                ReverseNestedAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(TopHitsAggregationBuilder::new, TopHitsAggregationBuilder::parse,
+                TopHitsAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(GeoBoundsAggregationBuilder::new, new GeoBoundsParser(), GeoBoundsAggregationBuilder.AGGREGATION_NAME_FIED);
+        registerAggregation(GeoCentroidAggregationBuilder::new, new GeoCentroidParser(),
+                GeoCentroidAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(ScriptedMetricAggregationBuilder::new, ScriptedMetricAggregationBuilder::parse,
+                ScriptedMetricAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(ChildrenAggregationBuilder::new, ChildrenAggregationBuilder::parse,
+                ChildrenAggregationBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineAggregation(DerivativePipelineAggregatorBuilder::new, DerivativePipelineAggregatorBuilder::parse,
                 DerivativePipelineAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerPipelineAggregation(MaxBucketPipelineAggregatorBuilder::new, MaxBucketPipelineAggregatorBuilder.PARSER,

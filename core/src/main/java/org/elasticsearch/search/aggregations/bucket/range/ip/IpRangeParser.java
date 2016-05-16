@@ -30,10 +30,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.BytesValuesSourceParser;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
-import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregatorBuilder.Range;
+import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregationBuilder.Range;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 /**
@@ -48,10 +48,10 @@ public class IpRangeParser extends BytesValuesSourceParser {
     }
 
     @Override
-    protected ValuesSourceAggregatorBuilder<ValuesSource.Bytes, ?> createFactory(
+    protected ValuesSourceAggregationBuilder<ValuesSource.Bytes, ?> createFactory(
             String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        IpRangeAggregatorBuilder range = new IpRangeAggregatorBuilder(aggregationName);
+        IpRangeAggregationBuilder range = new IpRangeAggregationBuilder(aggregationName);
         @SuppressWarnings("unchecked")
         Iterable<Range> ranges = (Iterable<Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
         if (otherOptions.containsKey(RangeAggregator.RANGES_FIELD)) {

@@ -32,7 +32,7 @@ import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 /**
  * Represents a method call made on a def type. (Internal only.)
  */
-final class LDefCall extends ADefLink {
+final class LDefCall extends ALink implements IDefLink {
 
     final String name;
     final List<AExpression> arguments;

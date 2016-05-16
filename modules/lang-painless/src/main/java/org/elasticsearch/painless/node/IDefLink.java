@@ -19,23 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Type;
-
 /**
- * The superclass for all LDef* (link) nodes that store or return a DEF. (Internal only.)
- * For this node it is allowed to change {@link ALink#after} from outside, by default
- * {@code after} is {@code DEF}.
+ * A marker interface applied to LDef* nodes allowing changes to {@link ALink#after} from outside,
+ * by default {@code after} is {@code DEF}.
  */
-abstract class ADefLink extends ALink {
-    
-    /**
-     * The type of the original type that was pushed on stack, set by {@link EChain} during analyze.
-     * This value is only used for writing the 'store' bytecode, otherwise ignored.
-     */
-    Type storeValueType = null;
-
-    ADefLink(final int line, final String location, final int size) {
-        super(line, location, size);
-    }
-
+interface IDefLink {
 }

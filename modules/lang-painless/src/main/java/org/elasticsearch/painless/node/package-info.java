@@ -28,7 +28,6 @@
  * <p>
  * The following is a brief description of each node:
  * {@link org.elasticsearch.painless.node.AExpression} - The superclass for all E* (expression) nodes.
- * {@link org.elasticsearch.painless.node.ADefLink} - The superclass for all LDef* (link) nodes.
  * {@link org.elasticsearch.painless.node.ALink} - The superclass for all L* (link) nodes.
  * {@link org.elasticsearch.painless.node.ANode} - The superclass for all other nodes.
  * {@link org.elasticsearch.painless.node.AStatement} - The superclass for all S* (statement) nodes.
@@ -45,6 +44,7 @@
  * {@link org.elasticsearch.painless.node.ENull} - Represents a null constant.
  * {@link org.elasticsearch.painless.node.ENumeric} - Respresents a non-decimal numeric constant.
  * {@link org.elasticsearch.painless.node.EUnary} - Represents a unary math expression.
+ * {@link org.elasticsearch.painless.node.IDefLink} - A marker interface for all LDef* (link) nodes.
  * {@link org.elasticsearch.painless.node.LArrayLength} - Represents an array length field load.
  * {@link org.elasticsearch.painless.node.LBrace} - Represents an array load/store or defers to possible shortcuts.
  * {@link org.elasticsearch.painless.node.LCall} - Represents a method call or deferes to a def call.

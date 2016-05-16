@@ -215,12 +215,6 @@ public final class EChain extends AExpression {
         there = AnalyzerCaster.getLegalCast(definition, location, last.after, promote, false);
         back = AnalyzerCaster.getLegalCast(definition, location, promote, last.after, true);
 
-        if (last instanceof ADefLink) {
-            final ADefLink lastDef = (ADefLink) last;
-            // Unfortunately, we don't know the real type because we load from DEF and store to DEF!
-            lastDef.storeValueType = last.after;
-        }
-
         this.statement = true;
         this.actual = read ? last.after : definition.voidType;
     }
@@ -230,28 +224,26 @@ public final class EChain extends AExpression {
 
         // If the store node is a DEF node, we remove the cast to DEF from the expression
         // and promote the real type to it:
-        if (last instanceof ADefLink) {
-            final ADefLink lastDef = (ADefLink) last;
+        if (last instanceof IDefLink) {
             expression.analyze(settings, definition, variables);
-            // TODO: does it make more sense to just re-use last.after instead of using storeValueType?
-            lastDef.storeValueType = expression.expected = expression.actual;
-            this.actual = read ? lastDef.storeValueType : definition.voidType;
+            last.after = expression.expected = expression.actual;
         } else {
             // otherwise we adapt the type of the expression to the store type
             expression.expected = last.after;
             expression.analyze(settings, definition, variables);
-            this.actual = read ? last.after : definition.voidType;
         }
 
         expression = expression.cast(settings, definition, variables);
+
         this.statement = true;
+        this.actual = read ? last.after : definition.voidType;
     }
 
     private void analyzeRead() {
         final ALink last = links.get(links.size() - 1);
 
         // If the load node is a DEF node, we adapt its after type to use _this_ expected output type:
-        if (last instanceof ADefLink && this.expected != null) {
+        if (last instanceof IDefLink && this.expected != null) {
             last.after = this.expected;
         }
 
@@ -317,12 +309,7 @@ public final class EChain extends AExpression {
                     expression.write(settings, definition, adapter);
 
                     if (link.load) {
-                        // storeValueType may be different from after, so use storeValueType if last is an ADefLink
-                        if (last instanceof ADefLink) {
-                            WriterUtility.writeDup(adapter, ((ADefLink)last).storeValueType.sort.size, link.size);
-                        } else {
-                            WriterUtility.writeDup(adapter, link.after.sort.size, link.size);
-                        }
+                        WriterUtility.writeDup(adapter, link.after.sort.size, link.size);
                     }
 
                     link.store(settings, definition, adapter);

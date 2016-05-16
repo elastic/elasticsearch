@@ -30,10 +30,12 @@ The result of the above index operation is:
     "_type" : "tweet",
     "_id" : "1",
     "_version" : 1,
-    "created" : true
+    "created" : true,
+    "_seq_no" : 0,
+    "_shard_id" : 3
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
+// TESTRESPONSE[s/"successful" : 2/"successful" : 1/ s/"_shard_id" : 3/"_shard_id" : "$body._shard_id"/]
 
 The `_shards` header provides information about the replication process of the index operation.
 
@@ -221,10 +223,12 @@ The result of the above index operation is:
     "_type" : "tweet",
     "_id" : "6a8ca01c-7896-48e9-81cc-9f70661fcb32",
     "_version" : 1,
-    "created" : true
+    "created" : true,
+    "_seq_no" : 0,
+    "_shard_id" : 2
 }
 --------------------------------------------------
-// TESTRESPONSE[s/6a8ca01c-7896-48e9-81cc-9f70661fcb32/$body._id/ s/"successful" : 2/"successful" : 1/]
+// TESTRESPONSE[s/6a8ca01c-7896-48e9-81cc-9f70661fcb32/$body._id/ s/"successful" : 2/"successful" : 1/ s/"_shard_id" : 2/"_shard_id" : "$body._shard_id"/]
 
 [float]
 [[index-routing]]

@@ -1,5 +1,5 @@
 {
-  "monitoring.bulk": {
+  "xpack.monitoring.bulk": {
     "documentation": "http://www.elastic.co/guide/en/marvel/current/appendix-api-bulk.html",
     "methods": ["POST", "PUT"],
     "url": {

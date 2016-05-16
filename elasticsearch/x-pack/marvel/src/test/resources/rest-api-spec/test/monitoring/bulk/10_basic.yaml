@@ -18,7 +18,7 @@ setup:
   - set: {version.number: version}
 
   - do:
-      monitoring.bulk:
+      xpack.monitoring.bulk:
         system_id:      "kibana"
         system_version: $version
         body:
@@ -52,7 +52,7 @@ setup:
   - match: { hits.total: 2 }
 
   - do:
-      monitoring.bulk:
+      xpack.monitoring.bulk:
         system_id:      "kibana"
         system_version: $version
         type: "default_type"

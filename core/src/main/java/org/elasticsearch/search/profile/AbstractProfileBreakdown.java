@@ -52,6 +52,7 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     public AbstractProfileBreakdown(T[] timingTypes) {
         this.timingTypes = timingTypes;
         timings = new long[timingTypes.length];
+        counts = new long[timingTypes.length];
     }
 
     /**

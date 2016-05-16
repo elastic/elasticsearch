@@ -81,6 +81,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -612,8 +613,12 @@ public abstract class Engine implements Closeable {
 
     /**
      * Add a listener for refreshes.
+     *
+     * @param location the location to listen for
+     * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
+     *        false otherwise.
      */
-    public abstract void addRefreshListener(RefreshListener listener);
+    public abstract void addRefreshListener(Translog.Location location, Consumer<Boolean> listener);
 
     /**
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
@@ -1170,21 +1175,4 @@ public abstract class Engine implements Closeable {
      * This operation will close the engine if the recovery fails.
      */
     public abstract Engine recoverFromTranslog() throws IOException;
-
-    /**
-     * Called when a refresh includes the location.
-     */
-    public static interface RefreshListener {
-        /**
-         * The location to wait for. Must not return null and should be fast.
-         */
-        Translog.Location location();
-
-        /**
-         * Called when the location has been refreshed.
-         *
-         * @param forcedRefresh did this request force a refresh because ran out of listener slots?
-         */
-        void refreshed(boolean forcedRefresh);
-    }
 }

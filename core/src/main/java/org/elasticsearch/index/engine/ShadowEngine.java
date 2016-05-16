@@ -35,6 +35,7 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -198,7 +199,7 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public void addRefreshListener(RefreshListener listener) {
+    public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
         throw new UnsupportedOperationException("Can't listen for a refresh on a shadow engine because it doesn't have a translog");
     }
 

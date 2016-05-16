@@ -43,6 +43,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.ReferenceManager.RefreshListener;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -70,7 +71,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.engine.Engine.RefreshListener;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -94,7 +94,6 @@ import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -126,6 +125,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static java.lang.Math.max;
 import static java.util.Collections.emptyMap;
@@ -330,8 +330,8 @@ public class InternalEngineTests extends ESTestCase {
             Engine.Index second = new Engine.Index(newUid("2"), doc2);
             engine.index(second);
             assertThat(second.getTranslogLocation(), greaterThan(first.getTranslogLocation()));
-            DummyRefreshListener refreshListener = new DummyRefreshListener(second.getTranslogLocation());
-            engine.addRefreshListener(refreshListener);
+            DummyRefreshListener refreshListener = new DummyRefreshListener();
+            engine.addRefreshListener(second.getTranslogLocation(), refreshListener);
             engine.refresh("test");
             assertBusy(() -> assertNotNull("The listener should be called in the listener threadpool soon after the refresh",
                     refreshListener.forcedRefresh.get()));
@@ -2136,9 +2136,9 @@ public class InternalEngineTests extends ESTestCase {
             // Fill the listener slots
             List<DummyRefreshListener> nonForcedListeners = new ArrayList<>(INDEX_SETTINGS.getMaxRefreshListeners());
             for (int i = 0; i < defaultSettings.getMaxRefreshListeners(); i++) {
-                DummyRefreshListener listener = new DummyRefreshListener(index.getTranslogLocation());
+                DummyRefreshListener listener = new DummyRefreshListener();
                 nonForcedListeners.add(listener);
-                engine.addRefreshListener(listener);
+                engine.addRefreshListener(index.getTranslogLocation(), listener);
             }
 
             // We shouldn't have called any of them
@@ -2147,8 +2147,8 @@ public class InternalEngineTests extends ESTestCase {
             }
 
             // Add one more listener which should cause a refresh. In this thread, no less.
-            DummyRefreshListener forcingListener = new DummyRefreshListener(index.getTranslogLocation());
-            engine.addRefreshListener(forcingListener);
+            DummyRefreshListener forcingListener = new DummyRefreshListener();
+            engine.addRefreshListener(index.getTranslogLocation(), forcingListener);
             assertTrue("Forced listener wasn't forced?", forcingListener.forcedRefresh.get());
 
             // That forces all the listeners through. On the listener thread pool so give them some time with assertBusy.
@@ -2173,8 +2173,8 @@ public class InternalEngineTests extends ESTestCase {
                 }
             }
 
-            DummyRefreshListener listener = new DummyRefreshListener(index.getTranslogLocation());
-            engine.addRefreshListener(listener);
+            DummyRefreshListener listener = new DummyRefreshListener();
+            engine.addRefreshListener(index.getTranslogLocation(), listener);
             assertFalse(listener.forcedRefresh.get());
         }
     }
@@ -2210,8 +2210,8 @@ public class InternalEngineTests extends ESTestCase {
                             assertEquals(iteration, index.version());
                             assertEquals(iteration == 1, created);
 
-                            DummyRefreshListener listener = new DummyRefreshListener(index.getTranslogLocation());
-                            engine.addRefreshListener(listener);
+                            DummyRefreshListener listener = new DummyRefreshListener();
+                            engine.addRefreshListener(index.getTranslogLocation(), listener);
                             assertBusy(() -> assertNotNull("listener never called", listener.forcedRefresh.get()));
                             if (threadCount < defaultSettings.getMaxRefreshListeners()) {
                                 assertFalse(listener.forcedRefresh.get());
@@ -2260,8 +2260,8 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     /**
-     * It is possible that {@link Engine#addRefreshListener(RefreshListener)} can miss the call to refresh that made the change visible if
-     * the refresh happens concurrently with the the add.
+     * It is possible that {@link Engine#addRefreshListener(Translog.Location, Consumer)} can miss the call to refresh that made the change
+     * visible if the refresh happens concurrently with the the add.
      */
     public void testAddRefreshListenerConcurrentRefresh() throws Exception {
         try (Store store = createStore();
@@ -2279,8 +2279,8 @@ public class InternalEngineTests extends ESTestCase {
                     Engine.Index index = new Engine.Index(newUid("1"), doc);
                     engine.index(index);
 
-                    DummyRefreshListener listener = new DummyRefreshListener(index.getTranslogLocation());
-                    engine.addRefreshListener(listener);
+                    DummyRefreshListener listener = new DummyRefreshListener();
+                    engine.addRefreshListener(index.getTranslogLocation(), listener);
                     assertBusy(() -> assertNotNull(listener.forcedRefresh.get()));
                     assertFalse(listener.forcedRefresh.get());
                 }
@@ -2291,24 +2291,15 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
-    private static class DummyRefreshListener implements RefreshListener {
-        private final Translog.Location location;
+    private static class DummyRefreshListener implements Consumer<Boolean> {
         /**
          * When the listener is called this captures it's only argument.
          */
         private AtomicReference<Boolean> forcedRefresh = new AtomicReference<>();
 
-        public DummyRefreshListener(Location location) {
-            this.location = location;
-        }
-
         @Override
-        public Translog.Location location() {
-            return location;
-        }
-
-        @Override
-        public void refreshed(boolean forcedRefresh) {
+        public void accept(Boolean forcedRefresh) {
+            assertNotNull(forcedRefresh);
             Boolean oldValue = this.forcedRefresh.getAndSet(forcedRefresh);
             assertNull("Listener called twice", oldValue);
         }

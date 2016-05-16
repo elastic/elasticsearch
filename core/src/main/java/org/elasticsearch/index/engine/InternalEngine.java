@@ -33,6 +33,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.ReferenceManager.RefreshListener;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -44,6 +45,7 @@ import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
@@ -54,7 +56,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.Engine.RefreshListener;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
@@ -78,6 +79,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Objects.requireNonNull;
@@ -123,7 +125,7 @@ public class InternalEngine extends Engine {
     /**
      * Refresh listeners. While they are not stored in sorted order they are processed as though they are.
      */
-    private final LinkedTransferQueue<RefreshListener> refreshListeners = new LinkedTransferQueue<>();
+    private final LinkedTransferQueue<Tuple<Translog.Location, Consumer<Boolean>>> refreshListeners = new LinkedTransferQueue<>();
     /**
      * The estimated size of refreshListenersEstimatedSize used for triggering refresh when the size gets over
      * {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}. No effort is made to correct for threading issues in the size calculation
@@ -546,19 +548,19 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void addRefreshListener(RefreshListener listener) {
+    public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
         requireNonNull(listener, "listener cannot be null");
-        Translog.Location listenerLocation = requireNonNull(listener.location(), "listener's location cannot be null");
+        Translog.Location listenerLocation = requireNonNull(location, "location cannot be null");
 
         Translog.Location lastRefresh = lastRefreshedLocation;
         if (lastRefresh != null && lastRefresh.compareTo(listenerLocation) >= 0) {
             // Location already visible, just call the listener
-            listener.refreshed(false);
+            listener.accept(false);
             return;
         }
         if (refreshListenersEstimatedSize < engineConfig.getIndexSettings().getMaxRefreshListeners()) {
             // We have a free slot so register the listener
-            refreshListeners.add(listener);
+            refreshListeners.add(new Tuple<>(location, listener));
             refreshListenersEstimatedSize++;
             return;
         }
@@ -567,7 +569,7 @@ public class InternalEngine extends Engine {
          * attempts to add a listener can continue.
          */
         refresh("too_many_listeners");
-        listener.refreshed(true);
+        listener.accept(true);
     }
 
     @Override
@@ -1209,15 +1211,15 @@ public class InternalEngine extends Engine {
              * iterate over the whole queue on every refresh at the cost of some requests having to wait an extra cycle if they get stuck
              * behind a request that missed the refresh cycle.
              */
-            Iterator<RefreshListener> itr = refreshListeners.iterator();
+            Iterator<Tuple<Translog.Location, Consumer<Boolean>>> itr = refreshListeners.iterator();
             while (itr.hasNext()) {
-                RefreshListener listener = itr.next();
-                if (listener.location().compareTo(currentRefreshLocation) > 0) {
+                Tuple<Translog.Location, Consumer<Boolean>> listener = itr.next();
+                if (listener.v1().compareTo(currentRefreshLocation) > 0) {
                     return;
                 }
                 itr.remove();
                 refreshListenersEstimatedSize--;
-                engineConfig.getThreadPool().executor(ThreadPool.Names.LISTENER).execute(() -> listener.refreshed(false));
+                engineConfig.getThreadPool().executor(ThreadPool.Names.LISTENER).execute(() -> listener.v2().accept(false));
             }
             refreshListenersEstimatedSize = 0;
         }

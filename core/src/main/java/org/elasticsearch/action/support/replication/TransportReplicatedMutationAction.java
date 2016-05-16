@@ -26,11 +26,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine.RefreshListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
@@ -81,21 +79,12 @@ public abstract class TransportReplicatedMutationAction<
             result.response.setForcedRefresh(true);
         }
         if (request.shouldBlockUntilRefresh() && false == request.isRefresh()) {
-            indexShard.addRefreshListener(new RefreshListener() {
-                @Override
-                public Location location() {
-                    return result.location;
+            indexShard.addRefreshListener(result.location, forcedRefresh -> {
+                if (forcedRefresh) {
+                    logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
+                    result.response.setForcedRefresh(true);
                 }
-
-                @Override
-                public void refreshed(boolean forcedRefresh) {
-                    if (forcedRefresh) {
-                        logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
-                        result.response.setForcedRefresh(true);
-                    }
-                    listener.onResponse(result.response);
-                }
-                
+                listener.onResponse(result.response);
             });
         } else {
             listener.onResponse(result.response);
@@ -111,18 +100,10 @@ public abstract class TransportReplicatedMutationAction<
         Translog.Location location = onReplicaShard(request, indexShard);
         processAfterWrite(request.isRefresh(), indexShard, location);
         if (request.shouldBlockUntilRefresh() && false == request.isRefresh() && location != null) {
-            indexShard.addRefreshListener(new RefreshListener() {
-                @Override
-                public Location location() {
-                    return location;
-                }
-
-                @Override
-                public void refreshed(boolean forcedRefresh) {
-                    logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
-                    // TODO mark the response?!?
-                    listener.onResponse(TransportResponse.Empty.INSTANCE);
-                }
+            indexShard.addRefreshListener(location, forcedRefresh -> {
+                logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
+                // TODO mark the response?!?
+                listener.onResponse(TransportResponse.Empty.INSTANCE);
             });
         } else {
             listener.onResponse(TransportResponse.Empty.INSTANCE);

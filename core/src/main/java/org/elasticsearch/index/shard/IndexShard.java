@@ -63,7 +63,6 @@ import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.Engine.RefreshListener;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -123,6 +122,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 public class IndexShard extends AbstractIndexShardComponent {
 
@@ -1542,10 +1542,14 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     /**
-     * Add a listener for refreshes. 
+     * Add a listener for refreshes.
+     *
+     * @param location the location to listen for
+     * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
+     *        false otherwise.
      */
-    public void addRefreshListener(RefreshListener listener) {
-        getEngine().addRefreshListener(listener);
+    public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
+        getEngine().addRefreshListener(location, listener);
     }
 
     private class IndexShardRecoveryPerformer extends TranslogRecoveryPerformer {

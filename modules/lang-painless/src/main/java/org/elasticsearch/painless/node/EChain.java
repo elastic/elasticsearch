@@ -234,15 +234,16 @@ public final class EChain extends AExpression {
             final ADefLink lastDef = (ADefLink) last;
             expression.analyze(settings, definition, variables);
             lastDef.storeValueType = expression.expected = expression.actual;
+            actual = read ? lastDef.storeValueType : definition.voidType;
         } else {
             // otherwise we adapt the type of the expression to the store type
             expression.expected = last.after;
             expression.analyze(settings, definition, variables);
+            actual = read ? last.after : definition.voidType;
         }
         expression = expression.cast(settings, definition, variables);
 
         statement = true;
-        actual = read ? last.after : definition.voidType;
     }
 
     private void analyzeRead() {

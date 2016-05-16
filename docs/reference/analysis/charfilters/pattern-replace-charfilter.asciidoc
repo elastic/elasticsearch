@@ -257,7 +257,6 @@ GET my_index/_search
 }
 ----------------------------
 // CONSOLE
-// TEST[skip:The value for took is always different]
 
 The output from the above is:
 
@@ -265,6 +264,7 @@ The output from the above is:
 ----------------------------
 {
   "timed_out": false,
+  "took": $body.took,
   "_shards": {
     "total": 5,
     "successful": 5,
@@ -292,5 +292,5 @@ The output from the above is:
   }
 }
 ----------------------------
-// TESTRESPONSE[s/"took".*//]
+// TESTRESPONSE[s/"took".*/"took": "$body.took",/]
 <1> Note the incorrect highlight.

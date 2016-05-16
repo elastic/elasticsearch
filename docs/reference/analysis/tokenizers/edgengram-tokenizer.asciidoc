@@ -284,7 +284,6 @@ GET my_index/_search
 }
 -----------------------------------
 // CONSOLE
-// TEST[skip:The took value will change on every request]
 
 <1> The `autocomplete` analyzer indexes the terms `[qu, qui, quic, quick, fo, fox, foxe, foxes]`.
 <2> The `autocomplete_search` analyzer searches for the terms `[quick, fo]`, both of which appear in the index.
@@ -294,7 +293,7 @@ GET my_index/_search
 [source,js]
 ----------------------------
 {
-  "took": 3,
+  "took": $body.took,
   "timed_out": false,
   "_shards": {
     "total": 5,
@@ -318,7 +317,7 @@ GET my_index/_search
   }
 }
 ----------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"took".*/"took": "$body.took",/]
 /////////////////////
 
 

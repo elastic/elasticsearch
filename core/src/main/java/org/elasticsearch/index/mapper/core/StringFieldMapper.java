@@ -206,7 +206,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         }
     }
 
-    public static final class StringFieldType extends MappedFieldType {
+    public static final class StringFieldType extends MappedFieldType implements org.elasticsearch.index.mapper.StringFieldType {
 
         public StringFieldType() {}
 

@@ -38,6 +38,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -197,6 +199,8 @@ public class DateFieldMapper extends NumberFieldMapper {
     }
 
     public static class DateFieldType extends NumberFieldType {
+
+        private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DateFieldType.class));
 
         final class LateParsingQuery extends Query {
 
@@ -403,6 +407,8 @@ public class DateFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+            DEPRECATION_LOGGER.deprecated("Fuzzy query on field [{}] of type [{}] is deprecated. The next version will only support it " +
+                    "on text/keyword fields", names().fullName(), typeName());
             long iValue = parseValue(value);
             long iSim;
             try {

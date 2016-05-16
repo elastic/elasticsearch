@@ -33,6 +33,8 @@ import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -122,6 +124,8 @@ public class IntegerFieldMapper extends NumberFieldMapper {
 
     public static final class IntegerFieldType extends NumberFieldType {
 
+        private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(IntegerFieldType.class));
+
         public IntegerFieldType() {
             super(NumericType.INT);
         }
@@ -177,6 +181,8 @@ public class IntegerFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+            DEPRECATION_LOGGER.deprecated("Fuzzy query on field [{}] of type [{}] is deprecated. The next version will only support it " +
+                    "on text/keyword fields", names().fullName(), typeName());
             int iValue = parseValue(value);
             int iSim = fuzziness.asInt();
             return NumericRangeQuery.newIntRange(names().indexName(), numericPrecisionStep(),

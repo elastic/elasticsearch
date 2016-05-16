@@ -32,6 +32,8 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -217,6 +219,8 @@ public class IpFieldMapper extends NumberFieldMapper {
 
     public static final class IpFieldType extends LongFieldMapper.LongFieldType {
 
+        private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(IpFieldType.class));
+
         public IpFieldType() {
             setFieldDataType(new FieldDataType("long"));
         }
@@ -295,6 +299,8 @@ public class IpFieldMapper extends NumberFieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
+            DEPRECATION_LOGGER.deprecated("Fuzzy query on field [{}] of type [{}] is deprecated. The next version will only support it " +
+                    "on text/keyword fields", names().fullName(), typeName());
             long iValue = parseValue(value);
             long iSim;
             try {

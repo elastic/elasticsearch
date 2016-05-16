@@ -215,23 +215,44 @@ public final class EChain extends AExpression {
         there = AnalyzerCaster.getLegalCast(definition, location, last.after, promote, false);
         back = AnalyzerCaster.getLegalCast(definition, location, promote, last.after, true);
 
-        statement = true;
-        actual = read ? last.after : definition.voidType;
+        if (last instanceof ADefLink) {
+            final ADefLink lastDef = (ADefLink) last;
+            // Unfortunately, we don't know the real type because we load from DEF and store to DEF!
+            lastDef.storeValueType = last.after;
+        }
+
+        this.statement = true;
+        this.actual = read ? last.after : definition.voidType;
     }
 
     private void analyzeWrite(final CompilerSettings settings, final Definition definition, final Variables variables) {
         final ALink last = links.get(links.size() - 1);
 
-        expression.expected = last.after;
-        expression.analyze(settings, definition, variables);
+        // If the store node is a DEF node, we remove the cast to DEF from the expression
+        // and promote the real type to it:
+        if (last instanceof ADefLink) {
+            final ADefLink lastDef = (ADefLink) last;
+            expression.analyze(settings, definition, variables);
+            lastDef.storeValueType = expression.expected = expression.actual;
+            this.actual = read ? lastDef.storeValueType : definition.voidType;
+        } else {
+            // otherwise we adapt the type of the expression to the store type
+            expression.expected = last.after;
+            expression.analyze(settings, definition, variables);
+            this.actual = read ? last.after : definition.voidType;
+        }
+        
         expression = expression.cast(settings, definition, variables);
-
-        statement = true;
-        actual = read ? last.after : definition.voidType;
+        this.statement = true;
     }
 
     private void analyzeRead() {
         final ALink last = links.get(links.size() - 1);
+
+        // If the load node is a DEF node, we adapt its after type to use _this_ expected output type:
+        if (last instanceof ADefLink && this.expected != null) {
+            last.after = this.expected;
+        }
 
         constant = last.string;
         statement = last.statement;

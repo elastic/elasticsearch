@@ -32,7 +32,7 @@ import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 /**
  * Represents a method call made on a def type. (Internal only.)
  */
-final class LDefCall extends ALink {
+final class LDefCall extends ADefLink {
 
     final String name;
     final List<AExpression> arguments;
@@ -84,7 +84,7 @@ final class LDefCall extends ALink {
         // return value
         signature.append(after.type.getDescriptor());
 
-        adapter.visitInvokeDynamicInsn(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.METHOD_CALL);
+        adapter.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.METHOD_CALL);
     }
 
     @Override

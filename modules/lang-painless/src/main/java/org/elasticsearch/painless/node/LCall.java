@@ -59,9 +59,6 @@ public final class LCall extends ALink {
         method = statik ? struct.functions.get(name) : struct.methods.get(name);
 
         if (method != null) {
-            final Definition.Type[] types = new Definition.Type[method.arguments.size()];
-            method.arguments.toArray(types);
-
             if (method.arguments.size() != arguments.size()) {
                 throw new IllegalArgumentException(error("When calling [" + name + "] on type [" + struct.name + "]" +
                     " expected [" + method.arguments.size() + "] arguments, but found [" + arguments.size() + "]."));
@@ -70,7 +67,7 @@ public final class LCall extends ALink {
             for (int argument = 0; argument < arguments.size(); ++argument) {
                 final AExpression expression = arguments.get(argument);
 
-                expression.expected = types[argument];
+                expression.expected = method.arguments.get(argument);
                 expression.analyze(settings, definition, variables);
                 arguments.set(argument, expression.cast(settings, definition, variables));
             }

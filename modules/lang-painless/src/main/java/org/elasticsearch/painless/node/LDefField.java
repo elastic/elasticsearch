@@ -31,7 +31,7 @@ import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 /**
  * Represents a field load/store or shortcut on a def type.  (Internal only.)
  */
-final class LDefField extends ALink {
+final class LDefField extends ADefLink {
 
     final String value;
 
@@ -57,12 +57,15 @@ final class LDefField extends ALink {
     @Override
     void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
         final String desc = Type.getMethodDescriptor(after.type, definition.defType.type);
-        adapter.visitInvokeDynamicInsn(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.LOAD);
+        adapter.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.LOAD);
     }
 
     @Override
     void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type, definition.defType.type);
-        adapter.visitInvokeDynamicInsn(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.STORE);
+        if (storeValueType == null) {
+            throw new IllegalStateException(error("Illegal tree structure."));
+        }
+        final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type, storeValueType.type);
+        adapter.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.STORE);
     }
 }

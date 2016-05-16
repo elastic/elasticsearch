@@ -41,7 +41,6 @@ final class LDefArray extends ADefLink {
         this.index = index;
     }
 
-
     @Override
     ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         index.analyze(settings, definition, variables);
@@ -69,6 +68,7 @@ final class LDefArray extends ADefLink {
         if (storeValueType == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
         }
+
         final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type,
             index.actual.type, storeValueType.type);
         adapter.invokeDynamic("arrayStore", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_STORE);

@@ -233,6 +233,7 @@ public final class EChain extends AExpression {
         if (last instanceof ADefLink) {
             final ADefLink lastDef = (ADefLink) last;
             expression.analyze(settings, definition, variables);
+            // TODO: does it make more sense to just re-use last.after instead of using storeValueType?
             lastDef.storeValueType = expression.expected = expression.actual;
             this.actual = read ? lastDef.storeValueType : definition.voidType;
         } else {
@@ -241,7 +242,7 @@ public final class EChain extends AExpression {
             expression.analyze(settings, definition, variables);
             this.actual = read ? last.after : definition.voidType;
         }
-        
+
         expression = expression.cast(settings, definition, variables);
         this.statement = true;
     }
@@ -316,7 +317,12 @@ public final class EChain extends AExpression {
                     expression.write(settings, definition, adapter);
 
                     if (link.load) {
-                        WriterUtility.writeDup(adapter, link.after.sort.size, link.size);
+                        // storeValueType may be different from after, so use storeValueType if last is an ADefLink
+                        if (last instanceof ADefLink) {
+                            WriterUtility.writeDup(adapter, ((ADefLink)last).storeValueType.sort.size, link.size);
+                        } else {
+                            WriterUtility.writeDup(adapter, link.after.sort.size, link.size);
+                        }
                     }
 
                     link.store(settings, definition, adapter);

@@ -321,7 +321,8 @@ curl -XGET 'localhost:9200/customer/external/1?pretty'
   "_type" : "external",
   "_id" : "1",
   "_version" : 1,
-  "found" : true, "_source" : { "name": "John Doe" }
+  "found" : true,
+  "_source" : { "name": "John Doe" }
 }
 --------------------------------------------------
 

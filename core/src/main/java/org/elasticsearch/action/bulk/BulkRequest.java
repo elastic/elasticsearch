@@ -518,9 +518,9 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         }
         for (ActionRequest<?> request : requests) {
             // We first check if refresh has been set
-            if ((request instanceof DeleteRequest && ((DeleteRequest)request).refresh()) ||
-                    (request instanceof UpdateRequest && ((UpdateRequest)request).refresh()) ||
-                    (request instanceof IndexRequest && ((IndexRequest)request).refresh())) {
+            if ((request instanceof DeleteRequest && ((DeleteRequest)request).isRefresh()) ||
+                    (request instanceof UpdateRequest && ((UpdateRequest)request).isRefresh()) ||
+                    (request instanceof IndexRequest && ((IndexRequest)request).isRefresh())) {
                     validationException = addValidationError("Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead.", validationException);
             }
             ActionRequestValidationException ex = request.validate();

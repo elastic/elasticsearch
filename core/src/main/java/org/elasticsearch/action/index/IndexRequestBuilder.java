@@ -227,7 +227,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * to <tt>false</tt>.
      */
     public IndexRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
+        request.setRefresh(refresh);
         return this;
     }
 

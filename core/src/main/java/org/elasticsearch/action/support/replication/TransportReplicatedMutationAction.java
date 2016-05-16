@@ -75,12 +75,12 @@ public abstract class TransportReplicatedMutationAction<
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(request.shardId().id());
         WriteResult<Response> result = onPrimaryShard(indexService, indexShard, request);
-        processAfterWrite(request.refresh(), indexShard, result.location);
-        if (request.refresh()) {
+        processAfterWrite(request.isRefresh(), indexShard, result.location);
+        if (request.isRefresh()) {
             // Only setForcedRefresh if it is true because this can touch every item in a bulk request
             result.response.setForcedRefresh(true);
         }
-        if (request.shouldBlockUntilRefresh() && false == request.refresh()) {
+        if (request.shouldBlockUntilRefresh() && false == request.isRefresh()) {
             indexShard.addRefreshListener(new RefreshListener() {
                 @Override
                 public Location location() {
@@ -109,8 +109,8 @@ public abstract class TransportReplicatedMutationAction<
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         Translog.Location location = onReplicaShard(request, indexShard);
-        processAfterWrite(request.refresh(), indexShard, location);
-        if (request.shouldBlockUntilRefresh() && false == request.refresh() && location != null) {
+        processAfterWrite(request.isRefresh(), indexShard, location);
+        if (request.shouldBlockUntilRefresh() && false == request.isRefresh() && location != null) {
             indexShard.addRefreshListener(new RefreshListener() {
                 @Override
                 public Location location() {

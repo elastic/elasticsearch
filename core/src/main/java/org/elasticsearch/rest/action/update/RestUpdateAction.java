@@ -58,7 +58,7 @@ public class RestUpdateAction extends BaseRestHandler {
         updateRequest.routing(request.param("routing"));
         updateRequest.parent(request.param("parent"));
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
-        updateRequest.refresh(request.paramAsBoolean("refresh", updateRequest.refresh()));
+        updateRequest.setRefresh(request.paramAsBoolean("refresh", updateRequest.isRefresh()));
         updateRequest.setBlockUntilRefresh(request.paramAsBoolean("block_until_refresh", updateRequest.shouldBlockUntilRefresh()));
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {

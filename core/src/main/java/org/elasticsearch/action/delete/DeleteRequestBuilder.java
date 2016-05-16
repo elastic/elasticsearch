@@ -78,7 +78,7 @@ public class DeleteRequestBuilder extends ReplicationRequestBuilder<DeleteReques
      * to <tt>false</tt>.
      */
     public DeleteRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
+        request.setRefresh(refresh);
         return this;
     }
 

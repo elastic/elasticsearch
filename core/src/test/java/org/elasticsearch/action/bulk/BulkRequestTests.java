@@ -180,12 +180,12 @@ public class BulkRequestTests extends ESTestCase {
     public void testBulkRequestWithRefresh() throws Exception {
         BulkRequest bulkRequest = new BulkRequest();
         // We force here a "id is missing" validation error
-        bulkRequest.add(new DeleteRequest("index", "type", null).refresh(true));
+        bulkRequest.add(new DeleteRequest("index", "type", null).setRefresh(true));
         // We force here a "type is missing" validation error
         bulkRequest.add(new DeleteRequest("index", null, "id"));
-        bulkRequest.add(new DeleteRequest("index", "type", "id").refresh(true));
-        bulkRequest.add(new UpdateRequest("index", "type", "id").doc("{}").refresh(true));
-        bulkRequest.add(new IndexRequest("index", "type", "id").source("{}").refresh(true));
+        bulkRequest.add(new DeleteRequest("index", "type", "id").setRefresh(true));
+        bulkRequest.add(new UpdateRequest("index", "type", "id").doc("{}").setRefresh(true));
+        bulkRequest.add(new IndexRequest("index", "type", "id").source("{}").setRefresh(true));
         ActionRequestValidationException validate = bulkRequest.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.validationErrors(), not(empty()));

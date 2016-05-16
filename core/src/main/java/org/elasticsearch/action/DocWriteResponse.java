@@ -91,7 +91,7 @@ public abstract class DocWriteResponse extends ReplicatedMutationResponse implem
     }
 
     /**
-     * Did this request force a refresh? Requests that set {@link ReplicatedMutationRequest#refresh(boolean)} to true should always return
+     * Did this request force a refresh? Requests that set {@link ReplicatedMutationRequest#setRefresh(boolean)} to true should always return
      * true for this. Requests that set {@link ReplicatedMutationRequest#setBlockUntilRefresh(boolean)} to true should only return this if
      * they run out of refresh listener slots (see {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}).
      */

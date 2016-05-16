@@ -129,7 +129,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * to <tt>false</tt>.
      */
     public UpdateRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
+        request.setRefresh(refresh);
         return this;
     }
 

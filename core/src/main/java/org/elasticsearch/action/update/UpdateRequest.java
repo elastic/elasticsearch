@@ -434,12 +434,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
      * to <tt>false</tt>.
      */
-    public UpdateRequest refresh(boolean refresh) {
+    public UpdateRequest setRefresh(boolean refresh) {
         this.refresh = refresh;
         return this;
     }
 
-    public boolean refresh() {
+    public boolean isRefresh() {
         return this.refresh;
     }
 
@@ -726,7 +726,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
 
     /**
-     * Should this request block until it has been made visible for search by a refresh? Unlike {@link #refresh(boolean)} this is quite safe
+     * Should this request block until it has been made visible for search by a refresh? Unlike {@link #setRefresh(boolean)} this is quite safe
      * to use under heavy indexing so long as few total operations use it. See {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD} for
      * the limit. Defaults to false.
      */

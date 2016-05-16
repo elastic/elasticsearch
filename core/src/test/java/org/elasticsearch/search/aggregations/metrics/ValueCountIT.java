@@ -315,11 +315,6 @@ public class ValueCountIT extends ESIntegTestCase {
                         }
 
                         @Override
-                        public float runAsFloat() {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
                         public double runAsDouble() {
                             throw new UnsupportedOperationException();
                         }

@@ -12,8 +12,8 @@ To register the actual script you'll need to implement `NativeScriptFactory`
 to construct the script. The actual script will extend either
 `AbstractExecutableScript` or `AbstractSearchScript`. The second one is likely
 the most useful and has several helpful subclasses you can extend like
-`AbstractLongSearchScript`, `AbstractDoubleSearchScript`, and
-`AbstractFloatSearchScript`. Finally, your plugin should register the native
+`AbstractLongSearchScript` and `AbstractDoubleSearchScript`.
+Finally, your plugin should register the native
 script by declaring the `onModule(ScriptModule)` method.
 
 If you squashed the whole thing into one class it'd look like:
@@ -44,11 +44,11 @@ public class MyNativeScriptPlugin extends Plugin {
         }
     }
 
-    public static class MyNativeScript extends AbstractFloatSearchScript {
+    public static class MyNativeScript extends AbstractDoubleSearchScript {
         @Override
-        public float runAsFloat() {
-            float a = (float) source().get("a");
-            float b = (float) source().get("b");
+        public double runAsDouble() {
+            double a = (double) source().get("a");
+            double b = (double) source().get("b");
             return a * b;
         }
     }

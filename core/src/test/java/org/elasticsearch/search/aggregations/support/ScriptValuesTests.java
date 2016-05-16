@@ -76,11 +76,6 @@ public class ScriptValuesTests extends ESTestCase {
         }
 
         @Override
-        public float runAsFloat() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public long runAsLong() {
             throw new UnsupportedOperationException();
         }

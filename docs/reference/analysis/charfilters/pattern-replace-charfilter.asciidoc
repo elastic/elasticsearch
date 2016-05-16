@@ -62,6 +62,7 @@ POST my_index/_analyze
 }
 ----------------------------
 // CONSOLE
+// TEST[skip:Test interprets $1 as a stashed variable]
 
 /////////////////////
 
@@ -166,6 +167,8 @@ PUT my_index
   }
 }
 
+GET _cluster/health?wait_for_status=yellow
+
 POST my_index/_analyze
 {
   "analyzer": "my_analyzer",
@@ -218,8 +221,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TEST[continued]
-// TESTRESPONSE
 
 /////////////////////
 
@@ -255,15 +256,14 @@ GET my_index/_search
   }
 }
 ----------------------------
-// TEST[continued]
 // CONSOLE
+// TEST[skip:The value for took is always different]
 
 The output from the above is:
 
 [source,js]
 ----------------------------
 {
-  "took": 1,
   "timed_out": false,
   "_shards": {
     "total": 5,
@@ -292,5 +292,5 @@ The output from the above is:
   }
 }
 ----------------------------
+// TESTRESPONSE[s/"took".*//]
 <1> Note the incorrect highlight.
-// TESTRESPONSE

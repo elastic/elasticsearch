@@ -1481,9 +1481,7 @@ public final class Definition {
 
         for (int count = 0; count < classes.length; ++count) {
             if (genargs != null) {
-                try {
-                    genargs[count].clazz.asSubclass(args[count].clazz);
-                } catch (final ClassCastException exception) {
+                if (!args[count].clazz.isAssignableFrom(genargs[count].clazz)) {
                     throw new ClassCastException("Generic argument [" + genargs[count].name + "]" +
                         " is not a sub class of [" + args[count].name + "] in the constructor" +
                         " [" + name + " ] from the struct [" + owner.name + "].");
@@ -1550,9 +1548,7 @@ public final class Definition {
         }
 
         if (genrtn != null) {
-            try {
-                genrtn.clazz.asSubclass(rtn.clazz);
-            } catch (final ClassCastException exception) {
+            if (!rtn.clazz.isAssignableFrom(genrtn.clazz)) {
                 throw new ClassCastException("Generic return [" + genrtn.clazz.getCanonicalName() + "]" +
                     " is not a sub class of [" + rtn.clazz.getCanonicalName() + "] in the method" +
                     " [" + name + " ] from the struct [" + owner.name + "].");
@@ -1569,9 +1565,7 @@ public final class Definition {
 
         for (int count = 0; count < classes.length; ++count) {
             if (genargs != null) {
-                try {
-                    genargs[count].clazz.asSubclass(args[count].clazz);
-                } catch (final ClassCastException exception) {
+                if (!args[count].clazz.isAssignableFrom(genargs[count].clazz)) {
                     throw new ClassCastException("Generic argument [" + genargs[count].name + "] is not a sub class" +
                         " of [" + args[count].name + "] in the " + (statik ? "function" : "method") +
                         " [" + name + " ] from the struct [" + owner.name + "].");
@@ -1666,9 +1660,7 @@ public final class Definition {
         }
 
         if (generic != null) {
-            try {
-                generic.clazz.asSubclass(type.clazz);
-            } catch (final ClassCastException exception) {
+            if (!type.clazz.isAssignableFrom(generic.clazz)) {
                 throw new ClassCastException("Generic type [" + generic.clazz.getCanonicalName() + "]" +
                     " is not a sub class of [" + type.clazz.getCanonicalName() + "] for the field" +
                     " [" + name + " ] from the struct [" + owner.name + "].");
@@ -1736,9 +1728,7 @@ public final class Definition {
                     " not defined for copy to owner struct [" + owner.name + "].");
             }
 
-            try {
-                owner.clazz.asSubclass(child.clazz);
-            } catch (final ClassCastException exception) {
+            if (!child.clazz.isAssignableFrom(owner.clazz)) {
                 throw new ClassCastException("Child struct [" + child.name + "]" +
                     " is not a super type of owner struct [" + owner.name + "] in copy.");
             }
@@ -1844,13 +1834,10 @@ public final class Definition {
 
             Type argument = method.arguments.get(0);
 
-            try {
-                from.clazz.asSubclass(argument.clazz);
-            } catch (final ClassCastException cce0) {
-                try {
-                    argument.clazz.asSubclass(from.clazz);
+            if (!argument.clazz.isAssignableFrom(from.clazz)) {
+                if (from.clazz.isAssignableFrom(argument.clazz)) {
                     upcast = argument;
-                } catch (final ClassCastException cce1) {
+                } else {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
                         " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
                         " function [" + name + "] cannot cast from type to the function input argument type.");
@@ -1859,13 +1846,10 @@ public final class Definition {
 
             final Type rtn = method.rtn;
 
-            try {
-                rtn.clazz.asSubclass(to.clazz);
-            } catch (final ClassCastException cce0) {
-                try {
-                    to.clazz.asSubclass(rtn.clazz);
+            if (!to.clazz.isAssignableFrom(rtn.clazz)) {
+                if (rtn.clazz.isAssignableFrom(to.clazz)) {
                     downcast = to;
-                } catch (final ClassCastException cce1) {
+                } else {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
                         " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
                         " function [" + name + "] cannot cast to type to the function return argument type.");
@@ -1886,13 +1870,10 @@ public final class Definition {
                     "] using method [" + name + "] does not have a single type argument.");
             }
 
-            try {
-                from.clazz.asSubclass(owner.clazz);
-            } catch (final ClassCastException cce0) {
-                try {
-                    owner.clazz.asSubclass(from.clazz);
+            if (!owner.clazz.isAssignableFrom(from.clazz)) {
+                if (from.clazz.isAssignableFrom(owner.clazz)) {
                     upcast = getType(owner.name);
-                } catch (final ClassCastException cce1) {
+                } else {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
                         " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
                         " method [" + name + "] cannot cast from type to the method input argument type.");
@@ -1901,13 +1882,10 @@ public final class Definition {
 
             final Type rtn = method.rtn;
 
-            try {
-                rtn.clazz.asSubclass(to.clazz);
-            } catch (final ClassCastException cce0) {
-                try {
-                    to.clazz.asSubclass(rtn.clazz);
+            if (!to.clazz.isAssignableFrom(rtn.clazz)) {
+                if (rtn.clazz.isAssignableFrom(to.clazz)) {
                     downcast = to;
-                } catch (final ClassCastException cce1) {
+                } else {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
                         " and cast type from [" + from.name + "] to cast type to [" + to.name + "]" +
                         " using method [" + name + "] cannot cast to type to the method return argument type.");

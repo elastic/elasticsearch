@@ -82,20 +82,12 @@ public final class LField extends ALink {
                 final EConstant index = new EConstant(line, location, value);
                 index.analyze(settings, definition, variables);
 
-                try {
-                    before.clazz.asSubclass(Map.class);
-
+                if (Map.class.isAssignableFrom(before.clazz)) {
                     return new LMapShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
-                } catch (final ClassCastException exception) {
-                    // Do nothing.
                 }
-
-                try {
-                    before.clazz.asSubclass(List.class);
-
+                
+                if (List.class.isAssignableFrom(before.clazz)) {
                     return new LListShortcut(line, location, index).copy(this).analyze(settings, definition, variables);
-                } catch (final ClassCastException exception) {
-                    // Do nothing.
                 }
             }
         }

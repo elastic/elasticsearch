@@ -54,9 +54,7 @@ public final class STrap extends AStatement {
     void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         variable = variables.addVariable(location, type, name, true, false);
 
-        try {
-            variable.type.clazz.asSubclass(Exception.class);
-        } catch (final ClassCastException cce) {
+        if (!Exception.class.isAssignableFrom(variable.type.clazz)) {
             throw new ClassCastException(error("Not an exception type [" + variable.type.name + "]."));
         }
 

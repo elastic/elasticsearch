@@ -37,11 +37,11 @@ import java.util.stream.Collectors;
  * A container class to hold all the profile results across all shards.  Internally
  * holds a map of shard ID -&gt; Profiled results
  */
-public final class InternalProfileShardResults implements Writeable, ToXContent{
+public final class SearchProfileShardResults implements Writeable, ToXContent{
 
     private Map<String, List<ProfileShardResult>> shardResults;
 
-    public InternalProfileShardResults(Map<String, List<ProfileShardResult>> shardResults) {
+    public SearchProfileShardResults(Map<String, List<ProfileShardResult>> shardResults) {
         Map<String, List<ProfileShardResult>> transformed =
                 shardResults.entrySet()
                         .stream()
@@ -52,7 +52,7 @@ public final class InternalProfileShardResults implements Writeable, ToXContent{
         this.shardResults =  Collections.unmodifiableMap(transformed);
     }
 
-    public InternalProfileShardResults(StreamInput in) throws IOException {
+    public SearchProfileShardResults(StreamInput in) throws IOException {
         int size = in.readInt();
         shardResults = new HashMap<>(size);
 
@@ -104,5 +104,23 @@ public final class InternalProfileShardResults implements Writeable, ToXContent{
 
         builder.endArray().endObject();
         return builder;
+    }
+
+    /**
+     * Helper method to convert Profiler into InternalProfileShardResults, which
+     * can be serialized to other nodes, emitted as JSON, etc.
+     *
+     * @param profilers
+     *            A list of Profilers to convert into
+     *            InternalProfileShardResults
+     * @return A list of corresponding InternalProfileShardResults
+     */
+    public static List<ProfileShardResult> buildShardResults(List<QueryProfiler> profilers) {
+        List<ProfileShardResult> results = new ArrayList<>(profilers.size());
+        for (QueryProfiler profiler : profilers) {
+            ProfileShardResult result = new ProfileShardResult(profiler.getQueryTree(), profiler.getRewriteTime(), profiler.getCollector());
+            results.add(result);
+        }
+        return results;
     }
 }

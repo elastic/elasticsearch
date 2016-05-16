@@ -45,22 +45,22 @@ import java.util.Map;
  */
 final class ProfileResult implements Writeable, ToXContent {
 
-    private static final ParseField QUERY_TYPE = new ParseField("query_type");
-    private static final ParseField LUCENE_DESCRIPTION = new ParseField("lucene");
+    private static final ParseField TYPE = new ParseField("type");
+    private static final ParseField DESCRIPTION = new ParseField("description");
     private static final ParseField NODE_TIME = new ParseField("time");
     private static final ParseField CHILDREN = new ParseField("children");
     private static final ParseField BREAKDOWN = new ParseField("breakdown");
 
-    private final String queryType;
-    private final String luceneDescription;
+    private final String type;
+    private final String description;
     private final Map<String, Long> timings;
     private final long nodeTime;
     private final List<ProfileResult> children;
 
-    public ProfileResult(String queryType, String luceneDescription, Map<String, Long> timings, List<ProfileResult> children,
+    public ProfileResult(String type, String description, Map<String, Long> timings, List<ProfileResult> children,
             long nodeTime) {
-        this.queryType = queryType;
-        this.luceneDescription = luceneDescription;
+        this.type = type;
+        this.description = description;
         this.timings = timings;
         this.children = children;
         this.nodeTime = nodeTime;
@@ -70,8 +70,8 @@ final class ProfileResult implements Writeable, ToXContent {
      * Read from a stream.
      */
     public ProfileResult(StreamInput in) throws IOException{
-        this.queryType = in.readString();
-        this.luceneDescription = in.readString();
+        this.type = in.readString();
+        this.description = in.readString();
         this.nodeTime = in.readLong();
 
         int timingsSize = in.readVInt();
@@ -90,8 +90,8 @@ final class ProfileResult implements Writeable, ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(queryType);
-        out.writeString(luceneDescription);
+        out.writeString(type);
+        out.writeString(description);
         out.writeLong(nodeTime);            // not Vlong because can be negative
         out.writeVInt(timings.size());
         for (Map.Entry<String, Long> entry : timings.entrySet()) {
@@ -108,14 +108,14 @@ final class ProfileResult implements Writeable, ToXContent {
      * Retrieve the lucene description of this query (e.g. the "explain" text)
      */
     public String getLuceneDescription() {
-        return luceneDescription;
+        return description;
     }
 
     /**
      * Retrieve the name of the query (e.g. "TermQuery")
      */
     public String getQueryName() {
-        return queryType;
+        return type;
     }
 
     /**
@@ -144,9 +144,9 @@ final class ProfileResult implements Writeable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder = builder.startObject()
-                .field(QUERY_TYPE.getPreferredName(), queryType)
-                .field(LUCENE_DESCRIPTION.getPreferredName(), luceneDescription)
-                .field(NODE_TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double)(getTime() / 1000000.0)))
+                .field(TYPE.getPreferredName(), type)
+                .field(DESCRIPTION.getPreferredName(), description)
+                .field(NODE_TIME.getPreferredName(), String.format(Locale.US, "%.10gms", getTime() / 1000000.0))
                 .field(BREAKDOWN.getPreferredName(), timings);
 
         if (!children.isEmpty()) {

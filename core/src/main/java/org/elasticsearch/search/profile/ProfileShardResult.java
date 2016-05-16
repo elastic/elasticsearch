@@ -36,16 +36,16 @@ import java.util.List;
  */
 public final class ProfileShardResult implements Writeable, ToXContent {
 
-    private final List<ProfileResult> profileResults;
+    private final List<ProfileResult> queryProfileResults;
 
     private final CollectorResult profileCollector;
 
     private final long rewriteTime;
 
-    public ProfileShardResult(List<ProfileResult> profileResults, long rewriteTime,
+    public ProfileShardResult(List<ProfileResult> queryProfileResults, long rewriteTime,
                               CollectorResult profileCollector) {
         assert(profileCollector != null);
-        this.profileResults = profileResults;
+        this.queryProfileResults = queryProfileResults;
         this.profileCollector = profileCollector;
         this.rewriteTime = rewriteTime;
     }
@@ -55,9 +55,9 @@ public final class ProfileShardResult implements Writeable, ToXContent {
      */
     public ProfileShardResult(StreamInput in) throws IOException {
         int profileSize = in.readVInt();
-        profileResults = new ArrayList<>(profileSize);
+        queryProfileResults = new ArrayList<>(profileSize);
         for (int j = 0; j < profileSize; j++) {
-            profileResults.add(new ProfileResult(in));
+            queryProfileResults.add(new ProfileResult(in));
         }
 
         profileCollector = new CollectorResult(in);
@@ -66,8 +66,8 @@ public final class ProfileShardResult implements Writeable, ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(profileResults.size());
-        for (ProfileResult p : profileResults) {
+        out.writeVInt(queryProfileResults.size());
+        for (ProfileResult p : queryProfileResults) {
             p.writeTo(out);
         }
         profileCollector.writeTo(out);
@@ -76,7 +76,7 @@ public final class ProfileShardResult implements Writeable, ToXContent {
 
 
     public List<ProfileResult> getQueryResults() {
-        return Collections.unmodifiableList(profileResults);
+        return Collections.unmodifiableList(queryProfileResults);
     }
 
     public long getRewriteTime() {
@@ -90,7 +90,7 @@ public final class ProfileShardResult implements Writeable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("query");
-        for (ProfileResult p : profileResults) {
+        for (ProfileResult p : queryProfileResults) {
             p.toXContent(builder, params);
         }
         builder.endArray();

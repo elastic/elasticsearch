@@ -646,50 +646,106 @@ public final class Definition {
     }
 
     private void addElements() {
-        addMethod("Object", "toString", null, false, stringType, new Type[] {}, null, null);
         addMethod("Object", "equals", null, false, booleanType, new Type[] {objectType}, null, null);
         addMethod("Object", "hashCode", null, false, intType, new Type[] {}, null, null);
+        addMethod("Object", "toString", null, false, stringType, new Type[] {}, null, null);
 
-        addMethod("def", "toString", null, false, stringType, new Type[] {}, null, null);
         addMethod("def", "equals", null, false, booleanType, new Type[] {objectType}, null, null);
         addMethod("def", "hashCode", null, false, intType, new Type[] {}, null, null);
+        addMethod("def", "toString", null, false, stringType, new Type[] {}, null, null);
 
         addConstructor("Boolean", "new", new Type[] {booleanType}, null);
-        addMethod("Boolean", "valueOf", null, true, booleanobjType, new Type[] {booleanType}, null, null);
         addMethod("Boolean", "booleanValue", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Boolean", "compare", null, true, intType, new Type[] {booleanType,booleanType}, null, null);
+        addMethod("Boolean", "compareTo", null, false, intType, new Type[] {booleanobjType}, null, null);
+        addMethod("Boolean", "parseBoolean", null, true, booleanType, new Type[] {stringType}, null, null);
+        addMethod("Boolean", "valueOf", null, true, booleanobjType, new Type[] {booleanType}, null, null);
+        addField("Boolean", "FALSE", null, true, booleanobjType, null);
+        addField("Boolean", "TRUE", null, true, booleanobjType, null);
 
         addConstructor("Byte", "new", new Type[] {byteType}, null);
+        addMethod("Byte", "compare", null, true, intType, new Type[] {byteType,byteType}, null, null);
+        addMethod("Byte", "compareTo", null, false, intType, new Type[] {byteobjType}, null, null);
+        addMethod("Byte", "parseByte", null, true, byteType, new Type[] {stringType}, null, null);
         addMethod("Byte", "valueOf", null, true, byteobjType, new Type[] {byteType}, null, null);
         addField("Byte", "MIN_VALUE", null, true, byteType, null);
         addField("Byte", "MAX_VALUE", null, true, byteType, null);
 
         addConstructor("Short", "new", new Type[] {shortType}, null);
+        addMethod("Short", "compare", null, true, intType, new Type[] {shortType,shortType}, null, null);
+        addMethod("Short", "compareTo", null, false, intType, new Type[] {shortobjType}, null, null);
+        addMethod("Short", "parseShort", null, true, shortType, new Type[] {stringType}, null, null);
         addMethod("Short", "valueOf", null, true, shortobjType, new Type[] {shortType}, null, null);
         addField("Short", "MIN_VALUE", null, true, shortType, null);
         addField("Short", "MAX_VALUE", null, true, shortType, null);
 
         addConstructor("Character", "new", new Type[] {charType}, null);
-        addMethod("Character", "valueOf", null, true, charobjType, new Type[] {charType}, null, null);
+        addMethod("Character", "charCount", null, true, intType, new Type[] {intType}, null, null);
         addMethod("Character", "charValue", null, false, charType, new Type[] {}, null, null);
+        addMethod("Character", "compare", null, true, intType, new Type[] {charType,charType}, null, null);
+        addMethod("Character", "compareTo", null, false, intType, new Type[] {charobjType}, null, null);
+        addMethod("Character", "digit", null, true, intType, new Type[] {intType,intType}, null, null);
+        addMethod("Character", "forDigit", null, true, charType, new Type[] {intType,intType}, null, null);
+        addMethod("Character", "getName", null, true, stringType, new Type[] {intType}, null, null);
+        addMethod("Character", "getNumericValue", null, true, intType, new Type[] {intType}, null, null);
+        addMethod("Character", "isAlphabetic", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isDefined", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isDigit", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isIdeographic", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isLetter", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isLetterOrDigit", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isLowerCase", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isMirrored", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isSpaceChar", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isTitleCase", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isUpperCase", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isWhitespace", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "valueOf", null, true, charobjType, new Type[] {charType}, null, null);
         addField("Character", "MIN_VALUE", null, true, charType, null);
         addField("Character", "MAX_VALUE", null, true, charType, null);
 
         addConstructor("Integer", "new", new Type[] {intType}, null);
+        addMethod("Integer", "compare", null, true, intType, new Type[] {intType,intType}, null, null);
+        addMethod("Integer", "compareTo", null, false, intType, new Type[] {intobjType}, null, null);
+        addMethod("Integer", "min", null, true, intType, new Type[] {intType,intType}, null, null);
+        addMethod("Integer", "max", null, true, intType, new Type[] {intType,intType}, null, null);
+        addMethod("Integer", "parseInt", null, true, intType, new Type[] {stringType}, null, null);
+        addMethod("Integer", "signum", null, true, intType, new Type[] {intType}, null, null);
+        addMethod("Integer", "toHexString", null, true, stringType, new Type[] {intType}, null, null);
         addMethod("Integer", "valueOf", null, true, intobjType, new Type[] {intType}, null, null);
         addField("Integer", "MIN_VALUE", null, true, intType, null);
         addField("Integer", "MAX_VALUE", null, true, intType, null);
 
         addConstructor("Long", "new", new Type[] {longType}, null);
+        addMethod("Long", "compare", null, true, intType, new Type[] {longType,longType}, null, null);
+        addMethod("Long", "compareTo", null, false, intType, new Type[] {longobjType}, null, null);
+        addMethod("Long", "min", null, true, longType, new Type[] {longType,longType}, null, null);
+        addMethod("Long", "max", null, true, longType, new Type[] {longType,longType}, null, null);
+        addMethod("Long", "parseLong", null, true, longType, new Type[] {stringType}, null, null);
+        addMethod("Long", "signum", null, true, intType, new Type[] {longType}, null, null);
+        addMethod("Long", "toHexString", null, true, stringType, new Type[] {longType}, null, null);
         addMethod("Long", "valueOf", null, true, longobjType, new Type[] {longType}, null, null);
         addField("Long", "MIN_VALUE", null, true, longType, null);
         addField("Long", "MAX_VALUE", null, true, longType, null);
 
         addConstructor("Float", "new", new Type[] {floatType}, null);
+        addMethod("Float", "compare", null, true, intType, new Type[] {floatType,floatType}, null, null);
+        addMethod("Float", "compareTo", null, false, intType, new Type[] {floatobjType}, null, null);
+        addMethod("Float", "min", null, true, floatType, new Type[] {floatType,floatType}, null, null);
+        addMethod("Float", "max", null, true, floatType, new Type[] {floatType,floatType}, null, null);
+        addMethod("Float", "parseFloat", null, true, floatType, new Type[] {stringType}, null, null);
+        addMethod("Float", "toHexString", null, true, stringType, new Type[] {floatType}, null, null);
         addMethod("Float", "valueOf", null, true, floatobjType, new Type[] {floatType}, null, null);
         addField("Float", "MIN_VALUE", null, true, floatType, null);
         addField("Float", "MAX_VALUE", null, true, floatType, null);
 
         addConstructor("Double", "new", new Type[] {doubleType}, null);
+        addMethod("Double", "compare", null, true, intType, new Type[] {doubleType,doubleType}, null, null);
+        addMethod("Double", "compareTo", null, false, intType, new Type[] {doubleobjType}, null, null);
+        addMethod("Double", "min", null, true, doubleType, new Type[] {doubleType,doubleType}, null, null);
+        addMethod("Double", "max", null, true, doubleType, new Type[] {doubleType,doubleType}, null, null);
+        addMethod("Double", "parseDouble", null, true, doubleType, new Type[] {stringType}, null, null);
+        addMethod("Double", "toHexString", null, true, stringType, new Type[] {doubleType}, null, null);
         addMethod("Double", "valueOf", null, true, doubleobjType, new Type[] {doubleType}, null, null);
         addField("Double", "MIN_VALUE", null, true, doubleType, null);
         addField("Double", "MAX_VALUE", null, true, doubleType, null);
@@ -830,9 +886,6 @@ public final class Definition {
         addMethod("Utility", "StringToCharacter", null, true, charobjType, new Type[] {stringType}, null, null);
 
         addMethod("Math", "abs", null, true, doubleType, new Type[] {doubleType}, null, null);
-        addMethod("Math", "fabs", "abs", true, floatType, new Type[] {floatType}, null, null);
-        addMethod("Math", "labs", "abs", true, longType, new Type[] {longType}, null, null);
-        addMethod("Math", "iabs", "abs", true, intType, new Type[] {intType}, null, null);
         addMethod("Math", "acos", null, true, doubleType, new Type[] {doubleType}, null, null);
         addMethod("Math", "asin", null, true, doubleType, new Type[] {doubleType}, null, null);
         addMethod("Math", "atan", null, true, doubleType, new Type[] {doubleType}, null, null);
@@ -848,14 +901,8 @@ public final class Definition {
         addMethod("Math", "log", null, true, doubleType, new Type[] {doubleType}, null, null);
         addMethod("Math", "log10", null, true, doubleType, new Type[] {doubleType}, null, null);
         addMethod("Math", "log1p", null, true, doubleType, new Type[] {doubleType}, null, null);
-        addMethod("Math", "max", "max", true, doubleType, new Type[] {doubleType, doubleType}, null, null);
-        addMethod("Math", "fmax", "max", true, floatType, new Type[] {floatType, floatType}, null, null);
-        addMethod("Math", "lmax", "max", true, longType, new Type[] {longType, longType}, null, null);
-        addMethod("Math", "imax", "max", true, intType, new Type[] {intType, intType}, null, null);
-        addMethod("Math", "min", "min", true, doubleType, new Type[] {doubleType, doubleType}, null, null);
-        addMethod("Math", "fmin", "min", true, floatType, new Type[] {floatType, floatType}, null, null);
-        addMethod("Math", "lmin", "min", true, longType, new Type[] {longType, longType}, null, null);
-        addMethod("Math", "imin", "min", true, intType, new Type[] {intType, intType}, null, null);
+        addMethod("Math", "max", null, true, doubleType, new Type[] {doubleType, doubleType}, null, null);
+        addMethod("Math", "min", null, true, doubleType, new Type[] {doubleType, doubleType}, null, null);
         addMethod("Math", "pow", null, true, doubleType, new Type[] {doubleType, doubleType}, null, null);
         addMethod("Math", "random", null, true, doubleType, new Type[] {}, null, null);
         addMethod("Math", "rint", null, true, doubleType, new Type[] {doubleType}, null, null);
@@ -867,6 +914,8 @@ public final class Definition {
         addMethod("Math", "tanh", null, true, doubleType, new Type[] {doubleType}, null, null);
         addMethod("Math", "toDegrees", null, true, doubleType, new Type[] {doubleType}, null, null);
         addMethod("Math", "toRadians", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addField("Math", "E", null, true, doubleType, null);
+        addField("Math", "PI", null, true, doubleType, null);
 
         addMethod("Def", "DefToboolean", null, true, booleanType, new Type[] {defType}, null, null);
         addMethod("Def", "DefTobyte", null, true, byteType, new Type[] {defType}, null, null);

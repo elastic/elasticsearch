@@ -20,9 +20,11 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.support.replication.ReplicatedMutationRequest;
 import org.elasticsearch.action.support.replication.ReplicatedMutationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -51,6 +53,13 @@ public class BulkShardResponse extends ReplicatedMutationResponse {
         return responses;
     }
 
+    /**
+     * Each DocWriteResponse already has a location for whether or not it forced a refresh so we just set that information on the response.
+     *
+     * Requests that set {@link ReplicatedMutationRequest#setRefresh(boolean)} to true should always set this to true. Requests that set
+     * {@link ReplicatedMutationRequest#setBlockUntilRefresh(boolean)} to true should only set this to true if they run out of refresh
+     * listener slots (see {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}).
+     */
     @Override
     public void setForcedRefresh(boolean forcedRefresh) {
         for (BulkItemResponse response : responses) {

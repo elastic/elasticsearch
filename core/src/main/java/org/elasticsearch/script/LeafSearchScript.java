@@ -44,8 +44,6 @@ public interface LeafSearchScript extends ScorerAware, ExecutableScript {
         setNextVar("_value", value);
     }
 
-    float runAsFloat();
-
     long runAsLong();
 
     double runAsDouble();

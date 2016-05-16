@@ -35,9 +35,9 @@ final class ProfileScorer extends Scorer {
 
     private final Scorer scorer;
     private ProfileWeight profileWeight;
-    private final ProfileBreakdown profile;
+    private final QueryProfileBreakdown profile;
 
-    ProfileScorer(ProfileWeight w, Scorer scorer, ProfileBreakdown profile) throws IOException {
+    ProfileScorer(ProfileWeight w, Scorer scorer, QueryProfileBreakdown profile) throws IOException {
         super(w);
         this.scorer = scorer;
         this.profileWeight = w;
@@ -51,7 +51,7 @@ final class ProfileScorer extends Scorer {
 
     @Override
     public float score() throws IOException {
-        profile.startTime(ProfileBreakdown.TimingType.SCORE);
+        profile.startTime(QueryTimingType.SCORE);
         try {
             return scorer.score();
         } finally {
@@ -78,10 +78,10 @@ final class ProfileScorer extends Scorer {
     public DocIdSetIterator iterator() {
         final DocIdSetIterator in = scorer.iterator();
         return new DocIdSetIterator() {
-            
+
             @Override
             public int advance(int target) throws IOException {
-                profile.startTime(ProfileBreakdown.TimingType.ADVANCE);
+                profile.startTime(QueryTimingType.ADVANCE);
                 try {
                     return in.advance(target);
                 } finally {
@@ -91,7 +91,7 @@ final class ProfileScorer extends Scorer {
 
             @Override
             public int nextDoc() throws IOException {
-                profile.startTime(ProfileBreakdown.TimingType.NEXT_DOC);
+                profile.startTime(QueryTimingType.NEXT_DOC);
                 try {
                     return in.nextDoc();
                 } finally {
@@ -122,7 +122,7 @@ final class ProfileScorer extends Scorer {
 
             @Override
             public int advance(int target) throws IOException {
-                profile.startTime(ProfileBreakdown.TimingType.ADVANCE);
+                profile.startTime(QueryTimingType.ADVANCE);
                 try {
                     return inApproximation.advance(target);
                 } finally {
@@ -132,7 +132,7 @@ final class ProfileScorer extends Scorer {
 
             @Override
             public int nextDoc() throws IOException {
-                profile.startTime(ProfileBreakdown.TimingType.NEXT_DOC);
+                profile.startTime(QueryTimingType.NEXT_DOC);
                 try {
                     return inApproximation.nextDoc();
                 } finally {
@@ -153,7 +153,7 @@ final class ProfileScorer extends Scorer {
         return new TwoPhaseIterator(approximation) {
             @Override
             public boolean matches() throws IOException {
-                profile.startTime(ProfileBreakdown.TimingType.MATCH);
+                profile.startTime(QueryTimingType.MATCH);
                 try {
                     return in.matches();
                 } finally {

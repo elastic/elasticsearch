@@ -21,7 +21,6 @@ package org.elasticsearch.search.profile;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -29,22 +28,7 @@ import java.util.Map;
  * A node's time may be composed of several internal attributes (rewriting, weighting,
  * scoring, etc).
  */
-public final class ProfileBreakdown {
-
-    /** Enumeration of all supported timing types. */
-    public enum TimingType {
-        CREATE_WEIGHT,
-        BUILD_SCORER,
-        NEXT_DOC,
-        ADVANCE,
-        MATCH,
-        SCORE;
-
-        @Override
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
-        }
-    }
+public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
 
     /**
      * The accumulated timings for this query node
@@ -52,23 +36,26 @@ public final class ProfileBreakdown {
     private final long[] timings;
 
     /** Scratch to store the current timing type. */
-    private TimingType currentTimingType;
+    private T currentTimingType;
 
     /**
      * The temporary scratch space for holding start-times
      */
     private long scratch;
 
+    private T[] timingTypes;
+
     /** Sole constructor. */
-    public ProfileBreakdown() {
-        timings = new long[TimingType.values().length];
+    public AbstractProfileBreakdown(T[] timingTypes) {
+        this.timingTypes = timingTypes;
+        timings = new long[timingTypes.length];
     }
 
     /**
      * Begin timing a query for a specific Timing context
      * @param timing    The timing context being profiled
      */
-    public void startTime(TimingType timing) {
+    public void startTime(T timing) {
         assert currentTimingType == null;
         assert scratch == 0;
         currentTimingType = timing;
@@ -91,10 +78,10 @@ public final class ProfileBreakdown {
         return time;
     }
 
-    /** Convert this record to a map from {@link TimingType} to times. */
+    /** Convert this record to a map from timingType to times. */
     public Map<String, Long> toTimingMap() {
         Map<String, Long> map = new HashMap<>();
-        for (TimingType timingType : TimingType.values()) {
+        for (T timingType : timingTypes) {
             map.put(timingType.toString(), timings[timingType.ordinal()]);
         }
         return Collections.unmodifiableMap(map);
@@ -104,7 +91,7 @@ public final class ProfileBreakdown {
      * Add <code>other</code>'s timings into this breakdown
      * @param other Another Breakdown to merge with this one
      */
-    public void merge(ProfileBreakdown other) {
+    public void merge(AbstractProfileBreakdown<T> other) {
         assert(timings.length == other.timings.length);
         for (int i = 0; i < timings.length; ++i) {
             timings[i] += other.timings[i];

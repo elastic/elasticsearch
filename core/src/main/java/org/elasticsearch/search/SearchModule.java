@@ -131,9 +131,9 @@ import org.elasticsearch.search.aggregations.bucket.range.date.InternalDateRange
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceParser;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.InternalGeoDistance;
-import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.ipv4.InternalIPv4Range;
-import org.elasticsearch.search.aggregations.bucket.range.ipv4.IpRangeParser;
+import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.InternalBinaryRange;
+import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeParser;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedSamplerParser;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
@@ -507,7 +507,7 @@ public class SearchModule extends AbstractModule {
                 SignificantTermsAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(RangeAggregatorBuilder::new, new RangeParser(), RangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(DateRangeAggregatorBuilder::new, new DateRangeParser(), DateRangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
-        registerAggregation(IPv4RangeAggregatorBuilder::new, new IpRangeParser(), IPv4RangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
+        registerAggregation(IpRangeAggregatorBuilder::new, new IpRangeParser(), IpRangeAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(HistogramAggregatorBuilder::new, new HistogramParser(), HistogramAggregatorBuilder.AGGREGATION_NAME_FIELD);
         registerAggregation(DateHistogramAggregatorBuilder::new, new DateHistogramParser(),
                 DateHistogramAggregatorBuilder.AGGREGATION_NAME_FIELD);
@@ -736,7 +736,7 @@ public class SearchModule extends AbstractModule {
         UnmappedTerms.registerStreams();
         InternalRange.registerStream();
         InternalDateRange.registerStream();
-        InternalIPv4Range.registerStream();
+        InternalBinaryRange.registerStream();
         InternalHistogram.registerStream();
         InternalGeoDistance.registerStream();
         InternalNested.registerStream();

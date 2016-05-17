@@ -59,9 +59,9 @@ import static java.util.Collections.emptySet;
 public final class ClusterAllocationExplanationTests extends ESTestCase {
 
     private Index i = new Index("foo", "uuid");
-    private ShardRouting primaryShard = ShardRouting.newUnassigned(i, 0, null, true,
+    private ShardRouting primaryShard = ShardRouting.newUnassigned(new ShardId(i, 0), null, true,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-    private ShardRouting replicaShard = ShardRouting.newUnassigned(i, 0, null, false,
+    private ShardRouting replicaShard = ShardRouting.newUnassigned(new ShardId(i, 0), null, false,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
     private IndexMetaData indexMetaData = IndexMetaData.builder("foo")
             .settings(Settings.builder()
@@ -114,7 +114,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         Float nodeWeight = randomFloat();
         Set<String> activeAllocationIds = new HashSet<>();
         activeAllocationIds.add("eggplant");
-        ShardRouting primaryStartedShard = ShardRouting.newUnassigned(i, 0, null, true,
+        ShardRouting primaryStartedShard = ShardRouting.newUnassigned(new ShardId(i, 0), null, true,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "foo"));
         assertTrue(primaryStartedShard.allocatedPostIndexCreate(indexMetaData));
 

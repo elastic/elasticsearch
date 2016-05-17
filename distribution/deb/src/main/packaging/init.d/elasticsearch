@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # /etc/init.d/elasticsearch -- startup script for Elasticsearch
 #

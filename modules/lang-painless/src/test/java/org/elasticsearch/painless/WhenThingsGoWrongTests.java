@@ -19,14 +19,50 @@
 
 package org.elasticsearch.painless;
 
+import java.lang.invoke.WrongMethodTypeException;
 import java.util.Arrays;
 import java.util.Collections;
 
 public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testNullPointer() {
         expectThrows(NullPointerException.class, () -> {
-            exec("int x = (int) ((Map) input).get(\"missing\"); return x;");
+            exec("int x = params['missing']; return x;");
         });
+    }
+
+    public void testLineNumbers() {
+        // trigger NPE at line 1 of the script
+        NullPointerException exception = expectThrows(NullPointerException.class, () -> {
+            exec("String x = null; boolean y = x.isEmpty();\n" +
+                 "return y;");
+        });
+        assertEquals(1, exception.getStackTrace()[0].getLineNumber());
+
+        // trigger NPE at line 2 of the script
+        exception = expectThrows(NullPointerException.class, () -> {
+            exec("String x = null;\n" +
+                 "return x.isEmpty();");
+        });
+        assertEquals(2, exception.getStackTrace()[0].getLineNumber());
+
+        // trigger NPE at line 3 of the script
+        exception = expectThrows(NullPointerException.class, () -> {
+            exec("String x = null;\n" +
+                 "String y = x;\n" +
+                 "return y.isEmpty();");
+        });
+        assertEquals(3, exception.getStackTrace()[0].getLineNumber());
+        
+        // trigger NPE at line 4 in script (inside conditional)
+        exception = expectThrows(NullPointerException.class, () -> {
+            exec("String x = null;\n" +
+                 "boolean y = false;\n" +
+                 "if (!y) {\n" +
+                 "  y = x.isEmpty();\n" + 
+                 "}\n" +
+                 "return y;");
+        });
+        assertEquals(4, exception.getStackTrace()[0].getLineNumber());
     }
 
     public void testInvalidShift() {
@@ -97,7 +133,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             exec("try { int x } catch (PainlessError error) {}");
             fail("should have hit ParseException");
         });
-        assertTrue(parseException.getMessage().contains("Invalid type [PainlessError]."));
+        assertTrue(parseException.getMessage().contains("Not a type [PainlessError]."));
     }
 
     public void testLoopLimits() {
@@ -125,23 +161,35 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         // ok
         assertEquals(0, exec(new String(exactlyAtLimit)));
     }
-    
+
     public void testIllegalDynamicMethod() {
         IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
             exec("def x = 'test'; return x.getClass().toString()");
         });
         assertTrue(expected.getMessage().contains("Unable to find dynamic method"));
     }
-    
+
     public void testDynamicNPE() {
         expectThrows(NullPointerException.class, () -> {
             exec("def x = null; return x.toString()");
         });
     }
-    
+
     public void testDynamicWrongArgs() {
-        expectThrows(ClassCastException.class, () -> {
+        expectThrows(WrongMethodTypeException.class, () -> {
             exec("def x = new ArrayList(); return x.get('bogus');");
+        });
+    }
+
+    public void testDynamicArrayWrongIndex() {
+        expectThrows(WrongMethodTypeException.class, () -> {
+            exec("def x = new long[1]; x[0]=1; return x['bogus'];");
+        });
+    }
+
+    public void testDynamicListWrongIndex() {
+        expectThrows(WrongMethodTypeException.class, () -> {
+            exec("def x = new ArrayList(); x.add('foo'); return x['bogus'];");
         });
     }
 }

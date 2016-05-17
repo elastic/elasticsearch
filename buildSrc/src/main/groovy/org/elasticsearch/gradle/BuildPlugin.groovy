@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle
 
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
+import nebula.plugin.publishing.maven.MavenBasePublishPlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.GradleException
 import org.gradle.api.JavaVersion
@@ -34,7 +35,6 @@ import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.artifacts.maven.MavenPom
 import org.gradle.api.publish.maven.MavenPublication
-import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
@@ -343,8 +343,8 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     /**Configuration generation of maven poms. */
-    private static void configurePomGeneration(Project project) {
-        project.plugins.withType(MavenPublishPlugin.class).whenPluginAdded {
+    public static void configurePomGeneration(Project project) {
+        project.plugins.withType(MavenBasePublishPlugin.class).whenPluginAdded {
             project.publishing {
                 publications {
                     all { MavenPublication publication -> // we only deal with maven

@@ -25,13 +25,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Wrapper around several {@link Profiler}s that makes management easier. */
+/** Wrapper around several {@link QueryProfiler}s that makes management easier. */
 public final class Profilers {
 
     private final ContextIndexSearcher searcher;
-    private final List<Profiler> profilers;
+    private final List<QueryProfiler> profilers;
 
-    /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link Profiler}. */
+    /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
     public Profilers(ContextIndexSearcher searcher) {
         this.searcher = searcher;
         this.profilers = new ArrayList<>();
@@ -39,20 +39,20 @@ public final class Profilers {
     }
 
     /** Switch to a new profile. */
-    public Profiler addProfiler() {
-        Profiler profiler = new Profiler();
+    public QueryProfiler addProfiler() {
+        QueryProfiler profiler = new QueryProfiler();
         searcher.setProfiler(profiler);
         profilers.add(profiler);
         return profiler;
     }
 
     /** Get the current profiler. */
-    public Profiler getCurrent() {
+    public QueryProfiler getCurrent() {
         return profilers.get(profilers.size() - 1);
     }
 
-    /** Return the list of all created {@link Profiler}s so far. */
-    public List<Profiler> getProfilers() {
+    /** Return the list of all created {@link QueryProfiler}s so far. */
+    public List<QueryProfiler> getProfilers() {
         return Collections.unmodifiableList(profilers);
     }
 

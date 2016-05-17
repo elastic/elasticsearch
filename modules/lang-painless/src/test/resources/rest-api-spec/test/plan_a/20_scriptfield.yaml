@@ -28,7 +28,7 @@ setup:
                 script_fields:
                     bar:
                         script: 
-                            inline: "input.doc['foo'].value + input.x;"
+                            inline: "doc['foo'].value + params.x;"
                             lang: painless
                             params:
                                 x: "bbb"

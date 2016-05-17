@@ -40,6 +40,6 @@ public class PythonPlugin extends Plugin {
     }
 
     public void onModule(ScriptModule module) {
-        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PythonScriptEngineService.class, PythonScriptEngineService.TYPES));
+        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(PythonScriptEngineService.class, PythonScriptEngineService.NAME));
     }
 }

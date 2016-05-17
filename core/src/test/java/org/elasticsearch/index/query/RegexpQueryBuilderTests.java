@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -100,5 +101,15 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
         assertEquals(json, "s.*y", parsed.value());
         assertEquals(json, 20000, parsed.maxDeterminizedStates());
+    }
+
+    public void testNumeric() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        RegexpQueryBuilder query = new RegexpQueryBuilder(INT_FIELD_NAME, "12");
+        QueryShardContext context = createShardContext();
+        QueryShardException e = expectThrows(QueryShardException.class,
+                () -> query.toQuery(context));
+        assertEquals("Can only use regexp queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
+                e.getMessage());
     }
 }

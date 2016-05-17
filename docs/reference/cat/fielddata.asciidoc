@@ -7,10 +7,13 @@ on every data node in the cluster.
 [source,sh]
 --------------------------------------------------
 % curl '192.168.56.10:9200/_cat/fielddata?v'
-id                     host    ip            node          total   body    text
-c223lARiSGeezlbrcugAYQ myhost1 10.20.100.200 Jessica Jones 385.6kb 159.8kb 225.7kb
-waPCbitNQaCL6xC8VxjAwg myhost2 10.20.100.201 Adversary     435.2kb 159.8kb 275.3kb
-yaDkp-G3R0q1AJ-HUEvkSQ myhost3 10.20.100.202 Microchip     284.6kb 109.2kb 175.3kb
+id                     host    ip            node          field   size
+c223lARiSGeezlbrcugAYQ myhost1 10.20.100.200 Jessica Jones body    159.8kb
+c223lARiSGeezlbrcugAYQ myhost1 10.20.100.200 Jessica Jones text    225.7kb
+waPCbitNQaCL6xC8VxjAwg myhost2 10.20.100.201 Adversary     body    159.8kb
+waPCbitNQaCL6xC8VxjAwg myhost2 10.20.100.201 Adversary     text    275.3kb
+yaDkp-G3R0q1AJ-HUEvkSQ myhost3 10.20.100.202 Microchip     body    109.2kb
+yaDkp-G3R0q1AJ-HUEvkSQ myhost3 10.20.100.202 Microchip     text    175.3kb
 --------------------------------------------------
 
 Fields can be specified either as a query parameter, or in the URL path:
@@ -18,17 +21,19 @@ Fields can be specified either as a query parameter, or in the URL path:
 [source,sh]
 --------------------------------------------------
 % curl '192.168.56.10:9200/_cat/fielddata?v&fields=body'
-id                     host    ip            node          total   body
-c223lARiSGeezlbrcugAYQ myhost1 10.20.100.200 Jessica Jones 385.6kb 159.8kb
-waPCbitNQaCL6xC8VxjAwg myhost2 10.20.100.201 Adversary     435.2kb 159.8kb
-yaDkp-G3R0q1AJ-HUEvkSQ myhost3 10.20.100.202 Microchip     284.6kb 109.2kb
+id                     host    ip            node          field   size
+c223lARiSGeezlbrcugAYQ myhost1 10.20.100.200 Jessica Jones body    159.8kb
+waPCbitNQaCL6xC8VxjAwg myhost2 10.20.100.201 Adversary     body    159.8kb
+yaDkp-G3R0q1AJ-HUEvkSQ myhost3 10.20.100.202 Microchip     body    109.2kb
 
 % curl '192.168.56.10:9200/_cat/fielddata/body,text?v'
-id                     host    ip            node          total   body    text
-c223lARiSGeezlbrcugAYQ myhost1 10.20.100.200 Jessica Jones 385.6kb 159.8kb 225.7kb
-waPCbitNQaCL6xC8VxjAwg myhost2 10.20.100.201 Adversary     435.2kb 159.8kb 275.3kb
-yaDkp-G3R0q1AJ-HUEvkSQ myhost3 10.20.100.202 Microchip     284.6kb 109.2kb 175.3kb
+id                     host    ip            node          field   size
+c223lARiSGeezlbrcugAYQ myhost1 10.20.100.200 Jessica Jones body    159.8kb
+c223lARiSGeezlbrcugAYQ myhost1 10.20.100.200 Jessica Jones text    225.7kb
+waPCbitNQaCL6xC8VxjAwg myhost2 10.20.100.201 Adversary     body    159.8kb
+waPCbitNQaCL6xC8VxjAwg myhost2 10.20.100.201 Adversary     text    275.3kb
+yaDkp-G3R0q1AJ-HUEvkSQ myhost3 10.20.100.202 Microchip     body    109.2kb
+yaDkp-G3R0q1AJ-HUEvkSQ myhost3 10.20.100.202 Microchip     text    175.3kb
 --------------------------------------------------
 
-The output shows the total fielddata and then the individual fielddata for the
-`body` and `text` fields.
+The output shows the individual fielddata for the`body` and `text` fields, one row per field per node.

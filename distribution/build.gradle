@@ -20,6 +20,7 @@
 
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.EmptyDirTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
@@ -114,6 +115,7 @@ subprojects {
    *****************************************************************************/
   // note: the group must be correct before applying the nexus plugin, or it will capture the wrong value...
   project.group = "org.elasticsearch.distribution.${project.name}"
+  project.archivesBaseName = 'elasticsearch'
   apply plugin: 'com.bmuschko.nexus'
   // we must create our own install task, because it is only added when the java plugin is added
   task install(type: Upload, description: "Installs the 'archives' artifacts into the local Maven repository.", group: 'Upload') {
@@ -162,6 +164,8 @@ subprojects {
    /*****************************************************************************
    *                           Publishing setup                                *
    *****************************************************************************/
+  BuildPlugin.configurePomGeneration(project)
+  apply plugin: 'nebula.info-scm'
   apply plugin: 'nebula.maven-base-publish'
   apply plugin: 'nebula.maven-scm'
   publishing {
@@ -317,6 +321,12 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
     preUninstall file("${scripts}/prerm")
     postUninstall file("${scripts}/postrm")
 
+    if (project.name == 'rpm') {
+      requires('/bin/bash')
+    } else if (project.name == 'deb') {
+      requires('bash')
+    }
+
     into '/usr/share/elasticsearch'
     fileMode 0644
     dirMode 0755
@@ -403,7 +413,9 @@ task updateShas(type: UpdateShasTask) {
   parentTask = dependencyLicenses
 }
 
-task run(type: RunTask) {}
+task run(type: RunTask) {
+  distribution = 'zip'
+}
 
 /**
  * Build some variables that are replaced in the packages. This includes both
@@ -455,8 +467,8 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'def': '',
     ],
 
-    'heap.min': '256m',
-    'heap.max': '1g',
+    'heap.min': "256m",
+    'heap.max': "2g",
 
     'stopping.timeout': [
       'rpm': 86400,

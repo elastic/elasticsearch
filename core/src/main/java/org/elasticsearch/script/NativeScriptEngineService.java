@@ -40,8 +40,6 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
 
     public static final String NAME = "native";
 
-    public static final List<String> TYPES = Collections.singletonList(NAME);
-
     private final Map<String, NativeScriptFactory> scripts;
 
     @Inject
@@ -51,27 +49,22 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    public List<String> getExtensions() {
-        return Collections.emptyList();
+    public String getExtension() {
+        return ""; // Native scripts have no extensions
     }
 
     @Override
-    public boolean isSandboxed() {
-        return false;
-    }
-
-    @Override
-    public Object compile(String script, Map<String, String> params) {
-        NativeScriptFactory scriptFactory = scripts.get(script);
+    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+        NativeScriptFactory scriptFactory = scripts.get(scriptSource);
         if (scriptFactory != null) {
             return scriptFactory;
         }
-        throw new IllegalArgumentException("Native script [" + script + "] not found");
+        throw new IllegalArgumentException("Native script [" + scriptSource + "] not found");
     }
 
     @Override

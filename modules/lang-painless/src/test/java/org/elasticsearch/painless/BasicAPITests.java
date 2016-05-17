@@ -62,12 +62,6 @@ public class BasicAPITests extends ScriptTestCase {
         assertEquals(5, exec("def x = new ArrayList(); x.add(3); x[0] = 5; return x[0];"));
     }
     
-    /** Test loads and stores with a list */
-    public void testArrayLoadStore() {
-        assertEquals(5, exec("def x = new int[5]; return x.length"));
-        assertEquals(5, exec("def x = new int[4]; x[0] = 5; return x[0];"));
-    }
-    
     /** Test shortcut for getters with isXXXX */
     public void testListEmpty() {
         assertEquals(true, exec("def x = new ArrayList(); return x.empty;"));
@@ -79,4 +73,17 @@ public class BasicAPITests extends ScriptTestCase {
         assertEquals(5, exec("def x = new ArrayList(); x.add(5); return x.get(0);"));
         assertEquals(5, exec("def x = new ArrayList(); x.add(5); def index = 0; return x.get(index);"));
     }
+    
+    public void testListAsArray() {
+        assertEquals(1, exec("def x = new ArrayList(); x.add(5); return x.length"));
+        assertEquals(5, exec("def x = new ArrayList(); x.add(5); return x[0]"));
+        assertEquals(1, exec("List x = new ArrayList(); x.add('Hallo'); return x.length"));
+        assertEquals(1, exec("List<String> x = new ArrayList<String>(); x.add('Hallo'); return x.length"));
+        assertEquals(1, exec("List<Object> x = new ArrayList<Object>(); x.add('Hallo'); return x.length"));
+    }
+    
+    public void testDefAssignments() {
+        assertEquals(2, exec("int x; def y = 2.0; x = (int)y;"));
+    }
+    
 }

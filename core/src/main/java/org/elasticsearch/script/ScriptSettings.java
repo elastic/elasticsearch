@@ -23,6 +23,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -82,63 +83,65 @@ public class ScriptSettings {
         return scriptContextSettingMap;
     }
 
-    private static List<Setting<ScriptMode>> languageSettings(
-        Map<ScriptService.ScriptType, Setting<ScriptMode>> scriptTypeSettingMap,
-        Map<ScriptContext, Setting<ScriptMode>> scriptContextSettingMap,
-        ScriptEngineRegistry scriptEngineRegistry,
-        ScriptContextRegistry scriptContextRegistry) {
-        List<Setting<ScriptMode>> scriptModeSettings = new ArrayList<>();
-        for (Class<? extends ScriptEngineService> scriptEngineService : scriptEngineRegistry.getRegisteredScriptEngineServices()) {
-            List<String> languages = scriptEngineRegistry.getLanguages(scriptEngineService);
+    private static List<Setting<ScriptMode>> languageSettings(Map<ScriptService.ScriptType, Setting<ScriptMode>> scriptTypeSettingMap,
+                                                              Map<ScriptContext, Setting<ScriptMode>> scriptContextSettingMap,
+                                                              ScriptEngineRegistry scriptEngineRegistry,
+                                                              ScriptContextRegistry scriptContextRegistry) {
+        final List<Setting<ScriptMode>> scriptModeSettings = new ArrayList<>();
 
-            for (String language : languages) {
-                if (NativeScriptEngineService.TYPES.contains(language)) {
-                    // native scripts are always enabled, and their settings can not be changed
-                    continue;
+        for (final Class<? extends ScriptEngineService> scriptEngineService : scriptEngineRegistry.getRegisteredScriptEngineServices()) {
+            if (scriptEngineService == NativeScriptEngineService.class) {
+                // native scripts are always enabled, and their settings can not be changed
+                continue;
+            }
+            final String language = scriptEngineRegistry.getLanguage(scriptEngineService);
+            for (final ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+                // Top level, like "script.engine.groovy.inline"
+                final ScriptMode defaultNonFileScriptMode = scriptEngineRegistry.getDefaultInlineScriptModes().get(language);
+                ScriptMode defaultLangAndType = defaultNonFileScriptMode;
+                // Files are treated differently because they are never default-deny
+                if (ScriptService.ScriptType.FILE == scriptType) {
+                    defaultLangAndType = ScriptService.ScriptType.FILE.getDefaultScriptMode();
                 }
-                for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
-                    for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-                        Function<Settings, String> defaultSetting = settings -> {
-                            // fallback logic for script mode settings
+                final ScriptMode defaultIfNothingSet = defaultLangAndType;
 
-                            // the first fallback is other types registered by the same script engine service
-                            // e.g., "py.inline.aggs" is in the settings but a script with lang "python" is executed
-                            Map<String, List<String>> languageSettings =
-                                languages
-                                    .stream()
-                                    .map(lang -> Tuple.tuple(lang, settings.get(ScriptModes.getKey(lang, scriptType, scriptContext))))
-                                    .filter(tuple -> tuple.v2() != null)
-                                    .collect(Collectors.groupingBy(Tuple::v2, Collectors.mapping(Tuple::v1, Collectors.toList())));
-                            if (!languageSettings.isEmpty()) {
-                                if (languageSettings.size() > 1) {
-                                    throw new IllegalArgumentException("conflicting settings [" + languageSettings.toString() + "] for language [" + language + "]");
-                                }
-                                return languageSettings.keySet().iterator().next();
-                            }
+                // Setting for something like "script.engine.groovy.inline"
+                final Setting<ScriptMode> langAndTypeSetting = new Setting<>(ScriptModes.getGlobalKey(language, scriptType),
+                        defaultLangAndType.toString(), ScriptMode::parse, Property.NodeScope);
+                scriptModeSettings.add(langAndTypeSetting);
 
-                            // the next fallback is global operation-based settings (e.g., "script.aggs: false")
-                            Setting<ScriptMode> setting = scriptContextSettingMap.get(scriptContext);
-                            if (setting.exists(settings)) {
-                                return setting.get(settings).getMode();
-                            }
+                for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
+                    final String langAndTypeAndContextName = ScriptModes.getKey(language, scriptType, scriptContext);
+                    // A function that, given a setting, will return what the default should be. Since the fine-grained script settings
+                    // read from a bunch of different places this is implemented in this way.
+                    Function<Settings, String> defaultSettingFn = settings -> {
+                        final Setting<ScriptMode> globalOpSetting = scriptContextSettingMap.get(scriptContext);
+                        final Setting<ScriptMode> globalTypeSetting = scriptTypeSettingMap.get(scriptType);
+                        final Setting<ScriptMode> langAndTypeAndContextSetting = new Setting<>(langAndTypeAndContextName,
+                                defaultIfNothingSet.toString(), ScriptMode::parse, Property.NodeScope);
 
-                            // the next fallback is global source-based settings (e.g., "script.inline: false")
-                            Setting<ScriptMode> scriptTypeSetting = scriptTypeSettingMap.get(scriptType);
-                            if (scriptTypeSetting.exists(settings)) {
-                                return scriptTypeSetting.get(settings).getMode();
-                            }
-
-                            // the final fallback is the default for the type
-                            return scriptType.getDefaultScriptMode().toString();
-                        };
-                        Setting<ScriptMode> setting =
-                            new Setting<>(
-                                ScriptModes.getKey(language, scriptType, scriptContext),
-                                defaultSetting,
-                                ScriptMode::parse,
-                                Property.NodeScope);
-                        scriptModeSettings.add(setting);
-                    }
+                        // fallback logic for script mode settings
+                        if (langAndTypeAndContextSetting.exists(settings)) {
+                            // like: "script.engine.groovy.inline.aggs: true"
+                            return langAndTypeAndContextSetting.get(settings).getMode();
+                        } else if (langAndTypeSetting.exists(settings)) {
+                            // like: "script.engine.groovy.inline: true"
+                            return langAndTypeSetting.get(settings).getMode();
+                        } else if (globalOpSetting.exists(settings)) {
+                            // like: "script.aggs: true"
+                            return globalOpSetting.get(settings).getMode();
+                        } else if (globalTypeSetting.exists(settings)) {
+                            // like: "script.inline: true"
+                            return globalTypeSetting.get(settings).getMode();
+                        } else {
+                            // Nothing is set!
+                            return defaultIfNothingSet.getMode();
+                        }
+                    };
+                    // The actual setting for finest grained script settings
+                    Setting<ScriptMode> setting = new Setting<>(langAndTypeAndContextName, defaultSettingFn,
+                            ScriptMode::parse, Property.NodeScope);
+                    scriptModeSettings.add(setting);
                 }
             }
         }

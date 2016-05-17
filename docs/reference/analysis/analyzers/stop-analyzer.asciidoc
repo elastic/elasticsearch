@@ -1,22 +1,97 @@
 [[analysis-stop-analyzer]]
 === Stop Analyzer
 
-An analyzer of type `stop` that is built using a
-<<analysis-lowercase-tokenizer,Lower
-Case Tokenizer>>, with
-<<analysis-stop-tokenfilter,Stop
-Token Filter>>.
+The `stop` analyzer is the same as the <<analysis-simple-analyzer,`simple` analyzer>>
+but adds support for removing stop words.  It defaults to using the
+`_english_` stop words.
 
-The following are settings that can be set for a `stop` analyzer type:
+[float]
+=== Definition
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`stopwords` |A list of stopwords to initialize the stop filter with.
-Defaults to the english stop words.
-|`stopwords_path` |A path (either relative to `config` location, or
-absolute) to a stopwords file configuration.
-|=======================================================================
+It consists of:
 
-Use `stopwords: _none_` to explicitly specify an 'empty' stopword list.
+Tokenizer::
+* <<analysis-lowercase-tokenizer,Lower Case Tokenizer>>
+
+Token filters::
+* <<analysis-stop-tokenfilter,Stop Token Filter>>
+
+[float]
+=== Example output
+
+[source,js]
+---------------------------
+POST _analyze
+{
+  "analyzer": "stop",
+  "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
+}
+---------------------------
+// CONSOLE
+
+The above sentence would produce the following terms:
+
+[source,text]
+---------------------------
+[ quick, brown, foxes, jumped, over, lazy, dog, s, bone ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `stop` analyzer accepts the following parameters:
+
+[horizontal]
+`stopwords`::
+
+    A pre-defined stop words list like `_english_` or an array  containing a
+    list of stop words.  Defaults to `_english_`.
+
+`stopwords_path`::
+
+    The path to a file containing stop words.
+
+
+See the <<analysis-stop-tokenfilter,Stop Token Filter>> for more information
+about stop word configuration.
+
+[float]
+=== Example configuration
+
+In this example, we configure the `stop` analyzer to use a specified list of
+words as stop words:
+
+[source,js]
+----------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_stop_analyzer": {
+          "type": "stop",
+          "stopwords": ["the", "over"]
+        }
+      }
+    }
+  }
+}
+
+GET _cluster/health?wait_for_status=yellow
+
+POST my_index/_analyze
+{
+  "analyzer": "my_stop_analyzer",
+  "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
+}
+----------------------------
+// CONSOLE
+
+The above example produces the following terms:
+
+[source,text]
+---------------------------
+[ quick, brown, foxes, jumped, lazy, dog, s, bone ]
+---------------------------
+
 

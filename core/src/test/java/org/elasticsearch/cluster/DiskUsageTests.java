@@ -35,6 +35,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -102,15 +103,15 @@ public class DiskUsageTests extends ESTestCase {
 
     public void testFillShardLevelInfo() {
         final Index index = new Index("test", "0xdeadbeef");
-        ShardRouting test_0 = ShardRouting.newUnassigned(index, 0, null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        ShardRoutingHelper.initialize(test_0, "node1");
-        ShardRoutingHelper.moveToStarted(test_0);
+        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_0 = ShardRoutingHelper.initialize(test_0, "node1");
+        test_0 = ShardRoutingHelper.moveToStarted(test_0);
         Path test0Path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("0");
         CommonStats commonStats0 = new CommonStats();
         commonStats0.store = new StoreStats(100, 1);
-        ShardRouting test_1 = ShardRouting.newUnassigned(index, 1, null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        ShardRoutingHelper.initialize(test_1, "node2");
-        ShardRoutingHelper.moveToStarted(test_1);
+        ShardRouting test_1 = ShardRouting.newUnassigned(new ShardId(index, 1), null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        test_1 = ShardRoutingHelper.initialize(test_1, "node2");
+        test_1 = ShardRoutingHelper.moveToStarted(test_1);
         Path test1Path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("1");
         CommonStats commonStats1 = new CommonStats();
         commonStats1.store = new StoreStats(1000, 1);
@@ -137,16 +138,16 @@ public class DiskUsageTests extends ESTestCase {
 
     public void testFillShardsWithShadowIndices() {
         final Index index = new Index("non-shadow", "0xcafe0000");
-        ShardRouting s0 = ShardRouting.newUnassigned(index, 0, null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        ShardRoutingHelper.initialize(s0, "node1");
-        ShardRoutingHelper.moveToStarted(s0);
+        ShardRouting s0 = ShardRouting.newUnassigned(new ShardId(index, 0), null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        s0 = ShardRoutingHelper.initialize(s0, "node1");
+        s0 = ShardRoutingHelper.moveToStarted(s0);
         Path i0Path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("0");
         CommonStats commonStats0 = new CommonStats();
         commonStats0.store = new StoreStats(100, 1);
         final Index index2 = new Index("shadow", "0xcafe0001");
-        ShardRouting s1 = ShardRouting.newUnassigned(index2, 0, null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
-        ShardRoutingHelper.initialize(s1, "node2");
-        ShardRoutingHelper.moveToStarted(s1);
+        ShardRouting s1 = ShardRouting.newUnassigned(new ShardId(index2, 0), null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        s1 = ShardRoutingHelper.initialize(s1, "node2");
+        s1 = ShardRoutingHelper.moveToStarted(s1);
         Path i1Path = createTempDir().resolve("indices").resolve(index2.getUUID()).resolve("0");
         CommonStats commonStats1 = new CommonStats();
         commonStats1.store = new StoreStats(1000, 1);

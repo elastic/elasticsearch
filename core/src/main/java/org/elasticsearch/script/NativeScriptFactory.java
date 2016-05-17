@@ -29,7 +29,6 @@ import java.util.Map;
  *
  * @see AbstractExecutableScript
  * @see AbstractSearchScript
- * @see AbstractFloatSearchScript
  * @see AbstractLongSearchScript
  * @see AbstractDoubleSearchScript
  */

@@ -19,10 +19,13 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
+import com.carrotsearch.hppc.DoubleArrayList;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilder;
@@ -117,41 +120,36 @@ public class PercentilesBucketPipelineAggregatorBuilder
     }
 
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
+
         @Override
         protected PercentilesBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
-                String bucketsPath, Map<String, Object> unparsedParams) throws ParseException {
-            double[] percents = null;
-            int counter = 0;
-            Object percentParam = unparsedParams.get(PERCENTS_FIELD.getPreferredName());
-
-            if (percentParam != null) {
-                if (percentParam instanceof List) {
-                    percents = new double[((List<?>) percentParam).size()];
-                    for (Object p : (List<?>) percentParam) {
-                        if (p instanceof Double) {
-                            percents[counter] = (Double) p;
-                            counter += 1;
-                        } else {
-                            throw new ParseException(
-                                    "Parameter [" + PERCENTS_FIELD.getPreferredName() + "] must be an array of doubles, type `"
-                                            + percentParam.getClass().getSimpleName() + "` provided instead",
-                                    0);
-                        }
-                    }
-                    unparsedParams.remove(PERCENTS_FIELD.getPreferredName());
-                } else {
-                    throw new ParseException("Parameter [" + PERCENTS_FIELD.getPreferredName() + "] must be an array of doubles, type `"
-                            + percentParam.getClass().getSimpleName() + "` provided instead", 0);
-                }
-            }
+                                                                          String bucketsPath, Map<String, Object> params) {
 
             PercentilesBucketPipelineAggregatorBuilder factory = new
-                    PercentilesBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+                PercentilesBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+
+            double[] percents = (double[]) params.get(PERCENTS_FIELD.getPreferredName());
             if (percents != null) {
                 factory.percents(percents);
             }
+
             return factory;
         }
+
+        @Override
+        protected boolean token(XContentParser parser, QueryParseContext context, String field,
+                                XContentParser.Token token, Map<String, Object> params) throws IOException {
+            if (context.getParseFieldMatcher().match(field, PERCENTS_FIELD) && token == XContentParser.Token.START_ARRAY) {
+                DoubleArrayList percents = new DoubleArrayList(10);
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    percents.add(parser.doubleValue());
+                }
+                params.put(PERCENTS_FIELD.getPreferredName(), percents.toArray());
+                return true;
+            }
+            return false;
+        }
+
     };
 
     @Override

@@ -31,6 +31,7 @@ import org.elasticsearch.monitor.jvm.JvmStats.GarbageCollector;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ScheduledFuture;
@@ -45,6 +46,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
     private final boolean enabled;
     private final TimeValue interval;
     private final Map<String, GcThreshold> gcThresholds;
+    private final GcOverheadThreshold gcOverheadThreshold;
 
     private volatile ScheduledFuture scheduledFuture;
 
@@ -56,6 +58,27 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
 
     private static String GC_COLLECTOR_PREFIX = "monitor.jvm.gc.collector.";
     public final static Setting<Settings> GC_SETTING = Setting.groupSetting(GC_COLLECTOR_PREFIX, Property.NodeScope);
+
+    public final static Setting<Integer> GC_OVERHEAD_WARN_SETTING =
+        Setting.intSetting("monitor.jvm.gc.overhead.warn", 50, 0, 100, Property.NodeScope);
+    public final static Setting<Integer> GC_OVERHEAD_INFO_SETTING =
+        Setting.intSetting("monitor.jvm.gc.overhead.info", 25, 0, 100, Property.NodeScope);
+    public final static Setting<Integer> GC_OVERHEAD_DEBUG_SETTING =
+        Setting.intSetting("monitor.jvm.gc.overhead.debug", 10, 0, 100, Property.NodeScope);
+
+    static class GcOverheadThreshold {
+        final int warnThreshold;
+        final int infoThreshold;
+        final int debugThreshold;
+
+        public GcOverheadThreshold(final int warnThreshold, final int infoThreshold, final int debugThreshold) {
+            this.warnThreshold = warnThreshold;
+            this.infoThreshold = infoThreshold;
+            this.debugThreshold = debugThreshold;
+        }
+    }
+
+
 
     static class GcThreshold {
         public final String name;
@@ -102,7 +125,42 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
         gcThresholds.putIfAbsent("default", new GcThreshold("default", 10000, 5000, 2000));
         this.gcThresholds = unmodifiableMap(gcThresholds);
 
-        logger.debug("enabled [{}], interval [{}], gc_threshold [{}]", enabled, interval, this.gcThresholds);
+        if (GC_OVERHEAD_WARN_SETTING.get(settings) <= GC_OVERHEAD_INFO_SETTING.get(settings)) {
+            final String message =
+                String.format(
+                    Locale.ROOT,
+                    "[%s] must be greater than [%s] [%d] but was [%d]",
+                    GC_OVERHEAD_WARN_SETTING.getKey(),
+                    GC_OVERHEAD_INFO_SETTING.getKey(),
+                    GC_OVERHEAD_INFO_SETTING.get(settings),
+                    GC_OVERHEAD_WARN_SETTING.get(settings));
+            throw new IllegalArgumentException(message);
+        }
+        if (GC_OVERHEAD_INFO_SETTING.get(settings) <= GC_OVERHEAD_DEBUG_SETTING.get(settings)) {
+            final String message =
+                String.format(
+                    Locale.ROOT,
+                    "[%s] must be greater than [%s] [%d] but was [%d]",
+                    GC_OVERHEAD_INFO_SETTING.getKey(),
+                    GC_OVERHEAD_DEBUG_SETTING.getKey(),
+                    GC_OVERHEAD_DEBUG_SETTING.get(settings),
+                    GC_OVERHEAD_INFO_SETTING.get(settings));
+            throw new IllegalArgumentException(message);
+        }
+
+        this.gcOverheadThreshold = new GcOverheadThreshold(
+            GC_OVERHEAD_WARN_SETTING.get(settings),
+            GC_OVERHEAD_INFO_SETTING.get(settings),
+            GC_OVERHEAD_DEBUG_SETTING.get(settings));
+
+        logger.debug(
+            "enabled [{}], interval [{}], gc_threshold [{}], overhead [{}, {}, {}]",
+            this.enabled,
+            this.interval,
+            this.gcThresholds,
+            this.gcOverheadThreshold.warnThreshold,
+            this.gcOverheadThreshold.infoThreshold,
+            this.gcOverheadThreshold.debugThreshold);
     }
 
     private static TimeValue getValidThreshold(Settings settings, String key, String level) {
@@ -120,15 +178,12 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
         return GC_COLLECTOR_PREFIX + key + "." + level;
     }
 
-    private static final String LOG_MESSAGE =
-        "[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}";
-
     @Override
     protected void doStart() {
         if (!enabled) {
             return;
         }
-        scheduledFuture = threadPool.scheduleWithFixedDelay(new JvmMonitor(gcThresholds) {
+        scheduledFuture = threadPool.scheduleWithFixedDelay(new JvmMonitor(gcThresholds, gcOverheadThreshold) {
             @Override
             void onMonitorFailure(Throwable t) {
                 logger.debug("failed to monitor", t);
@@ -138,8 +193,16 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
             void onSlowGc(final Threshold threshold, final long seq, final SlowGcEvent slowGcEvent) {
                 logSlowGc(logger, threshold, seq, slowGcEvent, JvmGcMonitorService::buildPools);
             }
+
+            @Override
+            void onGcOverhead(final Threshold threshold, final long current, final long elapsed, final long seq) {
+                logGcOverhead(logger, threshold, current, elapsed, seq);
+            }
         }, interval);
     }
+
+    private static final String SLOW_GC_LOG_MESSAGE =
+        "[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}";
 
     static void logSlowGc(
         final ESLogger logger,
@@ -162,7 +225,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
             case WARN:
                 if (logger.isWarnEnabled()) {
                     logger.warn(
-                        LOG_MESSAGE,
+                        SLOW_GC_LOG_MESSAGE,
                         name,
                         seq,
                         totalGcCollectionCount,
@@ -180,7 +243,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
             case INFO:
                 if (logger.isInfoEnabled()) {
                     logger.info(
-                        LOG_MESSAGE,
+                        SLOW_GC_LOG_MESSAGE,
                         name,
                         seq,
                         totalGcCollectionCount,
@@ -198,7 +261,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
             case DEBUG:
                 if (logger.isDebugEnabled()) {
                     logger.debug(
-                        LOG_MESSAGE,
+                        SLOW_GC_LOG_MESSAGE,
                         name,
                         seq,
                         totalGcCollectionCount,
@@ -237,6 +300,33 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
                 .append("]}");
         }
         return sb.toString();
+    }
+
+    private static final String OVERHEAD_LOG_MESSAGE = "[gc][{}] overhead, spent [{}] collecting in the last [{}]";
+
+    static void logGcOverhead(
+        final ESLogger logger,
+        final JvmMonitor.Threshold threshold,
+        final long current,
+        final long elapsed,
+        final long seq) {
+        switch (threshold) {
+            case WARN:
+                if (logger.isWarnEnabled()) {
+                    logger.warn(OVERHEAD_LOG_MESSAGE, seq, TimeValue.timeValueMillis(current), TimeValue.timeValueMillis(elapsed));
+                }
+                break;
+            case INFO:
+                if (logger.isInfoEnabled()) {
+                    logger.info(OVERHEAD_LOG_MESSAGE, seq, TimeValue.timeValueMillis(current), TimeValue.timeValueMillis(elapsed));
+                }
+                break;
+            case DEBUG:
+                if (logger.isDebugEnabled()) {
+                    logger.debug(OVERHEAD_LOG_MESSAGE, seq, TimeValue.timeValueMillis(current), TimeValue.timeValueMillis(elapsed));
+                }
+                break;
+        }
     }
 
     @Override
@@ -287,16 +377,18 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
         private long lastTime = now();
         private JvmStats lastJvmStats = jvmStats();
         private long seq = 0;
-        private final Map<String, GcThreshold> gcThresholds;
+        private final Map<String, JvmGcMonitorService.GcThreshold> gcThresholds;
+        final GcOverheadThreshold gcOverheadThreshold;
 
-        public JvmMonitor(Map<String, GcThreshold> gcThresholds) {
+        public JvmMonitor(final Map<String, GcThreshold> gcThresholds, final GcOverheadThreshold gcOverheadThreshold) {
             this.gcThresholds = Objects.requireNonNull(gcThresholds);
+            this.gcOverheadThreshold = Objects.requireNonNull(gcOverheadThreshold);
         }
 
         @Override
         public void run() {
             try {
-                monitorLongGc();
+                monitorGc();
             } catch (Throwable t) {
                 onMonitorFailure(t);
             }
@@ -304,12 +396,21 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
 
         abstract void onMonitorFailure(Throwable t);
 
-        synchronized void monitorLongGc() {
+        synchronized void monitorGc() {
             seq++;
             final long currentTime = now();
             JvmStats currentJvmStats = jvmStats();
 
             final long elapsed = TimeUnit.NANOSECONDS.toMillis(currentTime - lastTime);
+
+            monitorSlowGc(currentJvmStats, elapsed);
+            monitorGcOverhead(currentJvmStats, elapsed);
+
+            lastTime = currentTime;
+            lastJvmStats = currentJvmStats;
+        }
+
+        final void monitorSlowGc(JvmStats currentJvmStats, long elapsed) {
             for (int i = 0; i < currentJvmStats.getGc().getCollectors().length; i++) {
                 GarbageCollector gc = currentJvmStats.getGc().getCollectors()[i];
                 GarbageCollector prevGc = lastJvmStats.getGc().getCollectors()[i];
@@ -350,11 +451,39 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
                         JvmInfo.jvmInfo().getMem().getHeapMax()));
                 }
             }
-            lastTime = currentTime;
-            lastJvmStats = currentJvmStats;
         }
 
-        JvmStats jvmStats() {
+        final void monitorGcOverhead(final JvmStats currentJvmStats, final long elapsed) {
+            long current = 0;
+            for (int i = 0; i < currentJvmStats.getGc().getCollectors().length; i++) {
+                GarbageCollector gc = currentJvmStats.getGc().getCollectors()[i];
+                GarbageCollector prevGc = lastJvmStats.getGc().getCollectors()[i];
+                current += gc.getCollectionTime().millis() - prevGc.getCollectionTime().millis();
+            }
+            checkGcOverhead(current, elapsed, seq);
+
+        }
+
+        void checkGcOverhead(final long current, final long elapsed, final long seq) {
+             final int fraction = (int) ((100 * current) / (double) elapsed);
+            Threshold overheadThreshold = null;
+             if (fraction >= gcOverheadThreshold.warnThreshold) {
+                overheadThreshold = Threshold.WARN;
+
+            } else if (fraction >= gcOverheadThreshold.infoThreshold) {
+                overheadThreshold = Threshold.INFO;
+
+            } else if (fraction >= gcOverheadThreshold.debugThreshold) {
+                overheadThreshold = Threshold.DEBUG;
+
+            }
+             if (overheadThreshold != null) {
+                onGcOverhead(overheadThreshold, current, elapsed, seq);
+            }
+
+        }
+
+            JvmStats jvmStats() {
             return JvmStats.jvmStats();
         }
 
@@ -363,6 +492,8 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
         }
 
         abstract void onSlowGc(final Threshold threshold, final long seq, final SlowGcEvent slowGcEvent);
+
+        abstract void onGcOverhead(final Threshold threshold, final long total, final long elapsed, final long seq);
 
     }
 

@@ -34,7 +34,7 @@ PUT /my_index
 
 [source,js]
 --------------------------------------------------
-GET /_search
+GET /my_index/_search
 {
     "query": {
         "parent_id" : {

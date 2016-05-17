@@ -40,8 +40,8 @@ statement
     ;
 
 block
-    : LBRACK statement+ RBRACK                 # multiple
-    | statement                                # single
+    : LBRACK statement+ RBRACK # multiple
+    | statement                # single
     ;
 
 empty

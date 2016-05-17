@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless;
 
+import java.util.Locale;
+
 public class StringTests extends ScriptTestCase {
 
     public void testAppend() {
@@ -63,6 +65,22 @@ public class StringTests extends ScriptTestCase {
         assertEquals("cat" + "cat", exec("String s = 'cat'; return s + s;"));
     }
 
+    public void testAppendMultiple() {
+        assertEquals("cat" + true + "abc" + null, exec("String s = \"cat\"; return s + true + 'abc' + null;"));
+    }
+    
+    public void testAppendMany() {
+        StringBuilder script = new StringBuilder("String s = \"cat\"; return s");
+        StringBuilder result = new StringBuilder("cat");
+        for (int i = 0; i < WriterConstants.MAX_INDY_STRING_CONCAT_ARGS + 10; i++) {
+            final String s = String.format(Locale.ROOT,  "%03d", i);
+            script.append(" + '").append(s).append("'.toString()");
+            result.append(s);
+        }
+        //System.out.println(Debugger.toString(script.toString()));
+        assertEquals(result.toString(), exec(script.toString()));
+    }
+    
     public void testStringAPI() {
         assertEquals("", exec("return new String();"));
         assertEquals('x', exec("String s = \"x\"; return s.charAt(0);"));

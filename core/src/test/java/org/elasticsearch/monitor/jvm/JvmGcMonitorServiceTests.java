@@ -61,7 +61,7 @@ public class JvmGcMonitorServiceTests extends ESTestCase {
             lastHeapUsed,
             currentHeapUsed,
             maxHeapUsed,
-            "asdf");
+            "pools");
         switch (threshold) {
             case WARN:
                 verify(logger).isWarnEnabled();
@@ -78,7 +78,7 @@ public class JvmGcMonitorServiceTests extends ESTestCase {
                     lastHeapUsed,
                     currentHeapUsed,
                     maxHeapUsed,
-                    "asdf");
+                    "pools");
                 break;
             case INFO:
                 verify(logger).isInfoEnabled();
@@ -95,7 +95,7 @@ public class JvmGcMonitorServiceTests extends ESTestCase {
                     lastHeapUsed,
                     currentHeapUsed,
                     maxHeapUsed,
-                    "asdf");
+                    "pools");
                 break;
             case DEBUG:
                 verify(logger).isDebugEnabled();
@@ -112,7 +112,7 @@ public class JvmGcMonitorServiceTests extends ESTestCase {
                     lastHeapUsed,
                     currentHeapUsed,
                     maxHeapUsed,
-                    "asdf");
+                    "pools");
                 break;
         }
         verifyNoMoreInteractions(logger);

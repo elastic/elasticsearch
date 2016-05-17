@@ -70,6 +70,7 @@
         <sysproperty key="user.language" value="en"/>
         <sysproperty key="user.country" value="US"/>
         <sysproperty key="user.variant" value=""/>
+        <arg value="-Werror"/>
         <arg value="-package"/>
         <arg value="org.elasticsearch.painless.antlr"/>
         <arg value="-o"/>
@@ -92,6 +93,7 @@
         <sysproperty key="user.language" value="en"/>
         <sysproperty key="user.country" value="US"/>
         <sysproperty key="user.variant" value=""/>
+        <arg value="-Werror"/>
         <arg value="-package"/>
         <arg value="org.elasticsearch.painless.antlr"/>
         <arg value="-no-listener"/>

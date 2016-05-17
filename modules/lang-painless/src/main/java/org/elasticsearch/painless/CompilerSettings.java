@@ -35,6 +35,11 @@ public final class CompilerSettings {
     public static final String MAX_LOOP_COUNTER = "max_loop_counter";
 
     /**
+     * Constant to be used for enabling additional internal compilation checks (slower).
+     */
+    public static final String PICKY = "picky";
+
+    /**
      * Whether or not to allow numeric values to overflow without exception.
      */
     private boolean numericOverflow = true;
@@ -43,6 +48,12 @@ public final class CompilerSettings {
      * The maximum number of statements allowed to be run in a loop.
      */
     private int maxLoopCounter = 10000;
+
+    /**
+     * Whether to throw exception on ambiguity or other internal parsing issues. This option 
+     * makes things slower too, it is only for debugging.
+     */
+    private boolean picky = false;
 
     /**
      * Returns {@code true} if numeric operations should overflow, {@code false}
@@ -80,5 +91,22 @@ public final class CompilerSettings {
      */
     public final void setMaxLoopCounter(int max) {
         this.maxLoopCounter = max;
+    }
+
+    /**
+     * Returns true if the compiler should be picky. This means it runs slower and enables additional
+     * runtime checks, throwing an exception if there are ambiguities in the grammar or other low level
+     * parsing problems.
+     */
+    public boolean isPicky() {
+      return picky;
+    }
+
+    /**
+     * Set to true if compilation should be picky.
+     * @see #isPicky
+     */
+    public void setPicky(boolean picky) {
+      this.picky = picky;
     }
 }

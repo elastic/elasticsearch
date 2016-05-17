@@ -20,15 +20,19 @@
 package org.elasticsearch.painless;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /** Tests integer overflow with numeric overflow disabled */
 public class IntegerOverflowDisabledTests extends ScriptTestCase {
 
-    /** wire overflow to true for all tests */
+    /** wire overflow to false for all tests */
     @Override
     public Object exec(String script, Map<String, Object> vars) {
-        return exec(script, vars, Collections.singletonMap(CompilerSettings.NUMERIC_OVERFLOW, "false"));
+        Map<String,String> compilerSettings = new HashMap<>();
+        compilerSettings.put(CompilerSettings.NUMERIC_OVERFLOW, "false");
+        compilerSettings.put(CompilerSettings.PICKY, "true" /* TODO: Boolean.toString(random().nextBoolean()) */);
+        return exec(script, vars, Collections.unmodifiableMap(compilerSettings));
     }
 
     public void testAssignmentAdditionOverflow() {

@@ -112,7 +112,7 @@ final class Compiler {
         }
 
         final Reserved reserved = new Reserved();
-        final SSource root = Walker.buildPainlessTree(source, reserved);
+        final SSource root = Walker.buildPainlessTree(source, reserved, settings.isPicky());
         final Variables variables = Analyzer.analyze(settings, Definition.INSTANCE, reserved, root);
 
         return Writer.write(settings, Definition.INSTANCE, name, source, variables, root);

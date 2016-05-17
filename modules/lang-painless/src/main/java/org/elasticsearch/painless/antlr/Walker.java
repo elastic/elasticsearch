@@ -20,8 +20,13 @@
 package org.elasticsearch.painless.antlr;
 
 import org.antlr.v4.runtime.ANTLRInputStream;
+import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.DiagnosticErrorListener;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.Recognizer;
+import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Variables.Reserved;
 import org.elasticsearch.painless.antlr.PainlessParser.AfterthoughtContext;
@@ -121,19 +126,19 @@ import java.util.List;
  */
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
-    public static SSource buildPainlessTree(final String source, final Reserved reserved) {
-        return new Walker(source, reserved).source;
+    public static SSource buildPainlessTree(final String source, final Reserved reserved, boolean picky) {
+        return new Walker(source, reserved, picky).source;
     }
 
     private final Reserved reserved;
     private final SSource source;
 
-    private Walker(final String source, final Reserved reserved) {
+    private Walker(final String source, final Reserved reserved, boolean picky) {
         this.reserved = reserved;
-        this.source = (SSource)visit(buildAntlrTree(source));
+        this.source = (SSource)visit(buildAntlrTree(source, picky));
     }
 
-    private SourceContext buildAntlrTree(final String source) {
+    private static SourceContext buildAntlrTree(final String source, boolean picky) {
         final ANTLRInputStream stream = new ANTLRInputStream(source);
         final PainlessLexer lexer = new ErrorHandlingLexer(stream);
         final PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
@@ -141,6 +146,22 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         lexer.removeErrorListeners();
         parser.removeErrorListeners();
+        if (picky) {
+            // diagnostic listener invokes syntaxError on other listeners for ambiguity issues,
+            parser.addErrorListener(new DiagnosticErrorListener(true));
+            // a second listener to fail the test when the above happens
+            parser.addErrorListener(new BaseErrorListener() {
+                @Override
+                public void syntaxError(Recognizer<?,?> recognizer, Object offendingSymbol, int line,
+                                        int charPositionInLine, String msg, RecognitionException e) {
+                    throw new AssertionError("line: " + line + ", offset: " + charPositionInLine + 
+                                             ", symbol:" + offendingSymbol + " " + msg);
+                }
+            });
+            // enable exact ambiguity detection (costly). we enable exact since its the default for
+            // DiagnosticErrorListener, life is too short to think about what 'inexact ambiguity' might mean.
+            parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
+        }
         parser.setErrorHandler(strategy);
 
         return parser.source();

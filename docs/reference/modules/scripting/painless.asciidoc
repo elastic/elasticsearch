@@ -189,7 +189,7 @@ POST hockey/player/1/_update
 {
   "script": {
     "lang": "painless",
-    "inline": "ctx._source.last = params.last ctx._source.nick = params.nick",
+    "inline": "ctx._source.last = params.last; ctx._source.nick = params.nick",
     "params": {
       "last": "gaudreau",
       "nick": "hockey"

@@ -22,9 +22,8 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a while loop.
@@ -93,7 +92,7 @@ public final class SWhile extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         writeDebugInfo(adapter);
         final Label begin = new Label();
         final Label end = new Label();
@@ -104,13 +103,13 @@ public final class SWhile extends AStatement {
         condition.write(settings, definition, adapter);
 
         if (block != null) {
-            WriterUtility.writeLoopCounter(adapter, loopCounterSlot, Math.max(1, block.statementCount));
+            adapter.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
 
             block.continu = begin;
             block.brake = end;
             block.write(settings, definition, adapter);
         } else {
-            WriterUtility.writeLoopCounter(adapter, loopCounterSlot, 1);
+            adapter.writeLoopCounter(loopCounterSlot, 1);
         }
 
         if (block == null || !block.allEscape) {

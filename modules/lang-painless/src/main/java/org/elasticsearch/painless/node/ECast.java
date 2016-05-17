@@ -23,8 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents an implicit cast in most cases, though it will replace
@@ -52,9 +51,9 @@ final class ECast extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         child.write(settings, definition, adapter);
-        WriterUtility.writeCast(adapter, cast);
-        WriterUtility.writeBranch(adapter, tru, fals);
+        adapter.writeCast(cast);
+        adapter.writeBranch(tru, fals);
     }
 }

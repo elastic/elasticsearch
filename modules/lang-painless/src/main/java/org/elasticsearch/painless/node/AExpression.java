@@ -26,7 +26,7 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * The superclass for all E* (expression) nodes.
@@ -106,7 +106,7 @@ public abstract class AExpression extends ANode {
     /**
      * Writes ASM based on the data collected during the analysis phase.
      */
-    abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
+    abstract void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter);
 
     /**
      * Inserts {@link ECast} nodes into the tree for implicit casts.  Also replaces

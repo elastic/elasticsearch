@@ -19,15 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
-import org.objectweb.asm.commons.GeneratorAdapter;
 
 /**
  * Represents a binary math expression.
@@ -495,34 +494,34 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         if (actual.sort == Sort.STRING && operation == Operation.ADD) {
             if (!cat) {
-                WriterUtility.writeNewStrings(adapter);
+                adapter.writeNewStrings();
             }
 
             left.write(settings, definition, adapter);
 
             if (!(left instanceof EBinary) || ((EBinary)left).operation != Operation.ADD || left.actual.sort != Sort.STRING) {
-                WriterUtility.writeAppendStrings(adapter, left.actual.sort);
+                adapter.writeAppendStrings(left.actual.sort);
             }
 
             right.write(settings, definition, adapter);
 
             if (!(right instanceof EBinary) || ((EBinary)right).operation != Operation.ADD || right.actual.sort != Sort.STRING) {
-                WriterUtility.writeAppendStrings(adapter, right.actual.sort);
+                adapter.writeAppendStrings(right.actual.sort);
             }
 
             if (!cat) {
-                WriterUtility.writeToStrings(adapter);
+                adapter.writeToStrings();
             }
         } else {
             left.write(settings, definition, adapter);
             right.write(settings, definition, adapter);
 
-            WriterUtility.writeBinaryInstruction(settings, definition, adapter, location, actual, operation);
+            adapter.writeBinaryInstruction(settings, definition, location, actual, operation);
         }
 
-        WriterUtility.writeBranch(adapter, tru, fals);
+        adapter.writeBranch(tru, fals);
     }
 }

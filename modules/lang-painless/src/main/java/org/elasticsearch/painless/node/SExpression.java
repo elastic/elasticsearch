@@ -23,8 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents the top-level node for an expression as a statement.
@@ -60,14 +59,14 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         writeDebugInfo(adapter);
         expression.write(settings, definition, adapter);
 
         if (methodEscape) {
             adapter.returnValue();
         } else {
-            WriterUtility.writePop(adapter, expression.expected.sort.size);
+            adapter.writePop(expression.expected.sort.size);
         }
     }
 }

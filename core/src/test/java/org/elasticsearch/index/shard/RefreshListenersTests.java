@@ -73,7 +73,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 /**
  * Tests how {@linkplain RefreshListeners} interacts with {@linkplain InternalEngine}.
  */
-public class IndexShardRefreshListenerTests extends ESTestCase {
+public class RefreshListenersTests extends ESTestCase {
     private RefreshListeners listeners;
     private Engine engine;
     private volatile int maxListeners;

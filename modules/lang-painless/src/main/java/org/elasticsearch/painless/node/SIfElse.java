@@ -23,7 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents an if/else block.
@@ -84,7 +84,7 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         writeDebugInfo(adapter);
         final Label end = new Label();
         final Label fals = elseblock != null ? new Label() : end;

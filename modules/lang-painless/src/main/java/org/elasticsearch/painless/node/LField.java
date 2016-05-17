@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 import java.util.Map;
@@ -96,12 +96,12 @@ public final class LField extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
             adapter.getStatic(field.owner.type, field.reflect.getName(), field.type.type);
 
@@ -118,7 +118,7 @@ public final class LField extends ALink {
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
             adapter.putStatic(field.owner.type, field.reflect.getName(), field.type.type);
         } else {

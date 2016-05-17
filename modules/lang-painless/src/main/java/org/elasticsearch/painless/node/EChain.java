@@ -27,8 +27,7 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 
@@ -253,9 +252,9 @@ public final class EChain extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         if (cat) {
-            WriterUtility.writeNewStrings(adapter);
+            adapter.writeNewStrings();
         }
 
         final ALink last = links.get(links.size() - 1);
@@ -265,43 +264,43 @@ public final class EChain extends AExpression {
 
             if (link == last && link.store) {
                 if (cat) {
-                    WriterUtility.writeDup(adapter, link.size, 1);
+                    adapter.writeDup(link.size, 1);
                     link.load(settings, definition, adapter);
-                    WriterUtility.writeAppendStrings(adapter, link.after.sort);
+                    adapter.writeAppendStrings(link.after.sort);
 
                     expression.write(settings, definition, adapter);
 
                     if (!(expression instanceof EBinary) ||
                         ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
-                        WriterUtility.writeAppendStrings(adapter, expression.actual.sort);
+                        adapter.writeAppendStrings(expression.actual.sort);
                     }
 
-                    WriterUtility.writeToStrings(adapter);
-                    WriterUtility.writeCast(adapter, back);
+                    adapter.writeToStrings();
+                    adapter.writeCast(back);
 
                     if (link.load) {
-                        WriterUtility.writeDup(adapter, link.after.sort.size, link.size);
+                        adapter.writeDup(link.after.sort.size, link.size);
                     }
 
                     link.store(settings, definition, adapter);
                 } else if (operation != null) {
-                    WriterUtility.writeDup(adapter, link.size, 0);
+                    adapter.writeDup(link.size, 0);
                     link.load(settings, definition, adapter);
 
                     if (link.load && post) {
-                        WriterUtility.writeDup(adapter, link.after.sort.size, link.size);
+                        adapter.writeDup(link.after.sort.size, link.size);
                     }
 
-                    WriterUtility.writeCast(adapter, there);
+                    adapter.writeCast(there);
                     expression.write(settings, definition, adapter);
-                    WriterUtility.writeBinaryInstruction(settings, definition, adapter, location, promote, operation);
+                    adapter.writeBinaryInstruction(settings, definition, location, promote, operation);
 
-                    if (!exact || !WriterUtility.writeExactInstruction(definition, adapter, promote.sort, link.after.sort)) {
-                        WriterUtility.writeCast(adapter, back);
+                    if (!exact || !adapter.writeExactInstruction(definition, promote.sort, link.after.sort)) {
+                        adapter.writeCast(back);
                     }
 
                     if (link.load && !post) {
-                        WriterUtility.writeDup(adapter, link.after.sort.size, link.size);
+                        adapter.writeDup(link.after.sort.size, link.size);
                     }
 
                     link.store(settings, definition, adapter);
@@ -309,7 +308,7 @@ public final class EChain extends AExpression {
                     expression.write(settings, definition, adapter);
 
                     if (link.load) {
-                        WriterUtility.writeDup(adapter, link.after.sort.size, link.size);
+                        adapter.writeDup(link.after.sort.size, link.size);
                     }
 
                     link.store(settings, definition, adapter);
@@ -319,6 +318,6 @@ public final class EChain extends AExpression {
             }
         }
 
-        WriterUtility.writeBranch(adapter, tru, fals);
+        adapter.writeBranch(tru, fals);
     }
 }

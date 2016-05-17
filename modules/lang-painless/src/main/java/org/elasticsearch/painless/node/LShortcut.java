@@ -25,8 +25,7 @@ import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a field load/store shortcut.  (Internal only.)
@@ -75,12 +74,12 @@ final class LShortcut extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isInterface(getter.owner.clazz.getModifiers())) {
             adapter.invokeInterface(getter.owner.type, getter.method);
         } else {
@@ -93,13 +92,13 @@ final class LShortcut extends ALink {
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isInterface(setter.owner.clazz.getModifiers())) {
             adapter.invokeInterface(setter.owner.type, setter.method);
         } else {
             adapter.invokeVirtual(setter.owner.type, setter.method);
         }
 
-        WriterUtility.writePop(adapter, setter.rtn.sort.size);
+        adapter.writePop(setter.rtn.sort.size);
     }
 }

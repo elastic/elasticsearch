@@ -23,8 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Respresents a constant.  Note this replaces any other expression
@@ -64,7 +63,7 @@ final class EConstant extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         final Sort sort = actual.sort;
 
         switch (sort) {
@@ -91,7 +90,7 @@ final class EConstant extends AExpression {
         }
 
         if (sort != Sort.BOOL) {
-            WriterUtility.writeBranch(adapter, tru, fals);
+            adapter.writeBranch(tru, fals);
         }
     }
 }

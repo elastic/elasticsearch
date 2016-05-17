@@ -23,7 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 import java.util.Map;
@@ -69,17 +69,17 @@ public final class LBrace extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         index.write(settings, definition, adapter);
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         adapter.arrayLoad(after.type);
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         adapter.arrayStore(after.type);
     }
 

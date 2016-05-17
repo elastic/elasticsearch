@@ -35,9 +35,10 @@ import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 
 /**
+ * <p>
  * Resolves certain ec2 related 'meta' hostnames into an actual hostname
  * obtained from ec2 meta-data.
- * <p/>
+ * </p>
  * Valid config values for {@link Ec2HostnameType}s are -
  * <ul>
  * <li>_ec2_ - maps to privateIpv4</li>
@@ -81,6 +82,7 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
 
     /**
      * Construct a {@link CustomNameResolver}.
+     * @param settings The global settings
      */
     public Ec2NameResolver(Settings settings) {
         super(settings);

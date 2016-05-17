@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import org.apache.commons.codec.Charsets;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpHost;
 import org.apache.http.ProtocolVersion;
@@ -36,6 +35,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -72,7 +72,7 @@ public class RequestLoggerTests extends LuceneTestCase {
         if (request instanceof HttpEntityEnclosingRequest && random().nextBoolean()) {
             HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
             String requestBody = "{ \"field\": \"value\" }";
-            enclosingRequest.setEntity(new StringEntity(requestBody, Charsets.UTF_8));
+            enclosingRequest.setEntity(new StringEntity(requestBody, StandardCharsets.UTF_8));
             expected += " -d '" + requestBody + "'";
         }
 
@@ -95,7 +95,7 @@ public class RequestLoggerTests extends LuceneTestCase {
         expected += "\n#";
         if (random().nextBoolean()) {
             String responseBody = "{\n  \"field\": \"value\"\n}";
-            httpResponse.setEntity(new StringEntity(responseBody, Charsets.UTF_8));
+            httpResponse.setEntity(new StringEntity(responseBody, StandardCharsets.UTF_8));
             expected += "\n# {";
             expected += "\n#   \"field\": \"value\"";
             expected += "\n# }";

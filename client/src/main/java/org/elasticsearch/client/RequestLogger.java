@@ -28,11 +28,14 @@ import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.entity.BufferedHttpEntity;
+import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Helper class that exposes static methods to unify the way requests are logged.
@@ -118,7 +121,12 @@ public final class RequestLogger {
         if (entity != null) {
             entity = new BufferedHttpEntity(entity);
             httpResponse.setEntity(entity);
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(entity.getContent()))) {
+            ContentType contentType = ContentType.get(entity);
+            Charset charset = StandardCharsets.UTF_8;
+            if (contentType != null) {
+                charset = contentType.getCharset();
+            }
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(entity.getContent(), charset))) {
                 String line;
                 while( (line = reader.readLine()) != null) {
                     responseLine += "\n# " + line;

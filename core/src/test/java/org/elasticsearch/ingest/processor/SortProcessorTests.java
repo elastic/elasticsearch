@@ -240,36 +240,6 @@ public class SortProcessorTests extends ESTestCase {
         assertEquals(ingestDocument.getFieldValue(fieldName, List.class), expectedResult);
     }
 
-    public void testSortMixedObjects() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        int numItems = randomIntBetween(1, 10);
-        List<Object> fieldValue = new ArrayList<>(numItems);
-        List<Object> expectedResult = new ArrayList<>(numItems);
-        Object value;
-        for (int j = 0; j < numItems; j++) {
-            if (randomBoolean()) {
-                value = randomIntBetween(0, 100);
-            } else {
-                value = randomAsciiOfLengthBetween(1, 10);
-            }
-            fieldValue.add(value);
-            expectedResult.add(value);
-        }
-        expectedResult = expectedResult.stream()
-            .sorted()
-            .collect(Collectors.toList());
-
-        SortOrder order = randomBoolean() ? SortOrder.ASCENDING : SortOrder.DESCENDING;
-        if (order.equals(SortOrder.DESCENDING)) {
-            Collections.reverse(expectedResult);
-        }
-
-        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        Processor processor = new SortProcessor(randomAsciiOfLength(10), fieldName, order);
-        processor.execute(ingestDocument);
-        assertEquals(ingestDocument.getFieldValue(fieldName, List.class), expectedResult);
-    }
-
     public void testSortNonListField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());

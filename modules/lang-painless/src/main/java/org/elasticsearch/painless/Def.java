@@ -133,37 +133,41 @@ public final class Def {
      * <p>
      * @param receiverClass Class of the object to invoke the method on.
      * @param name Name of the method.
+     * @param type Callsite signature. Need not match exactly, except the number of parameters.
      * @param definition Whitelist to check.
      * @return pointer to matching method to invoke. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
-     static MethodHandle lookupMethod(Class<?> receiverClass, String name, Definition definition) {
-        // check whitelist for matching method
-        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = definition.runtimeMap.get(clazz);
-
-            if (struct != null) {
-                Method method = struct.methods.get(name);
-                if (method != null) {
-                    return method.handle;
-                }
-            }
-
-            for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.runtimeMap.get(iface);
-
-                if (struct != null) {
-                    Method method = struct.methods.get(name);
-                    if (method != null) {
-                        return method.handle;
-                    }
-                }
-            }
-        }
-
-        // no matching methods in whitelist found
-        throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] " +
-                                           "for class [" + receiverClass.getCanonicalName() + "].");
+     static MethodHandle lookupMethod(Class<?> receiverClass, String name, MethodType type, Definition definition) {
+         // we don't consider receiver an argument/counting towards arity
+         type = type.dropParameterTypes(0, 1);
+         Definition.MethodKey key = new Definition.MethodKey(name, type.parameterCount());
+         // check whitelist for matching method
+         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
+             RuntimeClass struct = definition.runtimeMap.get(clazz);
+             
+             if (struct != null) {
+                 Method method = struct.methods.get(key);
+                 if (method != null) {
+                     return method.handle;
+                 }
+             }
+             
+             for (final Class<?> iface : clazz.getInterfaces()) {
+                 struct = definition.runtimeMap.get(iface);
+                 
+                 if (struct != null) {
+                     Method method = struct.methods.get(key);
+                     if (method != null) {
+                         return method.handle;
+                     }
+                 }
+             }
+         }
+         
+         // no matching methods in whitelist found
+         throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] with signature [" + type + "] " +
+                 "for class [" + receiverClass.getCanonicalName() + "].");
     }
 
     /**

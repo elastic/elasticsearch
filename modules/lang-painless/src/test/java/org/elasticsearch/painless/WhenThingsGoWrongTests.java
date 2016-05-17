@@ -90,7 +90,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
                    "The maximum number of statements that can be executed in a loop has been reached."));
 
         expected = expectThrows(PainlessError.class, () -> {
-            exec("while (true) {int y = 5}");
+            exec("while (true) {int y = 5;}");
         });
         assertTrue(expected.getMessage().contains(
                    "The maximum number of statements that can be executed in a loop has been reached."));
@@ -116,7 +116,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
                    "The maximum number of statements that can be executed in a loop has been reached."));
 
         expected = expectThrows(PainlessError.class, () -> {
-            exec("for (;;) {int x = 5}");
+            exec("for (;;) {int x = 5;}");
             fail("should have hit PainlessError");
         });
         assertTrue(expected.getMessage().contains(
@@ -130,7 +130,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
                    "The maximum number of statements that can be executed in a loop has been reached."));
 
         RuntimeException parseException = expectThrows(RuntimeException.class, () -> {
-            exec("try { int x } catch (PainlessError error) {}");
+            exec("try { int x; } catch (PainlessError error) {}");
             fail("should have hit ParseException");
         });
         assertTrue(parseException.getMessage().contains("Not a type [PainlessError]."));

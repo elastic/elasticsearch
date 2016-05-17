@@ -37,6 +37,7 @@ import org.elasticsearch.ingest.processor.LowercaseProcessor;
 import org.elasticsearch.ingest.processor.RemoveProcessor;
 import org.elasticsearch.ingest.processor.RenameProcessor;
 import org.elasticsearch.ingest.processor.SetProcessor;
+import org.elasticsearch.ingest.processor.SortProcessor;
 import org.elasticsearch.ingest.processor.SplitProcessor;
 import org.elasticsearch.ingest.processor.TrimProcessor;
 import org.elasticsearch.ingest.processor.UppercaseProcessor;
@@ -78,6 +79,7 @@ public class NodeModule extends AbstractModule {
         registerProcessor(FailProcessor.TYPE, (templateService, registry) -> new FailProcessor.Factory(templateService));
         registerProcessor(ForEachProcessor.TYPE, (templateService, registry) -> new ForEachProcessor.Factory(registry));
         registerProcessor(DateIndexNameProcessor.TYPE, (templateService, registry) -> new DateIndexNameProcessor.Factory());
+        registerProcessor(SortProcessor.TYPE, (templateService, registry) -> new SortProcessor.Factory());
     }
 
     @Override

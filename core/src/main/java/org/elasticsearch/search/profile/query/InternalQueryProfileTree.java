@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.search.profile;
+package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.search.profile.ProfileResult;
 
 import java.util.ArrayList;
 import java.util.Collections;

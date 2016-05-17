@@ -65,8 +65,8 @@ This will yield the following result:
               {
                  "query": [
                     {
-                       "query_type": "BooleanQuery",
-                       "lucene": "message:search message:test",
+                       "type": "BooleanQuery",
+                       "description": "message:search message:test",
                        "time": "15.52889800ms",
                        "breakdown": {
                           "score": 0,
@@ -78,8 +78,8 @@ This will yield the following result:
                        },
                        "children": [
                           {
-                             "query_type": "TermQuery",
-                             "lucene": "message:search",
+                             "type": "TermQuery",
+                             "description": "message:search",
                              "time": "4.938855000ms",
                              "breakdown": {
                                 "score": 0,
@@ -91,8 +91,8 @@ This will yield the following result:
                              }
                           },
                           {
-                             "query_type": "TermQuery",
-                             "lucene": "message:test",
+                             "type": "TermQuery",
+                             "description": "message:test",
                              "time": "0.5016660000ms",
                              "breakdown": {
                                 "score": 0,
@@ -180,20 +180,20 @@ The overall structure of this query tree will resemble your original Elasticsear
 --------------------------------------------------
 "query": [
     {
-       "query_type": "BooleanQuery",
-       "lucene": "message:search message:test",
+       "type": "BooleanQuery",
+       "description": "message:search message:test",
        "time": "15.52889800ms",
        "breakdown": {...},               <1>
        "children": [
           {
-             "query_type": "TermQuery",
-             "lucene": "message:search",
+             "type": "TermQuery",
+             "description": "message:search",
              "time": "4.938855000ms",
              "breakdown": {...}
           },
           {
-             "query_type": "TermQuery",
-             "lucene": "message:test",
+             "type": "TermQuery",
+             "description": "message:test",
              "time": "0.5016660000ms",
              "breakdown": {...}
           }
@@ -204,8 +204,8 @@ The overall structure of this query tree will resemble your original Elasticsear
 <1> The breakdown timings are omitted for simplicity
 
 Based on the profile structure, we can see that our `match` query was rewritten by Lucene into a BooleanQuery with two
-clauses (both holding a TermQuery).  The `"query_type"` field displays the Lucene class name, and often aligns with
-the equivalent name in Elasticsearch.  The `"lucene"` field displays the Lucene explanation text for the query, and
+clauses (both holding a TermQuery).  The `"type"` field displays the Lucene class name, and often aligns with
+the equivalent name in Elasticsearch.  The `"description"` field displays the Lucene explanation text for the query, and
 is made available to help differentiating between parts of your query (e.g. both `"message:search"` and `"message:test"`
 are TermQuery's and would appear identical otherwise.
 
@@ -214,7 +214,7 @@ of all children.
 
 The `"breakdown"` field will give detailed stats about how the time was spent, we'll look at
 that in a moment.  Finally, the `"children"` array lists any sub-queries that may be present.  Because we searched for two
-values ("search test"), our BooleanQuery holds two children TermQueries.  They have identical information (query_type, time,
+values ("search test"), our BooleanQuery holds two children TermQueries.  They have identical information (type, time,
 breakdown, etc).  Children are allowed to have their own children.
 
 ==== Timing Breakdown
@@ -465,8 +465,8 @@ And the response:
                   {
                      "query": [
                         {
-                           "query_type": "TermQuery",
-                           "lucene": "my_field:foo",
+                           "type": "TermQuery",
+                           "description": "my_field:foo",
                            "time": "0.4094560000ms",
                            "breakdown": {
                               "score": 0,
@@ -478,8 +478,8 @@ And the response:
                            }
                         },
                         {
-                           "query_type": "TermQuery",
-                           "lucene": "message:search",
+                           "type": "TermQuery",
+                           "description": "message:search",
                            "time": "0.3037020000ms",
                            "breakdown": {
                               "score": 0,
@@ -522,8 +522,8 @@ And the response:
                   {
                      "query": [
                         {
-                           "query_type": "MatchAllDocsQuery",
-                           "lucene": "*:*",
+                           "type": "MatchAllDocsQuery",
+                           "description": "*:*",
                            "time": "0.04829300000ms",
                            "breakdown": {
                               "score": 0,

@@ -176,3 +176,9 @@ The `coerce` and `ignore_malformed` parameters were deprecated in favour of `val
 * Top level inner hits syntax has been removed. Inner hits can now only be specified as part of the `nested`,
 `has_child` and `has_parent` queries. Use cases previously only possible with top level inner hits can now be done
 with inner hits defined inside the query dsl.
+
+==== Query Profiler
+
+In the response for profiling queries, the `query_type` has been renamed to `type` and `lucene` has been renamed to
+`description`. These changes have been made so the response format is more friendly to supporting other types of profiling
+in the future.

@@ -145,8 +145,8 @@ public class StringTests extends ScriptTestCase {
         assertEquals("c", exec("return (String)(char)\"c\""));
         assertEquals("c", exec("return (String)(char)'c'"));
 
-        assertEquals('c', exec("String s = \"c\" (char)s"));
-        assertEquals('c', exec("String s = 'c' (char)s"));
+        assertEquals('c', exec("String s = \"c\"; (char)s"));
+        assertEquals('c', exec("String s = 'c'; (char)s"));
 
         try {
             assertEquals("cc", exec("return (String)(char)\"cc\""));
@@ -163,14 +163,14 @@ public class StringTests extends ScriptTestCase {
         }
 
         try {
-            assertEquals('c', exec("String s = \"cc\" (char)s"));
+            assertEquals('c', exec("String s = \"cc\"; (char)s"));
             fail();
         } catch (final ClassCastException cce) {
             assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
         }
 
         try {
-            assertEquals('c', exec("String s = 'cc' (char)s"));
+            assertEquals('c', exec("String s = 'cc'; (char)s"));
             fail();
         } catch (final ClassCastException cce) {
             assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
@@ -181,8 +181,8 @@ public class StringTests extends ScriptTestCase {
         assertEquals("c", exec("return (String)(Character)\"c\""));
         assertEquals("c", exec("return (String)(Character)'c'"));
 
-        assertEquals('c', exec("String s = \"c\" (Character)s"));
-        assertEquals('c', exec("String s = 'c' (Character)s"));
+        assertEquals('c', exec("String s = \"c\"; (Character)s"));
+        assertEquals('c', exec("String s = 'c'; (Character)s"));
 
         try {
             assertEquals("cc", exec("return (String)(Character)\"cc\""));
@@ -199,14 +199,14 @@ public class StringTests extends ScriptTestCase {
         }
 
         try {
-            assertEquals('c', exec("String s = \"cc\" (Character)s"));
+            assertEquals('c', exec("String s = \"cc\"; (Character)s"));
             fail();
         } catch (final ClassCastException cce) {
             assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [Character]."));
         }
 
         try {
-            assertEquals('c', exec("String s = 'cc' (Character)s"));
+            assertEquals('c', exec("String s = 'cc'; (Character)s"));
             fail();
         } catch (final ClassCastException cce) {
             assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [Character]."));

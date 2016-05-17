@@ -60,7 +60,7 @@ public final class LField extends ALink {
         }
 
         final Struct struct = before.struct;
-        field = statik ? struct.statics.get(value) : struct.members.get(value);
+        field = statik ? struct.staticMembers.get(value) : struct.members.get(value);
 
         if (field != null) {
             if (store && java.lang.reflect.Modifier.isFinal(field.reflect.getModifiers())) {
@@ -72,9 +72,12 @@ public final class LField extends ALink {
 
             return this;
         } else {
+            // TODO: improve this: the isXXX case seems missing???
             final boolean shortcut =
-                struct.methods.containsKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1)) ||
-                struct.methods.containsKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1));
+                struct.methods.containsKey(new Definition.MethodKey("get" + 
+                        Character.toUpperCase(value.charAt(0)) + value.substring(1), 0)) ||
+                struct.methods.containsKey(new Definition.MethodKey("set" + 
+                        Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
             if (shortcut) {
                 return new LShortcut(line, location, value).copy(this).analyze(settings, definition, variables);

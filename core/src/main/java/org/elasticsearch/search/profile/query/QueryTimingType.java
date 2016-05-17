@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.profile;
+package org.elasticsearch.search.profile.query;
 
 import java.util.Locale;
 

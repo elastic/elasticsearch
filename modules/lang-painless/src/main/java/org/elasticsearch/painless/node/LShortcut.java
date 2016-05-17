@@ -47,8 +47,8 @@ final class LShortcut extends ALink {
     ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         final Struct struct = before.struct;
 
-        getter = struct.methods.get("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1));
-        setter = struct.methods.get("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1));
+        getter = struct.methods.get(new Definition.MethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
+        setter = struct.methods.get(new Definition.MethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
         if (getter != null && (getter.rtn.sort == Sort.VOID || !getter.arguments.isEmpty())) {
             throw new IllegalArgumentException(error(

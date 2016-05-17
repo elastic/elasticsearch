@@ -43,7 +43,7 @@ import java.util.Map;
  * Each InternalProfileResult has a List of InternalProfileResults, which will contain
  * "children" queries if applicable
  */
-final class ProfileResult implements Writeable, ToXContent {
+public final class ProfileResult implements Writeable, ToXContent {
 
     private static final ParseField TYPE = new ParseField("type");
     private static final ParseField DESCRIPTION = new ParseField("description");

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.profile;
+package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.util.English;
 import org.elasticsearch.common.unit.Fuzziness;

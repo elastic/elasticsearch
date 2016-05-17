@@ -44,8 +44,9 @@ import java.util.List;
 import java.util.Locale;
 
 /**
+ * <p>
  * Azure file system implementation of the BlobStoreRepository
- * <p/>
+ * </p>
  * Azure file system repository supports the following settings:
  * <dl>
  * <dt>{@code container}</dt><dd>Azure container name. Defaults to elasticsearch-snapshots</dd>

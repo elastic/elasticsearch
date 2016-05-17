@@ -20,22 +20,18 @@
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.JavaVersion
 
-group = 'org.elasticsearch.client'
 apply plugin: 'elasticsearch.build'
 
 targetCompatibility = JavaVersion.VERSION_1_7
 sourceCompatibility = JavaVersion.VERSION_1_7
 
 dependencies {
-  // TODO once we got rid of the client in the test framework we should use a version variable here
-  compile "org.apache.httpcomponents:httpclient:4.5.2"
-  compile "org.apache.httpcomponents:httpcore:4.4.4"
-  //compile "org.apache.httpcomponents:httpcore-nio:4.4.4"
-  //compile "org.apache.httpcomponents:httpasyncclient:4.1.1"
-  compile "commons-codec:commons-codec:1.9"
-  compile "commons-logging:commons-logging:1.2"
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile "commons-logging:commons-logging:${versions.commonslogging}"
   //jackson is only needed in the sniff package
-  compile "com.fasterxml.jackson.core:jackson-core:2.7.3"
+  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
 
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"

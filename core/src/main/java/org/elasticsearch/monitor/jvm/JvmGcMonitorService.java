@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -134,32 +135,8 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
             }
 
             @Override
-            void onSlowGc(
-                final Threshold threshold,
-                final String name,
-                final long seq,
-                final TimeValue elapsed,
-                final long totalGcCollectionCount,
-                final long currentGcCollectionCount,
-                final TimeValue totalGcCollectionTime, final TimeValue currentGcCollectionTime,
-                final ByteSizeValue lastHeapUsed,
-                final ByteSizeValue currentHeapUsed,
-                final ByteSizeValue maxHeapUsed,
-                final String pools) {
-                logSlowGc(
-                    logger,
-                    threshold,
-                    name,
-                    seq,
-                    elapsed,
-                    totalGcCollectionCount,
-                    currentGcCollectionCount,
-                    totalGcCollectionTime,
-                    currentGcCollectionTime,
-                    lastHeapUsed,
-                    currentHeapUsed,
-                    maxHeapUsed,
-                    pools);
+            void onSlowGc(final Threshold threshold, final long seq, final SlowGcEvent slowGcEvent) {
+                logSlowGc(logger, threshold, seq, slowGcEvent, JvmGcMonitorService::buildPools);
             }
         }, interval);
     }
@@ -167,17 +144,20 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
     static void logSlowGc(
         final ESLogger logger,
         final JvmMonitor.Threshold threshold,
-        final String name,
         final long seq,
-        final TimeValue elapsed,
-        final long totalGcCollectionCount,
-        final long currentGcCollectionCount,
-        final TimeValue totalGcCollectionTime,
-        final TimeValue currentGcCollectionTime,
-        final ByteSizeValue lastHeapUsed,
-        final ByteSizeValue currentHeapUsed,
-        final ByteSizeValue maxHeapUsed,
-        final String pools) {
+        final JvmMonitor.SlowGcEvent slowGcEvent,
+        BiFunction<JvmStats, JvmStats, String> pools) {
+
+        final String name = slowGcEvent.currentGc.getName();
+        final long elapsed = slowGcEvent.elapsed;
+        final long totalGcCollectionCount = slowGcEvent.currentGc.getCollectionCount();
+        final long currentGcCollectionCount = slowGcEvent.collectionCount;
+        final TimeValue totalGcCollectionTime = slowGcEvent.currentGc.getCollectionTime();
+        final TimeValue currentGcCollectionTime = slowGcEvent.collectionTime;
+        final JvmStats lastJvmStats = slowGcEvent.lastJvmStats;
+        final JvmStats currentJvmStats = slowGcEvent.currentJvmStats;
+        final ByteSizeValue maxHeapUsed = slowGcEvent.maxHeapUsed;
+
         switch (threshold) {
             case WARN:
                 if (logger.isWarnEnabled()) {
@@ -188,13 +168,13 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
                         totalGcCollectionCount,
                         currentGcCollectionTime,
                         currentGcCollectionCount,
-                        elapsed,
+                        TimeValue.timeValueMillis(elapsed),
                         currentGcCollectionTime,
                         totalGcCollectionTime,
-                        lastHeapUsed,
-                        currentHeapUsed,
+                        lastJvmStats.getMem().getHeapUsed(),
+                        currentJvmStats.getMem().getHeapUsed(),
                         maxHeapUsed,
-                        pools);
+                        pools.apply(lastJvmStats, currentJvmStats));
                 }
                 break;
             case INFO:
@@ -206,13 +186,13 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
                         totalGcCollectionCount,
                         currentGcCollectionTime,
                         currentGcCollectionCount,
-                        elapsed,
+                        TimeValue.timeValueMillis(elapsed),
                         currentGcCollectionTime,
                         totalGcCollectionTime,
-                        lastHeapUsed,
-                        currentHeapUsed,
+                        lastJvmStats.getMem().getHeapUsed(),
+                        currentJvmStats.getMem().getHeapUsed(),
                         maxHeapUsed,
-                        pools);
+                        pools.apply(lastJvmStats, currentJvmStats));
                 }
                 break;
             case DEBUG:
@@ -224,16 +204,39 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
                         totalGcCollectionCount,
                         currentGcCollectionTime,
                         currentGcCollectionCount,
-                        elapsed,
+                        TimeValue.timeValueMillis(elapsed),
                         currentGcCollectionTime,
                         totalGcCollectionTime,
-                        lastHeapUsed,
-                        currentHeapUsed,
+                        lastJvmStats.getMem().getHeapUsed(),
+                        currentJvmStats.getMem().getHeapUsed(),
                         maxHeapUsed,
-                        pools);
+                        pools.apply(lastJvmStats, currentJvmStats));
                 }
                 break;
         }
+    }
+
+    static String buildPools(JvmStats last, JvmStats current) {
+        StringBuilder sb = new StringBuilder();
+        for (JvmStats.MemoryPool currentPool : current.getMem()) {
+            JvmStats.MemoryPool prevPool = null;
+            for (JvmStats.MemoryPool pool : last.getMem()) {
+                if (pool.getName().equals(currentPool.getName())) {
+                    prevPool = pool;
+                    break;
+                }
+            }
+            sb.append("{[")
+                .append(currentPool.getName())
+                .append("] [")
+                .append(prevPool == null ? "?" : prevPool.getUsed())
+                .append("]->[")
+                .append(currentPool.getUsed())
+                .append("]/[")
+                .append(currentPool.getMax())
+                .append("]}");
+        }
+        return sb.toString();
     }
 
     @Override
@@ -251,6 +254,35 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
     static abstract class JvmMonitor implements Runnable {
 
         enum Threshold { DEBUG, INFO, WARN }
+
+        static class SlowGcEvent {
+
+            final GarbageCollector currentGc;
+            final long collectionCount;
+            final TimeValue collectionTime;
+            final long elapsed;
+            final JvmStats lastJvmStats;
+            final JvmStats currentJvmStats;
+            final ByteSizeValue maxHeapUsed;
+
+            public SlowGcEvent(
+                final GarbageCollector currentGc,
+                final long collectionCount,
+                final TimeValue collectionTime,
+                final long elapsed,
+                final JvmStats lastJvmStats,
+                final JvmStats currentJvmStats,
+                final ByteSizeValue maxHeapUsed) {
+                this.currentGc = currentGc;
+                this.collectionCount = collectionCount;
+                this.collectionTime = collectionTime;
+                this.elapsed = elapsed;
+                this.lastJvmStats = lastJvmStats;
+                this.currentJvmStats = currentJvmStats;
+                this.maxHeapUsed = maxHeapUsed;
+            }
+
+        }
 
         private long lastTime = now();
         private JvmStats lastJvmStats = jvmStats();
@@ -277,6 +309,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
             final long currentTime = now();
             JvmStats currentJvmStats = jvmStats();
 
+            final long elapsed = TimeUnit.NANOSECONDS.toMillis(currentTime - lastTime);
             for (int i = 0; i < currentJvmStats.getGc().getCollectors().length; i++) {
                 GarbageCollector gc = currentJvmStats.getGc().getCollectors()[i];
                 GarbageCollector prevGc = lastJvmStats.getGc().getCollectors()[i];
@@ -307,19 +340,14 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
                     threshold = Threshold.DEBUG;
                 }
                 if (threshold != null) {
-                    onSlowGc(
-                        threshold,
-                        gc.getName(),
-                        seq,
-                        TimeValue.timeValueMillis(TimeUnit.NANOSECONDS.toMillis(currentTime) - TimeUnit.NANOSECONDS.toMillis(lastTime)),
-                        gc.getCollectionCount(),
+                    onSlowGc(threshold, seq, new SlowGcEvent(
+                        gc,
                         collections,
-                        gc.getCollectionTime(),
                         TimeValue.timeValueMillis(collectionTime),
-                        lastJvmStats.getMem().getHeapUsed(),
-                        currentJvmStats.getMem().getHeapUsed(),
-                        JvmInfo.jvmInfo().getMem().getHeapMax(),
-                        buildPools(lastJvmStats, currentJvmStats));
+                        elapsed,
+                        lastJvmStats,
+                        currentJvmStats,
+                        JvmInfo.jvmInfo().getMem().getHeapMax()));
                 }
             }
             lastTime = currentTime;
@@ -334,42 +362,8 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
             return System.nanoTime();
         }
 
-        abstract void onSlowGc(
-            final Threshold threshold,
-            final String name,
-            final long seq,
-            final TimeValue elapsed,
-            final long totalGcCollectionCount,
-            final long currentGcCollectionCount,
-            final TimeValue totalGcCollectionTime,
-            final TimeValue currentGcCollectionTime,
-            final ByteSizeValue lastHeapUsed,
-            final ByteSizeValue currentHeapUsed,
-            final ByteSizeValue maxHeapUsed,
-            final String pools);
+        abstract void onSlowGc(final Threshold threshold, final long seq, final SlowGcEvent slowGcEvent);
 
-        private String buildPools(JvmStats prev, JvmStats current) {
-            StringBuilder sb = new StringBuilder();
-            for (JvmStats.MemoryPool currentPool : current.getMem()) {
-                JvmStats.MemoryPool prevPool = null;
-                for (JvmStats.MemoryPool pool : prev.getMem()) {
-                    if (pool.getName().equals(currentPool.getName())) {
-                        prevPool = pool;
-                        break;
-                    }
-                }
-                sb.append("{[")
-                    .append(currentPool.getName())
-                    .append("] [")
-                    .append(prevPool == null ? "?" : prevPool.getUsed())
-                    .append("]->[")
-                    .append(currentPool.getUsed())
-                    .append("]/[")
-                    .append(currentPool.getMax())
-                    .append("]}");
-            }
-            return sb.toString();
-        }
     }
 
 }

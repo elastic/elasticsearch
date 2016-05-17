@@ -40,28 +40,43 @@ public class JvmGcMonitorServiceTests extends ESTestCase {
         final String name = randomAsciiOfLength(16);
         final long seq = randomIntBetween(1, 1 << 30);
         final int elapsedValue = randomIntBetween(1, 1 << 10);
-        final TimeValue elapsed = TimeValue.timeValueMillis(randomIntBetween(1, 1 << 10));
         final long totalCollectionCount = randomIntBetween(1, 16);
         final long currentCollectionCount = randomIntBetween(1, 16);
         final TimeValue totalCollectionTime = TimeValue.timeValueMillis(randomIntBetween(1, elapsedValue));
-        final TimeValue currentColletionTime = TimeValue.timeValueMillis(randomIntBetween(1, elapsedValue));
+        final TimeValue currentCollectionTime = TimeValue.timeValueMillis(randomIntBetween(1, elapsedValue));
+
         final ByteSizeValue lastHeapUsed = new ByteSizeValue(randomIntBetween(1, 1 << 10));
+        JvmStats lastJvmStats = mock(JvmStats.class);
+        JvmStats.Mem lastMem = mock(JvmStats.Mem.class);
+        when(lastMem.getHeapUsed()).thenReturn(lastHeapUsed);
+        when(lastJvmStats.getMem()).thenReturn(lastMem);
+        when(lastJvmStats.toString()).thenReturn("last");
+
         final ByteSizeValue currentHeapUsed = new ByteSizeValue(randomIntBetween(1, 1 << 10));
+        JvmStats currentJvmStats = mock(JvmStats.class);
+        JvmStats.Mem currentMem = mock(JvmStats.Mem.class);
+        when(currentMem.getHeapUsed()).thenReturn(currentHeapUsed);
+        when(currentJvmStats.getMem()).thenReturn(currentMem);
+        when(currentJvmStats.toString()).thenReturn("current");
+
+        JvmStats.GarbageCollector gc = mock(JvmStats.GarbageCollector.class);
+        when(gc.getName()).thenReturn(name);
+        when(gc.getCollectionCount()).thenReturn(totalCollectionCount);
+        when(gc.getCollectionTime()).thenReturn(totalCollectionTime);
+
         final ByteSizeValue maxHeapUsed = new ByteSizeValue(Math.max(lastHeapUsed.bytes(), currentHeapUsed.bytes()) + 1 << 10);
-        JvmGcMonitorService.logSlowGc(
-            logger,
-            threshold,
-            name,
-            seq,
-            elapsed,
-            totalCollectionCount,
+
+        JvmGcMonitorService.JvmMonitor.SlowGcEvent slowGcEvent = new JvmGcMonitorService.JvmMonitor.SlowGcEvent(
+            gc,
             currentCollectionCount,
-            totalCollectionTime,
-            currentColletionTime,
-            lastHeapUsed,
-            currentHeapUsed,
-            maxHeapUsed,
-            "pools");
+            currentCollectionTime,
+            elapsedValue,
+            lastJvmStats,
+            currentJvmStats,
+            maxHeapUsed);
+
+        JvmGcMonitorService.logSlowGc(logger, threshold, seq, slowGcEvent, (l, c) -> l.toString() + ", " + c.toString());
+
         switch (threshold) {
             case WARN:
                 verify(logger).isWarnEnabled();
@@ -70,15 +85,15 @@ public class JvmGcMonitorServiceTests extends ESTestCase {
                     name,
                     seq,
                     totalCollectionCount,
-                    currentColletionTime,
+                    currentCollectionTime,
                     currentCollectionCount,
-                    elapsed,
-                    currentColletionTime,
+                    TimeValue.timeValueMillis(elapsedValue),
+                    currentCollectionTime,
                     totalCollectionTime,
                     lastHeapUsed,
                     currentHeapUsed,
                     maxHeapUsed,
-                    "pools");
+                    "last, current");
                 break;
             case INFO:
                 verify(logger).isInfoEnabled();
@@ -87,15 +102,15 @@ public class JvmGcMonitorServiceTests extends ESTestCase {
                     name,
                     seq,
                     totalCollectionCount,
-                    currentColletionTime,
+                    currentCollectionTime,
                     currentCollectionCount,
-                    elapsed,
-                    currentColletionTime,
+                    TimeValue.timeValueMillis(elapsedValue),
+                    currentCollectionTime,
                     totalCollectionTime,
                     lastHeapUsed,
                     currentHeapUsed,
                     maxHeapUsed,
-                    "pools");
+                    "last, current");
                 break;
             case DEBUG:
                 verify(logger).isDebugEnabled();
@@ -104,15 +119,15 @@ public class JvmGcMonitorServiceTests extends ESTestCase {
                     name,
                     seq,
                     totalCollectionCount,
-                    currentColletionTime,
+                    currentCollectionTime,
                     currentCollectionCount,
-                    elapsed,
-                    currentColletionTime,
+                    TimeValue.timeValueMillis(elapsedValue),
+                    currentCollectionTime,
                     totalCollectionTime,
                     lastHeapUsed,
                     currentHeapUsed,
                     maxHeapUsed,
-                    "pools");
+                    "last, current");
                 break;
         }
         verifyNoMoreInteractions(logger);

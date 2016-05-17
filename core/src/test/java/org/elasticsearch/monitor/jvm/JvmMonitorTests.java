@@ -19,7 +19,6 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -60,18 +59,7 @@ public class JvmMonitorTests extends ESTestCase {
             }
 
             @Override
-            void onSlowGc(
-                final Threshold threshold,
-                final String name,
-                final long seq,
-                final TimeValue elapsed,
-                final long totalGcCollectionCount,
-                final long currentGcCollectionCount,
-                final TimeValue totalGcCollectionTime, final TimeValue currentGcCollectionTime,
-                final ByteSizeValue lastHeapUsed,
-                final ByteSizeValue currentHeapUsed,
-                final ByteSizeValue maxHeapUsed,
-                final String pools) {
+            void onSlowGc(final Threshold threshold, final long seq, final SlowGcEvent slowGcEvent) {
             }
         };
 
@@ -183,38 +171,24 @@ public class JvmMonitorTests extends ESTestCase {
             }
 
             @Override
-            void onSlowGc(
-                final Threshold threshold,
-                final String name,
-                final long seq,
-                final TimeValue elapsed,
-                final long totalGcCollectionCount,
-                final long currentGcCollectionCount,
-                final TimeValue totalGcCollectionTime,
-                final TimeValue currentGcCollectionTime,
-                final ByteSizeValue lastHeapUsed,
-                final ByteSizeValue currentHeapUsed,
-                final ByteSizeValue maxHeapUsed,
-                final String pools) {
+            void onSlowGc(final Threshold threshold, final long seq, final SlowGcEvent slowGcEvent) {
                 count.incrementAndGet();
                 assertThat(seq, equalTo(1L));
-                assertThat(elapsed, equalTo(TimeValue.timeValueMillis(expectedElapsed)));
-                if ("young".equals(name)) {
+                assertThat(slowGcEvent.elapsed, equalTo(expectedElapsed));
+                if ("young".equals(slowGcEvent.currentGc.getName())) {
                     assertThat(youngThresholdLevel, equalTo(threshold));
-                    assertThat(name, equalTo("young"));
-                    assertThat(totalGcCollectionCount, equalTo((long) (initialYoungCollectionCount + youngCollections)));
-                    assertThat(currentGcCollectionCount, equalTo((long) youngCollections));
-                    assertThat(currentGcCollectionTime, equalTo(TimeValue.timeValueMillis(youngIncrement)));
-                    assertThat(totalGcCollectionTime, equalTo(TimeValue.timeValueMillis(initialYoungCollectionTime + youngIncrement)));
-                } else if ("old".equals(name)) {
+                    assertThat(slowGcEvent.currentGc.getCollectionCount(), equalTo((long) (initialYoungCollectionCount + youngCollections)));
+                    assertThat(slowGcEvent.collectionCount, equalTo((long) youngCollections));
+                    assertThat(slowGcEvent.collectionTime, equalTo(TimeValue.timeValueMillis(youngIncrement)));
+                    assertThat(slowGcEvent.currentGc.getCollectionTime(), equalTo(TimeValue.timeValueMillis(initialYoungCollectionTime + youngIncrement)));
+                } else if ("old".equals(slowGcEvent.currentGc.getName())) {
                     assertThat(oldThresholdLevel, equalTo(threshold));
-                    assertThat(name, equalTo("old"));
-                    assertThat(totalGcCollectionCount, equalTo((long) (initialOldCollectionCount + oldCollections)));
-                    assertThat(currentGcCollectionCount, equalTo((long) oldCollections));
-                    assertThat(currentGcCollectionTime, equalTo(TimeValue.timeValueMillis(oldIncrement)));
-                    assertThat(totalGcCollectionTime, equalTo(TimeValue.timeValueMillis(initialOldCollectionTime + oldIncrement)));
+                    assertThat(slowGcEvent.currentGc.getCollectionCount(), equalTo((long) (initialOldCollectionCount + oldCollections)));
+                    assertThat(slowGcEvent.collectionCount, equalTo((long) oldCollections));
+                    assertThat(slowGcEvent.collectionTime, equalTo(TimeValue.timeValueMillis(oldIncrement)));
+                    assertThat(slowGcEvent.currentGc.getCollectionTime(), equalTo(TimeValue.timeValueMillis(initialOldCollectionTime + oldIncrement)));
                 } else {
-                    fail("unexpected name [" + name + "]");
+                    fail("unexpected name [" + slowGcEvent.currentGc.getName() + "]");
                 }
             }
 

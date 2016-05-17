@@ -55,15 +55,11 @@ public final class LCall extends ALink {
             throw new IllegalArgumentException(error("Cannot assign a value to a call [" + name + "]."));
         }
 
+        Definition.MethodKey methodKey = new Definition.MethodKey(name, arguments.size());
         final Struct struct = before.struct;
-        method = statik ? struct.functions.get(name) : struct.methods.get(name);
+        method = statik ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
 
         if (method != null) {
-            if (method.arguments.size() != arguments.size()) {
-                throw new IllegalArgumentException(error("When calling [" + name + "] on type [" + struct.name + "]" +
-                    " expected [" + method.arguments.size() + "] arguments, but found [" + arguments.size() + "]."));
-            }
-
             for (int argument = 0; argument < arguments.size(); ++argument) {
                 final AExpression expression = arguments.get(argument);
 
@@ -83,7 +79,8 @@ public final class LCall extends ALink {
             return link.analyze(settings, definition, variables);
         }
 
-        throw new IllegalArgumentException(error("Unknown call [" + name + "] on type [" + struct.name + "]."));
+        throw new IllegalArgumentException(error("Unknown call [" + name + "] with [" + arguments.size() + 
+                                                 "] arguments on type [" + struct.name + "]."));
     }
 
     @Override

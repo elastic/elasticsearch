@@ -149,12 +149,25 @@
 
     <build>
         <plugins>
+            <!-- Always generate a Javadoc file even if we don't have any java source
+                but only resources
+            -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-source-plugin</artifactId>
-                <configuration>
-                    <includePom>true</includePom>
-                </configuration>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>empty-javadoc-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>javadoc</classifier>
+                            <classesDirectory>${basedir}/src/main/resources</classesDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
             <!-- We copy libs for deb and rpm -->

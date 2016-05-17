@@ -29,14 +29,6 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-source-plugin</artifactId>
-                <configuration>
-                    <includePom>true</includePom>
-                </configuration>
-            </plugin>
-
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
             </plugin>
             <!-- disable jar plugin, we have no jar -->
@@ -44,9 +36,19 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <executions>
+                    <!-- Always generate a Javadoc file even if we don't have any java source
+                        but only resources
+                    -->
                     <execution>
-                        <id>default-jar</id>
-                        <phase>none</phase>
+                        <id>empty-javadoc-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>javadoc</classifier>
+                            <classesDirectory>${basedir}/src/main/resources</classesDirectory>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

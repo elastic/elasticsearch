@@ -52,6 +52,156 @@
           }
         }
       }
+    },
+    "kibana_stats": {
+      "properties": {
+        "kibana_stats": {
+          "properties": {
+            "kibana": {
+              "properties": {
+                "uuid": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "keyword"
+                },
+                "host": {
+                  "type": "keyword"
+                },
+                "transport_address": {
+                  "type": "keyword"
+                },
+                "version": {
+                  "type": "keyword"
+                },
+                "snapshot": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "keyword"
+                },
+                "statuses": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    },
+                    "state": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            },
+            "os": {
+              "properties": {
+                "load": {
+                  "properties": {
+                    "1m": {
+                      "type": "float"
+                    },
+                    "5m": {
+                      "type": "float"
+                    },
+                    "15m": {
+                      "type": "float"
+                    }
+                  }
+                },
+                "memory": {
+                  "properties": {
+                    "total_in_bytes": {
+                      "type": "float"
+                    },
+                    "free_in_bytes": {
+                      "type": "float"
+                    },
+                    "used_in_bytes": {
+                      "type": "float"
+                    }
+                  }
+                },
+                "uptime_in_millis": {
+                  "type": "long"
+                }
+              }
+            },
+            "process": {
+              "properties": {
+                "memory": {
+                  "properties": {
+                    "heap": {
+                      "properties": {
+                        "total_in_bytes": {
+                          "type": "float"
+                        },
+                        "used_in_bytes": {
+                          "type": "float"
+                        }
+                      }
+                    },
+                    "resident_set_size_in_bytes": {
+                      "type": "float"
+                    }
+                  }
+                },
+                "event_loop_delay": {
+                  "type": "float"
+                },
+                "uptime_in_millis": {
+                  "type": "long"
+                }
+              }
+            },
+            "sockets": {
+              "properties": {
+                "http": {
+                  "properties": {
+                    "total": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "https": {
+                  "properties": {
+                    "total": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
+            },
+            "timestamp": {
+              "type": "date"
+            },
+            "requests": {
+              "properties": {
+                "disconnects": {
+                  "type": "long"
+                },
+                "total": {
+                  "type": "long"
+                },
+                "status_codes": {
+                  "type": "object"
+                }
+              }
+            },
+            "response_times": {
+              "properties": {
+                "average": {
+                  "type": "float"
+                },
+                "max": {
+                  "type": "float"
+                }
+              }
+            },
+            "concurrent_connections": {
+              "type": "long"
+            }
+          }
+        }
+      }
     }
   }
 }

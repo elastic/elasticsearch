@@ -105,7 +105,8 @@ import static org.elasticsearch.painless.WriterConstants.TOSHORTWOOVERFLOW_FLOAT
  */
 public final class MethodWriter extends GeneratorAdapter {
 
-    private final Deque<List<org.objectweb.asm.Type>> stringConcatArgs = (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ? null : new ArrayDeque<>();
+    private final Deque<List<org.objectweb.asm.Type>> stringConcatArgs = (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?
+            null : new ArrayDeque<>();
 
     MethodWriter(int access, Method method, org.objectweb.asm.Type[] exceptions, ClassVisitor cv) {
         super(Opcodes.ASM5, cv.visitMethod(access, method.getName(), method.getDescriptor(), null, getInternalNames(exceptions)),

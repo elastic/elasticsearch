@@ -20,12 +20,14 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
@@ -118,7 +120,11 @@ public class RoutingAllocation {
 
     private final RoutingNodes routingNodes;
 
+    private final MetaData metaData;
+
     private final DiscoveryNodes nodes;
+
+    private final ImmutableOpenMap<String, ClusterState.Custom> customs;
 
     private final AllocationExplanation explanation = new AllocationExplanation();
 
@@ -139,13 +145,15 @@ public class RoutingAllocation {
      * Creates a new {@link RoutingAllocation}
      *  @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
      * @param routingNodes Routing nodes in the current cluster
-     * @param nodes TODO: Documentation
+     * @param clusterState cluster state before rerouting
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
-    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes, ClusterInfo clusterInfo, long currentNanoTime) {
+    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState, ClusterInfo clusterInfo, long currentNanoTime) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
-        this.nodes = nodes;
+        this.metaData = clusterState.metaData();
+        this.nodes = clusterState.nodes();
+        this.customs = clusterState.customs();
         this.clusterInfo = clusterInfo;
         this.currentNanoTime = currentNanoTime;
     }
@@ -184,7 +192,7 @@ public class RoutingAllocation {
      * @return Metadata of routing nodes
      */
     public MetaData metaData() {
-        return routingNodes.metaData();
+        return metaData;
     }
 
     /**
@@ -197,6 +205,10 @@ public class RoutingAllocation {
 
     public ClusterInfo clusterInfo() {
         return clusterInfo;
+    }
+
+    public <T extends ClusterState.Custom> T custom(String key) {
+        return (T)customs.get(key);
     }
 
     /**

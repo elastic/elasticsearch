@@ -1293,7 +1293,7 @@ Throws an error when the field is not an array.
 [options="header"]
 |======
 | Name    | Required  | Default  | Description
-| `field` | yes       | -        | The field to be separated
+| `field` | yes       | -        | The field to be sorted
 | `order` | no        | `"asc"`  | The sort order to use. Accepts `"asc"` or `"desc"`.
 |======
 

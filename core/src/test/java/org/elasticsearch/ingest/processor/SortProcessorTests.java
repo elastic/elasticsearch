@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -66,7 +67,7 @@ public class SortProcessorTests extends ESTestCase {
         Integer[] expectedResult = new Integer[]{1,2,3,4,5,10,20,21,22,50,100};
         List<Integer> fieldValue = new ArrayList<>(expectedResult.length);
         fieldValue.addAll(Arrays.asList(expectedResult).subList(0, expectedResult.length));
-        Collections.shuffle(fieldValue);
+        Collections.shuffle(fieldValue, random());
 
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         Processor processor = new SortProcessor(randomAsciiOfLength(10), fieldName, SortOrder.ASCENDING);

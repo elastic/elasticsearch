@@ -96,8 +96,8 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
             TimeValue debug = getValidThreshold(entry.getValue(), entry.getKey(), "debug");
             gcThresholds.put(name, new GcThreshold(name, warn.millis(), info.millis(), debug.millis()));
         }
-        gcThresholds.putIfAbsent(GcNames.YOUNG, new GcThreshold(GcNames.YOUNG, 1000, 700, 1));
-        gcThresholds.putIfAbsent(GcNames.OLD, new GcThreshold(GcNames.OLD, 10000, 5000, 1));
+        gcThresholds.putIfAbsent(GcNames.YOUNG, new GcThreshold(GcNames.YOUNG, 1000, 700, 400));
+        gcThresholds.putIfAbsent(GcNames.OLD, new GcThreshold(GcNames.OLD, 10000, 5000, 2000));
         gcThresholds.putIfAbsent("default", new GcThreshold("default", 10000, 5000, 2000));
         this.gcThresholds = unmodifiableMap(gcThresholds);
 

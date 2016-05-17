@@ -39,8 +39,9 @@ import java.io.IOException;
 import java.util.Locale;
 
 /**
+ * <p>
  * Shared file system implementation of the BlobStoreRepository
- * <p/>
+ * </p>
  * Shared file system repository supports the following settings
  * <dl>
  * <dt>{@code bucket}</dt><dd>S3 bucket</dd>
@@ -70,10 +71,9 @@ public class S3Repository extends BlobStoreRepository {
      * @param repositorySettings   repository settings
      * @param indexShardRepository index shard repository
      * @param s3Service            S3 service
-     * @throws IOException
      */
     @Inject
-    public S3Repository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, AwsS3Service s3Service) throws IOException {
+    public S3Repository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, AwsS3Service s3Service) {
         super(name.getName(), repositorySettings, indexShardRepository);
 
         String bucket = repositorySettings.settings().get("bucket", settings.get(REPOSITORY_S3.BUCKET));

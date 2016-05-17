@@ -61,7 +61,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private volatile long totalOffset;
 
     protected final AtomicBoolean closed = new AtomicBoolean(false);
-
+    // lock order synchronized(syncLock) -> synchronized(this)
+    private final Object syncLock = new Object();
 
     public TranslogWriter(ShardId shardId, long generation, FileChannel channel, Path path, ByteSizeValue bufferSize) throws IOException {
         super(generation, channel, path, channel.position());
@@ -140,7 +141,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return new Translog.Location(generation, offset, data.length());
     }
 
-    private final ReentrantLock syncLock = new ReentrantLock();
     /**
      * write all buffered ops to disk and fsync file.
      *
@@ -216,8 +216,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      */
     public boolean syncUpTo(long offset) throws IOException {
         if (lastSyncedOffset < offset && syncNeeded()) {
-            syncLock.lock(); // only one sync/checkpoint should happen concurrently but we wait
-            try {
+            synchronized (syncLock) { // only one sync/checkpoint should happen concurrently but we wait
                 if (lastSyncedOffset < offset && syncNeeded()) {
                     // double checked locking - we don't want to fsync unless we have to and now that we have
                     // the lock we should check again since if this code is busy we might have fsynced enough already
@@ -237,7 +236,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // now do the actual fsync outside of the synchronized block such that
                     // we can continue writing to the buffer etc.
                     try {
-                        checkpoint(offsetToSync, opsCounter, generation, channel, path);
+                        channel.force(false);
+                        writeCheckpoint(offsetToSync, opsCounter, path.getParent(), generation, StandardOpenOption.WRITE);
                     } catch (Throwable ex) {
                         closeWithTragicEvent(ex);
                         throw ex;
@@ -246,8 +246,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     lastSyncedOffset = offsetToSync; // write protected by syncLock
                     return true;
                 }
-            } finally {
-                syncLock.unlock();
             }
         }
         return false;
@@ -269,12 +267,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         // we don't have to have a lock here because we only write ahead to the file, so all writes has been complete
         // for the requested location.
         Channels.readFromFileChannelWithEofException(channel, position, targetBuffer);
-    }
-
-    private void checkpoint(long lastSyncPosition, int operationCounter, long generation, FileChannel translogFileChannel, Path translogFilePath) throws IOException {
-        assert syncLock.isHeldByCurrentThread() : "thread must hold syncLock";
-        translogFileChannel.force(false);
-        writeCheckpoint(lastSyncPosition, operationCounter, translogFilePath.getParent(), generation, StandardOpenOption.WRITE);
     }
 
     private static void writeCheckpoint(long syncPosition, int numOperations, Path translogFile, long generation, OpenOption... options) throws IOException {

@@ -149,6 +149,14 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <configuration>
+                    <includePom>true</includePom>
+                </configuration>
+            </plugin>
+
             <!-- We copy libs for deb and rpm -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

@@ -1,0 +1,5 @@
+
+apply plugin: 'elasticsearch.cmd-test'
+
+commandLineTest {
+}

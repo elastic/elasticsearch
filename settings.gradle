@@ -44,6 +44,7 @@ List projects = [
   'qa:backwards-5.0',
   'qa:evil-tests',
   'qa:smoke-test-client',
+  'qa:smoke-test-command-line-params',
   'qa:smoke-test-multinode',
   'qa:smoke-test-reindex-with-groovy',
   'qa:smoke-test-plugins',

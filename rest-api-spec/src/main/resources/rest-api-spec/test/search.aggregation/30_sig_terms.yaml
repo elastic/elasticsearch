@@ -121,3 +121,22 @@
   - is_false: aggregations.ip_terms.buckets.0.key_as_string
 
   - match: { aggregations.ip_terms.buckets.0.doc_count: 1 }
+
+  - do:
+      search:
+        body: { "query" : { "exists" : { "field" : "ip" } }, "aggs" : { "ip_terms" : { "significant_terms" : { "field" : "ip", "min_doc_count" : 1, "include" : [ "::1" ] } } } }
+
+  - match: { hits.total: 1 }
+
+  - length: { aggregations.ip_terms.buckets: 1 }
+
+  - match: { aggregations.ip_terms.buckets.0.key: "::1" }
+ 
+  - do:
+      search:
+        body: { "query" : { "exists" : { "field" : "ip" } }, "aggs" : { "ip_terms" : { "significant_terms" : { "field" : "ip", "min_doc_count" : 1, "exclude" : [ "::1" ] } } } }
+
+  - match: { hits.total: 1 }
+
+  - length: { aggregations.ip_terms.buckets: 0 }
+ 

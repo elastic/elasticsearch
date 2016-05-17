@@ -33,6 +33,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -194,17 +195,71 @@ public final class Definition {
             this.setter = setter;
         }
     }
+    
+    // TODO: instead of hashing on this, we could have a 'next' pointer in Method itself, but it would make code more complex
+    /**
+     * Key for looking up a method.
+     * <p>
+     * Methods are keyed on both name and arity, and can be overloaded once per arity.
+     * This allows signatures such as {@code String.indexOf(String) vs String.indexOf(String, int)}.
+     * <p>
+     * It is less flexible than full signature overloading where types can differ too, but
+     * better than just the name, and overloading types adds complexity to users, too.
+     */
+    public static final class MethodKey {
+        public final String name;
+        public final int arity;
+        
+        /**
+         * Create a new lookup key
+         * @param name name of the method
+         * @param arity number of parameters
+         */
+        public MethodKey(String name, int arity) {
+            this.name = Objects.requireNonNull(name);
+            this.arity = arity;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + arity;
+            result = prime * result + name.hashCode();
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null) return false;
+            if (getClass() != obj.getClass()) return false;
+            MethodKey other = (MethodKey) obj;
+            if (arity != other.arity) return false;
+            if (!name.equals(other.name)) return false;
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(name);
+            sb.append('/');
+            sb.append(arity);
+            return sb.toString();
+        }
+    }
 
     public static final class Struct {
         public final String name;
         public final Class<?> clazz;
         public final org.objectweb.asm.Type type;
 
-        public final Map<String, Constructor> constructors;
-        public final Map<String, Method> functions;
-        public final Map<String, Method> methods;
+        public final Map<MethodKey, Constructor> constructors;
+        public final Map<MethodKey, Method> staticMethods;
+        public final Map<MethodKey, Method> methods;
 
-        public final Map<String, Field> statics;
+        public final Map<String, Field> staticMembers;
         public final Map<String, Field> members;
 
         private Struct(final String name, final Class<?> clazz, final org.objectweb.asm.Type type) {
@@ -213,10 +268,10 @@ public final class Definition {
             this.type = type;
 
             constructors = new HashMap<>();
-            functions = new HashMap<>();
+            staticMethods = new HashMap<>();
             methods = new HashMap<>();
 
-            statics = new HashMap<>();
+            staticMembers = new HashMap<>();
             members = new HashMap<>();
         }
 
@@ -226,10 +281,10 @@ public final class Definition {
             type = struct.type;
 
             constructors = Collections.unmodifiableMap(struct.constructors);
-            functions = Collections.unmodifiableMap(struct.functions);
+            staticMethods = Collections.unmodifiableMap(struct.staticMethods);
             methods = Collections.unmodifiableMap(struct.methods);
 
-            statics = Collections.unmodifiableMap(struct.statics);
+            staticMembers = Collections.unmodifiableMap(struct.staticMembers);
             members = Collections.unmodifiableMap(struct.members);
         }
 
@@ -304,11 +359,11 @@ public final class Definition {
     }
 
     public static final class RuntimeClass {
-        public final Map<String, Method> methods;
+        public final Map<MethodKey, Method> methods;
         public final Map<String, MethodHandle> getters;
         public final Map<String, MethodHandle> setters;
 
-        private RuntimeClass(final Map<String, Method> methods,
+        private RuntimeClass(final Map<MethodKey, Method> methods,
                              final Map<String, MethodHandle> getters, final Map<String, MethodHandle> setters) {
             this.methods = methods;
             this.getters = getters;
@@ -395,6 +450,9 @@ public final class Definition {
     public final Type longsType;
     public final Type doublesType;
     public final Type geoPointsType;
+    
+    // for testing features not currently "used" by the whitelist (we should not rush the API for that!)
+    public final Type featureTestType;
 
     private Definition() {
         structsMap = new HashMap<>();
@@ -476,6 +534,8 @@ public final class Definition {
         longsType = getType("Longs");
         doublesType = getType("Doubles");
         geoPointsType = getType("GeoPoints");
+        
+        featureTestType = getType("FeatureTest");
 
         addElements();
         copyStructs();
@@ -567,6 +627,8 @@ public final class Definition {
         this.longsType = definition.longsType;
         this.doublesType = definition.doublesType;
         this.geoPointsType = definition.geoPointsType;
+        
+        this.featureTestType = definition.featureTestType;
     }
 
     private void addStructs() {
@@ -643,6 +705,8 @@ public final class Definition {
         addStruct( "Longs"     , ScriptDocValues.Longs.class);
         addStruct( "Doubles"   , ScriptDocValues.Doubles.class);
         addStruct( "GeoPoints" , ScriptDocValues.GeoPoints.class);
+        
+        addStruct( "FeatureTest", FeatureTest.class);
     }
 
     private void addElements() {
@@ -765,6 +829,7 @@ public final class Definition {
         addMethod("String", "compareTo", null, false, intType, new Type[] {stringType}, null, null);
         addMethod("String", "concat", null, false, stringType, new Type[] {stringType}, null, null);
         addMethod("String", "endsWith", null, false, booleanType, new Type[] {stringType}, null, null);
+        addMethod("String", "indexOf", null, false, intType, new Type[] {stringType}, null, null);
         addMethod("String", "indexOf", null, false, intType, new Type[] {stringType, intType}, null, null);
         addMethod("String", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
         addMethod("String", "replace", null, false, stringType, new Type[] {charseqType, charseqType}, null, null);
@@ -1112,6 +1177,16 @@ public final class Definition {
                   new Type[] { stringType }, null, null);
         addMethod("GeoPoints", "geohashDistanceInMiles", null, false, doubleType,
                   new Type[] { stringType }, null, null);
+        
+        // currently FeatureTest exposes overloaded constructor, field load store, and overloaded static methods
+        addConstructor("FeatureTest", "new", new Type[] {}, null);
+        addConstructor("FeatureTest", "new", new Type[] {intType, intType}, null);
+        addMethod("FeatureTest", "getX", null, false, intType, new Type[] {}, null, null);
+        addMethod("FeatureTest", "getY", null, false, intType, new Type[] {}, null, null);
+        addMethod("FeatureTest", "setX", null, false, voidType, new Type[] {intType}, null, null);
+        addMethod("FeatureTest", "setY", null, false, voidType, new Type[] {intType}, null, null);
+        addMethod("FeatureTest", "overloadedStatic", null, true, booleanType, new Type[] {}, null, null);
+        addMethod("FeatureTest", "overloadedStatic", null, true, booleanType, new Type[] {booleanType}, null, null);
     }
 
     private void copyStructs() {
@@ -1165,6 +1240,8 @@ public final class Definition {
         copyStruct("Longs", "List", "Collection", "Object");
         copyStruct("Doubles", "List", "Collection", "Object");
         copyStruct("GeoPoints", "List", "Collection", "Object");
+        
+        copyStruct("FeatureTest", "Object");
     }
 
     private void addTransforms() {
@@ -1482,6 +1559,8 @@ public final class Definition {
         addRuntimeClass(longsType.struct);
         addRuntimeClass(doublesType.struct);
         addRuntimeClass(geoPointsType.struct);
+        
+        addRuntimeClass(featureTestType.struct);
     }
 
     private final void addStruct(final String name, final Class<?> clazz) {
@@ -1510,20 +1589,22 @@ public final class Definition {
             throw new IllegalArgumentException(
                 "Invalid constructor name [" + name + "] with the struct [" + owner.name + "].");
         }
+        
+        MethodKey methodKey = new MethodKey(name, args.length);
 
-        if (owner.constructors.containsKey(name)) {
+        if (owner.constructors.containsKey(methodKey)) {
             throw new IllegalArgumentException(
-                "Duplicate constructor name [" + name + "] found within the struct [" + owner.name + "].");
+                "Duplicate constructor [" + methodKey + "] found within the struct [" + owner.name + "].");
         }
 
-        if (owner.statics.containsKey(name)) {
-            throw new IllegalArgumentException("Constructors and functions may not have the same name" +
-                " [" + name + "] within the same struct [" + owner.name + "].");
+        if (owner.staticMethods.containsKey(methodKey)) {
+            throw new IllegalArgumentException("Constructors and static methods may not have the same signature" +
+                " [" + methodKey + "] within the same struct [" + owner.name + "].");
         }
 
-        if (owner.methods.containsKey(name)) {
-            throw new IllegalArgumentException("Constructors and methods may not have the same name" +
-                " [" + name + "] within the same struct [" + owner.name + "].");
+        if (owner.methods.containsKey(methodKey)) {
+            throw new IllegalArgumentException("Constructors and methods may not have the same signature" +
+                " [" + methodKey + "] within the same struct [" + owner.name + "].");
         }
 
         final Class<?>[] classes = new Class<?>[args.length];
@@ -1553,7 +1634,7 @@ public final class Definition {
         final Constructor constructor =
             new Constructor(name, owner, Arrays.asList(genargs != null ? genargs : args), asm, reflect);
 
-        owner.constructors.put(name, constructor);
+        owner.constructors.put(methodKey, constructor);
     }
 
     private final void addMethod(final String struct, final String name, final String alias, final boolean statik,
@@ -1566,32 +1647,34 @@ public final class Definition {
         }
 
         if (!name.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
-            throw new IllegalArgumentException("Invalid " + (statik ? "function" : "method") +
+            throw new IllegalArgumentException("Invalid " + (statik ? "static method" : "method") +
                 " name [" + name + "] with the struct [" + owner.name + "].");
         }
+        
+        MethodKey methodKey = new MethodKey(name, args.length);
 
-        if (owner.constructors.containsKey(name)) {
-            throw new IllegalArgumentException("Constructors and " + (statik ? "functions" : "methods") +
-                " may not have the same name [" + name + "] within the same struct" +
+        if (owner.constructors.containsKey(methodKey)) {
+            throw new IllegalArgumentException("Constructors and " + (statik ? "static methods" : "methods") +
+                " may not have the same signature [" + methodKey + "] within the same struct" +
                 " [" + owner.name + "].");
         }
 
-        if (owner.statics.containsKey(name)) {
+        if (owner.staticMethods.containsKey(methodKey)) {
             if (statik) {
                 throw new IllegalArgumentException(
-                    "Duplicate function name [" + name + "] found within the struct [" + owner.name + "].");
+                    "Duplicate static method signature [" + methodKey + "] found within the struct [" + owner.name + "].");
             } else {
-                throw new IllegalArgumentException("Functions and methods may not have the same name" +
-                    " [" + name + "] within the same struct [" + owner.name + "].");
+                throw new IllegalArgumentException("Static methods and methods may not have the same signature" +
+                    " [" + methodKey + "] within the same struct [" + owner.name + "].");
             }
         }
 
-        if (owner.methods.containsKey(name)) {
+        if (owner.methods.containsKey(methodKey)) {
             if (statik) {
-                throw new IllegalArgumentException("Functions and methods may not have the same name" +
-                    " [" + name + "] within the same struct [" + owner.name + "].");
+                throw new IllegalArgumentException("Static methods and methods may not have the same signature" +
+                    " [" + methodKey + "] within the same struct [" + owner.name + "].");
             } else {
-                throw new IllegalArgumentException("Duplicate method name [" + name + "]" +
+                throw new IllegalArgumentException("Duplicate method signature [" + methodKey + "]" +
                     " found within the struct [" + owner.name + "].");
             }
         }
@@ -1663,14 +1746,14 @@ public final class Definition {
                     " within the struct [" + owner.name + "] is not linked to a static Java method.");
             }
 
-            owner.functions.put(name, method);
+            owner.staticMethods.put(methodKey, method);
         } else {
             if (java.lang.reflect.Modifier.isStatic(modifiers)) {
                 throw new IllegalArgumentException("Method [" + name + "]" +
                     " within the struct [" + owner.name + "] is not linked to a non-static Java method.");
             }
 
-            owner.methods.put(name, method);
+            owner.methods.put(methodKey, method);
         }
     }
 
@@ -1688,7 +1771,7 @@ public final class Definition {
                 " name [" + name + "] with the struct [" + owner.name + "].");
         }
 
-        if (owner.statics.containsKey(name)) {
+        if (owner.staticMembers.containsKey(name)) {
             if (statik) {
                 throw new IllegalArgumentException("Duplicate static name [" + name + "]" +
                     " found within the struct [" + owner.name + "].");
@@ -1751,7 +1834,7 @@ public final class Definition {
                     " within the struct [" + owner.name + "] is not linked to static Java field.");
             }
 
-            owner.statics.put(alias == null ? name : alias, field);
+            owner.staticMembers.put(alias == null ? name : alias, field);
         } else {
             if (java.lang.reflect.Modifier.isStatic(modifiers)) {
                 throw new IllegalArgumentException("Member [" + name + "]" +
@@ -1785,8 +1868,10 @@ public final class Definition {
             final boolean object = child.clazz.equals(Object.class) &&
                 java.lang.reflect.Modifier.isInterface(owner.clazz.getModifiers());
 
-            for (final Method method : child.methods.values()) {
-                if (owner.methods.get(method.name) == null) {
+            for (Map.Entry<MethodKey,Method> kvPair : child.methods.entrySet()) {
+                MethodKey methodKey = kvPair.getKey();
+                Method method = kvPair.getValue();
+                if (owner.methods.get(methodKey) == null) {
                     final Class<?> clazz = object ? Object.class : owner.clazz;
 
                     java.lang.reflect.Method reflect;
@@ -1808,7 +1893,7 @@ public final class Definition {
                             Arrays.toString(method.reflect.getParameterTypes()) + ".");
                     }
 
-                    owner.methods.put(method.name,
+                    owner.methods.put(methodKey,
                         new Method(method.name, owner, method.rtn, method.arguments, method.method, reflect, handle));
                 }
             }
@@ -1866,8 +1951,11 @@ public final class Definition {
         Type upcast = null;
         Type downcast = null;
 
+        // transforms are implicitly arity of 0, unless a static method where its 1 (receiver passed)
+        MethodKey methodKey = new MethodKey(name, statik ? 1 : 0);
+
         if (statik) {
-            method = owner.functions.get(name);
+            method = owner.staticMethods.get(methodKey);
 
             if (method == null) {
                 throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
@@ -1905,7 +1993,7 @@ public final class Definition {
                 }
             }
         } else {
-            method = owner.methods.get(name);
+            method = owner.methods.get(methodKey);
 
             if (method == null) {
                 throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
@@ -1950,7 +2038,7 @@ public final class Definition {
      * Precomputes a more efficient structure for dynamic method/field access.
      */
     private void addRuntimeClass(final Struct struct) {
-        final Map<String, Method> methods = struct.methods;
+        final Map<MethodKey, Method> methods = struct.methods;
         final Map<String, MethodHandle> getters = new HashMap<>();
         final Map<String, MethodHandle> setters = new HashMap<>();
 
@@ -1961,8 +2049,8 @@ public final class Definition {
         }
 
         // add all getters/setters
-        for (final Map.Entry<String, Method> method : methods.entrySet()) {
-            final String name = method.getKey();
+        for (final Map.Entry<MethodKey, Method> method : methods.entrySet()) {
+            final String name = method.getKey().name;
             final Method m = method.getValue();
 
             if (m.arguments.size() == 0 &&

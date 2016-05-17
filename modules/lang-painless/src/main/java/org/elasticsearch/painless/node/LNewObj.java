@@ -63,7 +63,7 @@ public final class LNewObj extends ALink {
         }
 
         final Struct struct = type.struct;
-        constructor = struct.constructors.get("new");
+        constructor = struct.constructors.get(new Definition.MethodKey("new", arguments.size()));
 
         if (constructor != null) {
             final Type[] types = new Type[constructor.arguments.size()];

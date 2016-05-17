@@ -17,6 +17,13 @@ interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitSource(PainlessParser.SourceContext ctx);
   /**
+   * Visit a parse tree produced by the {@code ifelse}
+   * labeled alternative in {@link PainlessParser#statement}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitIfelse(PainlessParser.IfelseContext ctx);
+  /**
    * Visit a parse tree produced by the {@code if}
    * labeled alternative in {@link PainlessParser#statement}.
    * @param ctx the parse tree

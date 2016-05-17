@@ -57,6 +57,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.ForContext;
 import org.elasticsearch.painless.antlr.PainlessParser.GenericContext;
 import org.elasticsearch.painless.antlr.PainlessParser.IdentifierContext;
 import org.elasticsearch.painless.antlr.PainlessParser.IfContext;
+import org.elasticsearch.painless.antlr.PainlessParser.IfelseContext;
 import org.elasticsearch.painless.antlr.PainlessParser.InitializerContext;
 import org.elasticsearch.painless.antlr.PainlessParser.MultipleContext;
 import org.elasticsearch.painless.antlr.PainlessParser.NullContext;
@@ -166,12 +167,20 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
-    public ANode visitIf(final IfContext ctx) {
+    public ANode visitIfelse(final IfelseContext ctx) {
         final AExpression condition = (AExpression)visit(ctx.expression());
         final AStatement ifblock = (AStatement)visit(ctx.block(0));
-        final AStatement elseblock = ctx.block(1) == null ? null : (AStatement)visit(ctx.block(1));
+        final AStatement elseblock = (AStatement)visit(ctx.block(1));
 
         return new SIfElse(line(ctx), location(ctx), condition, ifblock, elseblock);
+    }
+
+    @Override
+    public ANode visitIf(final IfContext ctx) {
+        final AExpression condition = (AExpression)visit(ctx.expression());
+        final AStatement ifblock = (AStatement)visit(ctx.block());
+
+        return new SIfElse(line(ctx), location(ctx), condition, ifblock, null);
     }
 
     @Override

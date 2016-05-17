@@ -26,7 +26,8 @@ source
     ;
 
 statement
-    : IF LP expression RP block ( ELSE block )?                                              # if
+    : IF LP expression RP block ELSE block                                                   # ifelse
+    | IF LP expression RP block                                                              # if
     | WHILE LP expression RP ( block | empty )                                               # while
     | DO block WHILE LP expression RP ( SEMICOLON | EOF )                                    # do
     | FOR LP initializer? SEMICOLON expression? SEMICOLON afterthought? RP ( block | empty ) # for

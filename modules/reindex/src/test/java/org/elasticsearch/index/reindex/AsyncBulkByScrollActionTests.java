@@ -168,7 +168,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             Object result = listener.get();
             fail("Expected listener not to be done but it was and had " + result);
         }
-        assertNotNull("There should be a search attempt pending that we didn't reject", client.lastSearch.get());
+        assertBusy(() -> assertNotNull("There should be a search attempt pending that we didn't reject", client.lastSearch.get()));
         assertEquals(client.searchesToReject, testTask.getStatus().getSearchRetries());
     }
 
@@ -194,7 +194,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             Object result = listener.get();
             fail("Expected listener not to be done but it was and had " + result);
         }
-        assertNotNull("There should be a scroll attempt pending that we didn't reject", client.lastScroll.get());
+        assertBusy(() -> assertNotNull("There should be a scroll attempt pending that we didn't reject", client.lastScroll.get()));
         assertEquals(client.scrollsToReject, testTask.getStatus().getSearchRetries());
     }
 

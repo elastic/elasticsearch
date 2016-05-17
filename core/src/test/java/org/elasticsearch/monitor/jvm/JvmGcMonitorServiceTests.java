@@ -62,56 +62,58 @@ public class JvmGcMonitorServiceTests extends ESTestCase {
             currentHeapUsed,
             maxHeapUsed,
             "asdf");
-        if (threshold == JvmGcMonitorService.JvmMonitor.Threshold.WARN) {
-            verify(logger).isWarnEnabled();
-            verify(logger).warn(
-                "[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}",
-                name,
-                seq,
-                totalCollectionCount,
-                currentColletionTime,
-                currentCollectionCount,
-                elapsed,
-                currentColletionTime,
-                totalCollectionTime,
-                lastHeapUsed,
-                currentHeapUsed,
-                maxHeapUsed,
-                "asdf");
-        } else if (threshold == JvmGcMonitorService.JvmMonitor.Threshold.INFO) {
-            verify(logger).isInfoEnabled();
-            verify(logger).info(
-                "[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}",
-                name,
-                seq,
-                totalCollectionCount,
-                currentColletionTime,
-                currentCollectionCount,
-                elapsed,
-                currentColletionTime,
-                totalCollectionTime,
-                lastHeapUsed,
-                currentHeapUsed,
-                maxHeapUsed,
-                "asdf");
-        } else if (threshold == JvmGcMonitorService.JvmMonitor.Threshold.DEBUG) {
-            verify(logger).isDebugEnabled();
-            verify(logger).debug(
-                "[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}",
-                name,
-                seq,
-                totalCollectionCount,
-                currentColletionTime,
-                currentCollectionCount,
-                elapsed,
-                currentColletionTime,
-                totalCollectionTime,
-                lastHeapUsed,
-                currentHeapUsed,
-                maxHeapUsed,
-                "asdf");
-        } else {
-            fail("unexpected threshold [" + threshold + "]");
+        switch (threshold) {
+            case WARN:
+                verify(logger).isWarnEnabled();
+                verify(logger).warn(
+                    "[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}",
+                    name,
+                    seq,
+                    totalCollectionCount,
+                    currentColletionTime,
+                    currentCollectionCount,
+                    elapsed,
+                    currentColletionTime,
+                    totalCollectionTime,
+                    lastHeapUsed,
+                    currentHeapUsed,
+                    maxHeapUsed,
+                    "asdf");
+                break;
+            case INFO:
+                verify(logger).isInfoEnabled();
+                verify(logger).info(
+                    "[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}",
+                    name,
+                    seq,
+                    totalCollectionCount,
+                    currentColletionTime,
+                    currentCollectionCount,
+                    elapsed,
+                    currentColletionTime,
+                    totalCollectionTime,
+                    lastHeapUsed,
+                    currentHeapUsed,
+                    maxHeapUsed,
+                    "asdf");
+                break;
+            case DEBUG:
+                verify(logger).isDebugEnabled();
+                verify(logger).debug(
+                    "[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}",
+                    name,
+                    seq,
+                    totalCollectionCount,
+                    currentColletionTime,
+                    currentCollectionCount,
+                    elapsed,
+                    currentColletionTime,
+                    totalCollectionTime,
+                    lastHeapUsed,
+                    currentHeapUsed,
+                    maxHeapUsed,
+                    "asdf");
+                break;
         }
         verifyNoMoreInteractions(logger);
     }

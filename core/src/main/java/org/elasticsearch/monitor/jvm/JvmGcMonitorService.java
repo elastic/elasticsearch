@@ -178,51 +178,61 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
         final ByteSizeValue currentHeapUsed,
         final ByteSizeValue maxHeapUsed,
         final String pools) {
-        if (threshold == JvmMonitor.Threshold.WARN && logger.isWarnEnabled()) {
-            logger.warn(
-                LOG_MESSAGE,
-                name,
-                seq,
-                totalGcCollectionCount,
-                currentGcCollectionTime,
-                currentGcCollectionCount,
-                elapsed,
-                currentGcCollectionTime,
-                totalGcCollectionTime,
-                lastHeapUsed,
-                currentHeapUsed,
-                maxHeapUsed,
-                pools);
-        } else if (threshold == JvmMonitor.Threshold.INFO && logger.isInfoEnabled()) {
-            logger.info(
-                LOG_MESSAGE,
-                name,
-                seq,
-                totalGcCollectionCount,
-                currentGcCollectionTime,
-                currentGcCollectionCount,
-                elapsed,
-                currentGcCollectionTime,
-                totalGcCollectionTime,
-                lastHeapUsed,
-                currentHeapUsed,
-                maxHeapUsed,
-                pools);
-        } else if (threshold == JvmMonitor.Threshold.DEBUG && logger.isDebugEnabled()) {
-            logger.debug(
-                LOG_MESSAGE,
-                name,
-                seq,
-                totalGcCollectionCount,
-                currentGcCollectionTime,
-                currentGcCollectionCount,
-                elapsed,
-                currentGcCollectionTime,
-                totalGcCollectionTime,
-                lastHeapUsed,
-                currentHeapUsed,
-                maxHeapUsed,
-                pools);
+        switch (threshold) {
+            case WARN:
+                if (logger.isWarnEnabled()) {
+                    logger.warn(
+                        LOG_MESSAGE,
+                        name,
+                        seq,
+                        totalGcCollectionCount,
+                        currentGcCollectionTime,
+                        currentGcCollectionCount,
+                        elapsed,
+                        currentGcCollectionTime,
+                        totalGcCollectionTime,
+                        lastHeapUsed,
+                        currentHeapUsed,
+                        maxHeapUsed,
+                        pools);
+                }
+                break;
+            case INFO:
+                if (logger.isInfoEnabled()) {
+                    logger.info(
+                        LOG_MESSAGE,
+                        name,
+                        seq,
+                        totalGcCollectionCount,
+                        currentGcCollectionTime,
+                        currentGcCollectionCount,
+                        elapsed,
+                        currentGcCollectionTime,
+                        totalGcCollectionTime,
+                        lastHeapUsed,
+                        currentHeapUsed,
+                        maxHeapUsed,
+                        pools);
+                }
+                break;
+            case DEBUG:
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        LOG_MESSAGE,
+                        name,
+                        seq,
+                        totalGcCollectionCount,
+                        currentGcCollectionTime,
+                        currentGcCollectionCount,
+                        elapsed,
+                        currentGcCollectionTime,
+                        totalGcCollectionTime,
+                        lastHeapUsed,
+                        currentHeapUsed,
+                        maxHeapUsed,
+                        pools);
+                }
+                break;
         }
     }
 

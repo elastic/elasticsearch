@@ -7,16 +7,12 @@ them, and constructs a query. For example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "match" : {
-            "message" : "this is a test"
-        }
+    "match" : {
+        "message" : "this is a test"
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 Note, `message` is the name of a field, you can substitute the name of
 any field (including `_all`) instead.
@@ -61,19 +57,15 @@ change in structure, `message` is the field name):
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "match" : {
-            "message" : {
-                "query" : "this is a test",
-                "operator" : "and"
-            }
+    "match" : {
+        "message" : {
+            "query" : "this is a test",
+            "operator" : "and"
         }
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[query-dsl-match-query-zero]]
 ===== Zero terms query
@@ -84,20 +76,16 @@ change that the `zero_terms_query` option can be used, which accepts
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "match" : {
-            "message" : {
-                "query" : "to be or not to be",
-                "operator" : "and",
-                "zero_terms_query": "all"
-            }
+    "match" : {
+        "message" : {
+            "query" : "to be or not to be",
+            "operator" : "and",
+            "zero_terms_query": "all"
         }
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[query-dsl-match-query-cutoff]]
 ===== Cutoff frequency
@@ -125,19 +113,16 @@ Here is an example showing a query composed of stopwords exclusively:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "match" : {
-            "message" : {
-                "query" : "to be or not to be",
-                "cutoff_frequency" : 0.001
-            }
+    "match" : {
+        "message" : {
+            "query" : "to be or not to be",
+            "cutoff_frequency" : 0.001
         }
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 
 IMPORTANT: The `cutoff_frequency` option operates on a per-shard-level. This means
 that when trying it out on test indexes with low document numbers you

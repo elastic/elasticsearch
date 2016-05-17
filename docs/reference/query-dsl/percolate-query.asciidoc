@@ -13,27 +13,26 @@ Create an index with two mappings:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index
+curl -XPUT "http://localhost:9200/my-index" -d'
 {
-    "mappings": {
-        "doctype": {
-            "properties": {
-                "message": {
-                    "type": "string"
-                }
-            }
-        },
-        "queries": {
-            "properties": {
-                "query": {
-                    "type": "percolator"
-                }
-            }
+  "mappings": {
+    "doctype": {
+      "properties": {
+        "message": {
+          "type": "string"
         }
+      }
+    },
+    "queries": {
+      "properties": {
+        "query": {
+          "type": "percolator"
+        }
+      }
     }
-}
+  }
+}'
 --------------------------------------------------
-// CONSOLE
 
 The `doctype` mapping is the mapping used to preprocess
 the document defined in the `percolator` query before it
@@ -51,24 +50,20 @@ Register a query in the percolator:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/queries/1
-{
+curl -XPUT 'localhost:9200/my-index/queries/1' -d '{
     "query" : {
         "match" : {
             "message" : "bonsai tree"
         }
     }
-}
+}'
 --------------------------------------------------
-// CONSOLE
-// TEST[continued]
 
 Match a document to the registered percolator queries:
 
 [source,js]
 --------------------------------------------------
-GET /my-index/_search
-{
+curl -XGET 'localhost:9200/my-index/_search' -d '{
     "query" : {
         "percolate" : {
             "field" : "query",
@@ -78,10 +73,8 @@ GET /my-index/_search
             }
         }
     }
-}
+}'
 --------------------------------------------------
-// CONSOLE
-// TEST[continued]
 
 The above request will yield the following response:
 
@@ -158,13 +151,12 @@ Index the document we want to percolate:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/message/1
+curl -XPUT "http://localhost:9200/my-index/message/1" -d'
 {
   "message" : "A new bonsai tree in the office"
-}
+}'
 --------------------------------------------------
-// CONSOLE
-// TEST[continued]
+
 Index response:
 
 [source,js]
@@ -187,7 +179,7 @@ Percolating an existing document, using the index response as basis to build to 
 
 [source,js]
 --------------------------------------------------
-GET /my-index/_search
+curl -XGET "http://localhost:9200/my-index/_search" -d'
 {
     "query" : {
         "percolate" : {
@@ -199,10 +191,8 @@ GET /my-index/_search
             "version" : 1 <1>
         }
     }
-}
+}'
 --------------------------------------------------
-// CONSOLE
-// TEST[continued]
 
 <1> The version is optional, but useful in certain cases. We can then ensure that we are try to percolate
 the document we just have indexed. A change may be made after we have indexed, and if that is the
@@ -226,39 +216,35 @@ Save a query:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/queries/1
+curl -XPUT "http://localhost:9200/my-index/queries/1" -d'
 {
     "query" : {
         "match" : {
             "message" : "brown fox"
         }
     }
-}
+}'
 --------------------------------------------------
-// CONSOLE
-// TEST[continued]
 
 Save another query:
 
 [source,js]
 --------------------------------------------------
-PUT /my-index/queries/2
+curl -XPUT "http://localhost:9200/my-index/queries/2" -d'
 {
     "query" : {
         "match" : {
             "message" : "lazy dog"
         }
     }
-}
+}'
 --------------------------------------------------
-// CONSOLE
-// TEST[continued]
 
 Execute a search request with the `percolate` query and highlighting enabled:
 
 [source,js]
 --------------------------------------------------
-GET /my-index/_search
+curl -XGET "http://localhost:9200/my-index/_search" -d'
 {
     "query" : {
         "percolate" : {
@@ -274,10 +260,8 @@ GET /my-index/_search
         "message": {}
       }
     }
-}
+}'
 --------------------------------------------------
-// CONSOLE
-// TEST[continued]
 
 This will yield the following response.
 

@@ -3,48 +3,17 @@
 
 added[5.0.0]
 
-The `parent_id` query can be used to find child documents which belong to a
-particular parent. Given the following mapping definition:
+The `parent_id` query can be used to find child documents which belong to a particular parent:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index
 {
-    "mappings": {
-        "blog_post": {
-            "properties": {
-                "name": {
-                    "type": "keyword"
-                }
-            }
-        },
-        "blog_tag": {
-            "_parent": {
-                "type": "blog_post"
-            },
-            "_routing": {
-                "required": true
-            }
-        }
+    "parent_id" : {
+        "type" : "blog_tag",
+        "id" : "1"
     }
 }
 --------------------------------------------------
-// CONSOLE
-// TESTSETUP
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "parent_id" : {
-            "type" : "blog_tag",
-                "id" : "1"
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
 
 The above is functionally equivalent to using the following
 <<query-dsl-has-parent-query, `has_parent`>> query, but performs
@@ -52,21 +21,17 @@ better as it does not need to do a join:
 
 [source,js]
 --------------------------------------------------
-GET /my_index/_search
 {
+  "has_parent": {
+    "type": "blog",
     "query": {
-        "has_parent": {
-            "type": "blog_post",
-                "query": {
-                    "term": {
-                        "_id": "1"
-                    }
-                }
-        }
+      "term": {
+        "_id": "1"
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 ==== Parameters
 

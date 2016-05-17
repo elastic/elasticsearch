@@ -81,7 +81,7 @@ all documents where the `status` field contains the term `active`.
 This first query assigns a score of `0` to all documents, as no scoring
 query has been specified:
 
-[source,js]
+[source,json]
 ---------------------------------
 GET _search
 {
@@ -101,7 +101,7 @@ GET _search
 This `bool` query has a `match_all` query, which assigns a score of `1.0` to
 all documents.
 
-[source,js]
+[source,json]
 ---------------------------------
 GET _search
 {
@@ -125,7 +125,7 @@ This `constant_score` query behaves in exactly the same way as the second exampl
 The `constant_score` query assigns a score of `1.0` to all documents matched
 by the filter.
 
-[source,js]
+[source,json]
 ---------------------------------
 GET _search
 {

@@ -10,22 +10,34 @@ mapping change. Here is the API:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/_update_by_query?conflicts=proceed
+POST twitter/_update_by_query?conflicts=proceed
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:big_twitter]
 
 That will return something like this:
 
 [source,js]
 --------------------------------------------------
 {
-  "took" : 639,
-  "updated": 1235,
-  "batches": 13,
-  "version_conflicts": 2,
+  "took" : 147,
+  "timed_out": false,
+  "updated": 120,
+  "batches": 1,
+  "version_conflicts": 0,
+  "noops": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  },
+  "throttled_millis": 0,
+  "requests_per_second": "unlimited",
+  "throttled_until_millis": 0,
+  "total": 120,
   "failures" : [ ]
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took" : 147/"took" : "$body.took"/]
 
 `_update_by_query` gets a snapshot of the index when it starts and indexes what
 it finds using `internal` versioning. That means that you'll get a version
@@ -53,9 +65,10 @@ will only update `tweet`s from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/tweet/_update_by_query?conflicts=proceed
+POST twitter/tweet/_update_by_query?conflicts=proceed
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
 You can also limit `_update_by_query` using the
 <<query-dsl,Query DSL>>. This will update all documents from the
@@ -63,7 +76,7 @@ You can also limit `_update_by_query` using the
 
 [source,js]
 --------------------------------------------------
-POST /twitter/_update_by_query?conflicts=proceed
+POST twitter/_update_by_query?conflicts=proceed
 {
   "query": { <1>
     "term": {
@@ -72,7 +85,8 @@ POST /twitter/_update_by_query?conflicts=proceed
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
 <1> The query must be passed as a value to the `query` key, in the same
 way as the <<search-search,Search API>>. You can also use the `q`
@@ -86,7 +100,7 @@ will increment the `likes` field on all of kimchy's tweets:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/_update_by_query
+POST twitter/_update_by_query
 {
   "script": {
     "inline": "ctx._source.likes++"
@@ -98,7 +112,8 @@ POST /twitter/_update_by_query
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
 Just as in <<docs-update,Update API>> you can set `ctx.op = "noop"` if
 your script decides that it doesn't have to make any changes. That will cause
@@ -119,36 +134,50 @@ types at once, just like the search API:
 
 [source,js]
 --------------------------------------------------
-POST /twitter,blog/tweet,post/_update_by_query
+POST twitter,blog/tweet,post/_update_by_query
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT twitter\nPUT blog\nGET _cluster\/health?wait_for_status=yellow\n/]
 
 If you provide `routing` then the routing is copied to the scroll query,
 limiting the process to the shards that match that routing value:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/_update_by_query?routing=1
+POST twitter/_update_by_query?routing=1
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
-By default `_update_by_query` uses scroll batches of 100. You can change the
+By default `_update_by_query` uses scroll batches of 1000. You can change the
 batch size with the `scroll_size` URL parameter:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/_update_by_query?scroll_size=1000
+POST twitter/_update_by_query?scroll_size=100
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
 `_update_by_query` can also use the <<ingest>> feature by
 specifying a `pipeline` like this:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/_update_by_query?pipeline=some_ingest_pipeline
+PUT _ingest/pipeline/set-foo
+{
+  "description" : "sets foo",
+  "processors" : [ {
+      "set" : {
+        "field": "foo",
+        "value": "bar"
+      }
+  } ]
+}
+POST twitter/_update_by_query?pipeline=set-foo
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
 [float]
 === URL Parameters
@@ -172,14 +201,15 @@ request. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
 
-`requests_per_second` can be set to any decimal number (1.4, 6, 1000, etc) and
-throttle the number of requests per second that the update by query issues. The
-throttling is done waiting between bulk batches so that it can manipulate the
-scroll timeout. The wait time is the difference between the time it took the
+`requests_per_second` can be set to any decimal number (`1.4`, `6`, `1000`, etc)
+and throttles the number of requests per second that the update by query issues.
+The throttling is done waiting between bulk batches so that it can manipulate
+the scroll timeout. The wait time is the difference between the time it took the
 batch to complete and the time `requests_per_second * requests_in_the_batch`.
 Since the batch isn't broken into multiple bulk requests large batch sizes will
 cause Elasticsearch to create many requests and then wait for a while before
-starting the next set. This is "bursty" instead of "smooth".
+starting the next set. This is "bursty" instead of "smooth". The default is
+`unlimited` which is also the only non-number value that it accepts.
 
 [float]
 === Response body
@@ -193,7 +223,10 @@ The JSON response looks like this:
   "updated": 0,
   "batches": 1,
   "version_conflicts": 2,
-  "retries": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  }
   "throttled_millis": 0,
   "failures" : [ ]
 }
@@ -217,7 +250,8 @@ The number of version conflicts that the update by query hit.
 
 `retries`::
 
-The number of retries that the update by query did in response to a full queue.
+The number of retries attempted by update-by-query. `bulk` is the number of bulk
+actions retried and `search` is the number of search actions retried.
 
 `throttled_millis`::
 
@@ -239,9 +273,9 @@ While Update By Query is running you can fetch their status using the
 
 [source,js]
 --------------------------------------------------
-POST /_tasks/?pretty&detailed=true&action=*byquery
+GET _tasks?detailed=true&action=*byquery
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The responses looks like:
 
@@ -269,10 +303,13 @@ The responses looks like:
             "updated" : 3500,
             "created" : 0,
             "deleted" : 0,
-            "batches" : 36,
+            "batches" : 4,
             "version_conflicts" : 0,
             "noops" : 0,
-            "retries": 0,
+            "retries": {
+              "bulk": 0,
+              "search": 0
+            }
             "throttled_millis": 0
           },
           "description" : ""
@@ -288,6 +325,46 @@ with the important addition of the `total` field. `total` is the total number
 of operations that the reindex expects to perform. You can estimate the
 progress by adding the `updated`, `created`, and `deleted` fields. The request
 will finish when their sum is equal to the `total` field.
+
+
+[float]
+[[docs-update-by-query-cancel-task-api]]
+=== Works with the Cancel Task API
+
+Any Update By Query can be canceled using the <<tasks,Task Cancel API>>:
+
+[source,js]
+--------------------------------------------------
+POST _tasks/taskid:1/_cancel
+--------------------------------------------------
+// CONSOLE
+
+The `task_id` can be found using the tasks API above.
+
+Cancelation should happen quickly but might take a few seconds. The task status
+API above will continue to list the task until it is wakes to cancel itself.
+
+
+[float]
+[[docs-update-by-query-rethrottle]]
+=== Rethrottling
+
+The value of `requests_per_second` can be changed on a running update by query
+using the `_rethrottle` API:
+
+[source,js]
+--------------------------------------------------
+POST _update_by_query/taskid:1/_rethrottle?requests_per_second=unlimited
+--------------------------------------------------
+// CONSOLE
+
+The `task_id` can be found using the tasks API above.
+
+Just like when setting it on the `_update_by_query` API `requests_per_second`
+can be either `unlimited` to disable throttling or any decimal number like `1.7`
+or `12` to throttle to that level. Rethrottling that speeds up the query takes
+effect immediately but rethrotting that slows down the query will take effect
+on after completing the current batch. This prevents scroll timeouts.
 
 
 [float]
@@ -315,12 +392,12 @@ POST test/test?refresh
 {
   "text": "words words",
   "flag": "bar"
-}'
+}
 POST test/test?refresh
 {
   "text": "words words",
   "flag": "foo"
-}'
+}
 PUT test/_mapping/test   <2>
 {
   "properties": {
@@ -329,7 +406,7 @@ PUT test/_mapping/test   <2>
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> This means that new fields won't be indexed, just stored in `_source`.
 
@@ -349,7 +426,8 @@ POST test/_search?filter_path=hits.total
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 [source,js]
 --------------------------------------------------
@@ -359,6 +437,7 @@ POST test/_search?filter_path=hits.total
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 But you can issue an `_update_by_query` request to pick up the new mapping:
 
@@ -374,7 +453,8 @@ POST test/_search?filter_path=hits.total
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 [source,js]
 --------------------------------------------------
@@ -384,5 +464,6 @@ POST test/_search?filter_path=hits.total
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 You can do the exact same thing when adding a field to a multifield.

@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -43,8 +44,8 @@ public class TransportModuleTests extends ModuleTestCase {
 
     static class FakeTransportService extends TransportService {
         @Inject
-        public FakeTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
-            super(settings, transport, threadPool);
+        public FakeTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClusterName clusterName) {
+            super(settings, transport, threadPool, clusterName);
         }
     }
 }

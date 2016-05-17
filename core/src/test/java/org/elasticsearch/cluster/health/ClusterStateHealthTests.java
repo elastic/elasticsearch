@@ -80,7 +80,7 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(new CapturingTransport(), threadPool);
+        transportService = new TransportService(new CapturingTransport(), threadPool, clusterService.state().getClusterName());
         transportService.start();
         transportService.acceptIncomingRequests();
     }

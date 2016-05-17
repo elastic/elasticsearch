@@ -81,7 +81,7 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Uses the default `nfkc_cf` normalization.
 <2> Uses the customized `nfd_normalizer` token filter, which is set to use `nfc` normalization with decomposition.
@@ -113,7 +113,7 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 ===== Rules customization
 
@@ -163,7 +163,7 @@ PUT icu_sample
 
 POST icu_sample/_analyze?analyzer=my_analyzer&text=Elasticsearch. Wow!
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The above `analyze` request returns the following:
 
@@ -230,7 +230,7 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Uses the default `nfkc_cf` normalization.
 <2> Uses the customized `nfc_normalizer` token filter, which is set to use `nfc` normalization.
@@ -264,7 +264,7 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The ICU folding token filter already does Unicode normalization, so there is
 no need to use Normalize character or token filter as well.
@@ -305,7 +305,7 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [[analysis-icu-collation]]
 ==== ICU Collation Token Filter
@@ -370,7 +370,7 @@ GET _search <3>
 }
 
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `name` field uses the `standard` analyzer, and so support full text queries.
 <2> The `name.sort` field uses the `keyword` analyzer to preserve the name as
@@ -494,7 +494,7 @@ GET icu_sample/_analyze?analyzer=latin
 }
 
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> This transforms transliterates characters to Latin, and separates accents
     from their base characters, removes the accents, and then puts the

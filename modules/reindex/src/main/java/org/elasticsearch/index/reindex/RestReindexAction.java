@@ -58,7 +58,7 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 /**
  * Expose IndexBySearchRequest over rest.
  */
-public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexResponse, TransportReindexAction> {
+public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, TransportReindexAction> {
     private static final ObjectParser<ReindexRequest, ReindexParseContext> PARSER = new ObjectParser<>("reindex");
     static {
         ObjectParser.Parser<SearchRequest, ReindexParseContext> sourceParser = (parser, search, context) -> {
@@ -130,7 +130,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         }
         parseCommon(internalRequest, request);
 
-        execute(request, internalRequest, channel);
+        execute(request, internalRequest, channel, true, true, false);
     }
 
     private void badRequest(RestChannel channel, String message) {

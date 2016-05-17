@@ -74,7 +74,7 @@ public class RestCountAction extends BaseRestHandler {
             BytesReference restContent = RestActions.getRestContent(request);
             searchSourceBuilder.query(RestActions.getQueryContent(restContent, indicesQueriesRegistry, parseFieldMatcher));
         } else {
-            QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+            QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
             if (queryBuilder != null) {
                 searchSourceBuilder.query(queryBuilder);
             }

@@ -181,7 +181,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         this.namedWriteableRegistry = namedWriteableRegistry;
         clusterSettings.addSettingsUpdateConsumer(IndexStoreConfig.INDICES_STORE_THROTTLE_TYPE_SETTING, indexStoreConfig::setRateLimitingType);
         clusterSettings.addSettingsUpdateConsumer(IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING, indexStoreConfig::setRateLimitingThrottle);
-        indexingMemoryController = new IndexingMemoryController(settings, threadPool, Iterables.flatten(this));
+        indexingMemoryController = new IndexingMemoryController(settings, threadPool,
+                                                                // ensure we pull an iter with new shards - flatten makes a copy
+                                                                () -> Iterables.flatten(this).iterator());
         this.indexScopeSetting = indexScopedSettings;
         this.circuitBreakerService = circuitBreakerService;
         this.indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
@@ -527,7 +529,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             try {
                 if (clusterState.metaData().hasIndex(indexName)) {
                     final IndexMetaData index = clusterState.metaData().index(indexName);
-                    throw new IllegalStateException("Can't delete unassigned index store for [" + indexName + "] - it's still part of the cluster state [" + index.getIndexUUID() + "] [" + metaData.getIndexUUID() + "]");
+                    throw new IllegalStateException("Can't delete unassigned index store for [" + indexName + "] - it's still part of " +
+                                                    "the cluster state [" + index.getIndexUUID() + "] [" + metaData.getIndexUUID() + "]");
                 }
                 deleteIndexStore(reason, metaData, clusterState);
             } catch (IOException e) {
@@ -681,8 +684,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      */
     @Nullable
     public IndexMetaData verifyIndexIsDeleted(final Index index, final ClusterState clusterState) {
-        // this method should only be called when we know the index is not part of the cluster state
-        if (clusterState.metaData().hasIndex(index.getName())) {
+        // this method should only be called when we know the index (name + uuid) is not part of the cluster state
+        if (clusterState.metaData().index(index) != null) {
             throw new IllegalStateException("Cannot delete index [" + index + "], it is still part of the cluster state.");
         }
         if (nodeEnv.hasNodeFile() && FileSystemUtils.exists(nodeEnv.indexPaths(index))) {

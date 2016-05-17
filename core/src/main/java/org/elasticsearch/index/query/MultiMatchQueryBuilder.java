@@ -655,6 +655,11 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             throw new ParsingException(parser.getTokenLocation(), "No fields specified for multi_match query");
         }
 
+        if (fuzziness != null && (type == Type.CROSS_FIELDS || type == Type.PHRASE || type == Type.PHRASE_PREFIX)) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "Fuziness not allowed for type [" + type.parseField.getPreferredName() + "]");
+        }
+
         return new MultiMatchQueryBuilder(value)
                 .fields(fieldsBoosts)
                 .type(type)

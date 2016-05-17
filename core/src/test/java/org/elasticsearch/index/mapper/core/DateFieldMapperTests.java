@@ -251,4 +251,55 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
     }
+
+    public void testNullValue() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "date")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .nullField("field")
+                .endObject()
+                .bytes());
+        assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+
+        mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "date")
+                            .field("null_value", "2016-03-11")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .nullField("field")
+                .endObject()
+                .bytes());
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        IndexableField pointField = fields[0];
+        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(8, pointField.fieldType().pointNumBytes());
+        assertFalse(pointField.fieldType().stored());
+        assertEquals(1457654400000L, pointField.numericValue().longValue());
+        IndexableField dvField = fields[1];
+        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
+        assertEquals(1457654400000L, dvField.numericValue().longValue());
+        assertFalse(dvField.fieldType().stored());
+    }
 }

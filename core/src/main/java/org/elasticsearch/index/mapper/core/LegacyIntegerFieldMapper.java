@@ -34,7 +34,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -135,8 +134,7 @@ public class LegacyIntegerFieldMapper extends LegacyNumberFieldMapper {
 
         @Override
         public String typeName() {
-            // TODO: this should be the same as the mapper type name, except fielddata expects int...
-            return "int";
+            return "integer";
         }
 
         @Override
@@ -160,17 +158,7 @@ public class LegacyIntegerFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            int iValue = parseValue(value);
-            int iSim = fuzziness.asInt();
-            return LegacyNumericRangeQuery.newIntRange(name(), numericPrecisionStep(),
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
-        }
-
-        @Override
-        public FieldStats stats(IndexReader reader) throws IOException {
+        public FieldStats.Long stats(IndexReader reader) throws IOException {
             int maxDoc = reader.maxDoc();
             Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
             if (terms == null) {
@@ -179,8 +167,8 @@ public class LegacyIntegerFieldMapper extends LegacyNumberFieldMapper {
             long minValue = LegacyNumericUtils.getMinInt(terms);
             long maxValue = LegacyNumericUtils.getMaxInt(terms);
             return new FieldStats.Long(
-                maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
-            );
+                maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(),
+                isSearchable(), isAggregatable(), minValue, maxValue);
         }
 
         @Override

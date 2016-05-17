@@ -48,9 +48,9 @@ public final class FingerprintAnalyzer extends Analyzer {
         final Tokenizer tokenizer = new StandardTokenizer();
         TokenStream stream = tokenizer;
         stream = new LowerCaseFilter(stream);
+        stream = new ASCIIFoldingFilter(stream, preserveOriginal);
         stream = new StopFilter(stream, stopWords);
         stream = new FingerprintFilter(stream, maxOutputSize, separator);
-        stream = new ASCIIFoldingFilter(stream, preserveOriginal);
         return new TokenStreamComponents(tokenizer, stream);
     }
 }

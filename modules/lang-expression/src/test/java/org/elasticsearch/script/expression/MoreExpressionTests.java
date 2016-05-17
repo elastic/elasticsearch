@@ -27,12 +27,17 @@ import java.util.Map;
 
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -51,8 +56,10 @@ import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketScript;
@@ -164,10 +171,10 @@ public class MoreExpressionTests extends ESIntegTestCase {
     }
 
     public void testMultiValueMethods() throws Exception {
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double0", "type=double", "double1", "type=double"));
+        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double0", "type=double", "double1", "type=double", "double2", "type=double"));
         ensureGreen("test");
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("double0", "5.0", "double0", "1.0", "double0", "1.5", "double1", "1.2", "double1", "2.4"),
+                client().prepareIndex("test", "doc", "1").setSource("double0", "5.0", "double0", "1.0", "double0", "1.5", "double1", "1.2", "double1", "2.4", "double2", "3.0"),
                 client().prepareIndex("test", "doc", "2").setSource("double0", "5.0", "double1", "3.0"),
                 client().prepareIndex("test", "doc", "3").setSource("double0", "5.0", "double0", "1.0", "double0", "1.5", "double0", "-1.5", "double1", "4.0"));
 
@@ -227,6 +234,24 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertEquals(2.5, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(1.5, hits.getAt(2).field("foo").getValue(), 0.0D);
+        
+        // make sure count() works for missing
+        rsp = buildRequest("doc['double2'].count()").get();
+        assertSearchResponse(rsp);
+        hits = rsp.getHits();
+        assertEquals(3, hits.getTotalHits());
+        assertEquals(1.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(0.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        assertEquals(0.0, hits.getAt(2).field("foo").getValue(), 0.0D);
+        
+        // make sure .empty works in the same way
+        rsp = buildRequest("doc['double2'].empty ? 5.0 : 2.0").get();
+        assertSearchResponse(rsp);
+        hits = rsp.getHits();
+        assertEquals(3, hits.getTotalHits());
+        assertEquals(2.0, hits.getAt(0).field("foo").getValue(), 0.0D);
+        assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
+        assertEquals(5.0, hits.getAt(2).field("foo").getValue(), 0.0D);
     }
 
     public void testInvalidDateMethodCall() throws Exception {
@@ -239,8 +264,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should have contained IllegalArgumentException",
                     e.toString().contains("IllegalArgumentException"), equalTo(true));
-            assertThat(e.toString() + "should have contained can only be used with a date field type",
-                    e.toString().contains("can only be used with a date field type"), equalTo(true));
+            assertThat(e.toString() + "should have contained does not exist for numeric field",
+                    e.toString().contains("does not exist for numeric field"), equalTo(true));
         }
     }
 
@@ -363,8 +388,8 @@ public class MoreExpressionTests extends ESIntegTestCase {
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should have contained ScriptException",
                     e.toString().contains("ScriptException"), equalTo(true));
-            assertThat(e.toString() + "should have contained member variable [value] or member methods may be accessed",
-                    e.toString().contains("member variable [value] or member methods may be accessed"), equalTo(true));
+            assertThat(e.toString() + "should have contained member variable [bogus] does not exist",
+                    e.toString().contains("Member variable [bogus] does not exist"), equalTo(true));
         }
     }
 
@@ -567,5 +592,72 @@ public class MoreExpressionTests extends ESIntegTestCase {
                 fail("Incorrect number of documents in a bucket in the histogram.");
             }
         }
+    }
+    
+    public void testGeo() throws Exception {
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location").field("type", "geo_point");
+        xContentBuilder.endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        ensureGreen();
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("name", "test")
+                .startObject("location").field("lat", 61.5240).field("lon", 105.3188).endObject()
+                .endObject()).execute().actionGet();
+        refresh();
+        // access .lat
+        SearchResponse rsp = buildRequest("doc['location'].lat").get();
+        assertSearchResponse(rsp);
+        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(61.5240, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
+        // access .lon
+        rsp = buildRequest("doc['location'].lon").get();
+        assertSearchResponse(rsp);
+        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(105.3188, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
+        // access .empty
+        rsp = buildRequest("doc['location'].empty ? 1 : 0").get();
+        assertSearchResponse(rsp);
+        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(0, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
+        // call haversin
+        rsp = buildRequest("haversin(38.9072, 77.0369, doc['location'].lat, doc['location'].lon)").get();
+        assertSearchResponse(rsp);
+        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(3170D, rsp.getHits().getAt(0).field("foo").getValue(), 50D);
+    }
+    
+    public void testBoolean() throws Exception {
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("vip").field("type", "boolean");
+        xContentBuilder.endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        ensureGreen();
+        indexRandom(true,
+                client().prepareIndex("test", "doc", "1").setSource("price", 1.0, "vip", true),
+                client().prepareIndex("test", "doc", "2").setSource("price", 2.0, "vip", false),
+                client().prepareIndex("test", "doc", "3").setSource("price", 2.0, "vip", false));
+        // access .value
+        SearchResponse rsp = buildRequest("doc['vip'].value").get();
+        assertSearchResponse(rsp);
+        assertEquals(3, rsp.getHits().getTotalHits());
+        assertEquals(1.0D, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
+        assertEquals(0.0D, rsp.getHits().getAt(1).field("foo").getValue(), 1.0D);
+        assertEquals(0.0D, rsp.getHits().getAt(2).field("foo").getValue(), 1.0D);
+        // access .empty
+        rsp = buildRequest("doc['vip'].empty ? 1 : 0").get();
+        assertSearchResponse(rsp);
+        assertEquals(3, rsp.getHits().getTotalHits());
+        assertEquals(0.0D, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
+        assertEquals(0.0D, rsp.getHits().getAt(1).field("foo").getValue(), 1.0D);
+        assertEquals(1.0D, rsp.getHits().getAt(2).field("foo").getValue(), 1.0D);
+        // ternary operator
+        // vip's have a 50% discount
+        rsp = buildRequest("doc['vip'] ? doc['price']/2 : doc['price']").get();
+        assertSearchResponse(rsp);
+        assertEquals(3, rsp.getHits().getTotalHits());
+        assertEquals(0.5D, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
+        assertEquals(2.0D, rsp.getHits().getAt(1).field("foo").getValue(), 1.0D);
+        assertEquals(2.0D, rsp.getHits().getAt(2).field("foo").getValue(), 1.0D);
     }
 }

@@ -22,21 +22,37 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
+
+import java.util.Map;
 
 /**
- * Just like RestToXContentListener but will return higher than 200 status if
- * there are any failures.
+ * RestBuilderListener that returns higher than 200 status if there are any failures and allows to set XContent.Params.
  */
-public class BulkIndexByScrollResponseContentListener<R extends BulkIndexByScrollResponse> extends RestToXContentListener<R> {
-    public BulkIndexByScrollResponseContentListener(RestChannel channel) {
+public class BulkIndexByScrollResponseContentListener<R extends BulkIndexByScrollResponse> extends RestBuilderListener<R> {
+
+    private final Map<String, String> params;
+
+    public BulkIndexByScrollResponseContentListener(RestChannel channel, Map<String, String> params) {
         super(channel);
+        this.params = params;
     }
 
     @Override
-    protected RestStatus getStatus(R response) {
+    public RestResponse buildResponse(R response, XContentBuilder builder) throws Exception {
+        builder.startObject();
+        response.toXContent(builder, new ToXContent.DelegatingMapParams(params, channel.request()));
+        builder.endObject();
+        return new BytesRestResponse(getStatus(response), builder);
+    }
+
+    private RestStatus getStatus(R response) {
         /*
          * Return the highest numbered rest status under the assumption that higher numbered statuses are "more error" and thus more
          * interesting to the user.

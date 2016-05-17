@@ -33,19 +33,23 @@ public class RestTestSectionParser implements RestTestFragmentParser<TestSection
         XContentParser parser = parseContext.parser();
         parseContext.advanceToFieldName();
         TestSection testSection = new TestSection(parser.currentName());
-        parser.nextToken();
-        testSection.setSkipSection(parseContext.parseSkipSection());
-
-        while ( parser.currentToken() != XContentParser.Token.END_ARRAY) {
-            parseContext.advanceToFieldName();
-            testSection.addExecutableSection(parseContext.parseExecutableSection());
+        try {
+            parser.nextToken();
+            testSection.setSkipSection(parseContext.parseSkipSection());
+    
+            while ( parser.currentToken() != XContentParser.Token.END_ARRAY) {
+                parseContext.advanceToFieldName();
+                testSection.addExecutableSection(parseContext.parseExecutableSection());
+            }
+    
+            parser.nextToken();
+            assert parser.currentToken() == XContentParser.Token.END_OBJECT;
+            parser.nextToken();
+    
+            return testSection;
+        } catch (Exception e) {
+            throw new RestTestParseException("Error parsing test named [" + testSection.getName() + "]", e);
         }
-
-        parser.nextToken();
-        assert parser.currentToken() == XContentParser.Token.END_OBJECT;
-        parser.nextToken();
-
-        return testSection;
     }
 
 }

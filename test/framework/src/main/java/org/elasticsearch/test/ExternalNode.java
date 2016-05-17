@@ -154,8 +154,7 @@ final class ExternalNode implements Closeable {
     static boolean waitForNode(final Client client, final String name) throws InterruptedException {
         return ESTestCase.awaitBusy(() -> {
             final NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().get();
-            final NodeInfo[] nodes = nodeInfos.getNodes();
-            for (NodeInfo info : nodes) {
+            for (NodeInfo info : nodeInfos.getNodes()) {
                 if (name.equals(info.getNode().getName())) {
                     return true;
                 }
@@ -166,8 +165,7 @@ final class ExternalNode implements Closeable {
 
     static NodeInfo nodeInfo(final Client client, final String nodeName) {
         final NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().get();
-        final NodeInfo[] nodes = nodeInfos.getNodes();
-        for (NodeInfo info : nodes) {
+        for (NodeInfo info : nodeInfos.getNodes()) {
             if (nodeName.equals(info.getNode().getName())) {
                 return info;
             }

@@ -19,12 +19,16 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -50,6 +54,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
@@ -67,10 +72,12 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 public class TransportService extends AbstractLifecycleComponent<TransportService> {
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
+    private static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
 
     private final CountDownLatch blockIncomingRequestsLatch = new CountDownLatch(1);
     protected final Transport transport;
     protected final ThreadPool threadPool;
+    private final ClusterName clusterName;
     protected final TaskManager taskManager;
 
     volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
@@ -110,15 +117,16 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
 
-    public TransportService(Transport transport, ThreadPool threadPool) {
-        this(EMPTY_SETTINGS, transport, threadPool);
+    public TransportService(Transport transport, ThreadPool threadPool, ClusterName clusterName) {
+        this(EMPTY_SETTINGS, transport, threadPool, clusterName);
     }
 
     @Inject
-    public TransportService(Settings settings, Transport transport, ThreadPool threadPool) {
+    public TransportService(Settings settings, Transport transport, ThreadPool threadPool, ClusterName clusterName) {
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
+        this.clusterName = clusterName;
         setTracerLogInclude(TRACE_LOG_INCLUDE_SETTING.get(settings));
         setTracerLogExclude(TRACE_LOG_EXCLUDE_SETTING.get(settings));
         tracerLog = Loggers.getLogger(logger, ".tracer");
@@ -178,6 +186,12 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 logger.info("profile [{}]: {}", entry.getKey(), entry.getValue());
             }
         }
+        registerRequestHandler(
+            HANDSHAKE_ACTION_NAME,
+            () -> HandshakeRequest.INSTANCE,
+            ThreadPool.Names.SAME,
+            (request, channel) -> channel.sendResponse(
+                    new HandshakeResponse(localNode, clusterName, localNode != null ? localNode.getVersion() : Version.CURRENT)));
     }
 
     @Override
@@ -263,11 +277,137 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         transport.connectToNode(node);
     }
 
-    public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
+    /**
+     * Lightly connect to the specified node
+     *
+     * @param node the node to connect to
+     */
+    public void connectToNodeLight(final DiscoveryNode node) {
         if (node.equals(localNode)) {
             return;
         }
         transport.connectToNodeLight(node);
+    }
+
+    /**
+     * Lightly connect to the specified node, and handshake cluster
+     * name and version
+     *
+     * @param node             the node to connect to
+     * @param handshakeTimeout handshake timeout
+     * @return the connected node with version set
+     * @throws ConnectTransportException if the connection or the
+     *                                   handshake failed
+     */
+    public DiscoveryNode connectToNodeLightAndHandshake(
+            final DiscoveryNode node,
+            final long handshakeTimeout) throws ConnectTransportException {
+        return connectToNodeLightAndHandshake(node, handshakeTimeout, true);
+    }
+
+    /**
+     * Lightly connect to the specified node, returning updated node
+     * information. The handshake will fail if the cluster name on the
+     * target node mismatches the local cluster name and
+     * {@code checkClusterName} is {@code true}.
+     *
+     * @param node             the node to connect to
+     * @param handshakeTimeout handshake timeout
+     * @param checkClusterName whether or not to ignore cluster name
+     *                         mismatches
+     * @return the connected node
+     * @throws ConnectTransportException if the connection or the
+     *                                   handshake failed
+     */
+    public DiscoveryNode connectToNodeLightAndHandshake(
+            final DiscoveryNode node,
+            final long handshakeTimeout,
+            final boolean checkClusterName) {
+        if (node.equals(localNode)) {
+            return localNode;
+        }
+        transport.connectToNodeLight(node);
+        try {
+            return handshake(node, handshakeTimeout, checkClusterName);
+        } catch (ConnectTransportException e) {
+            transport.disconnectFromNode(node);
+            throw e;
+        }
+    }
+
+    private DiscoveryNode handshake(
+            final DiscoveryNode node,
+            final long handshakeTimeout,
+            final boolean checkClusterName) throws ConnectTransportException {
+        final HandshakeResponse response;
+        try {
+            response = this.submitRequest(
+                node,
+                HANDSHAKE_ACTION_NAME,
+                HandshakeRequest.INSTANCE,
+                TransportRequestOptions.builder().withTimeout(handshakeTimeout).build(),
+                new FutureTransportResponseHandler<HandshakeResponse>() {
+                    @Override
+                    public HandshakeResponse newInstance() {
+                        return new HandshakeResponse();
+                    }
+                }).txGet();
+        } catch (Exception e) {
+            throw new ConnectTransportException(node, "handshake failed", e);
+        }
+
+        if (checkClusterName && !Objects.equals(clusterName, response.clusterName)) {
+            throw new ConnectTransportException(node, "handshake failed, mismatched cluster name [" + response.clusterName + "]");
+        } else if (!isVersionCompatible(response.version)) {
+            throw new ConnectTransportException(node, "handshake failed, incompatible version [" + response.version + "]");
+        }
+
+        return response.discoveryNode;
+    }
+
+    private boolean isVersionCompatible(Version version) {
+        return version.minimumCompatibilityVersion().equals(
+                localNode != null ? localNode.getVersion().minimumCompatibilityVersion() : Version.CURRENT.minimumCompatibilityVersion());
+    }
+
+    static class HandshakeRequest extends TransportRequest {
+
+        public static final HandshakeRequest INSTANCE = new HandshakeRequest();
+
+        private HandshakeRequest() {
+        }
+
+    }
+
+    static class HandshakeResponse extends TransportResponse {
+        private DiscoveryNode discoveryNode;
+        private ClusterName clusterName;
+        private Version version;
+
+        public HandshakeResponse() {
+        }
+
+        public HandshakeResponse(DiscoveryNode discoveryNode, ClusterName clusterName, Version version) {
+            this.discoveryNode = discoveryNode;
+            this.version = version;
+            this.clusterName = clusterName;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
+            clusterName = ClusterName.readClusterName(in);
+            version = Version.readVersion(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeOptionalWriteable(discoveryNode);
+            clusterName.writeTo(out);
+            Version.writeVersion(version, out);
+        }
     }
 
     public void disconnectFromNode(DiscoveryNode node) {
@@ -440,23 +580,27 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      */
     public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String executor,
                                                                           TransportRequestHandler<Request> handler) {
-        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, requestFactory, taskManager, handler, executor, false);
+        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
+            action, requestFactory, taskManager, handler, executor, false, true);
         registerRequestHandler(reg);
     }
 
     /**
      * Registers a new request handler
      *
-     * @param action         The action the request handler is associated with
-     * @param request        The request class that will be used to constrcut new instances for streaming
-     * @param executor       The executor the request handling will be executed on
-     * @param forceExecution Force execution on the executor queue and never reject it
-     * @param handler        The handler itself that implements the request handling
+     * @param action                The action the request handler is associated with
+     * @param request               The request class that will be used to constrcut new instances for streaming
+     * @param executor              The executor the request handling will be executed on
+     * @param forceExecution        Force execution on the executor queue and never reject it
+     * @param canTripCircuitBreaker Check the request size and raise an exception in case the limit is breached.
+     * @param handler               The handler itself that implements the request handling
      */
     public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request,
                                                                           String executor, boolean forceExecution,
+                                                                          boolean canTripCircuitBreaker,
                                                                           TransportRequestHandler<Request> handler) {
-        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, request, taskManager, handler, executor, forceExecution);
+        RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
+            action, request, taskManager, handler, executor, forceExecution, canTripCircuitBreaker);
         registerRequestHandler(reg);
     }
 

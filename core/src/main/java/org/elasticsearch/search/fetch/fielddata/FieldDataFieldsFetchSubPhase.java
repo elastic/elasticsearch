@@ -23,7 +23,6 @@ import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.SearchHitField;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
@@ -31,9 +30,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
-
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * Query sub phase which pulls data from field data (using the cache if
@@ -59,14 +55,6 @@ public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
 
     @Inject
     public FieldDataFieldsFetchSubPhase() {
-    }
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        Map<String, SearchParseElement> parseElements = new HashMap<>();
-        parseElements.put("fielddata_fields", new FieldDataFieldsParseElement());
-        parseElements.put("fielddataFields", new FieldDataFieldsParseElement());
-        return unmodifiableMap(parseElements);
     }
 
     @Override

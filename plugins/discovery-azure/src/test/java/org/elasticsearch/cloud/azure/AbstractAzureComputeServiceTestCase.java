@@ -65,6 +65,6 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().execute().actionGet();
         assertNotNull(nodeInfos);
         assertNotNull(nodeInfos.getNodes());
-        assertEquals(expected, nodeInfos.getNodes().length);
+        assertEquals(expected, nodeInfos.getNodes().size());
     }
 }

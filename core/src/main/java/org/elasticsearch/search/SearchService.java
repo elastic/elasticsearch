@@ -62,8 +62,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.support.InnerHitBuilder;
-import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -88,7 +87,6 @@ import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.DefaultSearchContext;
@@ -105,6 +103,7 @@ import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -186,7 +185,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         elementParsers.putAll(dfsPhase.parseElements());
         elementParsers.putAll(queryPhase.parseElements());
         elementParsers.putAll(fetchPhase.parseElements());
-        elementParsers.put("stats", new StatsGroupsParseElement());
         this.elementParsers = unmodifiableMap(elementParsers);
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
@@ -679,15 +677,27 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 context.queryBoost(indexBoost);
             }
         }
+        Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
         if (source.query() != null) {
+            InnerHitBuilder.extractInnerHits(source.query(), innerHitBuilders);
             context.parsedQuery(queryShardContext.toQuery(source.query()));
         }
         if (source.postFilter() != null) {
+            InnerHitBuilder.extractInnerHits(source.postFilter(), innerHitBuilders);
             context.parsedPostFilter(queryShardContext.toQuery(source.postFilter()));
+        }
+        if (innerHitBuilders.size() > 0) {
+            for (Map.Entry<String, InnerHitBuilder> entry : innerHitBuilders.entrySet()) {
+                try {
+                    entry.getValue().build(context, context.innerHits());
+                } catch (IOException e) {
+                    throw new SearchContextException(context, "failed to build inner_hits", e);
+                }
+            }
         }
         if (source.sorts() != null) {
             try {
-                Optional<Sort> optionalSort = SortBuilder.buildSort(source.sorts(), context.getQueryShardContext());
+                Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(source.sorts(), context.getQueryShardContext());
                 if (optionalSort.isPresent()) {
                     context.sort(optionalSort.get());
                 }
@@ -752,25 +762,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 context.highlight(highlightBuilder.build(queryShardContext));
             } catch (IOException e) {
                 throw new SearchContextException(context, "failed to create SearchContextHighlighter", e);
-            }
-        }
-        if (source.innerHits() != null) {
-            for (Map.Entry<String, InnerHitBuilder> entry : source.innerHits().getInnerHitsBuilders().entrySet()) {
-                try {
-                    // This is the same logic in QueryShardContext#toQuery() where we reset also twice.
-                    // Personally I think a reset at the end is sufficient, but I kept the logic consistent with this method.
-
-                    // The reason we need to invoke reset at all here is because inner hits may modify the QueryShardContext#nestedScope,
-                    // so we need to reset at the end.
-                    queryShardContext.reset();
-                    InnerHitBuilder innerHitBuilder = entry.getValue();
-                    InnerHitsContext innerHitsContext = context.innerHits();
-                    innerHitBuilder.buildTopLevel(context, queryShardContext, innerHitsContext);
-                } catch (IOException e) {
-                    throw new SearchContextException(context, "failed to create InnerHitsContext", e);
-                } finally {
-                    queryShardContext.reset();
-                }
             }
         }
         if (source.scriptFields() != null) {

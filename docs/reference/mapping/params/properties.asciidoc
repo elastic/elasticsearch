@@ -57,7 +57,7 @@ PUT my_index/my_type/1 <4>
   ]
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Properties under the `my_type` mapping type.
 <2> Properties under the `manager` object field.
 <3> Properties under the `employees` nested field.
@@ -98,8 +98,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 IMPORTANT: The full path to the inner field must be specified.
-
-

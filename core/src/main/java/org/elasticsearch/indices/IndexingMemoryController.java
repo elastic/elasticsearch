@@ -93,7 +93,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
     private final ShardsIndicesStatusChecker statusChecker;
 
-    IndexingMemoryController(Settings settings, ThreadPool threadPool, Iterable<IndexShard>indexServices) {
+    IndexingMemoryController(Settings settings, ThreadPool threadPool, Iterable<IndexShard> indexServices) {
         this(settings, threadPool, indexServices, JvmInfo.jvmInfo().getMem().getHeapMax().bytes());
     }
 
@@ -251,21 +251,29 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         /** Shard calls this on each indexing/delete op */
         public void bytesWritten(int bytes) {
             long totalBytes = bytesWrittenSinceCheck.addAndGet(bytes);
+            assert totalBytes >= 0;
             while (totalBytes > indexingBuffer.bytes()/30) {
+
                 if (runLock.tryLock()) {
                     try {
-                        bytesWrittenSinceCheck.addAndGet(-totalBytes);
-                        // NOTE: this is only an approximate check, because bytes written is to the translog, vs indexing memory buffer which is
-                        // typically smaller but can be larger in extreme cases (many unique terms).  This logic is here only as a safety against
-                        // thread starvation or too infrequent checking, to ensure we are still checking periodically, in proportion to bytes
-                        // processed by indexing:
-                        runUnlocked();
+                        // Must pull this again because it may have changed since we first checked:
+                        totalBytes = bytesWrittenSinceCheck.get();
+                        if (totalBytes > indexingBuffer.bytes()/30) {
+                            bytesWrittenSinceCheck.addAndGet(-totalBytes);
+                            // NOTE: this is only an approximate check, because bytes written is to the translog, vs indexing memory buffer which is
+                            // typically smaller but can be larger in extreme cases (many unique terms).  This logic is here only as a safety against
+                            // thread starvation or too infrequent checking, to ensure we are still checking periodically, in proportion to bytes
+                            // processed by indexing:
+                            runUnlocked();
+                        }
                     } finally {
                         runLock.unlock();
                     }
-                    // Could be while we were checking, more bytes arrived:
-                    totalBytes = bytesWrittenSinceCheck.addAndGet(bytes);
+
+                    // Must get it again since other threads could have increased it while we were in runUnlocked
+                    totalBytes = bytesWrittenSinceCheck.get();
                 } else {
+                    // Another thread beat us to it: let them do all the work, yay!
                     break;
                 }
             }
@@ -314,7 +322,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
             if (logger.isTraceEnabled()) {
                 logger.trace("total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}]",
-                             new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING, indexingBuffer, new ByteSizeValue(totalBytesWriting));
+                             new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer, new ByteSizeValue(totalBytesWriting));
             }
 
             // If we are using more than 50% of our budget across both indexing buffer and bytes we are still moving to disk, then we now
@@ -354,7 +362,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
                 }
 
                 logger.debug("now write some indexing buffers: total indexing heap bytes used [{}] vs {} [{}], currently writing bytes [{}], [{}] shards with non-zero indexing buffer",
-                             new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING, indexingBuffer, new ByteSizeValue(totalBytesWriting), queue.size());
+                             new ByteSizeValue(totalBytesUsed), INDEX_BUFFER_SIZE_SETTING.getKey(), indexingBuffer, new ByteSizeValue(totalBytesWriting), queue.size());
 
                 while (totalBytesUsed > indexingBuffer.bytes() && queue.isEmpty() == false) {
                     ShardAndBytesUsed largest = queue.poll();

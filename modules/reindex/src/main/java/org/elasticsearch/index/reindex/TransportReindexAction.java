@@ -21,10 +21,8 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -46,13 +44,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.List;
 import java.util.Objects;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
-public class TransportReindexAction extends HandledTransportAction<ReindexRequest, ReindexResponse> {
+public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkIndexByScrollResponse> {
     private final ClusterService clusterService;
     private final ScriptService scriptService;
     private final AutoCreateIndex autoCreateIndex;
@@ -71,7 +68,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     }
 
     @Override
-    protected void doExecute(Task task, ReindexRequest request, ActionListener<ReindexResponse> listener) {
+    protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
         ClusterState state = clusterService.state();
         validateAgainstAliases(request.getSearchRequest(), request.getDestination(), indexNameExpressionResolver, autoCreateIndex, state);
         ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
@@ -79,7 +76,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     }
 
     @Override
-    protected void doExecute(ReindexRequest request, ActionListener<ReindexResponse> listener) {
+    protected void doExecute(ReindexRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
         throw new UnsupportedOperationException("task required");
     }
 
@@ -116,10 +113,10 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      * but this makes no attempt to do any of them so it can be as simple
      * possible.
      */
-    static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexRequest, ReindexResponse> {
+    static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexRequest> {
         public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService,
                 ParentTaskAssigningClient client, ClusterState state, ThreadPool threadPool, ReindexRequest request,
-                ActionListener<ReindexResponse> listener) {
+                ActionListener<BulkIndexByScrollResponse> listener) {
             super(task, logger, scriptService, state, client, threadPool, request, request.getSearchRequest(), listener);
         }
 
@@ -191,12 +188,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             default:
                 throw new IllegalArgumentException("Unsupported routing command");
             }
-        }
-
-        @Override
-        protected ReindexResponse buildResponse(TimeValue took, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures,
-                boolean timedOut) {
-            return new ReindexResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
         }
 
         /*

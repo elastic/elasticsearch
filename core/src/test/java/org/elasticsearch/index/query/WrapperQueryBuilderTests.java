@@ -54,7 +54,7 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
 
     @Override
     protected void doAssertLuceneQuery(WrapperQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        QueryBuilder<?> innerQuery = queryBuilder.rewrite(createShardContext());
+        QueryBuilder innerQuery = queryBuilder.rewrite(createShardContext());
         Query expected = rewrite(innerQuery.toQuery(context));
         assertEquals(rewrite(query), expected);
     }
@@ -138,12 +138,12 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         } catch (UnsupportedOperationException e) {
             assertEquals("this query must be rewritten first", e.getMessage());
         }
-        QueryBuilder<?> rewrite = qb.rewrite(createShardContext());
+        QueryBuilder rewrite = qb.rewrite(createShardContext());
         assertEquals(tqb, rewrite);
     }
 
     public void testRewriteWithInnerName() throws IOException {
-        QueryBuilder<?> builder = new WrapperQueryBuilder("{ \"match_all\" : {\"_name\" : \"foobar\"}}");
+        QueryBuilder builder = new WrapperQueryBuilder("{ \"match_all\" : {\"_name\" : \"foobar\"}}");
         QueryShardContext shardContext = createShardContext();
         assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(shardContext));
         builder = new WrapperQueryBuilder("{ \"match_all\" : {\"_name\" : \"foobar\"}}").queryName("outer");
@@ -153,7 +153,7 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
 
     public void testRewriteWithInnerBoost() throws IOException {
         final TermQueryBuilder query = new TermQueryBuilder("foo", "bar").boost(2);
-        QueryBuilder<?> builder = new WrapperQueryBuilder(query.toString());
+        QueryBuilder builder = new WrapperQueryBuilder(query.toString());
         QueryShardContext shardContext = createShardContext();
         assertEquals(query, builder.rewrite(shardContext));
         builder = new WrapperQueryBuilder(query.toString()).boost(3);

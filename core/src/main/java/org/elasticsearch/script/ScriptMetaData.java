@@ -82,12 +82,6 @@ public final class ScriptMetaData implements MetaData.Custom {
             parser.nextToken();
             switch (parser.currentName()) {
                 case "script":
-                    if (parser.nextToken() == Token.VALUE_STRING) {
-                        return parser.text();
-                    } else {
-                        builder.copyCurrentStructure(parser);
-                    }
-                    break;
                 case "template":
                     if (parser.nextToken() == Token.VALUE_STRING) {
                         return parser.text();

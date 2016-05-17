@@ -84,7 +84,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
     public boolean allocateUnassigned(RoutingAllocation allocation) {
         boolean changed = false;
         final RoutingNodes routingNodes = allocation.routingNodes();
-        final MetaData metaData = routingNodes.metaData();
+        final MetaData metaData = allocation.metaData();
 
         final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {

@@ -139,4 +139,14 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
 
         assertEquals(json, "Quick Foxes!", parsed.value());
     }
+
+    public void testGeo() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        TermQueryBuilder query = new TermQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
+        QueryShardContext context = createShardContext();
+        QueryShardException e = expectThrows(QueryShardException.class,
+                () -> query.toQuery(context));
+        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
+                e.getMessage());
+    }
 }

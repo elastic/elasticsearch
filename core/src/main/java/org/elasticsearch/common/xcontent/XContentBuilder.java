@@ -113,6 +113,10 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
+    public boolean isPrettyPrint() {
+        return generator.isPrettyPrint();
+    }
+
     public XContentBuilder lfAtEnd() {
         generator.usePrintLineFeedAtEnd();
         return this;

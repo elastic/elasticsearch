@@ -20,6 +20,9 @@
 package org.elasticsearch.test.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.transport.TransportService;
+
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -97,25 +100,29 @@ public class MockTransportService extends TransportService {
         }
     }
 
-    public static MockTransportService local(Settings settings, Version version, ThreadPool threadPool) {
+    public static MockTransportService local(Settings settings, Version version, ThreadPool threadPool, ClusterName clusterName) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         Transport transport = new LocalTransport(settings, threadPool, version, namedWriteableRegistry, new NoneCircuitBreakerService());
-        return new MockTransportService(settings, transport, threadPool);
+        return new MockTransportService(settings, transport, threadPool, clusterName);
     }
 
-    public static MockTransportService nettyFromThreadPool(Settings settings, Version version, ThreadPool threadPool) {
+    public static MockTransportService nettyFromThreadPool(
+            Settings settings,
+            Version version,
+            ThreadPool threadPool,
+            ClusterName clusterName) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         Transport transport = new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE,
                 version, namedWriteableRegistry, new NoneCircuitBreakerService());
-        return new MockTransportService(Settings.EMPTY, transport, threadPool);
+        return new MockTransportService(Settings.EMPTY, transport, threadPool, clusterName);
     }
 
 
     private final Transport original;
 
     @Inject
-    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
-        super(settings, new LookupTestTransport(transport), threadPool);
+    public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClusterName clusterName) {
+        super(settings, new LookupTestTransport(transport), threadPool, clusterName);
         this.original = transport;
     }
 

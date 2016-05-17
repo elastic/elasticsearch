@@ -8,7 +8,7 @@ This will copy documents from the `twitter` index into the `new_twitter` index:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "twitter"
@@ -18,21 +18,33 @@ POST /_reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:big_twitter]
 
 That will return something like this:
 
 [source,js]
 --------------------------------------------------
 {
-  "took" : 639,
-  "updated": 112,
-  "batches": 130,
+  "took" : 147,
+  "timed_out": false,
+  "created": 120,
+  "updated": 0,
+  "batches": 1,
   "version_conflicts": 0,
-  "failures" : [ ],
-  "created": 12344
+  "noops": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  },
+  "throttled_millis": 0,
+  "requests_per_second": "unlimited",
+  "throttled_until_millis": 0,
+  "total": 120,
+  "failures" : [ ]
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took" : 147/"took" : "$body.took"/]
 
 Just like <<docs-update-by-query,`_update_by_query`>>, `_reindex` gets a
 snapshot of the source index but its target must be a **different** index so
@@ -44,7 +56,7 @@ the same type and id:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "twitter"
@@ -55,7 +67,8 @@ POST /_reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
 Setting `version_type` to `external` will cause Elasticsearch to preserve the
 `version` from the source, create any documents that are missing, and update
@@ -64,7 +77,7 @@ in the source index:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "twitter"
@@ -75,7 +88,8 @@ POST /_reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
 Settings `op_type` to `create` will cause `_reindex` to only create missing
 documents in the target index. All existing documents will cause a version
@@ -83,7 +97,7 @@ conflict:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "twitter"
@@ -94,14 +108,15 @@ POST /_reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
 By default version conflicts abort the `_reindex` process but you can just
 count them by settings `"conflicts": "proceed"` in the request body:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "conflicts": "proceed",
   "source": {
@@ -113,14 +128,15 @@ POST /_reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
 You can limit the documents by adding a type to the `source` or by adding a
 query. This will only copy ++tweet++&apos;s made by `kimchy` into `new_twitter`:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "twitter",
@@ -136,7 +152,8 @@ POST /_reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
 `index` and `type` in `source` can both be lists, allowing you to copy from
 lots of sources in one request. This will copy documents from the `tweet` and
@@ -148,7 +165,7 @@ which document will survive because the iteration order isn't well defined.
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": ["twitter", "blog"],
@@ -159,7 +176,8 @@ POST /_reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT twitter\nPUT blog\nGET _cluster\/health?wait_for_status=yellow\n/]
 
 It's also possible to limit the number of processed documents by setting
 `size`. This will only copy a single document from `twitter` to
@@ -167,7 +185,7 @@ It's also possible to limit the number of processed documents by setting
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "size": 1,
   "source": {
@@ -178,7 +196,8 @@ POST /_reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
 If you want a particular set of documents from the twitter index you'll
 need to sort. Sorting makes the scroll less efficient but in some contexts
@@ -187,7 +206,7 @@ This will copy 10000 documents from `twitter` into `new_twitter`:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "size": 10000,
   "source": {
@@ -199,7 +218,8 @@ POST /_reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
 Like `_update_by_query`, `_reindex` supports a script that modifies the
 document. Unlike `_update_by_query`, the script is allowed to modify the
@@ -207,21 +227,22 @@ document's metadata. This example bumps the version of the source document:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
-    "index": "twitter",
+    "index": "twitter"
   },
   "dest": {
     "index": "new_twitter",
     "version_type": "external"
-  }
+  },
   "script": {
-    "internal": "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}"
+    "script": "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}"
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[setup:twitter]
 
 Think of the possibilities! Just be careful! With great power.... You can
 change:
@@ -264,7 +285,7 @@ routing set to `cat`.
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "source",
@@ -280,18 +301,19 @@ POST /_reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
 
-By default `_reindex` uses scroll batches of 100. You can change the
+By default `_reindex` uses scroll batches of 1000. You can change the
 batch size with the `size` field in the `source` element:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "source",
-    "size": 1000
+    "size": 100
   },
   "dest": {
     "index": "dest",
@@ -299,14 +321,15 @@ POST /_reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
 
 Reindex can also use the <<ingest>> feature by specifying a
 `pipeline` like this:
 
 [source,js]
 --------------------------------------------------
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "source"
@@ -317,7 +340,8 @@ POST /_reindex
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
 
 [float]
 === URL Parameters
@@ -342,14 +366,15 @@ request. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
 
-`requests_per_second` can be set to any decimal number (1.4, 6, 1000, etc) and
-throttle the number of requests per second that the reindex issues. The
+`requests_per_second` can be set to any decimal number (`1.4`, `6`, `1000`, etc)
+and throttles the number of requests per second that the reindex issues. The
 throttling is done waiting between bulk batches so that it can manipulate the
 scroll timeout. The wait time is the difference between the time it took the
 batch to complete and the time `requests_per_second * requests_in_the_batch`.
 Since the batch isn't broken into multiple bulk requests large batch sizes will
 cause Elasticsearch to create many requests and then wait for a while before
-starting the next set. This is "bursty" instead of "smooth".
+starting the next set. This is "bursty" instead of "smooth". The default is
+`unlimited` which is also the only non-number value that it accepts.
 
 [float]
 === Response body
@@ -364,7 +389,10 @@ The JSON response looks like this:
   "created": 123,
   "batches": 1,
   "version_conflicts": 2,
-  "retries": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  }
   "throttled_millis": 0,
   "failures" : [ ]
 }
@@ -392,7 +420,8 @@ The number of version conflicts that reindex hit.
 
 `retries`::
 
-The number of retries that the reindex did in response to a full queue.
+The number of retries attempted by reindex. `bulk` is the number of bulk
+actions retried and `search` is the number of search actions retried.
 
 `throttled_millis`::
 
@@ -413,9 +442,9 @@ While Reindex is running you can fetch their status using the
 
 [source,js]
 --------------------------------------------------
-GET /_tasks/?pretty&detailed=true&actions=*reindex
+GET _tasks?detailed=true&actions=*reindex
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The responses looks like:
 
@@ -443,10 +472,13 @@ The responses looks like:
             "updated" : 3500,
             "created" : 0,
             "deleted" : 0,
-            "batches" : 36,
+            "batches" : 4,
             "version_conflicts" : 0,
             "noops" : 0,
-            "retries": 0,
+            "retries": {
+              "bulk": 0,
+              "search": 0
+            },
             "throttled_millis": 0
           },
           "description" : ""
@@ -465,6 +497,46 @@ will finish when their sum is equal to the `total` field.
 
 
 [float]
+[[docs-reindex-cancel-task-api]]
+=== Works with the Cancel Task API
+
+Any Reindex can be canceled using the <<tasks,Task Cancel API>>:
+
+[source,js]
+--------------------------------------------------
+POST _tasks/taskid:1/_cancel
+--------------------------------------------------
+// CONSOLE
+
+The `task_id` can be found using the tasks API above.
+
+Cancelation should happen quickly but might take a few seconds. The task status
+API above will continue to list the task until it is wakes to cancel itself.
+
+
+[float]
+[[docs-reindex-rethrottle]]
+=== Rethrottling
+
+The value of `requests_per_second` can be changed on a running reindex using
+the `_rethrottle` API:
+
+[source,js]
+--------------------------------------------------
+POST _reindex/taskid:1/_rethrottle?requests_per_second=unlimited
+--------------------------------------------------
+// CONSOLE
+
+The `task_id` can be found using the tasks API above.
+
+Just like when setting it on the `_reindex` API `requests_per_second` can be
+either `unlimited` to disable throttling or any decimal number like `1.7` or
+`12` to throttle to that level. Rethrottling that speeds up the query takes
+effect immediately but rethrotting that slows down the query will take effect
+on after completing the current batch. This prevents scroll timeouts.
+
+
+[float]
 === Reindex to change the name of a field
 
 `_reindex` can be used to build a copy of an index with renamed fields. Say you
@@ -472,20 +544,20 @@ create an index containing documents that look like this:
 
 [source,js]
 --------------------------------------------------
-POST test/test/1?refresh&pretty
+POST test/test/1?refresh
 {
   "text": "words words",
   "flag": "foo"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 But you don't like the name `flag` and want to replace it with `tag`.
 `_reindex` can create the other index for you:
 
 [source,js]
 --------------------------------------------------
-POST _reindex?pretty
+POST _reindex
 {
   "source": {
     "index": "test"
@@ -498,24 +570,34 @@ POST _reindex?pretty
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 Now you can get the new document:
 
 [source,js]
 --------------------------------------------------
-GET test2/test/1?pretty
+GET test2/test/1
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 and it'll look like:
 
 [source,js]
 --------------------------------------------------
 {
-  "text": "words words",
-  "tag": "foo"
+  "found": true,
+  "_id": "1",
+  "_index": "test2",
+  "_type": "test",
+  "_version": 1,
+  "_source": {
+    "text": "words words",
+    "tag": "foo"
+  }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 Or you can search by `tag` or whatever you want.

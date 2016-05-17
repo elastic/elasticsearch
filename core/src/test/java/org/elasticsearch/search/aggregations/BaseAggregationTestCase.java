@@ -55,6 +55,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
@@ -86,9 +87,10 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
     protected static final String DOUBLE_FIELD_NAME = "mapped_double";
     protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
     protected static final String DATE_FIELD_NAME = "mapped_date";
+    protected static final String IP_FIELD_NAME = "mapped_ip";
     protected static final String OBJECT_FIELD_NAME = "mapped_object";
     protected static final String[] mappedFieldNames = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME,
-            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, OBJECT_FIELD_NAME};
+            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, IP_FIELD_NAME, OBJECT_FIELD_NAME};
 
     private static Injector injector;
     private static Index index;
@@ -143,8 +145,11 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
                 Set<ScriptEngineService> engines = new HashSet<>();
                 engines.add(mockScriptEngine);
                 List<ScriptContext.Plugin> customContexts = new ArrayList<>();
-                ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections
-                        .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
+                ScriptEngineRegistry scriptEngineRegistry =
+                        new ScriptEngineRegistry(Collections
+                                .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
+                                                                                                 MockScriptEngine.NAME,
+                                                                                                 ScriptMode.ON)));
                 bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
                 ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
                 bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
@@ -223,7 +228,7 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
             builder.prettyPrint();
         }
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+        XContentBuilder shuffled = shuffleXContent(builder);
         XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(shuffled.bytes());
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());

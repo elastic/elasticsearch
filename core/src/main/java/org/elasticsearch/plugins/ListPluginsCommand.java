@@ -23,6 +23,9 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import joptsimple.OptionSet;
 import org.elasticsearch.cli.Command;
@@ -48,10 +51,17 @@ class ListPluginsCommand extends Command {
         }
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Plugins directory: " + env.pluginsFile());
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(env.pluginsFile())) {
-            for (Path plugin : stream) {
-                terminal.println(plugin.getFileName().toString());
+        final List<Path> plugins = new ArrayList<>();
+        try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsFile())) {
+            for (Path plugin : paths) {
+                plugins.add(plugin);
             }
+        }
+        Collections.sort(plugins);
+        for (final Path plugin : plugins) {
+            terminal.println(plugin.getFileName().toString());
+            PluginInfo info = PluginInfo.readFromProperties(env.pluginsFile().resolve(plugin.toAbsolutePath()));
+            terminal.println(Terminal.Verbosity.VERBOSE, info.toString());
         }
     }
 }

@@ -41,7 +41,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchAfterBuilderTests extends ESTestCase {
@@ -220,8 +219,8 @@ public class SearchAfterBuilderTests extends ESTestCase {
             builder.startObject();
             searchAfterBuilder.innerToXContent(builder);
             builder.endObject();
-            XContentParser parser = XContentHelper.createParser(builder.bytes());
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+            XContentParser parser = XContentHelper.createParser(shuffleXContent(builder).bytes());
+            new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
             parser.nextToken();
             parser.nextToken();

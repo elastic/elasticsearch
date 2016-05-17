@@ -77,7 +77,7 @@ public class StatsBucketPipelineAggregatorBuilder extends BucketMetricsPipelineA
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
         @Override
         protected StatsBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
-                String bucketsPath, Map<String, Object> unparsedParams) {
+                String bucketsPath, Map<String, Object> params) {
             return new StatsBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
         }
     };

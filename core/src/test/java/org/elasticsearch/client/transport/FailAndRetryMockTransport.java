@@ -20,7 +20,9 @@
 package org.elasticsearch.client.transport;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
+import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
@@ -34,6 +36,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportServiceAdapter;
 
 import java.io.IOException;
@@ -47,6 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 abstract class FailAndRetryMockTransport<Response extends TransportResponse> implements Transport {
 
     private final Random random;
+    private final ClusterName clusterName;
 
     private boolean connectMode = true;
 
@@ -57,8 +61,9 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     private final AtomicInteger successes = new AtomicInteger();
     private final Set<DiscoveryNode> triedNodes = new CopyOnWriteArraySet<>();
 
-    FailAndRetryMockTransport(Random random) {
+    FailAndRetryMockTransport(Random random, ClusterName clusterName) {
         this.random = new Random(random.nextLong());
+        this.clusterName = clusterName;
     }
 
     @Override

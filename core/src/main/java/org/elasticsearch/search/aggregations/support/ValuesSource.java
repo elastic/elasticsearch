@@ -329,7 +329,7 @@ public abstract class ValuesSource {
                     resize(longValues.count());
                     script.setDocument(doc);
                     for (int i = 0; i < count(); ++i) {
-                        script.setNextVar("_value", longValues.valueAt(i));
+                        script.setNextAggregationValue(longValues.valueAt(i));
                         values[i] = script.runAsLong();
                     }
                     sort();
@@ -357,7 +357,7 @@ public abstract class ValuesSource {
                     resize(doubleValues.count());
                     script.setDocument(doc);
                     for (int i = 0; i < count(); ++i) {
-                        script.setNextVar("_value", doubleValues.valueAt(i));
+                        script.setNextAggregationValue(doubleValues.valueAt(i));
                         values[i] = script.runAsDouble();
                     }
                     sort();
@@ -474,7 +474,7 @@ public abstract class ValuesSource {
                 grow();
                 for (int i = 0; i < count; ++i) {
                     final BytesRef value = bytesValues.valueAt(i);
-                    script.setNextVar("_value", value.utf8ToString());
+                    script.setNextAggregationValue(value.utf8ToString());
                     values[i].copyChars(script.run().toString());
                 }
                 sort();

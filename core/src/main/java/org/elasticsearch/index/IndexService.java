@@ -431,6 +431,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         return nodeServicesProvider;
     }
 
+    @Override
     public IndexSettings getIndexSettings() {
         return indexSettings;
     }
@@ -598,18 +599,18 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         }
     }
 
-    private Query parse(AliasMetaData alias, QueryShardContext parseContext) {
+    private Query parse(AliasMetaData alias, QueryShardContext shardContext) {
         if (alias.filter() == null) {
             return null;
         }
         try {
             byte[] filterSource = alias.filter().uncompressed();
             try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
-                ParsedQuery parsedFilter = parseContext.parseInnerFilter(parser);
+                ParsedQuery parsedFilter = shardContext.toFilter(shardContext.newParseContext(parser).parseInnerQueryBuilder());
                 return parsedFilter == null ? null : parsedFilter.query();
             }
         } catch (IOException ex) {
-            throw new AliasFilterParsingException(parseContext.index(), alias.getAlias(), "Invalid alias filter", ex);
+            throw new AliasFilterParsingException(shardContext.index(), alias.getAlias(), "Invalid alias filter", ex);
         }
     }
 
@@ -759,6 +760,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             return scheduledFuture != null;
         }
 
+        @Override
         public final void run() {
             try {
                 runInternal();
@@ -824,6 +826,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             super(indexService, indexService.getIndexSettings().getTranslogSyncInterval());
         }
 
+        @Override
         protected String getThreadPool() {
             return ThreadPool.Names.FLUSH;
         }
@@ -849,6 +852,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             indexService.maybeRefreshEngine();
         }
 
+        @Override
         protected String getThreadPool() {
             return ThreadPool.Names.REFRESH;
         }

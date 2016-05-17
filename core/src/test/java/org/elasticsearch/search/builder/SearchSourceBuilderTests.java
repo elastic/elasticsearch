@@ -52,8 +52,6 @@ import org.elasticsearch.index.query.AbstractQueryTestCase;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.support.InnerHitBuilderTests;
-import org.elasticsearch.index.query.support.InnerHitsBuilder;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -64,6 +62,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
@@ -153,7 +152,9 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 engines.add(mockScriptEngine);
                 List<ScriptContext.Plugin> customContexts = new ArrayList<>();
                 ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections
-                        .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
+                        .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
+                                                                                         MockScriptEngine.NAME,
+                                                                                         ScriptMode.ON)));
                 bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
                 ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
                 bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
@@ -409,14 +410,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
         }
         if (randomBoolean()) {
             builder.suggest(SuggestBuilderTests.randomSuggestBuilder());
-        }
-        if (randomBoolean()) {
-            InnerHitsBuilder innerHitsBuilder = new InnerHitsBuilder();
-            int num = randomIntBetween(0, 3);
-            for (int i = 0; i < num; i++) {
-                innerHitsBuilder.addInnerHit(randomAsciiOfLengthBetween(5, 20), InnerHitBuilderTests.randomInnerHits());
-            }
-            builder.innerHits(innerHitsBuilder);
         }
         if (randomBoolean()) {
             int numRescores = randomIntBetween(1, 5);

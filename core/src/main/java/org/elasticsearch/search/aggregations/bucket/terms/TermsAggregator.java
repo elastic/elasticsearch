@@ -199,7 +199,6 @@ public abstract class TermsAggregator extends BucketsAggregator {
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
         return collectMode == SubAggCollectionMode.BREADTH_FIRST
-                && aggregator.needsScores() == false
                 && !aggsUsedForSorting.contains(aggregator);
     }
 

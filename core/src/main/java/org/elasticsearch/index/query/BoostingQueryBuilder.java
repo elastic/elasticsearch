@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -52,9 +53,9 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     private static final ParseField NEGATIVE_FIELD = new ParseField("negative");
     private static final ParseField NEGATIVE_BOOST_FIELD = new ParseField("negative_boost");
 
-    private final QueryBuilder<?> positiveQuery;
+    private final QueryBuilder positiveQuery;
 
-    private final QueryBuilder<?> negativeQuery;
+    private final QueryBuilder negativeQuery;
 
     private float negativeBoost = -1;
 
@@ -65,7 +66,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
      * @param positiveQuery the positive query for this boosting query.
      * @param negativeQuery the negative query for this boosting query.
      */
-    public BoostingQueryBuilder(QueryBuilder<?> positiveQuery, QueryBuilder<?> negativeQuery) {
+    public BoostingQueryBuilder(QueryBuilder positiveQuery, QueryBuilder negativeQuery) {
         if (positiveQuery == null) {
             throw new IllegalArgumentException("inner clause [positive] cannot be null.");
         }
@@ -225,7 +226,7 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder positiveQuery = this.positiveQuery.rewrite(queryRewriteContext);
         QueryBuilder negativeQuery = this.negativeQuery.rewrite(queryRewriteContext);
         if (positiveQuery != this.positiveQuery || negativeQuery != this.negativeQuery) {
@@ -234,5 +235,11 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
             return newQueryBuilder;
         }
         return this;
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+        InnerHitBuilder.extractInnerHits(positiveQuery, innerHits);
+        InnerHitBuilder.extractInnerHits(negativeQuery, innerHits);
     }
 }

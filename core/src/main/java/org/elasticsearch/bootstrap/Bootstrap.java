@@ -246,12 +246,6 @@ final class Bootstrap {
             PidFile.create(environment.pidFile(), true);
         }
 
-        // warn if running using the client VM
-        if (JvmInfo.jvmInfo().getVmName().toLowerCase(Locale.ROOT).contains("client")) {
-            ESLogger logger = Loggers.getLogger(Bootstrap.class);
-            logger.warn("jvm uses the client vm, make sure to run `java` with the server vm for best performance by adding `-server` to the command line");
-        }
-
         try {
             if (!foreground) {
                 Loggers.disableConsoleLogging();

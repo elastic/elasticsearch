@@ -48,7 +48,7 @@ import java.util.Map;
 public class PercolateSourceBuilder extends ToXContentToBytes {
 
     private DocBuilder docBuilder;
-    private QueryBuilder<?> queryBuilder;
+    private QueryBuilder queryBuilder;
     private Integer size;
     private List<SortBuilder<?>> sorts;
     private Boolean trackScores;
@@ -68,7 +68,7 @@ public class PercolateSourceBuilder extends ToXContentToBytes {
      * Sets a query to reduce the number of percolate queries to be evaluated and score the queries that match based
      * on this query.
      */
-    public PercolateSourceBuilder setQueryBuilder(QueryBuilder<?> queryBuilder) {
+    public PercolateSourceBuilder setQueryBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;
         return this;
     }

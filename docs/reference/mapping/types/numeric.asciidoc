@@ -31,7 +31,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [[number-params]]
 ==== Parameters for numeric fields

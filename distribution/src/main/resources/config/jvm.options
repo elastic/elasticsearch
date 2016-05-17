@@ -48,6 +48,9 @@
 
 ## basic
 
+# force the server VM
+-server
+
 # set to headless, just in case
 -Djava.awt.headless=true
 

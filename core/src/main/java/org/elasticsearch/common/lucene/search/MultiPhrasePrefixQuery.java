@@ -150,7 +150,7 @@ public class MultiPhrasePrefixQuery extends Query {
             }
         }
         if (terms.isEmpty()) {
-            return Queries.newMatchNoDocsQuery();
+            return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
         }
         query.add(terms.toArray(Term.class), position);
         return query.build();

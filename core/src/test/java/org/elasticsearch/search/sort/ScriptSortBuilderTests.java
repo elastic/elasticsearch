@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
@@ -48,24 +49,24 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         ScriptSortBuilder builder = new ScriptSortBuilder(new Script(randomAsciiOfLengthBetween(5, 10)),
                 type);
         if (randomBoolean()) {
-                builder.order(RandomSortDataGenerator.order(null));
+                builder.order(randomFrom(SortOrder.values()));
         }
         if (randomBoolean()) {
             if (type == ScriptSortType.NUMBER) {
-                builder.sortMode(RandomSortDataGenerator.mode(builder.sortMode()));
+                builder.sortMode(randomValueOtherThan(builder.sortMode(), () -> randomFrom(SortMode.values())));
             } else {
                 Set<SortMode> exceptThis = new HashSet<>();
                 exceptThis.add(SortMode.SUM);
                 exceptThis.add(SortMode.AVG);
                 exceptThis.add(SortMode.MEDIAN);
-                builder.sortMode(RandomSortDataGenerator.mode(exceptThis));
+                builder.sortMode(randomValueOtherThanMany(exceptThis::contains, () -> randomFrom(SortMode.values())));
             }
         }
         if (randomBoolean()) {
-            builder.setNestedFilter(RandomSortDataGenerator.nestedFilter(builder.getNestedFilter()));
+            builder.setNestedFilter(randomNestedFilter());
         }
         if (randomBoolean()) {
-            builder.setNestedPath(RandomSortDataGenerator.randomAscii(builder.getNestedPath()));
+            builder.setNestedPath(randomAsciiOfLengthBetween(1, 10));
         }
         return builder;
     }
@@ -101,7 +102,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 break;
             case 1:
                 if (original.type() == ScriptSortType.NUMBER) {
-                    result.sortMode(RandomSortDataGenerator.mode(original.sortMode()));
+                    result.sortMode(randomValueOtherThan(result.sortMode(), () -> randomFrom(SortMode.values())));
                 } else {
                     // script sort type String only allows MIN and MAX, so we only switch
                     if (original.sortMode() == SortMode.MIN) {
@@ -112,7 +113,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 }
                 break;
             case 2:
-                result.setNestedFilter(RandomSortDataGenerator.nestedFilter(original.getNestedFilter()));
+                result.setNestedFilter(randomValueOtherThan(
+                        original.getNestedFilter(),
+                        () -> randomNestedFilter()));
                 break;
             case 3:
                 result.setNestedPath(original.getNestedPath() + "_some_suffix");
@@ -122,7 +125,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     @Override
-    protected void sortFieldAssertions(ScriptSortBuilder builder, SortField sortField) throws IOException {
+    protected void sortFieldAssertions(ScriptSortBuilder builder, SortField sortField, DocValueFormat format) throws IOException {
         assertEquals(SortField.Type.CUSTOM, sortField.getType());
         assertEquals(builder.order() == SortOrder.ASC ? false : true, sortField.getReverse());
     }

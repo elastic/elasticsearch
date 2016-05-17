@@ -206,9 +206,8 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
     private Mapper parse(DocumentMapper mapper, DocumentMapperParser parser, XContentBuilder builder) throws Exception {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext(settings, parser, mapper, new ContentPath(0));
-        SourceToParse source = SourceToParse.source(builder.bytes());
-        ctx.reset(XContentHelper.createParser(source.source()), new ParseContext.Document(), source);
+        SourceToParse source = SourceToParse.source("test", mapper.type(), "some_id", builder.bytes());
+        ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext(settings, parser, mapper, source, XContentHelper.createParser(source.source()));
         assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());
         ctx.parser().nextToken();
         DocumentParser.parseObjectOrNested(ctx, mapper.root(), true);
@@ -558,7 +557,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         XContentBuilder json = XContentFactory.jsonBuilder().startObject()
                     .field("field", "foo")
                 .endObject();
-        SourceToParse source = SourceToParse.source(json.bytes()).id("1");
+        SourceToParse source = SourceToParse.source("test", "type1", "1", json.bytes());
         DocumentMapper mapper = indexService.mapperService().documentMapper("type1");
         assertNull(mapper.mappers().getMapper("field.raw"));
         ParsedDocument parsed = mapper.parse(source);

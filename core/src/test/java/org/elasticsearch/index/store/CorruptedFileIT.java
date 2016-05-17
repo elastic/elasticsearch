@@ -578,7 +578,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             }
             assertTrue(shardRouting.assignedToNode());
             NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(shardRouting.currentNodeId()).setFs(true).get();
-            NodeStats nodeStats = nodeStatses.getNodes()[0];
+            NodeStats nodeStats = nodeStatses.getNodes().get(0);
             List<Path> files = new ArrayList<>();
             filesToNodes.put(nodeStats.getNode().getName(), files);
             for (FsInfo.Path info : nodeStats.getFs()) {
@@ -615,7 +615,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         String nodeId = shardRouting.currentNodeId();
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
         Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
-        for (FsInfo.Path info : nodeStatses.getNodes()[0].getFs()) {
+        for (FsInfo.Path info : nodeStatses.getNodes().get(0).getFs()) {
             String path = info.getPath();
             Path file = PathUtils.get(path).resolve("indices").resolve(test.getUUID()).resolve(Integer.toString(shardRouting.getId())).resolve("index");
             if (Files.exists(file)) { // multi data path might only have one path in use
@@ -678,9 +678,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(routing.currentNodeId()).setFs(true).get();
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         final Index test = state.metaData().index("test").getIndex();
-        assertThat(routing.toString(), nodeStatses.getNodes().length, equalTo(1));
+        assertThat(routing.toString(), nodeStatses.getNodes().size(), equalTo(1));
         List<Path> files = new ArrayList<>();
-        for (FsInfo.Path info : nodeStatses.getNodes()[0].getFs()) {
+        for (FsInfo.Path info : nodeStatses.getNodes().get(0).getFs()) {
             String path = info.getPath();
             Path file = PathUtils.get(path).resolve("indices/" + test.getUUID() + "/" + Integer.toString(routing.getId()) + "/index");
             if (Files.exists(file)) { // multi data path might only have one path in use

@@ -202,7 +202,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         for (int i = 0; i < testNodes.length; i++) {
             boolean shouldBlock = blockOnNodes.contains(testNodes[i]);
             logger.info("The action in the node [{}] should block: [{}]", testNodes[i].discoveryNode.getId(), shouldBlock);
-            actions[i] = new CancellableTestNodesAction(Settings.EMPTY, "testAction", clusterName, threadPool, testNodes[i]
+            actions[i] = new CancellableTestNodesAction(Settings.EMPTY, "testAction", CLUSTER_NAME, threadPool, testNodes[i]
                 .clusterService, testNodes[i].transportService, shouldBlock, actionLatch);
         }
         Task task = actions[0].execute(request, listener);
@@ -255,12 +255,12 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             // Make sure that the request was successful
             assertNull(throwableReference.get());
             assertNotNull(responseReference.get());
-            assertEquals(nodesCount, responseReference.get().getNodes().length);
+            assertEquals(nodesCount, responseReference.get().getNodes().size());
             assertEquals(0, responseReference.get().failureCount());
         } else {
             // We canceled the request, in this case it should have fail, but we should get partial response
             assertNull(throwableReference.get());
-            assertEquals(nodesCount, responseReference.get().failureCount() + responseReference.get().getNodes().length);
+            assertEquals(nodesCount, responseReference.get().failureCount() + responseReference.get().getNodes().size());
             // and we should have at least as many failures as the number of blocked operations
             // (we might have cancelled some non-blocked operations before they even started and that's ok)
             assertThat(responseReference.get().failureCount(), greaterThanOrEqualTo(blockedNodesCount));

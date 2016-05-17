@@ -30,11 +30,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -194,27 +192,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private void cleanFailedShards(final ClusterChangedEvent event) {
-        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().getLocalNodeId());
+        RoutingNode routingNode = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
         if (routingNode == null) {
             failedShards.clear();
             return;
         }
-        RoutingTable routingTable = event.state().routingTable();
         for (Iterator<Map.Entry<ShardId, ShardRouting>> iterator = failedShards.entrySet().iterator(); iterator.hasNext(); ) {
             Map.Entry<ShardId, ShardRouting> entry = iterator.next();
-            ShardId failedShardId = entry.getKey();
             ShardRouting failedShardRouting = entry.getValue();
-            IndexRoutingTable indexRoutingTable = routingTable.index(failedShardId.getIndex());
-            if (indexRoutingTable == null) {
-                iterator.remove();
-                continue;
-            }
-            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(failedShardId.id());
-            if (shardRoutingTable == null) {
-                iterator.remove();
-                continue;
-            }
-            if (shardRoutingTable.assignedShards().stream().noneMatch(shr -> shr.isSameAllocation(failedShardRouting))) {
+            ShardRouting matchedShardRouting = routingNode.getByShardId(failedShardRouting.shardId());
+            if (matchedShardRouting == null || matchedShardRouting.isSameAllocation(failedShardRouting) == false) {
                 iterator.remove();
             }
         }
@@ -279,7 +266,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private void applyDeletedShards(final ClusterChangedEvent event) {
-        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().getLocalNodeId());
+        RoutingNode routingNode = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
         if (routingNode == null) {
             return;
         }
@@ -382,7 +369,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     private void applyNewIndices(final ClusterChangedEvent event) {
         // we only create indices for shards that are allocated
-        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().getLocalNodeId());
+        RoutingNode routingNode = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
         if (routingNode == null) {
             return;
         }
@@ -479,7 +466,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
 
         RoutingTable routingTable = event.state().routingTable();
-        RoutingNodes.RoutingNodeIterator routingNode = event.state().getRoutingNodes().routingNodeIter(event.state().nodes().getLocalNodeId());
+        RoutingNode routingNode = event.state().getRoutingNodes().node(event.state().nodes().getLocalNodeId());
 
         if (routingNode == null) {
             failedShards.clear();

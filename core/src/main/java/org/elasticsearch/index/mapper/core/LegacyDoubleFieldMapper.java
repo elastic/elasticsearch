@@ -36,7 +36,6 @@ import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -136,12 +135,12 @@ public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Double nullValue() {
-            return (Double)super.nullValue();
+        public java.lang.Double nullValue() {
+            return (java.lang.Double)super.nullValue();
         }
 
         @Override
-        public Double valueForSearch(Object value) {
+        public java.lang.Double valueForSearch(Object value) {
             if (value == null) {
                 return null;
             }
@@ -151,7 +150,7 @@ public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
             if (value instanceof BytesRef) {
                 return Numbers.bytesToDouble((BytesRef) value);
             }
-            return Double.parseDouble(value.toString());
+            return java.lang.Double.parseDouble(value.toString());
         }
 
         @Override
@@ -171,17 +170,7 @@ public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            double iValue = parseDoubleValue(value);
-            double iSim = fuzziness.asDouble();
-            return LegacyNumericRangeQuery.newDoubleRange(name(), numericPrecisionStep(),
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
-        }
-
-        @Override
-        public FieldStats stats(IndexReader reader) throws IOException {
+        public FieldStats.Double stats(IndexReader reader) throws IOException {
             int maxDoc = reader.maxDoc();
             Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());
             if (terms == null) {
@@ -189,9 +178,9 @@ public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
             }
             double minValue = NumericUtils.sortableLongToDouble(LegacyNumericUtils.getMinLong(terms));
             double maxValue = NumericUtils.sortableLongToDouble(LegacyNumericUtils.getMaxLong(terms));
-            return new FieldStats.Double(
-                maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
-            );
+            return new FieldStats.Double(maxDoc, terms.getDocCount(),
+                terms.getSumDocFreq(), terms.getSumTotalTermFreq(), isSearchable(), isAggregatable(),
+                minValue, maxValue);
         }
 
         @Override
@@ -235,13 +224,13 @@ public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
                     }
                     value = fieldType().nullValue();
                 } else {
-                    value = Double.parseDouble(sExternalValue);
+                    value = java.lang.Double.parseDouble(sExternalValue);
                 }
             } else {
                 value = ((Number) externalValue).doubleValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(fieldType().name(), Double.toString(value), boost);
+                context.allEntries().addText(fieldType().name(), java.lang.Double.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -258,7 +247,7 @@ public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
                     && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
                 XContentParser.Token token;
                 String currentFieldName = null;
-                Double objValue = fieldType().nullValue();
+                java.lang.Double objValue = fieldType().nullValue();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
@@ -341,7 +330,7 @@ public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
 
         @Override
         public String numericAsString() {
-            return Double.toString(number);
+            return java.lang.Double.toString(number);
         }
     }
 

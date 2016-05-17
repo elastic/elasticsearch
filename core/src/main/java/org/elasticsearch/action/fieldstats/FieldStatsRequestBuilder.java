@@ -24,7 +24,8 @@ import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  */
-public class FieldStatsRequestBuilder extends BroadcastOperationRequestBuilder<FieldStatsRequest, FieldStatsResponse, FieldStatsRequestBuilder> {
+public class FieldStatsRequestBuilder extends
+    BroadcastOperationRequestBuilder<FieldStatsRequest, FieldStatsResponse, FieldStatsRequestBuilder> {
 
     public FieldStatsRequestBuilder(ElasticsearchClient client, FieldStatsAction action) {
         super(client, action, new FieldStatsRequest());

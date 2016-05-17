@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -149,6 +150,11 @@ public class PercolatorFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            throw new QueryShardException(context, "Percolator fields are not searchable directly, use a percolate query instead");
+        }
     }
 
     private final boolean mapUnmappedFieldAsString;
@@ -172,7 +178,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     @Override
     public Mapper parse(ParseContext context) throws IOException {
         QueryShardContext queryShardContext = new QueryShardContext(this.queryShardContext);
-        DocumentMapper documentMapper = queryShardContext.getMapperService().documentMapper(context.type());
+        DocumentMapper documentMapper = queryShardContext.getMapperService().documentMapper(context.sourceToParse().type());
         for (FieldMapper fieldMapper : documentMapper.mappers()) {
             if (fieldMapper instanceof PercolatorFieldMapper) {
                 PercolatorFieldType fieldType = (PercolatorFieldType) fieldMapper.fieldType();
@@ -186,7 +192,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         XContentParser parser = context.parser();
-        QueryBuilder<?> queryBuilder = parseQueryBuilder(queryShardContext.newParseContext(parser), parser.getTokenLocation());
+        QueryBuilder queryBuilder = parseQueryBuilder(queryShardContext.newParseContext(parser), parser.getTokenLocation());
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
         queryBuilder = queryBuilder.rewrite(queryShardContext);
 
@@ -206,8 +212,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         return toQuery(context, mapUnmappedFieldsAsString, parseQueryBuilder(context.newParseContext(parser), parser.getTokenLocation()));
     }
 
-    static Query toQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, QueryBuilder<?> queryBuilder) throws IOException {
-        context.reset();
+    static Query toQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, QueryBuilder queryBuilder) throws IOException {
         // This means that fields in the query need to exist in the mapping prior to registering this query
         // The reason that this is required, is that if a field doesn't exist then the query assumes defaults, which may be undesired.
         //
@@ -222,14 +227,10 @@ public class PercolatorFieldMapper extends FieldMapper {
         // as an analyzed string.
         context.setAllowUnmappedFields(false);
         context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
-        try {
-            return queryBuilder.toQuery(context);
-        } finally {
-            context.reset();
-        }
+        return queryBuilder.toQuery(context);
     }
 
-    static QueryBuilder<?> parseQueryBuilder(QueryParseContext context, XContentLocation location) {
+    private static QueryBuilder parseQueryBuilder(QueryParseContext context, XContentLocation location) {
         try {
             return context.parseInnerQueryBuilder();
         } catch (IOException e) {

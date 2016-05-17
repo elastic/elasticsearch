@@ -51,7 +51,11 @@ public class RestResponse {
      */
     public Object getBody() throws IOException {
         if (isJson()) {
-            return parsedResponse().evaluate("");
+            JsonPath parsedResponse = parsedResponse();
+            if (parsedResponse == null) {
+                return null;
+            }
+            return parsedResponse.evaluate("");
         }
         return response.getBody();
     }

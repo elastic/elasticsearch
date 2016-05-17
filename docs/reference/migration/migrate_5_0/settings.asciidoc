@@ -51,16 +51,6 @@ All settings with a `netty` infix have been replaced by their already existing
 supported and should be replaced by the superseding setting
 `transport.bind_host`.
 
-==== Script mode settings
-
-Previously script mode settings (e.g., "script.inline: true",
-"script.engine.groovy.inline.aggs: false", etc.) accepted the values
-`on`, `true`, `1`, and `yes` for enabling a scripting mode, and the
-values `off`, `false`, `0`, and `no` for disabling a scripting mode.
-The variants `on`, `1`, and `yes` for enabling and `off`, `0`,
-and `no` for disabling are no longer supported.
-
-
 ==== Security manager settings
 
 The option to disable the security manager `security.manager.enabled` has been
@@ -241,6 +231,8 @@ a fallback realtime setting for the get and mget APIs when realtime
 wasn't specified. Now if the parameter isn't specified we always
 default to true.
 
+=== Script settings
+
 ==== Indexed script settings
 
 Due to the fact that indexed script has been replaced by stored
@@ -248,7 +240,21 @@ scripts the following settings have been replaced to:
 
 * `script.indexed` has been replaced by `script.stored`
 * `script.engine.*.indexed.aggs` has been replaced by `script.engine.*.stored.aggs` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
-* `script.engine.*.stored.mapping` has been replaced by `script.engine.*.stored.mapping` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
-* `script.engine.*.stored.search` has been replaced by `script.engine.*.stored.search` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
-* `script.engine.*.stored.update` has been replaced by `script.engine.*.stored.update` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
-* `script.engine.*.stored.plugin` has been replaced by `script.engine.*.stored.plugin` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
+* `script.engine.*.indexed.mapping` has been replaced by `script.engine.*.stored.mapping` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
+* `script.engine.*.indexed.search` has been replaced by `script.engine.*.stored.search` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
+* `script.engine.*.indexed.update` has been replaced by `script.engine.*.stored.update` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
+* `script.engine.*.indexed.plugin` has been replaced by `script.engine.*.stored.plugin` (where `*` represents the script language, like `groovy`, `mustache`, `plainless` etc.)
+
+==== Script mode settings
+
+Previously script mode settings (e.g., "script.inline: true",
+"script.engine.groovy.inline.aggs: false", etc.) accepted a wide range of
+"truthy" or "falsy" values. This is now much stricter and supports only the
+`true` and `false` options.
+
+
+==== Script sandbox settings removed
+
+Prior to 5.0 a third option could be specified for the `script.inline` and
+`script.stored` settings ("sandbox"). This has been removed, You can now only
+set `script.line: true` or `script.stored: true`.

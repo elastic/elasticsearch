@@ -58,7 +58,8 @@ import java.util.Map;
 //TODO we can optimize the case for Map<String, Object> similar to PyStringMap
 public class PythonScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
-    public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("py", "python"));
+    public static final String NAME = "python";
+    public static final String EXTENSION = "py";
 
     private final PythonInterpreter interp;
 
@@ -96,22 +97,17 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    public List<String> getExtensions() {
-        return Collections.unmodifiableList(Arrays.asList("py"));
+    public String getExtension() {
+        return EXTENSION;
     }
 
     @Override
-    public boolean isSandboxed() {
-        return false;
-    }
-
-    @Override
-    public Object compile(String script, Map<String, String> params) {
+    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
         // classloader created here
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -120,7 +116,7 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         return AccessController.doPrivileged(new PrivilegedAction<PyCode>() {
             @Override
             public PyCode run() {
-                return interp.compile(script);
+                return interp.compile(scriptSource);
             }
         });
     }
@@ -245,11 +241,6 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
                 return null;
             }
             return ret.__tojava__(Object.class);
-        }
-
-        @Override
-        public float runAsFloat() {
-            return ((Number) run()).floatValue();
         }
 
         @Override

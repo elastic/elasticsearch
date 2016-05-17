@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -85,7 +86,7 @@ public class NativeScriptTests extends ESTestCase {
         Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
         nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
         Set<ScriptEngineService> scriptEngineServices = singleton(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.TYPES)));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.NAME, ScriptMode.ON)));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(new ArrayList<>());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings);

@@ -55,6 +55,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptSettings;
@@ -144,8 +145,10 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
                 Set<ScriptEngineService> engines = new HashSet<>();
                 engines.add(mockScriptEngine);
                 List<ScriptContext.Plugin> customContexts = new ArrayList<>();
-                ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections
-                        .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
+                ScriptEngineRegistry scriptEngineRegistry =
+                        new ScriptEngineRegistry(Collections
+                                .singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class,
+                                                                                                 MockScriptEngine.NAME, ScriptMode.ON)));
                 bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
                 ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
                 bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
@@ -225,7 +228,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends PipelineAggrega
             builder.prettyPrint();
         }
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentBuilder shuffled = shuffleXContent(builder, Collections.emptySet());
+        XContentBuilder shuffled = shuffleXContent(builder);
         XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(shuffled.bytes());
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         String contentString = factoriesBuilder.toString();

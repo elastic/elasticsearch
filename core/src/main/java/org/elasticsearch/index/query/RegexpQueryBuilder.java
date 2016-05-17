@@ -41,7 +41,7 @@ import java.util.Objects;
 /**
  * A Query that does fuzzy matching for a specific value.
  */
-public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder> implements MultiTermQueryBuilder<RegexpQueryBuilder> {
+public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder> implements MultiTermQueryBuilder {
 
     public static final String NAME = "regexp";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);

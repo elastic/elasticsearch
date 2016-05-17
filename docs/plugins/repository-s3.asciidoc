@@ -148,7 +148,7 @@ PUT _snapshot/my_s3_repository
   }
 }
 ----
-// AUTOSENSE
+// CONSOLE
 
 The following settings are supported:
 

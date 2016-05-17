@@ -59,6 +59,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptMode;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
@@ -74,6 +75,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.lang.reflect.Proxy;
 import java.util.Collections;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -84,7 +86,7 @@ import static org.hamcrest.Matchers.containsString;
 public class TemplateQueryParserTests extends ESTestCase {
 
     private Injector injector;
-    private QueryShardContext context;
+    private Supplier<QueryShardContext> contextFactory;
 
     @Before
     public void setup() throws IOException {
@@ -105,7 +107,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         ScriptModule scriptModule = new ScriptModule();
         scriptModule.prepareSettings(settingsModule);
         // TODO: make this use a mock engine instead of mustache and it will no longer be messy!
-        scriptModule.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.TYPES));
+        scriptModule.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(MustacheScriptEngineService.class, MustacheScriptEngineService.NAME, ScriptMode.ON));
         settingsModule.registerSetting(InternalSettingsPlugin.VERSION_CREATED);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
@@ -134,7 +136,8 @@ public class TemplateQueryParserTests extends ESTestCase {
         ScriptService scriptService = injector.getInstance(ScriptService.class);
         SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule().getMapperRegistry();
-        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry, () -> context);
+        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry, () ->
+            contextFactory.get());
         IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {});
         IndexFieldDataService indexFieldDataService =new IndexFieldDataService(idxSettings, cache, injector.getInstance(CircuitBreakerService.class), mapperService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
@@ -149,7 +152,7 @@ public class TemplateQueryParserTests extends ESTestCase {
             }
         });
         IndicesQueriesRegistry indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
-        context = new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService,
+        contextFactory =  () -> new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService,
                 similarityService, scriptService, indicesQueriesRegistry, proxy, null, null, null);
     }
 
@@ -164,7 +167,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         String templateString = "{" + "\"query\":{\"match_{{template}}\": {}}," + "\"params\":{\"template\":\"all\"}" + "}";
 
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
-        context.reset();
+        QueryShardContext context = contextFactory.get();
         templateSourceParser.nextToken();
 
         Query query = QueryBuilder.rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)),
@@ -176,7 +179,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         String templateString = "{" + "  \"inline\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\"," + "  \"params\":{"
                 + "    \"template\":\"all\"," + "    \"use_it\": true" + "  }" + "}";
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
-        context.reset();
+        QueryShardContext context = contextFactory.get();
 
         Query query = QueryBuilder.rewriteQuery(TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)), context).toQuery(context);
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
@@ -192,7 +195,7 @@ public class TemplateQueryParserTests extends ESTestCase {
                 + "  \"params\":{" + "    \"size\":2" + "  }\n" + "}";
 
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
-        context.reset();
+        QueryShardContext context = contextFactory.get();
 
         try {
             TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).rewrite(context);
@@ -206,7 +209,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         String templateString = "{ \"file\": \"storedTemplate\" ,\"params\":{\"template\":\"all\" } } ";
 
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
-        context.reset();
+        QueryShardContext context = contextFactory.get();
         templateSourceParser.nextToken();
 
 
@@ -219,7 +222,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         String templateString = "{ \"file\": \"storedTemplate\" ,\"params\":{\"template\":\"all\" } } ";
 
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
-        context.reset();
+        QueryShardContext context = contextFactory.get();
         templateSourceParser.nextToken();
         try {
             TemplateQueryBuilder.fromXContent(context.newParseContext(templateSourceParser)).toQuery(context);

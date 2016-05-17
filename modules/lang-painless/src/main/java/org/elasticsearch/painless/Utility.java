@@ -19,7 +19,12 @@
 
 package org.elasticsearch.painless;
 
+/**
+ * A set of methods for non-native boxing and non-native
+ * exact math operations used at both compile-time and runtime.
+ */
 public class Utility {
+
     public static boolean NumberToboolean(final Number value) {
         return value.longValue() != 0;
     }
@@ -248,6 +253,10 @@ public class Utility {
         return (double)value;
     }
 
+    public static String charToString(final char value) {
+        return String.valueOf(value);
+    }
+
     public static boolean CharacterToboolean(final Character value) {
         return value != 0;
     }
@@ -302,6 +311,10 @@ public class Utility {
 
     public static Double CharacterToDouble(final Character value) {
         return value == null ? null : (double)value;
+    }
+
+    public static String CharacterToString(final Character value) {
+        return value == null ? null : value.toString();
     }
 
     public static boolean intToboolean(final int value) {
@@ -446,6 +459,26 @@ public class Utility {
 
     public static char DoubleTochar(final Double value) {
         return (char)value.doubleValue();
+    }
+
+    public static char StringTochar(final String value) {
+        if (value.length() != 1) {
+            throw new ClassCastException("Cannot cast [String] with length greater than one to [char].");
+        }
+
+        return value.charAt(0);
+    }
+
+    public static Character StringToCharacter(final String value) {
+        if (value == null) {
+            return null;
+        }
+
+        if (value.length() != 1) {
+            throw new ClassCastException("Cannot cast [String] with length greater than one to [Character].");
+        }
+
+        return value.charAt(0);
     }
 
     // although divide by zero is guaranteed, the special overflow case is not caught.
@@ -790,11 +823,11 @@ public class Utility {
     }
 
     public static boolean checkEquals(final Object left, final Object right) {
-        if (left != null && right != null) {
+        if (left != null) {
             return left.equals(right);
         }
 
-        return left == null && right == null;
+        return right == null || right.equals(null);
     }
 
     private Utility() {}

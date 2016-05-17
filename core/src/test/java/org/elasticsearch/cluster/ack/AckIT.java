@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.Index;
@@ -189,7 +190,7 @@ public class AckIT extends ESIntegTestCase {
             if (routingNode.node().isDataNode()) {
                 if (fromNodeId == null && routingNode.numberOfOwningShards() > 0) {
                     fromNodeId = routingNode.nodeId();
-                    shardToBeMoved = routingNode.get(randomInt(routingNode.size() - 1));
+                    shardToBeMoved = routingNode.copyShards().get(randomInt(routingNode.size() - 1));
                 } else {
                     toNodeId = routingNode.nodeId();
                 }

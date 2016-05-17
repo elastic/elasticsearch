@@ -45,7 +45,7 @@ import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregatorBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregatorBuilder;
@@ -142,7 +142,7 @@ public class AggregationBuilders {
     /**
      * Create a new {@link Filter} aggregation with the given name.
      */
-    public static FilterAggregatorBuilder filter(String name, QueryBuilder<?> filter) {
+    public static FilterAggregatorBuilder filter(String name, QueryBuilder filter) {
         return new FilterAggregatorBuilder(name, filter);
     }
 
@@ -156,7 +156,7 @@ public class AggregationBuilders {
     /**
      * Create a new {@link Filters} aggregation with the given name.
      */
-    public static FiltersAggregatorBuilder filters(String name, QueryBuilder<?>... filters) {
+    public static FiltersAggregatorBuilder filters(String name, QueryBuilder... filters) {
         return new FiltersAggregatorBuilder(name, filters);
     }
 
@@ -261,11 +261,11 @@ public class AggregationBuilders {
     }
 
     /**
-     * Create a new {@link IPv4RangeAggregatorBuilder} aggregation with the
+     * Create a new {@link IpRangeAggregatorBuilder} aggregation with the
      * given name.
      */
-    public static IPv4RangeAggregatorBuilder ipRange(String name) {
-        return new IPv4RangeAggregatorBuilder(name);
+    public static IpRangeAggregatorBuilder ipRange(String name) {
+        return new IpRangeAggregatorBuilder(name);
     }
 
     /**

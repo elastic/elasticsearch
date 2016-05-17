@@ -75,7 +75,7 @@ public class SumBucketPipelineAggregatorBuilder extends BucketMetricsPipelineAgg
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
         @Override
         protected SumBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
-                String bucketsPath, Map<String, Object> unparsedParams) {
+                String bucketsPath, Map<String, Object> params) {
             return new SumBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
         }
     };

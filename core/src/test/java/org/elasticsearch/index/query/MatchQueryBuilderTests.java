@@ -30,16 +30,14 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.hamcrest.Matcher;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -74,10 +72,15 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         matchQuery.operator(randomFrom(Operator.values()));
 
         if (randomBoolean()) {
-            matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
+            if (fieldName.equals(DATE_FIELD_NAME)) {
+                // tokenized dates would trigger parse errors
+                matchQuery.analyzer(randomFrom("keyword", "whitespace"));
+            } else {
+                matchQuery.analyzer(randomFrom("simple", "keyword", "whitespace"));
+            }
         }
 
-        if (fieldName.equals(BOOLEAN_FIELD_NAME) == false && randomBoolean()) {
+        if (fieldName.equals(STRING_FIELD_NAME) && randomBoolean()) {
             matchQuery.fuzziness(randomFuzziness(fieldName));
         }
 
@@ -127,18 +130,18 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         switch (queryBuilder.type()) {
         case BOOLEAN:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
-                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class))
-                    .or(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
+                    .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class)).or(instanceOf(MatchNoDocsQuery.class))
+                    .or(instanceOf(PointRangeQuery.class)));
             break;
         case PHRASE:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(PhraseQuery.class))
                     .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class))
-                    .or(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
+                    .or(instanceOf(PointRangeQuery.class)));
             break;
         case PHRASE_PREFIX:
             assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
                     .or(instanceOf(TermQuery.class)).or(instanceOf(FuzzyQuery.class))
-                    .or(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
+                    .or(instanceOf(PointRangeQuery.class)));
             break;
         }
 
@@ -191,32 +194,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             assertThat(actualTermLc, termLcMatcher);
             assertThat(queryBuilder.prefixLength(), equalTo(fuzzyQuery.getPrefixLength()));
             assertThat(queryBuilder.fuzzyTranspositions(), equalTo(fuzzyQuery.getTranspositions()));
-        }
-
-        if (query instanceof LegacyNumericRangeQuery) {
-            // These are fuzzy numeric queries
-            assertTrue(queryBuilder.fuzziness() != null);
-            @SuppressWarnings("unchecked")
-            LegacyNumericRangeQuery<Number> numericRangeQuery = (LegacyNumericRangeQuery<Number>) query;
-            assertTrue(numericRangeQuery.includesMin());
-            assertTrue(numericRangeQuery.includesMax());
-
-            double value;
-            double width;
-            if (queryBuilder.fieldName().equals(DATE_FIELD_NAME) == false) {
-                value = Double.parseDouble(queryBuilder.value().toString());
-                if (queryBuilder.fuzziness().equals(Fuzziness.AUTO)) {
-                    width = 1;
-                } else {
-                    width = queryBuilder.fuzziness().asDouble();
-                }
-            } else {
-                value = ISODateTimeFormat.dateTimeParser().parseMillis(queryBuilder.value().toString());
-                width = queryBuilder.fuzziness().asTimeValue().getMillis();
-            }
-
-            assertEquals(value - width, numericRangeQuery.getMin().doubleValue(), width * .1);
-            assertEquals(value + width, numericRangeQuery.getMax().doubleValue(), width * .1);
         }
 
         if (query instanceof PointRangeQuery) {
@@ -413,5 +390,38 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             assertThat(e.getMessage(),
                     containsString("Deprecated field [" + type + "] used, expected [match] instead"));
         }
+    }
+
+    public void testFuzzinessOnNonStringField() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        MatchQueryBuilder query = new MatchQueryBuilder(INT_FIELD_NAME, 42);
+        query.fuzziness(randomFuzziness(INT_FIELD_NAME));
+        QueryShardContext context = createShardContext();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> query.toQuery(context));
+        assertEquals("Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
+                e.getMessage());
+        query.analyzer("keyword"); // triggers a different code path
+        e = expectThrows(IllegalArgumentException.class,
+                () -> query.toQuery(context));
+        assertEquals("Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
+                e.getMessage());
+
+        query.lenient(true);
+        query.toQuery(context); // no exception
+        query.analyzer(null);
+        query.toQuery(context); // no exception
+    }
+
+    public void testExactOnUnsupportedField() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        MatchQueryBuilder query = new MatchQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
+        QueryShardContext context = createShardContext();
+        QueryShardException e = expectThrows(QueryShardException.class,
+                () -> query.toQuery(context));
+        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
+                e.getMessage());
+        query.lenient(true);
+        query.toQuery(context); // no exception
     }
 }

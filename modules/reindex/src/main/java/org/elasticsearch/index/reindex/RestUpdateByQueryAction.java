@@ -46,8 +46,8 @@ import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.SIZE_A
 import static org.elasticsearch.index.reindex.RestReindexAction.parseCommon;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestUpdateByQueryAction extends
-        AbstractBaseReindexRestHandler<UpdateByQueryRequest, BulkIndexByScrollResponse, TransportUpdateByQueryAction> {
+public class RestUpdateByQueryAction extends AbstractBaseReindexRestHandler<UpdateByQueryRequest, TransportUpdateByQueryAction> {
+
     @Inject
     public RestUpdateByQueryAction(Settings settings, RestController controller, Client client,
             IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
@@ -113,6 +113,6 @@ public class RestUpdateByQueryAction extends
             internalRequest.getSearchRequest().source().timeout(request.paramAsTime("search_timeout", null));
         }
 
-        execute(request, internalRequest, channel);
+        execute(request, internalRequest, channel, false, true, false);
     }
 }

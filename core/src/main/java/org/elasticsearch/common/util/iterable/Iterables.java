@@ -54,6 +54,8 @@ public class Iterables {
         }
     }
 
+    /** Flattens the two level {@code Iterable} into a single {@code Iterable}.  Note that this pre-caches the values from the outer {@code
+     *  Iterable}, but not the values from the inner one. */
     public static <T> Iterable<T> flatten(Iterable<? extends Iterable<T>> inputs) {
         Objects.requireNonNull(inputs);
         return new FlattenedIterables<>(inputs);

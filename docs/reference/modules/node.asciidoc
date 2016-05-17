@@ -157,7 +157,8 @@ PUT _cluster/settings
   }
 }
 ----------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[catch:/cannot set discovery.zen.minimum_master_nodes to more than the current master nodes/]
 
 TIP: An advantage of splitting the master and data roles between dedicated
 nodes is that you can have just three master-eligible nodes and set
@@ -299,4 +300,3 @@ same data directory. This can lead to unexpected data loss.
 More node settings can be found in <<modules,Modules>>.  Of particular note are
 the <<cluster.name,`cluster.name`>>, the <<node.name,`node.name`>> and the
 <<modules-network,network settings>>.
-

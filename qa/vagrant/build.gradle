@@ -156,7 +156,7 @@ for (String box : availableBoxes) {
   // always add a halt task for all boxes, so clean makes sure they are all shutdown
   Task halt = tasks.create("vagrant${boxTask}#halt", VagrantCommandTask) {
     boxName box
-    commandLine 'halt', box
+    args 'halt', box
   }
   stop.dependsOn(halt)
   if (boxes.contains(box) == false) {
@@ -176,7 +176,7 @@ for (String box : availableBoxes) {
       vagrant's default but its possible to change that default and folks do.
       But the boxes that we use are unlikely to work properly with other
       virtualization providers. Thus the lock. */
-    commandLine 'up', box, '--provision', '--provider', 'virtualbox'
+    args 'up', box, '--provision', '--provider', 'virtualbox'
     /* It'd be possible to check if the box is already up here and output
       SKIPPED but that would require running vagrant status which is slow! */
     dependsOn checkVagrantVersion

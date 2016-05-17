@@ -55,17 +55,17 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(IndicesQueryBuilder.class));
 
-    private final QueryBuilder<?> innerQuery;
+    private final QueryBuilder innerQuery;
 
     private final String[] indices;
 
-    private QueryBuilder<?> noMatchQuery = defaultNoMatchQuery();
+    private QueryBuilder noMatchQuery = defaultNoMatchQuery();
 
     /**
      * @deprecated instead search on the `_index` field
      */
     @Deprecated
-    public IndicesQueryBuilder(QueryBuilder<?> innerQuery, String... indices) {
+    public IndicesQueryBuilder(QueryBuilder innerQuery, String... indices) {
         DEPRECATION_LOGGER.deprecated("{} query is deprecated. Instead search on the '_index' field", NAME);
         if (innerQuery == null) {
             throw new IllegalArgumentException("inner query cannot be null");
@@ -94,7 +94,7 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
         out.writeNamedWriteable(noMatchQuery);
     }
 
-    public QueryBuilder<?> innerQuery() {
+    public QueryBuilder innerQuery() {
         return this.innerQuery;
     }
 
@@ -105,7 +105,7 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
     /**
      * Sets the query to use when it executes on an index that does not match the indices provided.
      */
-    public IndicesQueryBuilder noMatchQuery(QueryBuilder<?> noMatchQuery) {
+    public IndicesQueryBuilder noMatchQuery(QueryBuilder noMatchQuery) {
         if (noMatchQuery == null) {
             throw new IllegalArgumentException("noMatch query cannot be null");
         }
@@ -121,11 +121,11 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
         return this;
     }
 
-    public QueryBuilder<?> noMatchQuery() {
+    public QueryBuilder noMatchQuery() {
         return this.noMatchQuery;
     }
 
-    private static QueryBuilder<?> defaultNoMatchQuery() {
+    private static QueryBuilder defaultNoMatchQuery() {
         return QueryBuilders.matchAllQuery();
     }
 
@@ -144,9 +144,9 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
     public static IndicesQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
-        QueryBuilder<?> innerQuery = null;
+        QueryBuilder innerQuery = null;
         Collection<String> indices = new ArrayList<>();
-        QueryBuilder<?> noMatchQuery = defaultNoMatchQuery();
+        QueryBuilder noMatchQuery = defaultNoMatchQuery();
 
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -209,7 +209,7 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
                 .queryName(queryName);
     }
 
-    static QueryBuilder<?> parseNoMatchQuery(String type) {
+    static QueryBuilder parseNoMatchQuery(String type) {
         if ("all".equals(type)) {
             return QueryBuilders.matchAllQuery();
         } else if ("none".equals(type)) {
@@ -244,9 +244,9 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder<?> newInnnerQuery = innerQuery.rewrite(queryShardContext);
-        QueryBuilder<?> newNoMatchQuery = noMatchQuery.rewrite(queryShardContext);
+    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        QueryBuilder newInnnerQuery = innerQuery.rewrite(queryShardContext);
+        QueryBuilder newNoMatchQuery = noMatchQuery.rewrite(queryShardContext);
         if (newInnnerQuery != innerQuery || newNoMatchQuery != noMatchQuery) {
             return new IndicesQueryBuilder(innerQuery, indices).noMatchQuery(noMatchQuery);
         }

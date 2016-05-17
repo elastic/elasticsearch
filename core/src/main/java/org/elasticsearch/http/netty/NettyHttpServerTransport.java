@@ -70,6 +70,7 @@ import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
 import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
 import org.jboss.netty.handler.codec.http.HttpContentCompressor;
+import org.jboss.netty.handler.codec.http.HttpContentDecompressor;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
 import org.jboss.netty.handler.timeout.ReadTimeoutException;
@@ -544,18 +545,18 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
                 requestDecoder.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }
             pipeline.addLast("decoder", requestDecoder);
-            pipeline.addLast("decoder_compress", new ESHttpContentDecompressor(transport.compression));
+            pipeline.addLast("decoder_compress", new HttpContentDecompressor());
             HttpChunkAggregator httpChunkAggregator = new HttpChunkAggregator((int) transport.maxContentLength.bytes());
             if (transport.maxCompositeBufferComponents != -1) {
                 httpChunkAggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }
             pipeline.addLast("aggregator", httpChunkAggregator);
-            if (SETTING_CORS_ENABLED.get(transport.settings())) {
-                pipeline.addLast("cors", new CorsHandler(transport.getCorsConfig()));
-            }
             pipeline.addLast("encoder", new ESHttpResponseEncoder());
             if (transport.compression) {
                 pipeline.addLast("encoder_compress", new HttpContentCompressor(transport.compressionLevel));
+            }
+            if (SETTING_CORS_ENABLED.get(transport.settings())) {
+                pipeline.addLast("cors", new CorsHandler(transport.getCorsConfig()));
             }
             if (transport.pipelining) {
                 pipeline.addLast("pipelining", new HttpPipeliningHandler(transport.pipeliningMaxEvents));

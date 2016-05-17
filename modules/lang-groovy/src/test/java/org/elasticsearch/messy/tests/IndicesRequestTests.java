@@ -77,6 +77,7 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkModule;
@@ -725,8 +726,8 @@ public class IndicesRequestTests extends ESIntegTestCase {
         private final Map<String, List<TransportRequest>> requests = new HashMap<>();
 
         @Inject
-        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
-            super(settings, transport, threadPool);
+        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClusterName clusterName) {
+            super(settings, transport, threadPool, clusterName);
         }
 
         synchronized List<TransportRequest> consumeRequests(String action) {
@@ -742,8 +743,8 @@ public class IndicesRequestTests extends ESIntegTestCase {
         }
 
         @Override
-        public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
-            super.registerRequestHandler(action, request, executor, forceExecution, new InterceptingRequestHandler<>(action, handler));
+        public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, boolean canTripCircuitBreaker, TransportRequestHandler<Request> handler) {
+            super.registerRequestHandler(action, request, executor, forceExecution, canTripCircuitBreaker, new InterceptingRequestHandler<>(action, handler));
         }
 
         @Override

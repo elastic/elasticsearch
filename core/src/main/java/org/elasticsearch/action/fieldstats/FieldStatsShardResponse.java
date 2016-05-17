@@ -54,7 +54,7 @@ public class FieldStatsShardResponse extends BroadcastShardResponse {
         fieldStats = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             String key = in.readString();
-            FieldStats value = FieldStats.read(in);
+            FieldStats value = FieldStats.readFrom(in);
             fieldStats.put(key, value);
         }
     }

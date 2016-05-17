@@ -46,7 +46,7 @@ import java.util.Objects;
 /**
  * A Query that matches documents within an range of terms.
  */
-public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> implements MultiTermQueryBuilder<RangeQueryBuilder> {
+public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "range";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
@@ -410,7 +410,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         final MappedFieldType.Relation relation = getRelation(queryRewriteContext);
         switch (relation) {
         case DISJOINT:

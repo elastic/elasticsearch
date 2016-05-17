@@ -43,8 +43,8 @@ final class LListShortcut extends ALink {
 
     @Override
     ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        getter = before.struct.methods.get("get");
-        setter = before.struct.methods.get("set");
+        getter = before.struct.methods.get(new Definition.MethodKey("get", 1));
+        setter = before.struct.methods.get(new Definition.MethodKey("set", 2));
 
         if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1 ||
             getter.arguments.get(0).sort != Sort.INT)) {

@@ -19,10 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -32,8 +28,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 
-import static java.util.Collections.unmodifiableList;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 

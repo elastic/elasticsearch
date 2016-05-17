@@ -33,10 +33,10 @@ import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
-import org.elasticsearch.search.profile.QueryProfileBreakdown;
-import org.elasticsearch.search.profile.ProfileWeight;
-import org.elasticsearch.search.profile.QueryProfiler;
-import org.elasticsearch.search.profile.QueryTimingType;
+import org.elasticsearch.search.profile.query.ProfileWeight;
+import org.elasticsearch.search.profile.query.QueryProfileBreakdown;
+import org.elasticsearch.search.profile.query.QueryProfiler;
+import org.elasticsearch.search.profile.query.QueryTimingType;
 
 import java.io.IOException;
 

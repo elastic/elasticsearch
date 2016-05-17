@@ -85,7 +85,7 @@ public class JvmMonitorTests extends ESTestCase {
         when(initialYoungCollector.getCollectionTime()).thenReturn(TimeValue.timeValueMillis(initialYoungCollectionTime));
 
         final JvmStats.GarbageCollector initialOldCollector = mock(JvmStats.GarbageCollector.class);
-        when(initialYoungCollector.getName()).thenReturn("old");
+        when(initialOldCollector.getName()).thenReturn("old");
         when(initialOldCollector.getCollectionCount()).thenReturn((long) initialOldCollectionCount);
         when(initialOldCollector.getCollectionTime()).thenReturn(TimeValue.timeValueMillis(initialOldCollectionTime));
         JvmStats initialJvmStats = jvmStats(initialYoungCollector, initialOldCollector);

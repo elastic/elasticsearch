@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/marvel/current/appendix-api-bulk.html",
     "methods": ["POST", "PUT"],
     "url": {
-      "path": "/_x-pack/monitoring/_bulk",
-      "paths": ["/_x-pack/monitoring/_bulk", "/_x-pack/monitoring/{type}/_bulk"],
+      "path": "/_xpack/monitoring/_bulk",
+      "paths": ["/_xpack/monitoring/_bulk", "/_xpack/monitoring/{type}/_bulk"],
       "parts": {
         "type": {
           "type" : "string",

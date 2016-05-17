@@ -79,7 +79,8 @@ reviewers. If you need to pick up changes from master, you can merge
 master into your branch. A reviewer might ask you to rebase a
 long-running pull request in which case force pushing is okay for that
 request. Note that squashing at the end of the review process should
-also not be done, we can do that if necessary.
+also not be done, that can be done when the pull request is [integrated
+via GitHub](https://github.com/blog/2141-squash-your-commits).
 
 Contributing to the Elasticsearch codebase
 ------------------------------------------

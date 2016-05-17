@@ -8,23 +8,19 @@ overall score.
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "boosting" : {
-            "positive" : {
-                "term" : {
-                    "field1" : "value1"
-                }
-            },
-            "negative" : {
-                 "term" : {
-                     "field2" : "value2"
-                }
-            },
-            "negative_boost" : 0.2
-        }
+    "boosting" : {
+        "positive" : {
+            "term" : {
+                "field1" : "value1"
+            }
+        },
+        "negative" : {
+            "term" : {
+                "field2" : "value2"
+            }
+        },
+        "negative_boost" : 0.2
     }
 }
 --------------------------------------------------
-// CONSOLE

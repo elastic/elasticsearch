@@ -43,8 +43,8 @@ final class LMapShortcut extends ALink {
 
     @Override
     ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        getter = before.struct.methods.get("get");
-        setter = before.struct.methods.get("put");
+        getter = before.struct.methods.get(new Definition.MethodKey("get", 1));
+        setter = before.struct.methods.get(new Definition.MethodKey("put", 2));
 
         if (getter != null && (getter.rtn.sort == Sort.VOID || getter.arguments.size() != 1)) {
             throw new IllegalArgumentException(error("Illegal map get shortcut for type [" + before.name + "]."));

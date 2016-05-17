@@ -70,19 +70,15 @@ In this example, words that have a document frequency greater than 0.1%
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "common": {
-            "body": {
-                "query": "this is bonsai cool",
-                    "cutoff_frequency": 0.001
-            }
-        }
+  "common": {
+    "body": {
+      "query": "this is bonsai cool",
+      "cutoff_frequency": 0.001
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 The number of terms which should match can be controlled with the
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
@@ -94,44 +90,36 @@ all terms required:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "common": {
-            "body": {
-                "query": "nelly the elephant as a cartoon",
-                    "cutoff_frequency": 0.001,
-                    "low_freq_operator": "and"
-            }
-        }
+  "common": {
+    "body": {
+      "query": "nelly the elephant as a cartoon",
+      "cutoff_frequency": 0.001,
+      "low_freq_operator": "and"
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 which is roughly equivalent to:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "bool": {
-            "must": [
-            { "term": { "body": "nelly"}},
-            { "term": { "body": "elephant"}},
-            { "term": { "body": "cartoon"}}
-            ],
-            "should": [
-            { "term": { "body": "the"}},
-            { "term": { "body": "as"}},
-            { "term": { "body": "a"}}
-            ]
-        }
-    }
+  "bool": {
+    "must": [
+      { "term": { "body": "nelly"}},
+      { "term": { "body": "elephant"}},
+      { "term": { "body": "cartoon"}}
+    ],
+    "should": [
+      { "term": { "body": "the"}}
+      { "term": { "body": "as"}}
+      { "term": { "body": "a"}}
+    ]
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 Alternatively use
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
@@ -140,49 +128,41 @@ must be present, for instance:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "common": {
-            "body": {
-                "query": "nelly the elephant as a cartoon",
-                "cutoff_frequency": 0.001,
-                "minimum_should_match": 2
-            }
-        }
+  "common": {
+    "body": {
+      "query": "nelly the elephant as a cartoon",
+      "cutoff_frequency": 0.001,
+      "minimum_should_match": 2
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 which is roughly equivalent to:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "bool": {
-            "must": {
-                "bool": {
-                    "should": [
-                    { "term": { "body": "nelly"}},
-                    { "term": { "body": "elephant"}},
-                    { "term": { "body": "cartoon"}}
-                    ],
-                    "minimum_should_match": 2
-                }
-            },
-            "should": [
-                { "term": { "body": "the"}},
-                { "term": { "body": "as"}},
-                { "term": { "body": "a"}}
-                ]
-        }
-    }
+  "bool": {
+    "must": {
+      "bool": {
+        "should": [
+          { "term": { "body": "nelly"}},
+          { "term": { "body": "elephant"}},
+          { "term": { "body": "cartoon"}}
+        ],
+        "minimum_should_match": 2
+      }
+    },
+    "should": [
+      { "term": { "body": "the"}}
+      { "term": { "body": "as"}}
+      { "term": { "body": "a"}}
+    ]
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 minimum_should_match
 
@@ -194,58 +174,50 @@ additional parameters (note the change in structure):
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "common": {
-            "body": {
-                "query": "nelly the elephant not as a cartoon",
-                    "cutoff_frequency": 0.001,
-                    "minimum_should_match": {
-                        "low_freq" : 2,
-                        "high_freq" : 3
-                    }
-            }
-        }
+  "common": {
+    "body": {
+      "query": "nelly the elephant not as a cartoon",
+      "cutoff_frequency": 0.001,
+      "minimum_should_match": {
+          "low_freq" : 2,
+          "high_freq" : 3
+       }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 which is roughly equivalent to:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "bool": {
-            "must": {
-                "bool": {
-                    "should": [
-                    { "term": { "body": "nelly"}},
-                    { "term": { "body": "elephant"}},
-                    { "term": { "body": "cartoon"}}
-                    ],
-                    "minimum_should_match": 2
-                }
-            },
-            "should": {
-                "bool": {
-                    "should": [
-                    { "term": { "body": "the"}},
-                    { "term": { "body": "not"}},
-                    { "term": { "body": "as"}},
-                    { "term": { "body": "a"}}
-                    ],
-                    "minimum_should_match": 3
-                }
-            }
-        }
+  "bool": {
+    "must": {
+      "bool": {
+        "should": [
+          { "term": { "body": "nelly"}},
+          { "term": { "body": "elephant"}},
+          { "term": { "body": "cartoon"}}
+        ],
+        "minimum_should_match": 2
+      }
+    },
+    "should": {
+      "bool": {
+        "should": [
+          { "term": { "body": "the"}},
+          { "term": { "body": "not"}},
+          { "term": { "body": "as"}},
+          { "term": { "body": "a"}}
+        ],
+        "minimum_should_match": 3
+      }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 In this case it means the high frequency terms have only an impact on
 relevance when there are at least three of them. But the most
@@ -255,44 +227,36 @@ for high frequency terms is when there are only high frequency terms:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "common": {
-            "body": {
-                "query": "how not to be",
-                    "cutoff_frequency": 0.001,
-                    "minimum_should_match": {
-                        "low_freq" : 2,
-                        "high_freq" : 3
-                    }
-            }
-        }
+  "common": {
+    "body": {
+      "query": "how not to be",
+      "cutoff_frequency": 0.001,
+      "minimum_should_match": {
+          "low_freq" : 2,
+          "high_freq" : 3
+       }
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 which is roughly equivalent to:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "bool": {
-            "should": [
-            { "term": { "body": "how"}},
-            { "term": { "body": "not"}},
-            { "term": { "body": "to"}},
-            { "term": { "body": "be"}}
-            ],
-            "minimum_should_match": "3<50%"
-        }
-    }
+  "bool": {
+    "should": [
+      { "term": { "body": "how"}},
+      { "term": { "body": "not"}},
+      { "term": { "body": "to"}},
+      { "term": { "body": "be"}}
+    ],
+    "minimum_should_match": "3<50%"
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
 The high frequency generated query is then slightly less restrictive
 than with an `AND`.

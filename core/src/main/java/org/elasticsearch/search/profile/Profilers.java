@@ -20,6 +20,7 @@
 package org.elasticsearch.search.profile;
 
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,31 +30,31 @@ import java.util.List;
 public final class Profilers {
 
     private final ContextIndexSearcher searcher;
-    private final List<QueryProfiler> profilers;
+    private final List<QueryProfiler> queryProfilers;
 
     /** Sole constructor. This {@link Profilers} instance will initially wrap one {@link QueryProfiler}. */
     public Profilers(ContextIndexSearcher searcher) {
         this.searcher = searcher;
-        this.profilers = new ArrayList<>();
-        addProfiler();
+        this.queryProfilers = new ArrayList<>();
+        addQueryProfiler();
     }
 
     /** Switch to a new profile. */
-    public QueryProfiler addProfiler() {
+    public QueryProfiler addQueryProfiler() {
         QueryProfiler profiler = new QueryProfiler();
         searcher.setProfiler(profiler);
-        profilers.add(profiler);
+        queryProfilers.add(profiler);
         return profiler;
     }
 
     /** Get the current profiler. */
-    public QueryProfiler getCurrent() {
-        return profilers.get(profilers.size() - 1);
+    public QueryProfiler getCurrentQueryProfiler() {
+        return queryProfilers.get(queryProfilers.size() - 1);
     }
 
     /** Return the list of all created {@link QueryProfiler}s so far. */
-    public List<QueryProfiler> getProfilers() {
-        return Collections.unmodifiableList(profilers);
+    public List<QueryProfiler> getQueryProfilers() {
+        return Collections.unmodifiableList(queryProfilers);
     }
 
 }

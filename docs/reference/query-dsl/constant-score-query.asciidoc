@@ -7,16 +7,12 @@ filter. Maps to Lucene `ConstantScoreQuery`.
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "constant_score" : {
-            "filter" : {
-                "term" : { "user" : "kimchy"}
-            },
-            "boost" : 1.2
-        }
+    "constant_score" : {
+        "filter" : {
+            "term" : { "user" : "kimchy"}
+        },
+        "boost" : 1.2
     }
 }
 --------------------------------------------------
-// CONSOLE

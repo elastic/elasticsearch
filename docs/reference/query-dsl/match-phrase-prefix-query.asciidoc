@@ -6,16 +6,12 @@ allows for prefix matches on the last term in the text. For example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "match_phrase_prefix" : {
-            "message" : "quick brown f"
-        }
+    "match_phrase_prefix" : {
+        "message" : "quick brown f"
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 It accepts the same parameters as the phrase type. In addition, it also
 accepts a `max_expansions` parameter (default `50`) that can control to how
@@ -25,19 +21,15 @@ example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "match_phrase_prefix" : {
-            "message" : {
-                "query" : "quick brown f",
-                "max_expansions" : 10
-            }
+    "match_phrase_prefix" : {
+        "message" : {
+            "query" : "quick brown f",
+            "max_expansions" : 10
         }
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [IMPORTANT]
 ===================================================

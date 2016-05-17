@@ -6,17 +6,13 @@ to allow multi-field queries:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-  "query": {
-    "multi_match" : {
-      "query":    "this is a test", <1>
-      "fields": [ "subject", "message" ] <2>
-    }
+  "multi_match" : {
+    "query":    "this is a test", <1>
+    "fields": [ "subject", "message" ] <2>
   }
 }
 --------------------------------------------------
-// CONSOLE
 <1> The query string.
 <2> The fields to be queried.
 
@@ -27,35 +23,26 @@ Fields can be specified with wildcards, eg:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-  "query": {
-    "multi_match" : {
-      "query":    "Will Smith",
-      "fields": [ "title", "*_name" ] <1>
-    }
+  "multi_match" : {
+    "query":    "Will Smith",
+    "fields": [ "title", "*_name" ] <1>
   }
 }
 --------------------------------------------------
-// CONSOLE
 <1> Query the `title`, `first_name` and `last_name` fields.
 
 Individual fields can be boosted with the caret (`^`) notation:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-  "query": {
-    "multi_match" : {
-      "query" : "this is a test",
-      "fields" : [ "subject^3", "message" ] <1>
-    }
+  "multi_match" : {
+    "query" : "this is a test",
+    "fields" : [ "subject^3", "message" ] <1>
   }
 }
 --------------------------------------------------
-// CONSOLE
-
 <1> The `subject` field is three times as important as the `message` field.
 
 [[multi-match-types]]
@@ -95,38 +82,30 @@ find the single best matching field.  For instance, this query:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-  "query": {
-    "multi_match" : {
-      "query":      "brown fox",
-      "type":       "best_fields",
-      "fields":     [ "subject", "message" ],
-      "tie_breaker": 0.3
-    }
+  "multi_match" : {
+    "query":      "brown fox",
+    "type":       "best_fields",
+    "fields":     [ "subject", "message" ],
+    "tie_breaker": 0.3
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-  "query": {
-    "dis_max": {
-      "queries": [
-        { "match": { "subject": "brown fox" }},
-        { "match": { "message": "brown fox" }}
-      ],
-      "tie_breaker": 0.3
-    }
+  "dis_max": {
+    "queries": [
+      { "match": { "subject": "brown fox" }},
+      { "match": { "message": "brown fox" }}
+    ],
+    "tie_breaker": 0.3
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Normally the `best_fields` type uses the score of the *single* best matching
 field, but if `tie_breaker` is specified, then it calculates the score as
@@ -153,20 +132,15 @@ Take this query for example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-  "query": {
-    "multi_match" : {
-      "query":      "Will Smith",
-      "type":       "best_fields",
-      "fields":     [ "first_name", "last_name" ],
-      "operator":   "and" <1>
-    }
+  "multi_match" : {
+    "query":      "Will Smith",
+    "type":       "best_fields",
+    "fields":     [ "first_name", "last_name" ],
+    "operator":   "and" <1>
   }
 }
 --------------------------------------------------
-// CONSOLE
-
 <1> All terms must be present.
 
 This query is executed as:
@@ -196,37 +170,29 @@ This query:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-  "query": {
-    "multi_match" : {
-      "query":      "quick brown fox",
-      "type":       "most_fields",
-      "fields":     [ "title", "title.original", "title.shingles" ]
-    }
+  "multi_match" : {
+    "query":      "quick brown fox",
+    "type":       "most_fields",
+    "fields":     [ "title", "title.original", "title.shingles" ]
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-  "query": {
-    "bool": {
-      "should": [
-        { "match": { "title":          "quick brown fox" }},
-        { "match": { "title.original": "quick brown fox" }},
-        { "match": { "title.shingles": "quick brown fox" }}
-      ]
-    }
+  "bool": {
+    "should": [
+      { "match": { "title":          "quick brown fox" }},
+      { "match": { "title.original": "quick brown fox" }},
+      { "match": { "title.shingles": "quick brown fox" }}
+    ]
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The score from each `match` clause is added together, then divided by the
 number of `match` clauses.
@@ -246,36 +212,28 @@ but they use a `match_phrase` or `match_phrase_prefix` query instead of a
 This query:
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-  "query": {
-    "multi_match" : {
-      "query":      "quick brown f",
-      "type":       "phrase_prefix",
-      "fields":     [ "subject", "message" ]
-    }
+  "multi_match" : {
+    "query":      "quick brown f",
+    "type":       "phrase_prefix",
+    "fields":     [ "subject", "message" ]
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-  "query": {
-    "dis_max": {
-      "queries": [
-        { "match_phrase_prefix": { "subject": "quick brown f" }},
-        { "match_phrase_prefix": { "message": "quick brown f" }}
-      ]
-    }
+  "dis_max": {
+    "queries": [
+      { "match_phrase_prefix": { "subject": "quick brown f" }},
+      { "match_phrase_prefix": { "message": "quick brown f" }}
+    ]
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Also, accepts `analyzer`, `boost`, `slop` and `zero_terms_query`  as explained
 in <<query-dsl-match-query>>.  Type `phrase_prefix` additionally accepts
@@ -330,19 +288,15 @@ A query like:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-  "query": {
-    "multi_match" : {
-      "query":      "Will Smith",
-      "type":       "cross_fields",
-      "fields":     [ "first_name", "last_name" ],
-      "operator":   "and"
-    }
+  "multi_match" : {
+    "query":      "Will Smith",
+    "type":       "cross_fields",
+    "fields":     [ "first_name", "last_name" ],
+    "operator":   "and"
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 is executed as:
 
@@ -390,21 +344,17 @@ both use an `edge_ngram` analyzer, this query:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-  "query": {
-    "multi_match" : {
-      "query":      "Jon",
-      "type":       "cross_fields",
-      "fields":     [
+  "multi_match" : {
+    "query":      "Jon",
+    "type":       "cross_fields",
+    "fields":     [
         "first", "first.edge",
         "last",  "last.edge"
-      ]
-    }
+    ]
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 would be executed as:
 
@@ -429,33 +379,28 @@ parameter to just one of them:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-  "query": {
     "bool": {
-      "should": [
-        {
-          "multi_match" : {
-            "query":      "Will Smith",
-            "type":       "cross_fields",
-            "fields":     [ "first", "last" ],
-            "minimum_should_match": "50%" <1>
-          }
-        },
-        {
-          "multi_match" : {
-            "query":      "Will Smith",
-            "type":       "cross_fields",
-            "fields":     [ "*.edge" ]
-          }
-        }
-      ]
+        "should": [
+            {
+              "multi_match" : {
+                "query":      "Will Smith",
+                "type":       "cross_fields",
+                "fields":     [ "first", "last" ],
+                "minimum_should_match": "50%" <1>
+              }
+            },
+            {
+              "multi_match" : {
+                "query":      "Will Smith",
+                "type":       "cross_fields",
+                "fields":     [ "*.edge" ]
+              }
+            }
+        ]
     }
-  }
 }
 --------------------------------------------------
-// CONSOLE 
-
 <1> Either `will` or `smith` must be present in either of the `first`
     or `last` fields
 
@@ -464,20 +409,15 @@ parameter in the query.
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-  "query": {
-   "multi_match" : {
-      "query":      "Jon",
-      "type":       "cross_fields",
-      "analyzer":   "standard", <1>
-      "fields":     [ "first", "last", "*.edge" ]
-    }
+  "multi_match" : {
+    "query":      "Jon",
+    "type":       "cross_fields",
+    "analyzer":   "standard", <1>
+    "fields":     [ "first", "last", "*.edge" ]
   }
 }
 --------------------------------------------------
-// CONSOLE
-
 <1> Use the `standard` analyzer for all fields.
 
 which will be executed as:

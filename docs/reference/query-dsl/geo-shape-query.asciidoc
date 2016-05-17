@@ -26,10 +26,10 @@ Given a document that looks like this:
 --------------------------------------------------
 {
     "name": "Wind & Wetter, Berlin, Germany",
-        "location": {
-            "type": "Point",
-            "coordinates": [13.400544, 52.530286]
-        }
+    "location": {
+        "type": "Point",
+        "coordinates": [13.400544, 52.530286]
+    }
 }
 --------------------------------------------------
 
@@ -38,7 +38,6 @@ The following query will find the point using the Elasticsearch's
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
     "query":{
         "bool": {
@@ -60,7 +59,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 ==== Pre-Indexed Shape
 
@@ -83,30 +81,26 @@ shape:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "bool": {
-            "must": {
-                "match_all": {}
-            },
-                "filter": {
-                    "geo_shape": {
-                        "location": {
-                            "indexed_shape": {
-                                "id": "DEU",
-                                "type": "countries",
-                                "index": "shapes",
-                                "path": "location"
-                            }
-                        }
+    "bool": {
+        "must": {
+            "match_all": {}
+        },
+        "filter": {
+            "geo_shape": {
+                "location": {
+                    "indexed_shape": {
+                        "id": "DEU",
+                        "type": "countries",
+                        "index": "shapes",
+                        "path": "location"
                     }
                 }
+            }
         }
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 ==== Spatial Relations
 

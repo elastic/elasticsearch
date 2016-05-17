@@ -6,24 +6,6 @@ bounding box. Assuming the following indexed document:
 
 [source,js]
 --------------------------------------------------
-PUT /my_locations
-{
-    "mappings": {
-        "location": {
-            "properties": {
-                "pin": {
-                    "properties": {
-                        "location": {
-                            "type": "geo_point"
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-PUT /my_locations/location/1
 {
     "pin" : {
         "location" : {
@@ -33,32 +15,27 @@ PUT /my_locations/location/1
     }
 }
 --------------------------------------------------
-// CONSOLE
-// TESTSETUP
 
 Then the following simple query can be executed with a
 `geo_bounding_box` filter:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : {
-                            "lat" : 40.73,
-                            "lon" : -74.1
-                        },
-                        "bottom_right" : {
-                            "lat" : 40.01,
-                            "lon" : -71.12
-                        }
+    "bool" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_bounding_box" : {
+                "pin.location" : {
+                    "top_left" : {
+                        "lat" : 40.73,
+                        "lon" : -74.1
+                    },
+                    "bottom_right" : {
+                        "lat" : 40.01,
+                        "lon" : -71.12
                     }
                 }
             }
@@ -66,7 +43,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ==== Query Options
@@ -99,24 +75,21 @@ representation of the geo point, the filter can accept it as well:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : {
-                            "lat" : 40.73,
-                            "lon" : -74.1
-                        },
-                        "bottom_right" : {
-                            "lat" : 40.01,
-                            "lon" : -71.12
-                        }
+    "bool" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_bounding_box" : {
+                "pin.location" : {
+                    "top_left" : {
+                        "lat" : 40.73,
+                        "lon" : -74.1
+                    },
+                    "bottom_right" : {
+                        "lat" : 40.01,
+                        "lon" : -71.12
                     }
                 }
             }
@@ -124,7 +97,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ===== Lat Lon As Array
@@ -134,26 +106,22 @@ conform with http://geojson.org/[GeoJSON].
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : [-74.1, 40.73],
-                        "bottom_right" : [-71.12, 40.01]
-                    }
+    "bool" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_bounding_box" : {
+                "pin.location" : {
+                    "top_left" : [-74.1, 40.73],
+                    "bottom_right" : [-71.12, 40.01]
                 }
             }
         }
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ===== Lat Lon As String
@@ -162,52 +130,44 @@ Format in `lat,lon`.
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : "40.73, -74.1",
-                        "bottom_right" : "40.01, -71.12"
-                    }
-                }
-            }
-    }
-}
-}
---------------------------------------------------
-// CONSOLE
-
-[float]
-===== Geohash
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : "dr5r9ydj2y73",
-                        "bottom_right" : "drj7teegpus6"
-                    }
+    "bool" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_bounding_box" : {
+                "pin.location" : {
+                    "top_left" : "40.73, -74.1",
+                    "bottom_right" : "40.01, -71.12"
                 }
             }
         }
     }
 }
 --------------------------------------------------
-// CONSOLE
+
+[float]
+===== Geohash
+
+[source,js]
+--------------------------------------------------
+{
+    "bool" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_bounding_box" : {
+                "pin.location" : {
+                    "top_left" : "dr5r9ydj2y73",
+                    "bottom_right" : "drj7teegpus6"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
 
 [float]
 ==== Vertices
@@ -221,28 +181,24 @@ values separately.
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top" : 40.73,
-                        "left" : -74.1,
-                        "bottom" : 40.01,
-                        "right" : -71.12
-                    }
+    "bool" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_bounding_box" : {
+                "pin.location" : {
+                    "top" : 40.73,
+                    "left" : -74.1,
+                    "bottom" : 40.01,
+                    "right" : -71.12
                 }
             }
         }
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 [float]
@@ -271,33 +227,29 @@ are not supported. Here is an example:
 
 [source,js]
 --------------------------------------------------
-GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : {
-                            "lat" : 40.73,
-                            "lon" : -74.1
-                        },
-                        "bottom_right" : {
-                            "lat" : 40.10,
-                            "lon" : -71.12
-                        }
+    "bool" : {
+        "must" : {
+            "match_all" : {}
+        },
+        "filter" : {
+            "geo_bounding_box" : {
+                "pin.location" : {
+                    "top_left" : {
+                        "lat" : 40.73,
+                        "lon" : -74.1
                     },
-                    "type" : "indexed"
-                }
+                    "bottom_right" : {
+                        "lat" : 40.10,
+                        "lon" : -71.12
+                    }
+                },
+                "type" : "indexed"
             }
         }
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ==== Ignore Unmapped

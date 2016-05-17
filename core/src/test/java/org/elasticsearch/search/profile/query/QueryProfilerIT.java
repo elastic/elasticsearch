@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.profile;
+package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -29,6 +29,9 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -36,7 +39,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.profile.RandomQueryGenerator.randomQueryBuilder;
+import static org.elasticsearch.search.profile.query.RandomQueryGenerator.randomQueryBuilder;
 import static org.elasticsearch.test.hamcrest.DoubleMatcher.nearlyEqual;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -160,7 +163,8 @@ public class QueryProfilerIT extends ESIntegTestCase {
                         nearlyEqual(vanillaMaxScore, profileMaxScore, 0.001));
             }
 
-            assertThat("Profile totalHits of [" + profileResponse.getHits().totalHits() + "] is not close to Vanilla totalHits [" + vanillaResponse.getHits().totalHits() + "]",
+            assertThat("Profile totalHits of [" + profileResponse.getHits().totalHits() + "] is not close to Vanilla totalHits ["
+                    + vanillaResponse.getHits().totalHits() + "]",
                     vanillaResponse.getHits().getTotalHits(), equalTo(profileResponse.getHits().getTotalHits()));
 
             SearchHit[] vanillaHits = vanillaResponse.getHits().getHits();
@@ -237,7 +241,8 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         indexRandom(true, docs);
 
-        QueryBuilder q = QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one")).must(QueryBuilders.matchQuery("field1", "two"));
+        QueryBuilder q = QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one"))
+                .must(QueryBuilders.matchQuery("field1", "two"));
 
         SearchResponse resp = client().prepareSearch()
                 .setQuery(q)
@@ -355,7 +360,8 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         refresh();
 
-        QueryBuilder q = QueryBuilders.boolQuery().must(QueryBuilders.boolQuery().must(QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one"))));
+        QueryBuilder q = QueryBuilders.boolQuery()
+                .must(QueryBuilders.boolQuery().must(QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one"))));
 
         logger.info("Query: {}", q);
 

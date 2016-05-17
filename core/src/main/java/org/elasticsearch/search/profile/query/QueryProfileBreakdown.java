@@ -17,7 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.search.profile;
+package org.elasticsearch.search.profile.query;
+
+import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 
 /**
  * A record of timings for the various operations that may happen during query execution.

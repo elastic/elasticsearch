@@ -87,7 +87,9 @@ public class RefreshListenersTests extends ESTestCase {
         listeners = new RefreshListeners(
                 () -> maxListeners,
                 () -> engine.refresh("too-many-listeners"),
-                fire -> fire.run());
+                // Immediately run listeners rather than adding them to the listener thread pool like IndexShard does to simplify the test.
+                fire -> fire.run()
+                );
 
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new ThreadPool(getTestName());

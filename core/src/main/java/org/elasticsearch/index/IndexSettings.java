@@ -115,7 +115,7 @@ public final class IndexSettings {
     public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING =
         Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic,
             Property.IndexScope);
-    public static final Setting<Integer> MAX_REFRESH_LISTENERS_PER_SHARD = Setting.intSetting("index.max_refresh_listeners", 100, 0,
+    public static final Setting<Integer> MAX_REFRESH_LISTENERS_PER_SHARD = Setting.intSetting("index.max_refresh_listeners", 1000, 0,
             Property.Dynamic, Property.IndexScope);
 
     private final Index index;

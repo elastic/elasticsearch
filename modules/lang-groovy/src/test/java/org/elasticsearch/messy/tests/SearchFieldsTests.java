@@ -367,6 +367,28 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(((Map<?, ?>) sObj2Arr3.get(0)).get("arr3_field1").toString(), equalTo("arr3_value1"));
     }
 
+    public void testScriptFieldsForNullReturn() throws Exception {
+        createIndex("test");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+
+        client().prepareIndex("test", "type1", "1")
+            .setSource(jsonBuilder().startObject().startObject("obj1").field("test", "something").endObject())
+            .execute().actionGet();
+        client().admin().indices().refresh(refreshRequest()).actionGet();
+
+        SearchResponse response = client().prepareSearch().setQuery(matchAllQuery())
+            .addScriptField("test_script_1", new Script("return null"))
+            .execute().actionGet();
+
+        assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
+
+        SearchHitField fieldObj = response.getHits().getAt(0).field("test_script_1");
+        assertThat(fieldObj, notNullValue());
+        List<?> fieldValues = fieldObj.values();
+        assertThat(fieldValues.size(), equalTo(1));
+        assertThat(fieldValues.get(0), nullValue());
+    }
+
     public void testPartialFields() throws Exception {
         createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();

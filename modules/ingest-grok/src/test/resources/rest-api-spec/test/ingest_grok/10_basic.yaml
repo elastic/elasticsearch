@@ -22,6 +22,7 @@
     - match:  { nodes.$master.ingest.processors.10.type: remove }
     - match:  { nodes.$master.ingest.processors.11.type: rename }
     - match:  { nodes.$master.ingest.processors.12.type: set }
-    - match:  { nodes.$master.ingest.processors.13.type: split }
-    - match:  { nodes.$master.ingest.processors.14.type: trim }
-    - match:  { nodes.$master.ingest.processors.15.type: uppercase }
+    - match:  { nodes.$master.ingest.processors.13.type: sort }
+    - match:  { nodes.$master.ingest.processors.14.type: split }
+    - match:  { nodes.$master.ingest.processors.15.type: trim }
+    - match:  { nodes.$master.ingest.processors.16.type: uppercase }

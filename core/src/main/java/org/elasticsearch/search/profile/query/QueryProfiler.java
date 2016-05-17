@@ -20,9 +20,8 @@
 package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.AbstractProfiler;
 
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -36,16 +35,16 @@ import java.util.Objects;
  * request may execute two searches (query + global agg).  A Profiler just
  * represents one of those
  */
-public final class QueryProfiler {
-
-    private final InternalQueryProfileTree queryTree = new InternalQueryProfileTree();
+public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown, Query> {
 
     /**
      * The root Collector used in the search
      */
     private InternalProfileCollector collector;
 
-    public QueryProfiler() {}
+    public QueryProfiler() {
+        super(new InternalQueryProfileTree());
+    }
 
     /** Set the collector that is associated with this profiler. */
     public void setCollector(InternalProfileCollector collector) {
@@ -56,20 +55,11 @@ public final class QueryProfiler {
     }
 
     /**
-     * Get the {@link QueryProfileBreakdown} for the given query, potentially creating it if it did not exist.
-     * This should only be used for queries that will be undergoing scoring. Do not use it to profile the
-     * rewriting phase
-     */
-    public QueryProfileBreakdown getQueryBreakdown(Query query) {
-        return queryTree.getQueryBreakdown(query);
-    }
-
-    /**
      * Begin timing the rewrite phase of a request.  All rewrites are accumulated together into a
      * single metric
      */
     public void startRewriteTime() {
-        queryTree.startRewriteTime();
+        ((InternalQueryProfileTree) profileTree).startRewriteTime();
     }
 
     /**
@@ -79,29 +69,14 @@ public final class QueryProfiler {
      * @return cumulative rewrite time
      */
     public long stopAndAddRewriteTime() {
-        return queryTree.stopAndAddRewriteTime();
-    }
-
-    /**
-     * Removes the last (e.g. most recent) query on the stack.  This should only be called for scoring
-     * queries, not rewritten queries
-     */
-    public void pollLastQuery() {
-        queryTree.pollLast();
-    }
-
-    /**
-     * @return a hierarchical representation of the profiled query tree
-     */
-    public List<ProfileResult> getQueryTree() {
-        return queryTree.getQueryTree();
+        return ((InternalQueryProfileTree) profileTree).stopAndAddRewriteTime();
     }
 
     /**
      * @return total time taken to rewrite all queries in this profile
      */
     public long getRewriteTime() {
-        return queryTree.getRewriteTime();
+        return ((InternalQueryProfileTree) profileTree).getRewriteTime();
     }
 
     /**

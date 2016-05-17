@@ -26,6 +26,14 @@
         </license>
     </licenses>
 
+    <developers>
+        <developer>
+            <name>Elastic</name>
+            <url>https://github.com/elastic/elasticsearch</url>
+            <organizationUrl>https://www.elastic.co</organizationUrl>
+        </developer>
+    </developers>
+
     <scm>
         <connection>scm:git:git@github.com:elastic/elasticsearch.git</connection>
         <developerConnection>scm:git:git@github.com:elastic/elasticsearch.git</developerConnection>

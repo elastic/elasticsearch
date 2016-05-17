@@ -139,4 +139,10 @@
   - match: { hits.total: 1 }
 
   - length: { aggregations.ip_terms.buckets: 0 }
+  
+  - do:
+      catch: request
+      search:
+        body: { "size" : 0, "aggs" : { "ip_terms" : { "significant_terms" : { "field" : "ip", "exclude" :  "127.*"  } } } }
+  
  

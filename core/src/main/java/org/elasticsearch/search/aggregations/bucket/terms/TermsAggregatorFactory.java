@@ -150,8 +150,13 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                     }
                 }
             }
+            DocValueFormat format = config.format();
+            if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
+                throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude "
+                        + "settings as they can only be applied to string fields. Use an array of values for include/exclude clauses");
+            }
 
-            return execution.create(name, factories, valuesSource, order, config.format(), bucketCountThresholds, includeExclude, context, parent,
+            return execution.create(name, factories, valuesSource, order, format, bucketCountThresholds, includeExclude, context, parent, 
                     collectMode, showTermDocCountError, pipelineAggregators, metaData);
         }
 

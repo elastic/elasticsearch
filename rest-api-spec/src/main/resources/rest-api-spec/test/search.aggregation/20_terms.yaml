@@ -137,6 +137,13 @@ setup:
 
   - match: { aggregations.ip_terms.buckets.0.key: "::1" }
 
+  - do:
+      catch: request
+      search:
+        body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "exclude" :  "127.*"  } } } }
+
+  
+
 ---
 "Boolean test":
   - do:

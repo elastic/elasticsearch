@@ -33,6 +33,7 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager.RefreshListener;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -81,7 +82,6 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -605,20 +605,18 @@ public abstract class Engine implements Closeable {
     }
 
     /**
+     * Register a listener that is called whenever the searcher is refreshed. See {@link SearcherManager#addListener(RefreshListener)}.
+     */
+    public final void registerSearchRefreshListener(RefreshListener listener) {
+        getSearcherManager().addListener(listener);
+    }
+
+    /**
      * Synchronously refreshes the engine for new search operations to reflect the latest
      * changes.
      */
     @Nullable
     public abstract void refresh(String source) throws EngineException;
-
-    /**
-     * Add a listener for refreshes.
-     *
-     * @param location the location to listen for
-     * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
-     *        false otherwise.
-     */
-    public abstract void addRefreshListener(Translog.Location location, Consumer<Boolean> listener);
 
     /**
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.

@@ -27,6 +27,8 @@ import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.ReferenceManager.RefreshListener;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
@@ -40,6 +42,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -114,15 +117,19 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
+import static java.util.Objects.requireNonNull;
 
 public class IndexShard extends AbstractIndexShardComponent {
 
@@ -194,6 +201,20 @@ public class IndexShard extends AbstractIndexShardComponent {
      * IndexingMemoryController}).
      */
     private final AtomicBoolean active = new AtomicBoolean();
+    /**
+     * The translog location that was last made visible by a refresh.
+     */
+    private volatile Translog.Location lastRefreshedLocation;
+    /**
+     * Refresh listeners. While they are not stored in sorted order they are processed as though they are.
+     */
+    private final LinkedTransferQueue<Tuple<Translog.Location, Consumer<Boolean>>> refreshListeners = new LinkedTransferQueue<>();
+    /**
+     * The estimated size of refreshListenersEstimatedSize used for triggering refresh when the size gets over
+     * {@link IndexSettings#MAX_REFRESH_LISTENERS_PER_SHARD}. No effort is made to correct for threading issues in the size calculation
+     * beyond it being volatile.
+     */
+    private volatile int refreshListenersEstimatedSize;
 
     public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
                       MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
@@ -1365,7 +1386,9 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     protected Engine newEngine(EngineConfig config) {
-        return engineFactory.newReadWriteEngine(config);
+        Engine engine = engineFactory.newReadWriteEngine(config);
+        engine.registerSearchRefreshListener(new RefreshListenerCallingRefreshListener());
+        return engine;
     }
 
     /**
@@ -1549,7 +1572,27 @@ public class IndexShard extends AbstractIndexShardComponent {
      *        false otherwise.
      */
     public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
-        getEngine().addRefreshListener(location, listener);
+        requireNonNull(listener, "listener cannot be null");
+        Translog.Location listenerLocation = requireNonNull(location, "location cannot be null");
+
+        Translog.Location lastRefresh = lastRefreshedLocation;
+        if (lastRefresh != null && lastRefresh.compareTo(listenerLocation) >= 0) {
+            // Location already visible, just call the listener
+            listener.accept(false);
+            return;
+        }
+        if (refreshListenersEstimatedSize < indexSettings.getMaxRefreshListeners()) {
+            // We have a free slot so register the listener
+            refreshListeners.add(new Tuple<>(location, listener));
+            refreshListenersEstimatedSize++;
+            return;
+        }
+        /*
+         * No free slot so force a refresh and call the listener in this thread. Do so outside of the synchronized block so any other
+         * attempts to add a listener can continue.
+         */
+        refresh("too_many_listeners");
+        listener.accept(true);
     }
 
     private class IndexShardRecoveryPerformer extends TranslogRecoveryPerformer {
@@ -1581,6 +1624,53 @@ public class IndexShard extends AbstractIndexShardComponent {
         @Override
         protected void delete(Engine engine, Engine.Delete engineDelete) {
             IndexShard.this.delete(engine, engineDelete);
+        }
+    }
+
+    /**
+     * Listens to Lucene's {@linkplain ReferenceManager.RefreshListener} and fires off listeners added by
+     * {@linkplain IndexShard#addRefreshListener(Translog.Location, Consumer)}.
+     */
+    private class RefreshListenerCallingRefreshListener implements ReferenceManager.RefreshListener {
+        private Translog.Location currentRefreshLocation;
+
+        @Override
+        public void beforeRefresh() throws IOException {
+            currentRefreshLocation = getEngine().getTranslog().getLastWriteLocation();
+        }
+
+        @Override
+        public void afterRefresh(boolean didRefresh) throws IOException {
+            // This intentionally ignores didRefresh so a refresh call over the API can force rechecking the refreshListeners.
+            if (null == currentRefreshLocation) {
+                /*
+                 * The translog had an empty last write location at the start of the refresh so we can't alert anyone to anything. This
+                 * usually happens during recovery. The next refresh cycle out to pick up this refresh.
+                 */
+                return;
+            }
+            /*
+             * First set the lastRefreshedLocation so listeners that come in locations before that will just execute inline without messing
+             * around with refreshListeners at all.
+             */
+            lastRefreshedLocation = currentRefreshLocation;
+            /*
+             * Now pop all listeners off the front of refreshListeners that are ready to be called. The listeners won't always be in order
+             * but they should be pretty close because you don't listen to times super far in the future. This prevents us from having to
+             * iterate over the whole queue on every refresh at the cost of some requests having to wait an extra cycle if they get stuck
+             * behind a request that missed the refresh cycle.
+             */
+            Iterator<Tuple<Translog.Location, Consumer<Boolean>>> itr = refreshListeners.iterator();
+            while (itr.hasNext()) {
+                Tuple<Translog.Location, Consumer<Boolean>> listener = itr.next();
+                if (listener.v1().compareTo(currentRefreshLocation) > 0) {
+                    return;
+                }
+                itr.remove();
+                refreshListenersEstimatedSize--;
+                threadPool.executor(ThreadPool.Names.LISTENER).execute(() -> listener.v2().accept(false));
+            }
+            refreshListenersEstimatedSize = 0;
         }
     }
 }

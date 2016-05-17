@@ -31,12 +31,14 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * ShadowIndexShard extends {@link IndexShard} to add file synchronization
@@ -99,5 +101,10 @@ public final class ShadowIndexShard extends IndexShard {
     @Override
     public TranslogStats translogStats() {
         return null; // shadow engine has no translog
+    }
+
+    @Override
+    public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
+        throw new UnsupportedOperationException("Can't listen for a refresh on a shadow engine because it doesn't have a translog");
     }
 }

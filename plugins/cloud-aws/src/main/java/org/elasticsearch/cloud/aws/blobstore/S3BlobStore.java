@@ -36,9 +36,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import java.util.ArrayList;
 import java.util.Locale;
 
-/**
- *
- */
 public class S3BlobStore extends AbstractComponent implements BlobStore {
 
     public static final ByteSizeValue MIN_BUFFER_SIZE = new ByteSizeValue(5, ByteSizeUnit.MB);
@@ -215,6 +212,8 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
 
     /**
      * Constructs canned acl from string
+     * @param cannedACL canned access control list
+     * @return the corresponding access control list
      */
     public static CannedAccessControlList initCannedACL(String cannedACL) {
         if (cannedACL == null || cannedACL.equals("")) {

@@ -41,6 +41,8 @@ public class AwsModule extends AbstractModule {
 
     /**
      * Check if discovery is meant to start
+     * @param settings settings to extract discover type from
+     * @param logger the logger to be used
      * @return true if we can start discovery features
      */
     public static boolean isEc2DiscoveryActive(Settings settings, ESLogger logger) {

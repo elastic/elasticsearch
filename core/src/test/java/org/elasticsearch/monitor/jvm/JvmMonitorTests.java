@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -140,7 +141,7 @@ public class JvmMonitorTests extends ESTestCase {
         final JvmStats.GarbageCollector oldCollector = mock(JvmStats.GarbageCollector.class);
         when(oldCollector.getName()).thenReturn("old");
         when(oldCollector.getCollectionCount()).thenReturn((long) (initialOldCollectionCount + oldCollections));
-        final long oldIncrement;
+        final int oldIncrement;
         if (oldGcThreshold) {
             // we are faking that oldCollections collections occurred
             // this number is chosen so that we squeak over the
@@ -175,20 +176,25 @@ public class JvmMonitorTests extends ESTestCase {
                 count.incrementAndGet();
                 assertThat(seq, equalTo(1L));
                 assertThat(slowGcEvent.elapsed, equalTo(expectedElapsed));
+                assertThat(slowGcEvent.currentGc.getName(), anyOf(equalTo("young"), equalTo("old")));
                 if ("young".equals(slowGcEvent.currentGc.getName())) {
-                    assertThat(youngThresholdLevel, equalTo(threshold));
-                    assertThat(slowGcEvent.currentGc.getCollectionCount(), equalTo((long) (initialYoungCollectionCount + youngCollections)));
-                    assertThat(slowGcEvent.collectionCount, equalTo((long) youngCollections));
-                    assertThat(slowGcEvent.collectionTime, equalTo(TimeValue.timeValueMillis(youngIncrement)));
-                    assertThat(slowGcEvent.currentGc.getCollectionTime(), equalTo(TimeValue.timeValueMillis(initialYoungCollectionTime + youngIncrement)));
+                    assertCollection(
+                        threshold,
+                        youngThresholdLevel,
+                        slowGcEvent,
+                        initialYoungCollectionCount,
+                        youngCollections,
+                        initialYoungCollectionTime,
+                        youngIncrement);
                 } else if ("old".equals(slowGcEvent.currentGc.getName())) {
-                    assertThat(oldThresholdLevel, equalTo(threshold));
-                    assertThat(slowGcEvent.currentGc.getCollectionCount(), equalTo((long) (initialOldCollectionCount + oldCollections)));
-                    assertThat(slowGcEvent.collectionCount, equalTo((long) oldCollections));
-                    assertThat(slowGcEvent.collectionTime, equalTo(TimeValue.timeValueMillis(oldIncrement)));
-                    assertThat(slowGcEvent.currentGc.getCollectionTime(), equalTo(TimeValue.timeValueMillis(initialOldCollectionTime + oldIncrement)));
-                } else {
-                    fail("unexpected name [" + slowGcEvent.currentGc.getName() + "]");
+                    assertCollection(
+                        threshold,
+                        oldThresholdLevel,
+                        slowGcEvent,
+                        initialOldCollectionCount,
+                        oldCollections,
+                        initialOldCollectionTime,
+                        oldIncrement);
                 }
             }
 
@@ -210,6 +216,21 @@ public class JvmMonitorTests extends ESTestCase {
         monitor.monitorLongGc();
 
         assertThat(count.get(), equalTo((youngGcThreshold ? 1 : 0) + (oldGcThreshold ? 1 : 0)));
+    }
+
+    private void assertCollection(
+        final JvmGcMonitorService.JvmMonitor.Threshold actualThreshold,
+        final JvmGcMonitorService.JvmMonitor.Threshold expectedThreshold,
+        final JvmGcMonitorService.JvmMonitor.SlowGcEvent slowGcEvent,
+        final int initialCollectionCount,
+        final int collections,
+        final int initialCollectionTime,
+        final int increment) {
+        assertThat(actualThreshold, equalTo(expectedThreshold));
+        assertThat(slowGcEvent.currentGc.getCollectionCount(), equalTo((long) (initialCollectionCount + collections)));
+        assertThat(slowGcEvent.collectionCount, equalTo((long) collections));
+        assertThat(slowGcEvent.collectionTime, equalTo(TimeValue.timeValueMillis(increment)));
+        assertThat(slowGcEvent.currentGc.getCollectionTime(), equalTo(TimeValue.timeValueMillis(initialCollectionTime + increment)));
     }
 
     private JvmStats jvmStats(JvmStats.GarbageCollector youngCollector, JvmStats.GarbageCollector oldCollector) {

@@ -137,6 +137,6 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
                 new NodeIndicesStats(new CommonStats(), statsByShard), OsProbe.getInstance().osStats(),
                 ProcessProbe.getInstance().processStats(), JvmStats.jvmStats(),
                 new ThreadPoolStats(threadPoolStats),
-                new FsInfo(0, pathInfo), null, null, null, null, null, null);
+                new FsInfo(0, null, pathInfo), null, null, null, null, null, null);
     }
 }

@@ -128,7 +128,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
         statsByShard.put(index, Collections.singletonList(new IndexShardStats(new ShardId(index, 0), randomShardStats())));
         return new NodeStats(new DiscoveryNode("node_0", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT), 0,
                 new NodeIndicesStats(new CommonStats(), statsByShard), null, null, null, null,
-                new FsInfo(0, pathInfo), null, null, null, null, null, null);
+                new FsInfo(0, null, pathInfo), null, null, null, null, null, null);
     }
 
     /**

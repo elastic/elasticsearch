@@ -182,11 +182,18 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blob_container = client.getContainerReference(container);
         if (blob_container.exists()) {
-            for (ListBlobItem blobItem : blob_container.listBlobs(path)) {
-                logger.trace("removing blob [{}]", blobItem.getUri());
-                deleteBlob(account, mode, container, blobItem.getUri().toString());
+            for (ListBlobItem blobItem : blob_container.listBlobs(path, true)) {
+                String blobName = blobNameFromUri(container, blobItem.getUri());
+                logger.trace("removing blob [{}] full URI was [{}]", blobName, blobItem.getUri());
+                deleteBlob(account, mode, container, blobName);
             }
         }
+    }
+
+    public static String blobNameFromUri(String container, URI uri) {
+        String path = uri.getPath();
+        // We remove the container name from the path
+        return path.replaceFirst("/" + container + "/", "");
     }
 
     @Override

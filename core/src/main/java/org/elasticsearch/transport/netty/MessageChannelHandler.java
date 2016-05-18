@@ -226,14 +226,17 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         transportServiceAdapter.onRequestReceived(requestId, action);
         NettyTransportChannel transportChannel = null;
         try {
-            transport.inFlightRequestsBreaker().addEstimateBytesAndMaybeBreak(messageLengthBytes, "<transport_request>");
-            transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel,
-                requestId, version, profileName, messageLengthBytes);
-
             final RequestHandlerRegistry reg = transportServiceAdapter.getRequestHandler(action);
             if (reg == null) {
                 throw new ActionNotFoundTransportException(action);
             }
+            if (reg.canTripCircuitBreaker()) {
+                transport.inFlightRequestsBreaker().addEstimateBytesAndMaybeBreak(messageLengthBytes, "<transport_request>");
+            } else {
+                transport.inFlightRequestsBreaker().addWithoutBreaking(messageLengthBytes);
+            }
+            transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel,
+                requestId, version, profileName, messageLengthBytes);
             final TransportRequest request = reg.newRequest();
             request.remoteAddress(new InetSocketTransportAddress((InetSocketAddress) channel.getRemoteAddress()));
             request.readFrom(buffer);

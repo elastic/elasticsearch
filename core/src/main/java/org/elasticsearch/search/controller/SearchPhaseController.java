@@ -51,7 +51,7 @@ import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.InternalProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
@@ -405,14 +405,14 @@ public class SearchPhaseController extends AbstractComponent {
         }
 
         //Collect profile results
-        InternalProfileShardResults shardResults = null;
+        SearchProfileShardResults shardResults = null;
         if (!queryResults.isEmpty() && firstResult.profileResults() != null) {
             Map<String, List<ProfileShardResult>> profileResults = new HashMap<>(queryResults.size());
             for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
                 String key = entry.value.queryResult().shardTarget().toString();
                 profileResults.put(key, entry.value.queryResult().profileResults());
             }
-            shardResults = new InternalProfileShardResults(profileResults);
+            shardResults = new SearchProfileShardResults(profileResults);
         }
 
         if (aggregations != null) {

@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
@@ -83,7 +84,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class UidFieldType extends MappedFieldType {
+    static final class UidFieldType extends TermBasedFieldType {
 
         public UidFieldType() {
         }

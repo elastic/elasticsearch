@@ -22,9 +22,8 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a do-while loop.
@@ -34,8 +33,8 @@ public final class SDo extends AStatement {
     final AStatement block;
     AExpression condition;
 
-    public SDo(final String location, final AStatement block, final AExpression condition) {
-        super(location);
+    public SDo(final int line, final String location, final AStatement block, final AExpression condition) {
+        super(line, location);
 
         this.condition = condition;
         this.block = block;
@@ -81,7 +80,8 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+        writeDebugInfo(adapter);
         final Label start = new Label();
         final Label begin = new Label();
         final Label end = new Label();
@@ -97,7 +97,7 @@ public final class SDo extends AStatement {
         condition.fals = end;
         condition.write(settings, definition, adapter);
 
-        WriterUtility.writeLoopCounter(adapter, loopCounterSlot, Math.max(1, block.statementCount));
+        adapter.writeLoopCounter(loopCounterSlot, Math.max(1, block.statementCount));
 
         adapter.goTo(start);
         adapter.mark(end);

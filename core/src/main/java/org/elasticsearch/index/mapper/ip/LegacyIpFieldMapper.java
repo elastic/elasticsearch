@@ -50,7 +50,6 @@ import org.elasticsearch.index.mapper.core.LegacyLongFieldMapper.CustomLongNumer
 import org.elasticsearch.index.mapper.core.LegacyNumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.bucket.range.ipv4.InternalIPv4Range;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -218,7 +217,7 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
                 }
                 if (fromTo != null) {
                     return rangeQuery(fromTo[0] == 0 ? null : fromTo[0],
-                            fromTo[1] == InternalIPv4Range.MAX_IP ? null : fromTo[1], true, false);
+                            fromTo[1] == MAX_IP ? null : fromTo[1], true, false);
                 }
             }
             return super.termQuery(value, context);
@@ -230,21 +229,6 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
-        }
-
-        @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            long iValue = parseValue(value);
-            long iSim;
-            try {
-                iSim = ipToLong(fuzziness.asString());
-            } catch (IllegalArgumentException e) {
-                iSim = fuzziness.asLong();
-            }
-            return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
         }
 
         @Override

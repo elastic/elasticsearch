@@ -23,7 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Collections;
 import java.util.List;
@@ -36,8 +36,8 @@ public final class STry extends AStatement {
     final AStatement block;
     final List<STrap> traps;
 
-    public STry(final String location, final AStatement block, final List<STrap> traps) {
-        super(location);
+    public STry(final int line, final String location, final AStatement block, final List<STrap> traps) {
+        super(line, location);
 
         this.block = block;
         this.traps = Collections.unmodifiableList(traps);
@@ -83,7 +83,8 @@ public final class STry extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+        writeDebugInfo(adapter);
         final Label begin = new Label();
         final Label end = new Label();
         final Label exception = new Label();

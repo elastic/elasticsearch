@@ -297,12 +297,16 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                                Version version) throws Exception {
         stream = new NamedWriteableAwareStreamInput(stream, namedWriteableRegistry);
         final String action = stream.readString();
+        final RequestHandlerRegistry reg = transportServiceAdapter.getRequestHandler(action);
         transportServiceAdapter.onRequestReceived(requestId, action);
-        inFlightRequestsBreaker().addEstimateBytesAndMaybeBreak(messageLengthBytes, "<transport_request>");
+        if (reg != null && reg.canTripCircuitBreaker()) {
+            inFlightRequestsBreaker().addEstimateBytesAndMaybeBreak(messageLengthBytes, "<transport_request>");
+        } else {
+            inFlightRequestsBreaker().addWithoutBreaking(messageLengthBytes);
+        }
         final LocalTransportChannel transportChannel = new LocalTransportChannel(this, transportServiceAdapter, sourceTransport, action,
             requestId, version, messageLengthBytes);
         try {
-            final RequestHandlerRegistry reg = transportServiceAdapter.getRequestHandler(action);
             if (reg == null) {
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }

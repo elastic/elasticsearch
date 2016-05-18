@@ -26,12 +26,11 @@ import org.elasticsearch.script.Script;
 
 public abstract class AbstractBulkIndexByScrollRequestBuilder<
                 Request extends AbstractBulkIndexByScrollRequest<Request>,
-                Response extends BulkIndexByScrollResponse,
-                Self extends AbstractBulkIndexByScrollRequestBuilder<Request, Response, Self>>
-        extends AbstractBulkByScrollRequestBuilder<Request, Response, Self> {
+                Self extends AbstractBulkIndexByScrollRequestBuilder<Request, Self>>
+        extends AbstractBulkByScrollRequestBuilder<Request, BulkIndexByScrollResponse, Self> {
 
     protected AbstractBulkIndexByScrollRequestBuilder(ElasticsearchClient client,
-            Action<Request, Response, Self> action, SearchRequestBuilder search, Request request) {
+            Action<Request, BulkIndexByScrollResponse, Self> action, SearchRequestBuilder search, Request request) {
         super(client, action, search, request);
     }
 

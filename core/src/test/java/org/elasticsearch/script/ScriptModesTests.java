@@ -44,12 +44,6 @@ import static org.hamcrest.Matchers.containsString;
 
 // TODO: this needs to be a base test class, and all scripting engines extend it
 public class ScriptModesTests extends ESTestCase {
-    private static final Set<String> ALL_LANGS = unmodifiableSet(
-            newHashSet("custom", "test"));
-
-    static final String[] ENABLE_VALUES = new String[]{"true"};
-    static final String[] DISABLE_VALUES = new String[]{"false"};
-
     ScriptSettings scriptSettings;
     ScriptContextRegistry scriptContextRegistry;
     private ScriptContext[] scriptContexts;
@@ -78,8 +72,8 @@ public class ScriptModesTests extends ESTestCase {
                 new NativeScriptEngineService(Settings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
                 new CustomScriptEngineService()));
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Arrays.asList(
-            new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.TYPES),
-            new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.TYPES)));
+            new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.NAME),
+            new ScriptEngineRegistry.ScriptEngineRegistration(CustomScriptEngineService.class, CustomScriptEngineService.NAME)));
         scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         checkedSettings = new HashSet<>();
         assertAllSettingsWereChecked = true;
@@ -97,8 +91,8 @@ public class ScriptModesTests extends ESTestCase {
     public void assertAllSettingsWereChecked() {
         if (assertScriptModesNonNull) {
             assertThat(scriptModes, notNullValue());
-            //2 is the number of engines (native excluded), custom is counted twice though as it's associated with two different names
-            int numberOfSettings = 2 * ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
+            int numberOfSettings = ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
+            numberOfSettings += 3; // for top-level inline/store/file settings
             assertThat(scriptModes.scriptModes.size(), equalTo(numberOfSettings));
             if (assertAllSettingsWereChecked) {
                 assertThat(checkedSettings.size(), equalTo(numberOfSettings));
@@ -108,8 +102,8 @@ public class ScriptModesTests extends ESTestCase {
 
     public void testDefaultSettings() {
         this.scriptModes = new ScriptModes(scriptSettings, Settings.EMPTY);
-        assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.STORED, ScriptType.INLINE);
+        assertScriptModesAllOps(ScriptMode.ON, ScriptType.FILE);
+        assertScriptModesAllOps(ScriptMode.OFF, ScriptType.STORED, ScriptType.INLINE);
     }
 
     public void testMissingSetting() {
@@ -142,16 +136,16 @@ public class ScriptModesTests extends ESTestCase {
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
 
         for (int i = 0; i < randomInt; i++) {
-            assertScriptModesAllOps(randomScriptModes[i], ALL_LANGS, randomScriptTypes[i]);
+            assertScriptModesAllOps(randomScriptModes[i], randomScriptTypes[i]);
         }
         if (randomScriptTypesSet.contains(ScriptType.FILE) == false) {
-            assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
+            assertScriptModesAllOps(ScriptMode.ON, ScriptType.FILE);
         }
         if (randomScriptTypesSet.contains(ScriptType.STORED) == false) {
-            assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.STORED);
+            assertScriptModesAllOps(ScriptMode.OFF, ScriptType.STORED);
         }
         if (randomScriptTypesSet.contains(ScriptType.INLINE) == false) {
-            assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INLINE);
+            assertScriptModesAllOps(ScriptMode.OFF, ScriptType.INLINE);
         }
     }
 
@@ -174,44 +168,45 @@ public class ScriptModesTests extends ESTestCase {
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
 
         for (int i = 0; i < randomInt; i++) {
-            assertScriptModesAllTypes(randomScriptModes[i], ALL_LANGS, randomScriptContexts[i]);
+            assertScriptModesAllTypes(randomScriptModes[i], randomScriptContexts[i]);
         }
 
         ScriptContext[] complementOf = complementOf(randomScriptContexts);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, complementOf);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.STORED, ScriptType.INLINE}, complementOf);
+        assertScriptModes(ScriptMode.ON, new ScriptType[]{ScriptType.FILE}, complementOf);
+        assertScriptModes(ScriptMode.OFF, new ScriptType[]{ScriptType.STORED, ScriptType.INLINE}, complementOf);
     }
 
     public void testConflictingScriptTypeAndOpGenericSettings() {
         ScriptContext scriptContext = randomFrom(scriptContexts);
-        Settings.Builder builder = Settings.builder().put("script" + "." + scriptContext.getKey(), randomFrom(DISABLE_VALUES))
-                .put("script.stored", randomFrom(ENABLE_VALUES)).put("script.inline", "sandbox");
+        Settings.Builder builder = Settings.builder()
+                .put("script." + scriptContext.getKey(), "false")
+                .put("script.stored", "true")
+                .put("script.inline", "true");
         //operations generic settings have precedence over script type generic settings
         this.scriptModes = new ScriptModes(scriptSettings, builder.build());
-        assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, scriptContext);
+        assertScriptModesAllTypes(ScriptMode.OFF, scriptContext);
         ScriptContext[] complementOf = complementOf(scriptContext);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE, ScriptType.STORED}, complementOf);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INLINE}, complementOf);
+        assertScriptModes(ScriptMode.ON, new ScriptType[]{ScriptType.FILE, ScriptType.STORED}, complementOf);
+        assertScriptModes(ScriptMode.ON, new ScriptType[]{ScriptType.INLINE}, complementOf);
     }
 
-    private void assertScriptModesAllOps(ScriptMode expectedScriptMode, Set<String> langs, ScriptType... scriptTypes) {
-        assertScriptModes(expectedScriptMode, langs, scriptTypes, scriptContexts);
+    private void assertScriptModesAllOps(ScriptMode expectedScriptMode, ScriptType... scriptTypes) {
+        assertScriptModes(expectedScriptMode, scriptTypes, scriptContexts);
     }
 
-    private void assertScriptModesAllTypes(ScriptMode expectedScriptMode, Set<String> langs, ScriptContext... scriptContexts) {
-        assertScriptModes(expectedScriptMode, langs, ScriptType.values(), scriptContexts);
+    private void assertScriptModesAllTypes(ScriptMode expectedScriptMode, ScriptContext... scriptContexts) {
+        assertScriptModes(expectedScriptMode, ScriptType.values(), scriptContexts);
     }
 
-    private void assertScriptModes(ScriptMode expectedScriptMode, Set<String> langs, ScriptType[] scriptTypes, ScriptContext... scriptContexts) {
-        assert langs.size() > 0;
+    private void assertScriptModes(ScriptMode expectedScriptMode, ScriptType[] scriptTypes, ScriptContext... scriptContexts) {
         assert scriptTypes.length > 0;
         assert scriptContexts.length > 0;
-        for (String lang : langs) {
-            for (ScriptType scriptType : scriptTypes) {
-                for (ScriptContext scriptContext : scriptContexts) {
-                    assertThat(lang + "." + scriptType + "." + scriptContext.getKey() + " doesn't have the expected value", scriptModes.getScriptMode(lang, scriptType, scriptContext), equalTo(expectedScriptMode));
-                    checkedSettings.add(lang + "." + scriptType + "." + scriptContext);
-                }
+        for (ScriptType scriptType : scriptTypes) {
+            checkedSettings.add("script.engine.custom." + scriptType);
+            for (ScriptContext scriptContext : scriptContexts) {
+                assertThat("custom." + scriptType + "." + scriptContext.getKey() + " doesn't have the expected value",
+                        scriptModes.getScriptMode("custom", scriptType, scriptContext), equalTo(expectedScriptMode));
+                checkedSettings.add("custom." + scriptType + "." + scriptContext);
             }
         }
     }
@@ -230,34 +225,28 @@ public class ScriptModesTests extends ESTestCase {
     static Map<String, ScriptEngineService> buildScriptEnginesByLangMap(Set<ScriptEngineService> scriptEngines) {
         Map<String, ScriptEngineService> builder = new HashMap<>();
         for (ScriptEngineService scriptEngine : scriptEngines) {
-            for (String type : scriptEngine.getTypes()) {
-                builder.put(type, scriptEngine);
-            }
+            String type = scriptEngine.getType();
+            builder.put(type, scriptEngine);
         }
         return unmodifiableMap(builder);
     }
 
     private static class CustomScriptEngineService implements ScriptEngineService {
 
-        public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("custom", "test"));
+        public static final String NAME = "custom";
 
         @Override
-        public List<String> getTypes() {
-            return TYPES;
+        public String getType() {
+            return NAME;
         }
 
         @Override
-        public List<String> getExtensions() {
-            return Collections.singletonList(TYPES.get(0));
+        public String getExtension() {
+            return NAME;
         }
 
         @Override
-        public boolean isSandboxed() {
-            return false;
-        }
-
-        @Override
-        public Object compile(String script, Map<String, String> params) {
+        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
             return null;
         }
 

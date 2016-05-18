@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.profile.InternalProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
@@ -54,7 +54,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private Suggest suggest;
 
-    private InternalProfileShardResults profileResults;
+    private SearchProfileShardResults profileResults;
 
     private boolean timedOut;
 
@@ -64,7 +64,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
     }
 
     public InternalSearchResponse(InternalSearchHits hits, InternalAggregations aggregations, Suggest suggest,
-                                  InternalProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly) {
+                                  SearchProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly) {
         this.hits = hits;
         this.aggregations = aggregations;
         this.suggest = suggest;
@@ -141,7 +141,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         terminatedEarly = in.readOptionalBoolean();
 
         if (in.getVersion().onOrAfter(Version.V_2_2_0) && in.readBoolean()) {
-            profileResults = new InternalProfileShardResults(in);
+            profileResults = new SearchProfileShardResults(in);
         } else {
             profileResults = null;
         }

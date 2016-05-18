@@ -93,7 +93,7 @@ final class Compiler {
      * @return An {@link Executable} Painless script.
      */
     static Executable compile(final Loader loader, final String name, final String source, final CompilerSettings settings) {
-        byte[] bytes = compile(source, settings);
+        byte[] bytes = compile(name, source, settings);
 
         return createExecutable(loader, name, source, bytes);
     }
@@ -104,7 +104,7 @@ final class Compiler {
      * @param settings The CompilerSettings to be used during the compilation.
      * @return The bytes for compilation.
      */
-    static byte[] compile(final String source, final CompilerSettings settings) {
+    static byte[] compile(String name, String source, CompilerSettings settings) {
         if (source.length() > MAXIMUM_SOURCE_LENGTH) {
             throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
@@ -115,7 +115,7 @@ final class Compiler {
         final SSource root = Walker.buildPainlessTree(source, reserved);
         final Variables variables = Analyzer.analyze(settings, Definition.INSTANCE, reserved, root);
 
-        return Writer.write(settings, Definition.INSTANCE, source, variables, root);
+        return Writer.write(settings, Definition.INSTANCE, name, source, variables, root);
     }
 
     /**

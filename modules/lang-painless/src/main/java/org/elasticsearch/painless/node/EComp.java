@@ -27,7 +27,7 @@ import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import static org.elasticsearch.painless.WriterConstants.CHECKEQUALS;
 import static org.elasticsearch.painless.WriterConstants.DEF_EQ_CALL;
@@ -45,8 +45,8 @@ public final class EComp extends AExpression {
     AExpression left;
     AExpression right;
 
-    public EComp(final String location, final Operation operation, final AExpression left, final AExpression right) {
-        super(location);
+    public EComp(final int line, final String location, final Operation operation, final AExpression left, final AExpression right) {
+        super(line, location);
 
         this.operation = operation;
         this.left = left;
@@ -397,7 +397,7 @@ public final class EComp extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         final boolean branch = tru != null || fals != null;
         final org.objectweb.asm.Type rtype = right.actual.type;
         final Sort rsort = right.actual.sort;
@@ -429,8 +429,8 @@ public final class EComp extends AExpression {
             case CHAR:
                 throw new IllegalStateException(error("Illegal tree structure."));
             case BOOL:
-                if      (eq) adapter.ifZCmp(GeneratorAdapter.EQ, jump);
-                else if (ne) adapter.ifZCmp(GeneratorAdapter.NE, jump);
+                if      (eq) adapter.ifZCmp(MethodWriter.EQ, jump);
+                else if (ne) adapter.ifZCmp(MethodWriter.NE, jump);
                 else {
                     throw new IllegalStateException(error("Illegal tree structure."));
                 }
@@ -440,12 +440,12 @@ public final class EComp extends AExpression {
             case LONG:
             case FLOAT:
             case DOUBLE:
-                if      (eq)  adapter.ifCmp(rtype, GeneratorAdapter.EQ, jump);
-                else if (ne)  adapter.ifCmp(rtype, GeneratorAdapter.NE, jump);
-                else if (lt)  adapter.ifCmp(rtype, GeneratorAdapter.LT, jump);
-                else if (lte) adapter.ifCmp(rtype, GeneratorAdapter.LE, jump);
-                else if (gt)  adapter.ifCmp(rtype, GeneratorAdapter.GT, jump);
-                else if (gte) adapter.ifCmp(rtype, GeneratorAdapter.GE, jump);
+                if      (eq)  adapter.ifCmp(rtype, MethodWriter.EQ, jump);
+                else if (ne)  adapter.ifCmp(rtype, MethodWriter.NE, jump);
+                else if (lt)  adapter.ifCmp(rtype, MethodWriter.LT, jump);
+                else if (lte) adapter.ifCmp(rtype, MethodWriter.LE, jump);
+                else if (gt)  adapter.ifCmp(rtype, MethodWriter.GT, jump);
+                else if (gte) adapter.ifCmp(rtype, MethodWriter.GE, jump);
                 else {
                     throw new IllegalStateException(error("Illegal tree structure."));
                 }
@@ -458,16 +458,16 @@ public final class EComp extends AExpression {
                     } else if (!left.isNull && operation == Operation.EQ) {
                         adapter.invokeStatic(definition.defobjType.type, DEF_EQ_CALL);
                     } else {
-                        adapter.ifCmp(rtype, GeneratorAdapter.EQ, jump);
+                        adapter.ifCmp(rtype, MethodWriter.EQ, jump);
                     }
                 } else if (ne) {
                     if (right.isNull) {
                         adapter.ifNonNull(jump);
                     } else if (!left.isNull && operation == Operation.NE) {
                         adapter.invokeStatic(definition.defobjType.type, DEF_EQ_CALL);
-                        adapter.ifZCmp(GeneratorAdapter.EQ, jump);
+                        adapter.ifZCmp(MethodWriter.EQ, jump);
                     } else {
-                        adapter.ifCmp(rtype, GeneratorAdapter.NE, jump);
+                        adapter.ifCmp(rtype, MethodWriter.NE, jump);
                     }
                 } else if (lt) {
                     adapter.invokeStatic(definition.defobjType.type, DEF_LT_CALL);
@@ -484,7 +484,7 @@ public final class EComp extends AExpression {
                 writejump = left.isNull || ne || operation == Operation.EQR;
 
                 if (branch && !writejump) {
-                    adapter.ifZCmp(GeneratorAdapter.NE, jump);
+                    adapter.ifZCmp(MethodWriter.NE, jump);
                 }
 
                 break;
@@ -496,21 +496,21 @@ public final class EComp extends AExpression {
                         adapter.invokeStatic(definition.utilityType.type, CHECKEQUALS);
 
                         if (branch) {
-                            adapter.ifZCmp(GeneratorAdapter.NE, jump);
+                            adapter.ifZCmp(MethodWriter.NE, jump);
                         }
 
                         writejump = false;
                     } else {
-                        adapter.ifCmp(rtype, GeneratorAdapter.EQ, jump);
+                        adapter.ifCmp(rtype, MethodWriter.EQ, jump);
                     }
                 } else if (ne) {
                     if (right.isNull) {
                         adapter.ifNonNull(jump);
                     } else if (operation == Operation.NE) {
                         adapter.invokeStatic(definition.utilityType.type, CHECKEQUALS);
-                        adapter.ifZCmp(GeneratorAdapter.EQ, jump);
+                        adapter.ifZCmp(MethodWriter.EQ, jump);
                     } else {
-                        adapter.ifCmp(rtype, GeneratorAdapter.NE, jump);
+                        adapter.ifCmp(rtype, MethodWriter.NE, jump);
                     }
                 } else {
                     throw new IllegalStateException(error("Illegal tree structure."));

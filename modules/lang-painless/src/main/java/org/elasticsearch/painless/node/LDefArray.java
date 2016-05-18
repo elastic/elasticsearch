@@ -21,32 +21,30 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.DynamicCallSite;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.objectweb.asm.Type;
+import org.elasticsearch.painless.MethodWriter;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
-import static org.elasticsearch.painless.WriterConstants.DEF_DYNAMIC_ARRAY_LOAD_DESC;
-import static org.elasticsearch.painless.WriterConstants.DEF_DYNAMIC_ARRAY_STORE_DESC;
 
 /**
  * Represents an array load/store or shortcut on a def type.  (Internal only.)
  */
-final class LDefArray extends ALink {
+final class LDefArray extends ALink implements IDefLink {
 
     AExpression index;
 
-    LDefArray(final String location, final AExpression index) {
-        super(location, 0);
+    LDefArray(final int line, final String location, final AExpression index) {
+        super(line, location, 2);
 
         this.index = index;
     }
 
-
     @Override
     ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        index.expected = definition.objectType;
         index.analyze(settings, definition, variables);
+        index.expected = index.actual;
         index = index.cast(settings, definition, variables);
 
         after = definition.defType;
@@ -55,20 +53,20 @@ final class LDefArray extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         index.write(settings, definition, adapter);
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        adapter.visitInvokeDynamicInsn(
-            "arrayLoad", DEF_DYNAMIC_ARRAY_LOAD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.ARRAY_LOAD });
-
+    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+        final String desc = Type.getMethodDescriptor(after.type, definition.defType.type, index.actual.type);
+        adapter.invokeDynamic("arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_LOAD);
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        adapter.visitInvokeDynamicInsn(
-            "arrayStore", DEF_DYNAMIC_ARRAY_STORE_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.ARRAY_STORE });
+    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+        final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type,
+            index.actual.type, after.type);
+        adapter.invokeDynamic("arrayStore", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_STORE);
     }
 }

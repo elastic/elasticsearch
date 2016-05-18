@@ -743,8 +743,8 @@ public class IndicesRequestTests extends ESIntegTestCase {
         }
 
         @Override
-        public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
-            super.registerRequestHandler(action, request, executor, forceExecution, new InterceptingRequestHandler<>(action, handler));
+        public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, boolean canTripCircuitBreaker, TransportRequestHandler<Request> handler) {
+            super.registerRequestHandler(action, request, executor, forceExecution, canTripCircuitBreaker, new InterceptingRequestHandler<>(action, handler));
         }
 
         @Override

@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a catch block as part of a try-catch block.
@@ -42,8 +42,8 @@ public final class STrap extends AStatement {
     Label end;
     Label exception;
 
-    public STrap(final String location, final String type, final String name, final AStatement block) {
-        super(location);
+    public STrap(final int line, final String location, final String type, final String name, final AStatement block) {
+        super(line, location);
 
         this.type = type;
         this.name = name;
@@ -54,9 +54,7 @@ public final class STrap extends AStatement {
     void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         variable = variables.addVariable(location, type, name, true, false);
 
-        try {
-            variable.type.clazz.asSubclass(Exception.class);
-        } catch (final ClassCastException cce) {
+        if (!Exception.class.isAssignableFrom(variable.type.clazz)) {
             throw new ClassCastException(error("Not an exception type [" + variable.type.name + "]."));
         }
 
@@ -77,7 +75,8 @@ public final class STrap extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+        writeDebugInfo(adapter);
         final Label jump = new Label();
 
         adapter.mark(jump);

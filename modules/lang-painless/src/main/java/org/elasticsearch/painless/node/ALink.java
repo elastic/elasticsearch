@@ -23,7 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * The superclass for all L* (link) nodes.
@@ -75,8 +75,8 @@ public abstract class ALink extends ANode {
      */
     String string = null;
 
-    ALink(final String location, final int size) {
-        super(location);
+    ALink(final int line, final String location, final int size) {
+        super(line, location);
 
         this.size = size;
     }
@@ -92,17 +92,17 @@ public abstract class ALink extends ANode {
     /**
      * Write values before a load/store occurs such as an array index.
      */
-    abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
+    abstract void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter);
 
     /**
      * Write a load for the specific link type.
      */
-    abstract void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
+    abstract void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter);
 
     /**
      * Write a store for the specific link type.
      */
-    abstract void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
+    abstract void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter);
 
     /**
      * Used to copy link data from one to another during analysis in the case of replacement.

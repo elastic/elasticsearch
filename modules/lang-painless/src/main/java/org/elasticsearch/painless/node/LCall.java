@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 
@@ -38,8 +38,8 @@ public final class LCall extends ALink {
 
     Method method = null;
 
-    public LCall(final String location, final String name, final List<AExpression> arguments) {
-        super(location, -1);
+    public LCall(final int line, final String location, final String name, final List<AExpression> arguments) {
+        super(line, location, -1);
 
         this.name = name;
         this.arguments = arguments;
@@ -55,22 +55,15 @@ public final class LCall extends ALink {
             throw new IllegalArgumentException(error("Cannot assign a value to a call [" + name + "]."));
         }
 
+        Definition.MethodKey methodKey = new Definition.MethodKey(name, arguments.size());
         final Struct struct = before.struct;
-        method = statik ? struct.functions.get(name) : struct.methods.get(name);
+        method = statik ? struct.staticMethods.get(methodKey) : struct.methods.get(methodKey);
 
         if (method != null) {
-            final Definition.Type[] types = new Definition.Type[method.arguments.size()];
-            method.arguments.toArray(types);
-
-            if (method.arguments.size() != arguments.size()) {
-                throw new IllegalArgumentException(error("When calling [" + name + "] on type [" + struct.name + "]" +
-                    " expected [" + method.arguments.size() + "] arguments, but found [" + arguments.size() + "]."));
-            }
-
             for (int argument = 0; argument < arguments.size(); ++argument) {
                 final AExpression expression = arguments.get(argument);
 
-                expression.expected = types[argument];
+                expression.expected = method.arguments.get(argument);
                 expression.analyze(settings, definition, variables);
                 arguments.set(argument, expression.cast(settings, definition, variables));
             }
@@ -80,22 +73,23 @@ public final class LCall extends ALink {
 
             return this;
         } else if (before.sort == Definition.Sort.DEF) {
-            final ALink link = new LDefCall(location, name, arguments);
+            final ALink link = new LDefCall(line, location, name, arguments);
             link.copy(this);
 
             return link.analyze(settings, definition, variables);
         }
 
-        throw new IllegalArgumentException(error("Unknown call [" + name + "] on type [" + struct.name + "]."));
+        throw new IllegalArgumentException(error("Unknown call [" + name + "] with [" + arguments.size() + 
+                                                 "] arguments on type [" + struct.name + "]."));
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         for (final AExpression argument : arguments) {
             argument.write(settings, definition, adapter);
         }
@@ -114,7 +108,7 @@ public final class LCall extends ALink {
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

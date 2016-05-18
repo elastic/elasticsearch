@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Respresents a conditional expression.
@@ -36,8 +36,9 @@ public final class EConditional extends AExpression {
     AExpression left;
     AExpression right;
 
-    public EConditional(final String location, final AExpression condition, final AExpression left, final AExpression right) {
-        super(location);
+    public EConditional(final int line, final String location,
+                        final AExpression condition, final AExpression left, final AExpression right) {
+        super(line, location);
 
         this.condition = condition;
         this.left = left;
@@ -76,7 +77,7 @@ public final class EConditional extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         final Label localfals = new Label();
         final Label end = new Label();
 

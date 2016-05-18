@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Collections;
 import java.util.List;
@@ -34,8 +34,8 @@ public final class SBlock extends AStatement {
 
     final List<AStatement> statements;
 
-    public SBlock(final String location, final List<AStatement> statements) {
-        super(location);
+    public SBlock(final int line, final String location, final List<AStatement> statements) {
+        super(line, location);
 
         this.statements = Collections.unmodifiableList(statements);
     }
@@ -65,7 +65,7 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         for (final AStatement statement : statements) {
             statement.continu = continu;
             statement.brake = brake;

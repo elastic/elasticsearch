@@ -69,6 +69,8 @@ PUT my_index
   }
 }
 
+GET _cluster/health?wait_for_status=yellow
+
 GET my_index/_analyze <3>
 {
   "analyzer": "std_folded", <4>
@@ -88,4 +90,3 @@ GET my_index/_analyze <3>
 <3> To refer to this analyzer, the `analyze` API must specify the index name.
 <4> Refer to the analyzer by name.
 <5> Refer to the analyzer used by field `my_text`.
-

@@ -43,7 +43,7 @@ import java.util.stream.Stream;
  * or method depending on the receiver's class. For these, we emit an {@code invokedynamic} instruction that,
  * for each new type encountered will query a corresponding {@code lookupXXX} method to retrieve the appropriate
  * method. In most cases, the {@code lookupXXX} methods here will only be called once for a given call site, because
- * caching ({@link DynamicCallSite}) generally works: usually all objects at any call site will be consistently
+ * caching ({@link DefBootstrap}) generally works: usually all objects at any call site will be consistently
  * the same type (or just a few types).  In extreme cases, if there is type explosion, they may be called every
  * single time, but simplicity is still more valuable than performance in this code.
  */
@@ -133,37 +133,41 @@ public final class Def {
      * <p>
      * @param receiverClass Class of the object to invoke the method on.
      * @param name Name of the method.
+     * @param type Callsite signature. Need not match exactly, except the number of parameters.
      * @param definition Whitelist to check.
      * @return pointer to matching method to invoke. never returns null.
      * @throws IllegalArgumentException if no matching whitelisted method was found.
      */
-     static MethodHandle lookupMethod(Class<?> receiverClass, String name, Definition definition) {
-        // check whitelist for matching method
-        for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = definition.runtimeMap.get(clazz);
+     static MethodHandle lookupMethod(Class<?> receiverClass, String name, MethodType type, Definition definition) {
+         // we don't consider receiver an argument/counting towards arity
+         type = type.dropParameterTypes(0, 1);
+         Definition.MethodKey key = new Definition.MethodKey(name, type.parameterCount());
+         // check whitelist for matching method
+         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
+             RuntimeClass struct = definition.runtimeMap.get(clazz);
 
-            if (struct != null) {
-                Method method = struct.methods.get(name);
-                if (method != null) {
-                    return method.handle;
-                }
-            }
+             if (struct != null) {
+                 Method method = struct.methods.get(key);
+                 if (method != null) {
+                     return method.handle;
+                 }
+             }
 
-            for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.runtimeMap.get(iface);
+             for (final Class<?> iface : clazz.getInterfaces()) {
+                 struct = definition.runtimeMap.get(iface);
 
-                if (struct != null) {
-                    Method method = struct.methods.get(name);
-                    if (method != null) {
-                        return method.handle;
-                    }
-                }
-            }
-        }
+                 if (struct != null) {
+                     Method method = struct.methods.get(key);
+                     if (method != null) {
+                         return method.handle;
+                     }
+                 }
+             }
+         }
 
-        // no matching methods in whitelist found
-        throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] " +
-                                           "for class [" + receiverClass.getCanonicalName() + "].");
+         // no matching methods in whitelist found
+         throw new IllegalArgumentException("Unable to find dynamic method [" + name + "] with signature [" + type + "] " +
+                 "for class [" + receiverClass.getCanonicalName() + "].");
     }
 
     /**
@@ -967,103 +971,218 @@ public final class Def {
 
     // Conversion methods for Def to primitive types.
 
-    public static boolean DefToboolean(final Object value) {
-        if (value instanceof Boolean) {
-            return (boolean)value;
-        } else if (value instanceof Character) {
-            return ((char)value) != 0;
+    public static byte DefTobyteImplicit(final Object value) {
+        return (byte)value;
+    }
+
+    public static short DefToshortImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
         } else {
-            return ((Number)value).intValue() != 0;
+            return (short)value;
         }
     }
 
-    public static byte DefTobyte(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? (byte)1 : 0;
+    public static char DefTocharImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (char)(byte)value;
+        } else {
+            return (char)value;
+        }
+    }
+
+    public static int DefTointImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
+        } else if (value instanceof Short) {
+            return (short)value;
         } else if (value instanceof Character) {
+            return (char)value;
+        } else {
+            return (int)value;
+        }
+    }
+
+    public static long DefTolongImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
+        } else if (value instanceof Short) {
+            return (short)value;
+        } else if (value instanceof Character) {
+            return (char)value;
+        } else if (value instanceof Integer) {
+            return (int)value;
+        } else {
+            return (long)value;
+        }
+    }
+
+    public static float DefTofloatImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
+        } else if (value instanceof Short) {
+            return (short)value;
+        } else if (value instanceof Character) {
+            return (char)value;
+        } else if (value instanceof Integer) {
+            return (int)value;
+        } else if (value instanceof Long) {
+            return (long)value;
+        } else {
+            return (float)value;
+        }
+    }
+
+    public static double DefTodoubleImplicit(final Object value) {
+        if (value instanceof Byte) {
+            return (byte)value;
+        } else if (value instanceof Short) {
+            return (short)value;
+        } else if (value instanceof Character) {
+            return (char)value;
+        } else if (value instanceof Integer) {
+            return (int)value;
+        } else if (value instanceof Long) {
+            return (long)value;
+        } else if (value instanceof Float) {
+            return (float)value;
+        } else {
+            return (double)value;
+        }
+    }
+
+    public static Byte DefToByteImplicit(final Object value) {
+        return (Byte)value;
+    }
+
+    public static Short DefToShortImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return ((Byte)value).shortValue();
+        } else {
+            return (Short)value;
+        }
+    }
+
+    public static Character DefToCharacterImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte) {
+            return (char)(byte)value;
+        } else {
+            return (Character)value;
+        }
+    }
+
+    public static Integer DefToIntegerImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte || value instanceof Short) {
+            return ((Number)value).intValue();
+        } else if (value instanceof Character) {
+            return (int)(char)value;
+        } else {
+            return (Integer)value;
+        }
+    }
+
+    public static Long DefToLongImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte || value instanceof Short || value instanceof Integer) {
+            return ((Number)value).longValue();
+        } else if (value instanceof Character) {
+            return (long)(char)value;
+        } else {
+            return (Long)value;
+        }
+    }
+
+    public static Float DefToFloatImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long) {
+            return ((Number)value).floatValue();
+        } else if (value instanceof Character) {
+            return (float)(char)value;
+        } else {
+            return (Float)value;
+        }
+    }
+
+    public static Double DefToDoubleImplicit(final Object value) {
+        if (value == null) {
+            return null;
+        } else if (value instanceof Byte || value instanceof Short ||
+            value instanceof Integer || value instanceof Long || value instanceof  Float) {
+            return ((Number)value).doubleValue();
+        } else if (value instanceof Character) {
+            return (double)(char)value;
+        } else {
+            return (Double)value;
+        }
+    }
+
+    public static byte DefTobyteExplicit(final Object value) {
+        if (value instanceof Character) {
             return (byte)(char)value;
         } else {
             return ((Number)value).byteValue();
         }
     }
 
-    public static short DefToshort(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? (short)1 : 0;
-        } else if (value instanceof Character) {
+    public static short DefToshortExplicit(final Object value) {
+        if (value instanceof Character) {
             return (short)(char)value;
         } else {
             return ((Number)value).shortValue();
         }
     }
 
-    public static char DefTochar(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? (char)1 : 0;
-        } else if (value instanceof Character) {
+    public static char DefTocharExplicit(final Object value) {
+        if (value instanceof Character) {
             return ((Character)value);
         } else {
             return (char)((Number)value).intValue();
         }
     }
 
-    public static int DefToint(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? 1 : 0;
-        } else if (value instanceof Character) {
+    public static int DefTointExplicit(final Object value) {
+        if (value instanceof Character) {
             return (char)value;
         } else {
             return ((Number)value).intValue();
         }
     }
 
-    public static long DefTolong(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? 1L : 0;
-        } else if (value instanceof Character) {
+    public static long DefTolongExplicit(final Object value) {
+        if (value instanceof Character) {
             return (char)value;
         } else {
             return ((Number)value).longValue();
         }
     }
 
-    public static float DefTofloat(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? (float)1 : 0;
-        } else if (value instanceof Character) {
+    public static float DefTofloatExplicit(final Object value) {
+        if (value instanceof Character) {
             return (char)value;
         } else {
             return ((Number)value).floatValue();
         }
     }
 
-    public static double DefTodouble(final Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean)value) ? (double)1 : 0;
-        } else if (value instanceof Character) {
+    public static double DefTodoubleExplicit(final Object value) {
+        if (value instanceof Character) {
             return (char)value;
         } else {
             return ((Number)value).doubleValue();
         }
     }
 
-    public static Boolean DefToBoolean(final Object value) {
+    public static Byte DefToByteExplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Boolean) {
-            return (boolean)value;
-        } else if (value instanceof Character) {
-            return ((char)value) != 0;
-        } else {
-            return ((Number)value).intValue() != 0;
-        }
-    }
-
-    public static Byte DefToByte(final Object value) {
-        if (value == null) {
-            return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? (byte)1 : 0;
         } else if (value instanceof Character) {
             return (byte)(char)value;
         } else {
@@ -1071,11 +1190,9 @@ public final class Def {
         }
     }
 
-    public static Short DefToShort(final Object value) {
+    public static Short DefToShortExplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? (short)1 : 0;
         } else if (value instanceof Character) {
             return (short)(char)value;
         } else {
@@ -1083,11 +1200,9 @@ public final class Def {
         }
     }
 
-    public static Character DefToCharacter(final Object value) {
+    public static Character DefToCharacterExplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? (char)1 : 0;
         } else if (value instanceof Character) {
             return ((Character)value);
         } else {
@@ -1095,11 +1210,9 @@ public final class Def {
         }
     }
 
-    public static Integer DefToInteger(final Object value) {
+    public static Integer DefToIntegerExplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? 1 : 0;
         } else if (value instanceof Character) {
             return (int)(char)value;
         } else {
@@ -1107,11 +1220,9 @@ public final class Def {
         }
     }
 
-    public static Long DefToLong(final Object value) {
+    public static Long DefToLongExplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? 1L : 0;
         } else if (value instanceof Character) {
             return (long)(char)value;
         } else {
@@ -1119,11 +1230,9 @@ public final class Def {
         }
     }
 
-    public static Float DefToFloat(final Object value) {
+    public static Float DefToFloatExplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? (float)1 : 0;
         } else if (value instanceof Character) {
             return (float)(char)value;
         } else {
@@ -1131,11 +1240,9 @@ public final class Def {
         }
     }
 
-    public static Double DefToDouble(final Object value) {
+    public static Double DefToDoubleExplicit(final Object value) {
         if (value == null) {
             return null;
-        } else if (value instanceof Boolean) {
-            return ((Boolean)value) ? (double)1 : 0;
         } else if (value instanceof Character) {
             return (double)(char)value;
         } else {

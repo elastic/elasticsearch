@@ -154,7 +154,7 @@ locations for an RPM-based system:
 
 | logs
   | Log files location.
-  | /var/logs/elasticsearch
+  | /var/log/elasticsearch
   | path.logs
 
 | plugins

@@ -141,7 +141,7 @@ public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.utf8Field(CommonFields.KEY, termBytes);
+            builder.field(CommonFields.KEY, getKeyAsString());
             builder.field(CommonFields.DOC_COUNT, getDocCount());
             if (showDocCountError) {
                 builder.field(InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME, getDocCountError());

@@ -23,7 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * The superclass for all S* (statement) nodes.
@@ -109,8 +109,8 @@ public abstract class AStatement extends ANode {
      */
     Label brake = null;
 
-    AStatement(final String location) {
-        super(location);
+    AStatement(final int line, final String location) {
+        super(line, location);
     }
 
     /**
@@ -121,5 +121,5 @@ public abstract class AStatement extends ANode {
     /**
      * Writes ASM based on the data collected during the analysis phase.
      */
-    abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
+    abstract void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter);
 }

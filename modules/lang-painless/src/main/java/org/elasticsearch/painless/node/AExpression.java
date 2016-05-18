@@ -26,7 +26,7 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * The superclass for all E* (expression) nodes.
@@ -94,8 +94,8 @@ public abstract class AExpression extends ANode {
      */
     protected Label fals = null;
 
-    public AExpression(final String location) {
-        super(location);
+    public AExpression(final int line, final String location) {
+        super(line, location);
     }
 
     /**
@@ -106,7 +106,7 @@ public abstract class AExpression extends ANode {
     /**
      * Writes ASM based on the data collected during the analysis phase.
      */
-    abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
+    abstract void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter);
 
     /**
      * Inserts {@link ECast} nodes into the tree for implicit casts.  Also replaces
@@ -120,7 +120,7 @@ public abstract class AExpression extends ANode {
             if (constant == null || this instanceof EConstant) {
                 return this;
             } else {
-                final EConstant econstant = new EConstant(location, constant);
+                final EConstant econstant = new EConstant(line, location, constant);
                 econstant.analyze(settings, definition, variables);
 
                 if (!expected.equals(econstant.actual)) {
@@ -131,7 +131,7 @@ public abstract class AExpression extends ANode {
             }
         } else {
             if (constant == null) {
-                final ECast ecast = new ECast(location, this, cast);
+                final ECast ecast = new ECast(line, location, this, cast);
                 ecast.statement = statement;
                 ecast.actual = expected;
                 ecast.isNull = isNull;
@@ -141,7 +141,7 @@ public abstract class AExpression extends ANode {
                 if (expected.sort.constant) {
                     constant = AnalyzerCaster.constCast(location, constant, cast);
 
-                    final EConstant econstant = new EConstant(location, constant);
+                    final EConstant econstant = new EConstant(line, location, constant);
                     econstant.analyze(settings, definition, variables);
 
                     if (!expected.equals(econstant.actual)) {
@@ -150,19 +150,19 @@ public abstract class AExpression extends ANode {
 
                     return econstant;
                 } else if (this instanceof EConstant) {
-                    final ECast ecast = new ECast(location, this, cast);
+                    final ECast ecast = new ECast(line, location, this, cast);
                     ecast.actual = expected;
 
                     return ecast;
                 } else {
-                    final EConstant econstant = new EConstant(location, constant);
+                    final EConstant econstant = new EConstant(line, location, constant);
                     econstant.analyze(settings, definition, variables);
 
                     if (!actual.equals(econstant.actual)) {
                         throw new IllegalStateException(error("Illegal tree structure."));
                     }
 
-                    final ECast ecast = new ECast(location, econstant, cast);
+                    final ECast ecast = new ECast(line, location, econstant, cast);
                     ecast.actual = expected;
 
                     return ecast;

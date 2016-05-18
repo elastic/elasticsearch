@@ -1003,14 +1003,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("1"));
-
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("num:11~1")).get();
-        assertHitCount(searchResponse, 1L);
-        assertFirstHit(searchResponse, hasId("1"));
-
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("date:2012-02-02~1d")).get();
-        assertHitCount(searchResponse, 1L);
-        assertFirstHit(searchResponse, hasId("1"));
     }
 
     public void testQuotedQueryStringWithBoost() throws InterruptedException, ExecutionException {

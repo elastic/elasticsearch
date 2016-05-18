@@ -21,23 +21,22 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.DynamicCallSite;
+import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.objectweb.asm.Type;
+import org.elasticsearch.painless.MethodWriter;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
-import static org.elasticsearch.painless.WriterConstants.DEF_DYNAMIC_LOAD_FIELD_DESC;
-import static org.elasticsearch.painless.WriterConstants.DEF_DYNAMIC_STORE_FIELD_DESC;
 
 /**
  * Represents a field load/store or shortcut on a def type.  (Internal only.)
  */
-final class LDefField extends ALink {
+final class LDefField extends ALink implements IDefLink {
 
     final String value;
 
-    LDefField(final String location, final String value) {
-        super(location, 1);
+    LDefField(final int line, final String location, final String value) {
+        super(line, location, 1);
 
         this.value = value;
     }
@@ -51,17 +50,19 @@ final class LDefField extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        adapter.visitInvokeDynamicInsn(value, DEF_DYNAMIC_LOAD_FIELD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.LOAD });
+    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+        final String desc = Type.getMethodDescriptor(after.type, definition.defType.type);
+        adapter.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.LOAD);
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        adapter.visitInvokeDynamicInsn(value, DEF_DYNAMIC_STORE_FIELD_DESC, DEF_BOOTSTRAP_HANDLE, new Object[] { DynamicCallSite.STORE });
+    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+        final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type, after.type);
+        adapter.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.STORE);
     }
 }

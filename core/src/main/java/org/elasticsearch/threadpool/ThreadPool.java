@@ -440,8 +440,11 @@ public class ThreadPool extends AbstractComponent implements Closeable {
                 ((ThreadPoolExecutor) executor.executor()).shutdownNow();
             }
         }
-        while (!retiredExecutors.isEmpty()) {
-            ((ThreadPoolExecutor) retiredExecutors.remove().executor()).shutdownNow();
+
+        ExecutorHolder holder;
+        while ((holder = retiredExecutors.poll()) != null) {
+            ThreadPoolExecutor executor = (ThreadPoolExecutor) holder.executor();
+            executor.shutdownNow();
         }
     }
 
@@ -452,10 +455,13 @@ public class ThreadPool extends AbstractComponent implements Closeable {
                 result &= ((ThreadPoolExecutor) executor.executor()).awaitTermination(timeout, unit);
             }
         }
-        while (!retiredExecutors.isEmpty()) {
-            ThreadPoolExecutor executor = (ThreadPoolExecutor) retiredExecutors.remove().executor();
+
+        ExecutorHolder holder;
+        while ((holder = retiredExecutors.poll()) != null) {
+            ThreadPoolExecutor executor = (ThreadPoolExecutor) holder.executor();
             result &= executor.awaitTermination(timeout, unit);
         }
+
         estimatedTimeThread.join(unit.toMillis(timeout));
         return result;
     }

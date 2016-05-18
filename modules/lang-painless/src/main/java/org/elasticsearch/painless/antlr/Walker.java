@@ -146,6 +146,10 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         return parser.source();
     }
 
+    private int line(final ParserRuleContext ctx) {
+        return ctx.getStart().getLine();
+    }
+
     private String location(final ParserRuleContext ctx) {
         return "[ " + ctx.getStart().getLine() + " : " + ctx.getStart().getCharPositionInLine() + " ]";
     }
@@ -158,7 +162,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SSource(location(ctx), statements);
+        return new SSource(line(ctx), location(ctx), statements);
     }
 
     @Override
@@ -167,7 +171,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         final AStatement ifblock = (AStatement)visit(ctx.block(0));
         final AStatement elseblock = ctx.block(1) == null ? null : (AStatement)visit(ctx.block(1));
 
-        return new SIfElse(location(ctx), condition, ifblock, elseblock);
+        return new SIfElse(line(ctx), location(ctx), condition, ifblock, elseblock);
     }
 
     @Override
@@ -177,7 +181,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         reserved.usesLoop();
 
-        return new SWhile(location(ctx), condition, block);
+        return new SWhile(line(ctx), location(ctx), condition, block);
     }
 
     @Override
@@ -187,7 +191,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         reserved.usesLoop();
 
-        return new SDo(location(ctx), block, condition);
+        return new SDo(line(ctx), location(ctx), block, condition);
     }
 
     @Override
@@ -199,7 +203,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         reserved.usesLoop();
 
-        return new SFor(location(ctx), intializer, condition, afterthought, block);
+        return new SFor(line(ctx), location(ctx), intializer, condition, afterthought, block);
     }
 
     @Override
@@ -209,19 +213,19 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitContinue(final ContinueContext ctx) {
-        return new SContinue(location(ctx));
+        return new SContinue(line(ctx), location(ctx));
     }
 
     @Override
     public ANode visitBreak(final BreakContext ctx) {
-        return new SBreak(location(ctx));
+        return new SBreak(line(ctx), location(ctx));
     }
 
     @Override
     public ANode visitReturn(final ReturnContext ctx) {
         final AExpression expression = (AExpression)visit(ctx.expression());
 
-        return new SReturn(location(ctx), expression);
+        return new SReturn(line(ctx), location(ctx), expression);
     }
 
     @Override
@@ -233,21 +237,21 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             traps.add((STrap)visit(trap));
         }
 
-        return new STry(location(ctx), block, traps);
+        return new STry(line(ctx), location(ctx), block, traps);
     }
 
     @Override
     public ANode visitThrow(final ThrowContext ctx) {
         final AExpression expression = (AExpression)visit(ctx.expression());
 
-        return new SThrow(location(ctx), expression);
+        return new SThrow(line(ctx), location(ctx), expression);
     }
 
     @Override
     public ANode visitExpr(final ExprContext ctx) {
         final AExpression expression = (AExpression)visit(ctx.expression());
 
-        return new SExpression(location(ctx), expression);
+        return new SExpression(line(ctx), location(ctx), expression);
     }
 
     @Override
@@ -258,7 +262,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SBlock(location(ctx), statements);
+        return new SBlock(line(ctx), location(ctx), statements);
     }
 
     @Override
@@ -266,7 +270,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         final List<AStatement> statements = new ArrayList<>();
         statements.add((AStatement)visit(ctx.statement()));
 
-        return new SBlock(location(ctx), statements);
+        return new SBlock(line(ctx), location(ctx), statements);
     }
 
     @Override
@@ -303,10 +307,10 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         for (final DeclvarContext declvar : ctx.declvar()) {
             final String name = declvar.identifier().getText();
             final AExpression expression = declvar.expression() == null ? null : (AExpression)visit(declvar.expression());
-            declarations.add(new SDeclaration(location(ctx), type, name, expression));
+            declarations.add(new SDeclaration(line(ctx), location(ctx), type, name, expression));
         }
 
-        return new SDeclBlock(location(ctx), declarations);
+        return new SDeclBlock(line(ctx), location(ctx), declarations);
     }
 
     @Override
@@ -325,7 +329,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         final String name = ctx.identifier(1).getText();
         final AStatement block = ctx.block() == null ? null : (AStatement)visit(ctx.block());
 
-        return new STrap(location(ctx), type, name, block);
+        return new STrap(line(ctx), location(ctx), type, name, block);
     }
 
     @Override
@@ -348,13 +352,13 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         final boolean negate = ctx.parent instanceof UnaryContext && ((UnaryContext)ctx.parent).SUB() != null;
 
         if (ctx.DECIMAL() != null) {
-            return new EDecimal(location(ctx), (negate ? "-" : "") + ctx.DECIMAL().getText());
+            return new EDecimal(line(ctx), location(ctx), (negate ? "-" : "") + ctx.DECIMAL().getText());
         } else if (ctx.HEX() != null) {
-            return new ENumeric(location(ctx), (negate ? "-" : "") + ctx.HEX().getText().substring(2), 16);
+            return new ENumeric(line(ctx), location(ctx), (negate ? "-" : "") + ctx.HEX().getText().substring(2), 16);
         } else if (ctx.INTEGER() != null) {
-            return new ENumeric(location(ctx), (negate ? "-" : "") + ctx.INTEGER().getText(), 10);
+            return new ENumeric(line(ctx), location(ctx), (negate ? "-" : "") + ctx.INTEGER().getText(), 10);
         } else if (ctx.OCTAL() != null) {
-            return new ENumeric(location(ctx), (negate ? "-" : "") + ctx.OCTAL().getText().substring(1), 8);
+            return new ENumeric(line(ctx), location(ctx), (negate ? "-" : "") + ctx.OCTAL().getText().substring(1), 8);
         } else {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
@@ -362,17 +366,17 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitTrue(final TrueContext ctx) {
-        return new EBoolean(location(ctx), true);
+        return new EBoolean(line(ctx), location(ctx), true);
     }
 
     @Override
     public ANode visitFalse(FalseContext ctx) {
-        return new EBoolean(location(ctx), false);
+        return new EBoolean(line(ctx), location(ctx), false);
     }
 
     @Override
     public ANode visitNull(final NullContext ctx) {
-        return new ENull(location(ctx));
+        return new ENull(line(ctx), location(ctx));
     }
 
     @Override
@@ -390,7 +394,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
 
-        return new EChain(location(ctx), links, false, true, operation, null);
+        return new EChain(line(ctx), location(ctx), links, false, true, operation, null);
     }
 
     @Override
@@ -408,7 +412,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
 
-        return new EChain(location(ctx), links, true, false, operation, null);
+        return new EChain(line(ctx), location(ctx), links, true, false, operation, null);
     }
 
     @Override
@@ -417,7 +421,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         visitChain(ctx.chain(), links);
 
-        return new EChain(location(ctx), links, false, false, null, null);
+        return new EChain(line(ctx), location(ctx), links, false, false, null, null);
     }
 
     @Override
@@ -439,13 +443,13 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
                 throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
             }
 
-            return new EUnary(location(ctx), operation, (AExpression)visit(ctx.expression()));
+            return new EUnary(line(ctx), location(ctx), operation, (AExpression)visit(ctx.expression()));
         }
     }
 
     @Override
     public ANode visitCast(final CastContext ctx) {
-        return new EExplicit(location(ctx), ctx.decltype().getText(), (AExpression)visit(ctx.expression()));
+        return new EExplicit(line(ctx), location(ctx), ctx.decltype().getText(), (AExpression)visit(ctx.expression()));
     }
 
     @Override
@@ -480,7 +484,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
 
-        return new EBinary(location(ctx), operation, left, right);
+        return new EBinary(line(ctx), location(ctx), operation, left, right);
     }
 
     @Override
@@ -509,7 +513,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
 
-        return new EComp(location(ctx), operation, left, right);
+        return new EComp(line(ctx), location(ctx), operation, left, right);
     }
 
     @Override
@@ -526,7 +530,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
 
-        return new EBool(location(ctx), operation, left, right);
+        return new EBool(line(ctx), location(ctx), operation, left, right);
     }
 
 
@@ -536,7 +540,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         final AExpression left = (AExpression)visit(ctx.expression(1));
         final AExpression right = (AExpression)visit(ctx.expression(2));
 
-        return new EConditional(location(ctx), condition, left, right);
+        return new EConditional(line(ctx), location(ctx), condition, left, right);
     }
 
     @Override
@@ -572,7 +576,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             operation = null;
         }
 
-        return new EChain(location(ctx), links, false, false, operation, (AExpression)visit(ctx.expression()));
+        return new EChain(line(ctx), location(ctx), links, false, false, operation, (AExpression)visit(ctx.expression()));
     }
 
     private void visitChain(final ChainContext ctx, final List<ALink> links) {
@@ -638,7 +642,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
 
-        links.add(new LCast(location(ctx), ctx.decltype().getText()));
+        links.add(new LCast(line(ctx), location(ctx), ctx.decltype().getText()));
     }
 
     @Override
@@ -647,7 +651,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     private void visitLinkbrace(final LinkbraceContext ctx, final List<ALink> links) {
-        links.add(new LBrace(location(ctx), (AExpression)visit(ctx.expression())));
+        links.add(new LBrace(line(ctx), location(ctx), (AExpression)visit(ctx.expression())));
 
         if (ctx.linkbrace() != null) {
             visitLinkbrace(ctx.linkbrace(), links);
@@ -681,7 +685,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             arguments.add((AExpression)visit(expression));
         }
 
-        links.add(new LCall(location(ctx), ctx.EXTID().getText(), arguments));
+        links.add(new LCall(line(ctx), location(ctx), ctx.EXTID().getText(), arguments));
 
         if (ctx.linkbrace() != null) {
             visitLinkbrace(ctx.linkbrace(), links);
@@ -700,7 +704,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
         reserved.markReserved(name);
 
-        links.add(new LVariable(location(ctx), name));
+        links.add(new LVariable(line(ctx), location(ctx), name));
 
         if (ctx.linkbrace() != null) {
             visitLinkbrace(ctx.linkbrace(), links);
@@ -725,7 +729,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
 
-        links.add(new LField(location(ctx), value));
+        links.add(new LField(line(ctx), location(ctx), value));
 
         if (ctx.linkbrace() != null) {
             visitLinkbrace(ctx.linkbrace(), links);
@@ -747,13 +751,13 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
                 arguments.add((AExpression)visit(expression));
             }
 
-            links.add(new LNewObj(location(ctx), ctx.identifier().getText(), arguments));
+            links.add(new LNewObj(line(ctx), location(ctx), ctx.identifier().getText(), arguments));
         } else if (ctx.expression().size() > 0) {
             for (final ExpressionContext expression : ctx.expression()) {
                 arguments.add((AExpression)visit(expression));
             }
 
-            links.add(new LNewArray(location(ctx), ctx.identifier().getText(), arguments));
+            links.add(new LNewArray(line(ctx), location(ctx), ctx.identifier().getText(), arguments));
         } else {
             throw new IllegalStateException("Error " + location(ctx) + ": Unexpected state.");
         }
@@ -769,7 +773,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     private void visitLinkstring(final LinkstringContext ctx, final List<ALink> links) {
-        links.add(new LString(location(ctx), ctx.STRING().getText().substring(1, ctx.STRING().getText().length() - 1)));
+        links.add(new LString(line(ctx), location(ctx), ctx.STRING().getText().substring(1, ctx.STRING().getText().length() - 1)));
 
         if (ctx.linkbrace() != null) {
             visitLinkbrace(ctx.linkbrace(), links);

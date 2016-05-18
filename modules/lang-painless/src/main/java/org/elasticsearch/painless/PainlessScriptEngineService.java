@@ -54,21 +54,6 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
     public static final String NAME = "painless";
 
     /**
-     * Standard list of names for the Painless language.  (There is only one.)
-     */
-    public static final List<String> TYPES = Collections.singletonList(NAME);
-
-    /**
-     * Standard extension of the Painless language.
-     */
-    public static final String EXTENSION = "painless";
-
-    /**
-     * Standard list of extensions for the Painless language.  (There is only one.)
-     */
-    public static final List<String> EXTENSIONS = Collections.singletonList(EXTENSION);
-
-    /**
      * Default compiler settings to be used.
      */
     private static final CompilerSettings DEFAULT_COMPILER_SETTINGS = new CompilerSettings();
@@ -103,8 +88,8 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
      * @return Always contains only the single name of the language.
      */
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     /**
@@ -112,27 +97,17 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
      * @return Always contains only the single extension of the language.
      */
     @Override
-    public List<String> getExtensions() {
-        return EXTENSIONS;
+    public String getExtension() {
+        return NAME;
     }
-
+    
     /**
-     * Whether or not the engine is secure.
-     * @return Always true as the engine should be secure at runtime.
+     * When a script is anonymous (inline), we give it this name.
      */
-    @Override
-    public boolean isSandboxed() {
-        return true;
-    }
+    static final String INLINE_NAME = "<inline>";
 
-    /**
-     * Compiles a Painless script with the specified parameters.
-     * @param script The code to be compiled.
-     * @param params The params used to modify the compiler settings on a per script basis.
-     * @return Compiled script object represented by an {@link Executable}.
-     */
     @Override
-    public Object compile(final String script, final Map<String, String> params) {
+    public Object compile(String scriptName, final String scriptSource, final Map<String, String> params) {
         final CompilerSettings compilerSettings;
 
         if (params.isEmpty()) {
@@ -178,7 +153,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
         return AccessController.doPrivileged(new PrivilegedAction<Executable>() {
             @Override
             public Executable run() {
-                return Compiler.compile(loader, "unknown", script, compilerSettings);
+                return Compiler.compile(loader, scriptName == null ? INLINE_NAME : scriptName, scriptSource, compilerSettings);
             }
         }, COMPILATION_CONTEXT);
     }

@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Collections;
 import java.util.List;
@@ -34,8 +34,8 @@ public final class SDeclBlock extends AStatement {
 
     final List<SDeclaration> declarations;
 
-    public SDeclBlock(final String location, final List<SDeclaration> declarations) {
-        super(location);
+    public SDeclBlock(final int line, final String location, final List<SDeclaration> declarations) {
+        super(line, location);
 
         this.declarations = Collections.unmodifiableList(declarations);
     }
@@ -50,7 +50,7 @@ public final class SDeclBlock extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         for (final SDeclaration declaration : declarations) {
             declaration.write(settings, definition, adapter);
         }

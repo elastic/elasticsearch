@@ -118,7 +118,7 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkIndexB
 
     @Override
     public void describeTo(Description description) {
-        description.appendText("indexed matches ").appendDescriptionOf(updatedMatcher);
+        description.appendText("updated matches ").appendDescriptionOf(updatedMatcher);
         description.appendText(" and created matches ").appendDescriptionOf(createdMatcher);
         if (batchesMatcher != null) {
             description.appendText(" and batches matches ").appendDescriptionOf(batchesMatcher);

@@ -1,5 +1,9 @@
 ---
 setup:
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
   - do:
       # Waits for the monitoring data index to be available:
       # it indicates that the local exporter is ready
@@ -14,7 +18,7 @@ setup:
   - set: {version.number: version}
 
   - do:
-      monitoring.bulk:
+      xpack.monitoring.bulk:
         system_id:      "kibana"
         system_version: $version
         body:
@@ -48,7 +52,7 @@ setup:
   - match: { hits.total: 2 }
 
   - do:
-      monitoring.bulk:
+      xpack.monitoring.bulk:
         system_id:      "kibana"
         system_version: $version
         type: "default_type"

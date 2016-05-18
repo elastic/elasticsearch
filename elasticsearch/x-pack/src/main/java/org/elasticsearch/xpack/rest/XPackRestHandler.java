@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.XPackClient;
  */
 public abstract class XPackRestHandler extends BaseRestHandler {
 
-    protected static String URI_BASE = "_xpack";
+    protected static String URI_BASE = "/_xpack";
 
     public XPackRestHandler(Settings settings, Client client) {
         super(settings, client);

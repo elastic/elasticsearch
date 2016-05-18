@@ -1,0 +1,61 @@
+To compile `x-plugins`, you must clone the Elasticsearch repository into the same parent directory. For example:
+
+[source,bash]
+----
+$ mkdir elastic
+$ cd elastic
+$ git clone git@github.com:elastic/elasticsearch.git
+$ git clone git@github.com:elastic/x-plugins.git
+$ git clone git@github.com:elastic/kibana.git <1>
+----
+<1> For anyone doing UI development, it's also useful to have Kibana at the same level.
+
+Once cloned, any command should be executed from the **elasticsearch** directory. This ensures that the full dependency tree is available.
+
+[source,bash]
+----
+$ cd elasticsearch
+$ gradle clean test check <1>
+----
+<1> This will run the `clean` task, `test` task, and then the `check` task on _every_ project that has it. However, `check` requires that `test` be run, so it won't _rerun_ `test`. `clean` is unnecessary here, but people often use it anyway.
+
+If this command were run in a different order, then it would still follow the same rules, but the behavior would change:
+
+[source,bash]
+----
+$ gradle check test clean <1>
+----
+<1> It would run every task that `check` requires (e.g., `test` and `integTest`), skip `test` because it has already been run (indirectly by `check`), and then finally it would _wastefully_ delete every project output.
+
+As a quick helper, below are the equivalent commands from `maven` to `gradle`. You can also run `gradle tasks` to see all tasks that are available to run.
+
+[cols="3*", options="header"]
+|====
+| Maven                       | Gradle      | Description
+| `clean`                     | `clean`     | Delete anything that exists already. You do _not_ generally need to run `clean` with Gradle for any task that _Gradle_ manages the inputs/outputs (in other words, it knows when it needs to rebuild versus reuse).
+| `test`                      | `test`      | Run all unit tests.
+| `verify`                    | `check`     | Run all tests, plus extra checks (e.g., `checkStyle`, `forbiddenApis`, etc.).
+| `verify -Dskip.unit.tests`  | `integTest` | Run only integration tests.
+| `package -DskipTests`       | `assemble`  | Output is in `${project.projectDir}/build/distributions`
+| `install -DskipTests`       | `install`   | Build jars and place them into the local _Maven_ repository (yes, even with Gradle).
+
+This should be unnecessary with the unified build!
+|====
+
+The full task list, with a minor breakout as a graph of dependencies can be seen with:
+
+[source,bash]
+----
+$ gradle tasks --all
+----
+
+Given that we currently have 80 projects, this can be extremely verbose.
+
+With Gradle, you can easily target specific `projects` to run commands against, and it will build all necessary dependencies to make it happen. For example, if you make a change to a specific test in the `x-pack` subproject, then you can specifically invoke its `test` task.
+
+[source,bash]
+----
+$ gradle :x-plugins:elasticsearch:x-pack:test -Dtests.class=*YourTests
+----
+
+This applies to any command that follows the Directed Acyclic Graph (DAG) for its dependencies. The above example would trigger Elasticsearch `core` to be built, as well as the test framework and any other dependencies that it may have.

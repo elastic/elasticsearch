@@ -461,29 +461,24 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
                 current += gc.getCollectionTime().millis() - prevGc.getCollectionTime().millis();
             }
             checkGcOverhead(current, elapsed, seq);
-
         }
 
         void checkGcOverhead(final long current, final long elapsed, final long seq) {
-             final int fraction = (int) ((100 * current) / (double) elapsed);
+            final int fraction = (int) ((100 * current) / (double) elapsed);
             Threshold overheadThreshold = null;
-             if (fraction >= gcOverheadThreshold.warnThreshold) {
+            if (fraction >= gcOverheadThreshold.warnThreshold) {
                 overheadThreshold = Threshold.WARN;
-
             } else if (fraction >= gcOverheadThreshold.infoThreshold) {
                 overheadThreshold = Threshold.INFO;
-
             } else if (fraction >= gcOverheadThreshold.debugThreshold) {
                 overheadThreshold = Threshold.DEBUG;
-
             }
-             if (overheadThreshold != null) {
+            if (overheadThreshold != null) {
                 onGcOverhead(overheadThreshold, current, elapsed, seq);
             }
-
         }
 
-            JvmStats jvmStats() {
+        JvmStats jvmStats() {
             return JvmStats.jvmStats();
         }
 

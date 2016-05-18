@@ -1033,6 +1033,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     suggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
                 } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
                     sorts = new ArrayList<>(SortBuilder.fromXContent(context));
+                } else if (context.getParseFieldMatcher().match(currentFieldName, RESCORE_FIELD)) {
+                    rescoreBuilders = new ArrayList<>();
+                    rescoreBuilders.add(RescoreBuilder.parseFromXContent(context));
                 } else if (context.getParseFieldMatcher().match(currentFieldName, EXT_FIELD)) {
                     XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
                     ext = xContentBuilder.bytes();

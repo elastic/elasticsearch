@@ -117,6 +117,23 @@ setup() {
     [ "$status" -eq 3 ] || [ "$status" -eq 4 ]
 }
 
+@test "[INIT.D] don't mkdir when it contains a comma" {
+    # Remove these just in case they exist beforehand
+    rm -rf /tmp/aoeu,/tmp/asdf
+    rm -rf /tmp/aoeu,
+    # set DATA_DIR to DATA_DIR=/tmp/aoeu,/tmp/asdf
+    sed -i 's/DATA_DIR=.*/DATA_DIR=\/tmp\/aoeu,\/tmp\/asdf/' /etc/init.d/elasticsearch
+    cat /etc/init.d/elasticsearch | grep "DATA_DIR"
+    service elasticsearch start
+    wait_for_elasticsearch_status
+    assert_file_not_exist /tmp/aoeu,/tmp/asdf
+    assert_file_not_exist /tmp/aoeu,
+    service elasticsearch stop
+    run service elasticsearch status
+    # precise returns 4, trusty 3
+    [ "$status" -eq 3 ] || [ "$status" -eq 4 ]
+}
+
 # Simulates the behavior of a system restart:
 # the PID directory is deleted by the operating system
 # but it should not block ES from starting

@@ -29,6 +29,11 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
 import org.objectweb.asm.commons.Method;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
+
 import static org.elasticsearch.painless.WriterConstants.ADDEXACT_INT;
 import static org.elasticsearch.painless.WriterConstants.ADDEXACT_LONG;
 import static org.elasticsearch.painless.WriterConstants.ADDWOOVERLOW_DOUBLE;
@@ -48,6 +53,8 @@ import static org.elasticsearch.painless.WriterConstants.DIVWOOVERLOW_DOUBLE;
 import static org.elasticsearch.painless.WriterConstants.DIVWOOVERLOW_FLOAT;
 import static org.elasticsearch.painless.WriterConstants.DIVWOOVERLOW_INT;
 import static org.elasticsearch.painless.WriterConstants.DIVWOOVERLOW_LONG;
+import static org.elasticsearch.painless.WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
+import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
 import static org.elasticsearch.painless.WriterConstants.MULEXACT_INT;
 import static org.elasticsearch.painless.WriterConstants.MULEXACT_LONG;
 import static org.elasticsearch.painless.WriterConstants.MULWOOVERLOW_DOUBLE;
@@ -66,6 +73,7 @@ import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_APPEND_ST
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_CONSTRUCTOR;
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_TOSTRING;
 import static org.elasticsearch.painless.WriterConstants.STRINGBUILDER_TYPE;
+import static org.elasticsearch.painless.WriterConstants.STRING_TYPE;
 import static org.elasticsearch.painless.WriterConstants.SUBEXACT_INT;
 import static org.elasticsearch.painless.WriterConstants.SUBEXACT_LONG;
 import static org.elasticsearch.painless.WriterConstants.SUBWOOVERLOW_DOUBLE;
@@ -96,6 +104,9 @@ import static org.elasticsearch.painless.WriterConstants.TOSHORTWOOVERFLOW_FLOAT
  * shared by the nodes of the Painless tree.
  */
 public final class MethodWriter extends GeneratorAdapter {
+
+    private final Deque<List<org.objectweb.asm.Type>> stringConcatArgs = (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?
+            null : new ArrayDeque<>();
 
     MethodWriter(int access, Method method, org.objectweb.asm.Type[] exceptions, ClassVisitor cv) {
         super(Opcodes.ASM5, cv.visitMethod(access, method.getName(), method.getDescriptor(), null, getInternalNames(exceptions)),
@@ -171,30 +182,58 @@ public final class MethodWriter extends GeneratorAdapter {
             visitJumpInsn(Opcodes.IFEQ, fals);
         }
     }
-
+    
     public void writeNewStrings() {
-        newInstance(STRINGBUILDER_TYPE);
-        dup();
-        invokeConstructor(STRINGBUILDER_TYPE, STRINGBUILDER_CONSTRUCTOR);
+        if (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE != null) {
+            // Java 9+: we just push our argument collector onto deque
+            stringConcatArgs.push(new ArrayList<>());
+        } else {
+            // Java 8: create a StringBuilder in bytecode
+            newInstance(STRINGBUILDER_TYPE);
+            dup();
+            invokeConstructor(STRINGBUILDER_TYPE, STRINGBUILDER_CONSTRUCTOR);
+        }
     }
 
-    public void writeAppendStrings(final Sort sort) {
-        switch (sort) {
-            case BOOL:   invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_BOOLEAN); break;
-            case CHAR:   invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_CHAR);    break;
-            case BYTE:
-            case SHORT:
-            case INT:    invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_INT);     break;
-            case LONG:   invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_LONG);    break;
-            case FLOAT:  invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_FLOAT);   break;
-            case DOUBLE: invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_DOUBLE);  break;
-            case STRING: invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_STRING);  break;
-            default:     invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_OBJECT);
+    public void writeAppendStrings(final Type type) {
+        if (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE != null) {
+            // Java 9+: record type information
+            stringConcatArgs.peek().add(type.type);
+            // prevent too many concat args.
+            // If there are too many, do the actual concat:
+            if (stringConcatArgs.peek().size() >= MAX_INDY_STRING_CONCAT_ARGS) {
+                writeToStrings();
+                writeNewStrings();
+                // add the return value type as new first param for next concat:
+                stringConcatArgs.peek().add(STRING_TYPE);
+            }
+        } else {
+            // Java 8: push a StringBuilder append
+            switch (type.sort) {
+                case BOOL:   invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_BOOLEAN); break;
+                case CHAR:   invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_CHAR);    break;
+                case BYTE:
+                case SHORT:
+                case INT:    invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_INT);     break;
+                case LONG:   invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_LONG);    break;
+                case FLOAT:  invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_FLOAT);   break;
+                case DOUBLE: invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_DOUBLE);  break;
+                case STRING: invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_STRING);  break;
+                default:     invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_OBJECT);
+            }
         }
     }
 
     public void writeToStrings() {
-        invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_TOSTRING);
+        if (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE != null) {
+            // Java 9+: use type information and push invokeDynamic
+            final String desc = org.objectweb.asm.Type.getMethodDescriptor(STRING_TYPE,
+                    stringConcatArgs.pop().stream().toArray(org.objectweb.asm.Type[]::new));
+            invokeDynamic("concat", desc, INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
+        } else {
+            // Java 8: call toString() on StringBuilder
+            invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_TOSTRING);
+        }
     }
 
     public void writeBinaryInstruction(final CompilerSettings settings, final Definition definition,
@@ -448,6 +487,14 @@ public final class MethodWriter extends GeneratorAdapter {
         } else if (size == 2) {
             pop2();
         }
+    }
+
+    @Override
+    public void visitEnd() {
+        if (stringConcatArgs != null && !stringConcatArgs.isEmpty()) {
+            throw new IllegalStateException("String concat bytecode not completed.");
+        }
+        super.visitEnd();
     }
 
 }

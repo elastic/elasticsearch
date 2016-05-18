@@ -58,6 +58,8 @@ include::migrate_5_0/suggest.asciidoc[]
 
 include::migrate_5_0/index-apis.asciidoc[]
 
+include::migrate_5_0/docs.asciidoc[]
+
 include::migrate_5_0/settings.asciidoc[]
 
 include::migrate_5_0/allocation.asciidoc[]

@@ -133,4 +133,43 @@ public class JvmGcMonitorServiceTests extends ESTestCase {
         verifyNoMoreInteractions(logger);
     }
 
+    public void testGcOverheadLogging() {
+        final JvmGcMonitorService.JvmMonitor.Threshold threshold = randomFrom(JvmGcMonitorService.JvmMonitor.Threshold.values());
+        final int current = randomIntBetween(1, Integer.MAX_VALUE);
+        final long elapsed = randomIntBetween(current, Integer.MAX_VALUE);
+        final long seq = randomIntBetween(1, Integer.MAX_VALUE);
+        final ESLogger logger = mock(ESLogger.class);
+        when(logger.isWarnEnabled()).thenReturn(true);
+        when(logger.isInfoEnabled()).thenReturn(true);
+        when(logger.isDebugEnabled()).thenReturn(true);
+        JvmGcMonitorService.logGcOverhead(logger, threshold, current, elapsed, seq);
+        switch(threshold) {
+            case WARN:
+                verify(logger).isWarnEnabled();
+                verify(logger).warn(
+                    "[gc][{}] overhead, spent [{}] collecting in the last [{}]",
+                    seq,
+                    TimeValue.timeValueMillis(current),
+                    TimeValue.timeValueMillis(elapsed));
+                break;
+            case INFO:
+                verify(logger).isInfoEnabled();
+                verify(logger).info(
+                    "[gc][{}] overhead, spent [{}] collecting in the last [{}]",
+                    seq,
+                    TimeValue.timeValueMillis(current),
+                    TimeValue.timeValueMillis(elapsed));
+                break;
+            case DEBUG:
+                verify(logger).isDebugEnabled();
+                verify(logger).debug(
+                    "[gc][{}] overhead, spent [{}] collecting in the last [{}]",
+                    seq,
+                    TimeValue.timeValueMillis(current),
+                    TimeValue.timeValueMillis(elapsed));
+                break;
+        }
+        verifyNoMoreInteractions(logger);
+    }
+
 }

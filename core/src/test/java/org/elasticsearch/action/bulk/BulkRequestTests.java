@@ -210,4 +210,11 @@ public class BulkRequestTests extends ESTestCase {
                 "script or doc is missing",
                 "source is missing"));
     }
+
+    public void testCannotAddNullRequests() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest();
+        expectThrows(NullPointerException.class, () -> bulkRequest.add((IndexRequest) null));
+        expectThrows(NullPointerException.class, () -> bulkRequest.add((UpdateRequest) null));
+        expectThrows(NullPointerException.class, () -> bulkRequest.add((DeleteRequest) null));
+    }
 }

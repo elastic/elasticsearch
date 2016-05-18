@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
 
@@ -32,8 +31,6 @@ public final class EExplicit extends AExpression {
 
     final String type;
     AExpression child;
-
-    Cast cast = null;
 
     public EExplicit(final int line, final String location, final String type, final AExpression child) {
         super(line, location);

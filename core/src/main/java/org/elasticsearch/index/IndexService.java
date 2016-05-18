@@ -336,18 +336,17 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
                 new StoreCloseListener(shardId, canDeleteShardContent, () -> eventListener.onStoreClosed(shardId)));
             if (useShadowEngine(primary, indexSettings)) {
-                indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService,
+                indexShard = new ShadowIndexShard(routing, this.indexSettings, path, store, indexCache, mapperService, similarityService,
                     indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
                     searchOperationListeners);
                 // no indexing listeners - shadow  engines don't index
             } else {
-                indexShard = new IndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService,
+                indexShard = new IndexShard(routing, this.indexSettings, path, store, indexCache, mapperService, similarityService,
                     indexFieldData, engineFactory, eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
                     searchOperationListeners, indexingOperationListeners);
             }
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
-            indexShard.updateRoutingEntry(routing, true);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
             success = true;
             return indexShard;

@@ -1410,7 +1410,8 @@ public class DateHistogramIT extends ESIntegTestCase {
      */
     public void testDSTEndTransition() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .setQuery(QueryBuilders.boolQuery())
+                // use a query that matches no docs, use extended bounds to get empty buckets
+                .setQuery(QueryBuilders.matchQuery("foo", "bar"))
                 .addAggregation(dateHistogram("histo").field("date").timeZone("Europe/Oslo")
                         .interval(DateHistogramInterval.HOUR).minDocCount(0).extendedBounds(
                                "2015-10-25T02:00:00.000+02:00", "2015-10-25T04:00:00.000+01:00"))

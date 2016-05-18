@@ -396,12 +396,14 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
                     builder.endObject();
                 }
                 builder.endArray();
+
                 builder.startObject("total");
                 builder.field(OPERATIONS, totalOperations);
                 builder.field(READ_OPERATIONS, totalReadOperations);
                 builder.field(WRITE_OPERATIONS, totalWriteOperations);
                 builder.field(READ_KILOBYTES, totalReadKilobytes);
                 builder.field(WRITE_KILOBYTES, totalWriteKilobytes);
+                builder.endObject();
             }
             return builder;
         }

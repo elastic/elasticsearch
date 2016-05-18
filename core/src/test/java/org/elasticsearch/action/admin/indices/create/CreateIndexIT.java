@@ -49,6 +49,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -276,5 +277,20 @@ public class CreateIndexIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate("test").setSettings(indexSettings()).get();
         internalCluster().fullRestart();
         ensureGreen("test");
+    }
+
+    public void testNoTypeOrTokenizerErrorMessage() throws Exception {
+        Settings.Builder stBldr = Settings.builder();
+        stBldr.putArray("analysis.analyzer.test_analyzer.filter", new String[] {"lowercase", "stop", "shingle"});
+        stBldr.putArray("analysis.analyzer.test_analyzer.char_filter", new String[] {"html_strip"}).build();
+
+        CreateIndexRequestBuilder b = prepareCreate("test", 1, stBldr);
+        try {
+            b.get();
+            fail("IllegalArgumentException should have been thrown");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), equalTo("analyzer [test_analyzer] must specify either an analyzer type, or a tokenizer"));
+        }
     }
 }

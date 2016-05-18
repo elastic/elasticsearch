@@ -77,7 +77,7 @@ public final class RestClient implements Closeable {
         this.connections = Collections.unmodifiableList(connections);
     }
 
-    public ElasticsearchResponse performRequest(String method, String endpoint, Map<String, Object> params,
+    public ElasticsearchResponse performRequest(String method, String endpoint, Map<String, String> params,
                                                 HttpEntity entity, Header... headers) throws IOException {
         URI uri = buildUri(endpoint, params);
         HttpRequestBase request = createHttpRequest(method, uri, entity);
@@ -252,11 +252,11 @@ public final class RestClient implements Closeable {
         }
     }
 
-    private static URI buildUri(String path, Map<String, Object> params) {
+    private static URI buildUri(String path, Map<String, String> params) {
         try {
             URIBuilder uriBuilder = new URIBuilder(path);
-            for (Map.Entry<String, Object> param : params.entrySet()) {
-                uriBuilder.addParameter(param.getKey(), param.getValue().toString());
+            for (Map.Entry<String, String> param : params.entrySet()) {
+                uriBuilder.addParameter(param.getKey(), param.getValue());
             }
             return uriBuilder.build();
         } catch(URISyntaxException e) {

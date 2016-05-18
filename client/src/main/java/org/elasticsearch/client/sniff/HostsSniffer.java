@@ -45,13 +45,13 @@ public class HostsSniffer {
     private static final Log logger = LogFactory.getLog(HostsSniffer.class);
 
     private final RestClient restClient;
-    private final Map<String, Object> sniffRequestParams;
+    private final Map<String, String> sniffRequestParams;
     private final String scheme;
     private final JsonFactory jsonFactory;
 
     public HostsSniffer(RestClient restClient, int sniffRequestTimeout, String scheme) {
         this.restClient = restClient;
-        this.sniffRequestParams = Collections.<String, Object>singletonMap("timeout", sniffRequestTimeout + "ms");
+        this.sniffRequestParams = Collections.<String, String>singletonMap("timeout", sniffRequestTimeout + "ms");
         this.scheme = scheme;
         this.jsonFactory = new JsonFactory();
     }

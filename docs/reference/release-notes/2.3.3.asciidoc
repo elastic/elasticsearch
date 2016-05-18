@@ -1,0 +1,52 @@
+[[release-notes-2.3.3]]
+== 2.3.3 Release Notes
+
+Also see <<breaking-changes-2.3>>.
+
+[[feature-2.3.3]]
+[float]
+=== New features
+
+Geo::
+* Add CONTAINS relation to geo_shape query {pull}14810[#14810] (issues: {issue}14713[#14713], {issue}17866[#17866])
+
+
+
+[[enhancement-2.3.3]]
+[float]
+=== Enhancements
+
+Core::
+* Kill thread local leak {pull}17921[#17921] (issues: {issue}283[#283], {issue}630[#630])
+
+REST::
+* CORS handling triggered whether User-Agent is a browser or not {pull}18283[#18283]
+
+
+
+[[bug-2.3.3]]
+[float]
+=== Bug fixes
+
+Core::
+* Don't try to compute completion stats on a reader after we already closed it {pull}18094[#18094]
+
+Highlighting::
+* Exclude all but string fields from highlighting if wildcards are used… {pull}18183[#18183] (issue: {issue}17537[#17537])
+
+Query DSL::
+* Fix NullPointerException in SimpleQueryParser when analyzing text produces a null query {pull}18243[#18243] (issue: {issue}18202[#18202])
+
+REST::
+* CORS should permit same origin requests {pull}18278[#18278] (issue: {issue}18256[#18256])
+* Allow CORS requests to work with HTTP compression enabled {pull}18101[#18101] (issues: {issue}18066[#18066], {issue}18089[#18089])
+
+
+
+[[upgrade-2.3.3]]
+[float]
+=== Upgrades
+
+Internal::
+* Update Jackson 2.6.2 -> 2.6.6 (latest and final 2.6 patch) {pull}18052[#18052]
+

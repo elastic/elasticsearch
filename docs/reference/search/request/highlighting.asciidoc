@@ -11,7 +11,7 @@ The following is an example of the search request body:
 GET /_search
 {
     "query" : {
-        "match_all": {}
+        "match": { "user": "kimchy" }
     },
     "highlight" : {
         "fields" : {
@@ -125,7 +125,7 @@ the index to be bigger):
     }
 }
 --------------------------------------------------
-    "match_all": {}
+
 ==== Force highlighter type
 
 The `type` field allows to force a specific highlighter type. This is useful
@@ -138,7 +138,7 @@ The following is an example that forces the use of the plain highlighter:
 GET /_search
 {
     "query" : {
-        "match_all": {}
+        "match": { "user": "kimchy" }
     },
     "highlight" : {
         "fields" : {
@@ -159,7 +159,7 @@ stored separately. Defaults to `false`.
 GET /_search
 {
     "query" : {
-        "match_all": {}
+        "match": { "user": "kimchy" }
     },
     "highlight" : {
         "fields" : {
@@ -182,7 +182,7 @@ for example:
 GET /_search
 {
     "query" : {
-        "match_all": {}
+        "match": { "user": "kimchy" }
     },
     "highlight" : {
         "pre_tags" : ["<tag1>"],
@@ -203,7 +203,7 @@ is ordered.
 GET /_search
 {
     "query" : {
-        "match_all": {}
+        "match": { "user": "kimchy" }
     },
     "highlight" : {
         "pre_tags" : ["<tag1>", "<tag2>"],
@@ -236,7 +236,7 @@ is an example of switching tag schemas:
 GET /_search
 {
     "query" : {
-        "match_all": {}
+        "match": { "user": "kimchy" }
     },
     "highlight" : {
         "tags_schema" : "styled",
@@ -267,7 +267,7 @@ For example:
 GET /_search
 {
     "query" : {
-        "match_all": {}
+        "match": { "user": "kimchy" }
     },
     "highlight" : {
         "fields" : {
@@ -289,7 +289,7 @@ to be sorted by score:
 GET /_search
 {
     "query" : {
-        "match_all": {}
+        "match": { "user": "kimchy" }
     },
     "highlight" : {
         "order" : "score",
@@ -312,7 +312,7 @@ is required. Note that `fragment_size` is ignored in this case.
 GET /_search
 {
     "query" : {
-        "match_all": {}
+        "match": { "user": "kimchy" }
     },
     "highlight" : {
         "fields" : {
@@ -341,7 +341,7 @@ greater than `0`.
 GET /_search
 {
     "query" : {
-        "match_all": {}
+        "match": { "user": "kimchy" }
     },
     "highlight" : {
         "fields" : {
@@ -445,7 +445,7 @@ at the field level.
 GET /_search
 {
     "query" : {
-        "match_all": {}
+        "match": { "user": "kimchy" }
     },
     "highlight" : {
         "number_of_fragments" : 3,
@@ -474,7 +474,7 @@ match will be highlighted.
 GET /_search
 {
     "query" : {
-        "match_all": {}
+        "match": { "user": "kimchy" }
     },
     "highlight" : {
         "require_field_match": false,

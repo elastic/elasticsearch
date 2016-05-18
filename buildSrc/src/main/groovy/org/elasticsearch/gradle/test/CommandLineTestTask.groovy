@@ -56,7 +56,7 @@ public class CommandLineTestTask extends DefaultTask {
         Configuration configuration = project.configurations.elasticsearchDistro
 
         // cleanup task
-        Task setup = project.tasks.create(name: ClusterFormationTasks.taskName(this, node, 'clean'), type: Delete) {
+        Task clean = project.tasks.create(name: ClusterFormationTasks.taskName(this, node, 'clean'), type: Delete) {
             delete node.homeDir
             delete node.cwd
             doLast {
@@ -65,7 +65,8 @@ public class CommandLineTestTask extends DefaultTask {
         }
 
         // prepares extraction and configuration setup so we can start the node
-        setup = ClusterFormationTasks.configureExtractTask(ClusterFormationTasks.taskName(this, node, 'extract'), project, setup, node, configuration)
+        Task setup = ClusterFormationTasks.configureExtractTask(ClusterFormationTasks.taskName(this, node, 'extract'), project, clean,
+                node, configuration)
         ClusterFormationTasks.configureDistributionDependency(project, clusterConfig.distribution, project.configurations.elasticsearchDistro,
                 VersionProperties.elasticsearch)
         setup = ClusterFormationTasks.configureWriteConfigTask(ClusterFormationTasks.taskName(this, node, 'configure'), project, setup,

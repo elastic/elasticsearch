@@ -34,7 +34,6 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
-import org.apache.http.util.EntityUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -115,20 +114,17 @@ public final class RestClient implements Closeable {
                 lastSeenException = addSuppressedException(lastSeenException, e);
                 continue;
             }
+            ElasticsearchResponse elasticsearchResponse = new ElasticsearchResponse(request.getRequestLine(),
+                    connection.getHost(), response);
             int statusCode = response.getStatusLine().getStatusCode();
             //TODO make ignore status code configurable. rest-spec and tests support that parameter (ignore_missing)
             if (statusCode < 300 || (request.getMethod().equals(HttpHead.METHOD_NAME) && statusCode == 404) ) {
                 RequestLogger.log(logger, "request succeeded", request, connection.getHost(), response);
                 onSuccess(connection);
-                return new ElasticsearchResponse(request.getRequestLine(), connection.getHost(), response);
+                return elasticsearchResponse;
             } else {
                 RequestLogger.log(logger, "request failed", request, connection.getHost(), response);
-                String responseBody = null;
-                if (response.getEntity() != null) {
-                    responseBody = EntityUtils.toString(response.getEntity());
-                }
-                ElasticsearchResponseException elasticsearchResponseException = new ElasticsearchResponseException(
-                        request.getRequestLine(), connection.getHost(), response.getStatusLine(), responseBody);
+                ElasticsearchResponseException elasticsearchResponseException = new ElasticsearchResponseException(elasticsearchResponse);
                 lastSeenException = addSuppressedException(lastSeenException, elasticsearchResponseException);
                 //clients don't retry on 500 because elasticsearch still misuses it instead of 400 in some places
                 if (statusCode == 502 || statusCode == 503 || statusCode == 504) {

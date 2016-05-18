@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.apache.http.HttpHost;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
+import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
 
@@ -30,17 +31,21 @@ import java.io.IOException;
  */
 public class ElasticsearchResponseException extends IOException {
 
-    private final HttpHost host;
-    private final RequestLine requestLine;
-    private final StatusLine statusLine;
+    private ElasticsearchResponse elasticsearchResponse;
     private final String responseBody;
 
-    public ElasticsearchResponseException(RequestLine requestLine, HttpHost host, StatusLine statusLine, String responseBody) {
-        super(buildMessage(requestLine, host, statusLine));
-        this.host = host;
-        this.requestLine = requestLine;
-        this.responseBody = responseBody;
-        this.statusLine = statusLine;
+    public ElasticsearchResponseException(ElasticsearchResponse elasticsearchResponse) throws IOException {
+        super(buildMessage(elasticsearchResponse.getRequestLine(), elasticsearchResponse.getHost(), elasticsearchResponse.getStatusLine()));
+        this.elasticsearchResponse = elasticsearchResponse;
+        try {
+            if (elasticsearchResponse.getEntity() == null) {
+                this.responseBody = null;
+            } else {
+                this.responseBody = EntityUtils.toString(elasticsearchResponse.getEntity());
+            }
+        } finally {
+            elasticsearchResponse.close();
+        }
     }
 
     private static String buildMessage(RequestLine requestLine, HttpHost host, StatusLine statusLine) {
@@ -48,23 +53,17 @@ public class ElasticsearchResponseException extends IOException {
     }
 
     /**
-     * Returns the {@link HttpHost} that returned the error
+     * Returns the {@link ElasticsearchResponse} that caused this exception to be thrown
      */
-    public HttpHost getHost() {
-        return host;
+    public ElasticsearchResponse getElasticsearchResponse() {
+        return elasticsearchResponse;
     }
 
     /**
-     * Returns the {@link RequestLine} that triggered the error
+     * Returns the response body as a string or null if there wasn't any.
+     * The body is eagerly consumed when an ElasticsearchResponseException gets created, and its corresponding ElasticsearchResponse
+     * gets closed straightaway so this method is the only way to get back the response body that was returned.
      */
-    public RequestLine getRequestLine() {
-        return requestLine;
-    }
-
-    public StatusLine getStatusLine() {
-        return statusLine;
-    }
-
     public String getResponseBody() {
         return responseBody;
     }

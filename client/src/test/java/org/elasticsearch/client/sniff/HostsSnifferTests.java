@@ -30,6 +30,7 @@ import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.client.ElasticsearchResponse;
 import org.elasticsearch.client.ElasticsearchResponseException;
 import org.elasticsearch.client.RestClient;
 import org.junit.After;
@@ -100,15 +101,17 @@ public class HostsSnifferTests extends LuceneTestCase {
                     assertEquals(sniffedHost, responseHostsIterator.next());
                 }
             } catch(ElasticsearchResponseException e) {
+                ElasticsearchResponse response = e.getElasticsearchResponse();
                 if (sniffResponse.isFailure) {
                     assertThat(e.getMessage(), containsString("GET http://localhost:" + server.getPort() +
                             "/_nodes/http?timeout=" + sniffRequestTimeout));
                     assertThat(e.getMessage(), containsString(Integer.toString(sniffResponse.nodesInfoResponseCode)));
-                    assertThat(e.getHost(), equalTo(httpHost));
-                    assertThat(e.getStatusLine().getStatusCode(), equalTo(sniffResponse.nodesInfoResponseCode));
-                    assertThat(e.getRequestLine().toString(), equalTo("GET /_nodes/http?timeout=" + sniffRequestTimeout + "ms HTTP/1.1"));
+                    assertThat(response.getHost(), equalTo(httpHost));
+                    assertThat(response.getStatusLine().getStatusCode(), equalTo(sniffResponse.nodesInfoResponseCode));
+                    assertThat(response.getRequestLine().toString(),
+                            equalTo("GET /_nodes/http?timeout=" + sniffRequestTimeout + "ms HTTP/1.1"));
                 } else {
-                    fail("sniffNodes should have succeeded: " + e.getStatusLine());
+                    fail("sniffNodes should have succeeded: " + response.getStatusLine());
                 }
             }
         }

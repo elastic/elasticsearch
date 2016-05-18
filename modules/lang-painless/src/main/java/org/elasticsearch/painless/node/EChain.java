@@ -266,13 +266,13 @@ public final class EChain extends AExpression {
                 if (cat) {
                     adapter.writeDup(link.size, 1);
                     link.load(settings, definition, adapter);
-                    adapter.writeAppendStrings(link.after.sort);
+                    adapter.writeAppendStrings(link.after);
 
                     expression.write(settings, definition, adapter);
 
                     if (!(expression instanceof EBinary) ||
                         ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
-                        adapter.writeAppendStrings(expression.actual.sort);
+                        adapter.writeAppendStrings(expression.actual);
                     }
 
                     adapter.writeToStrings();

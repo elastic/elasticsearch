@@ -2,7 +2,6 @@ package org.elasticsearch.index.analysis.phonetic;
 
 import org.apache.commons.codec.EncoderException;
 import org.hamcrest.MatcherAssert;
-import org.junit.Before;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -15,6 +14,20 @@ public class FrenchPhoneticTest {
         FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
         String encode = frenchPhonetic.encode("thermometre");
         MatcherAssert.assertThat(encode, equalTo("T2RMOM2TR"));
+    }
+
+    @Test
+    public void testEncodeNumber() throws EncoderException {
+        FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
+        String encode = frenchPhonetic.encode("5");
+        MatcherAssert.assertThat(encode, equalTo(""));
+    }
+
+    @Test
+    public void testEncodeWithFinalX() throws EncoderException {
+        FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
+        String encode = frenchPhonetic.encode("CEDEX");
+        MatcherAssert.assertThat(encode, equalTo("S2D2X"));
     }
 
     @Test
@@ -78,6 +91,20 @@ public class FrenchPhoneticTest {
         FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
         String encode = frenchPhonetic.encode("haricots");
         MatcherAssert.assertThat(encode, equalTo("ARIKO"));
+    }
+
+    @Test
+    public void testEncodeWithMutedEndingX() throws EncoderException {
+        FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
+        String encode = frenchPhonetic.encode("hiboux");
+        MatcherAssert.assertThat(encode, equalTo("IBOU"));
+    }
+
+    @Test
+    public void testEncodeWithMutedEndingTS() throws EncoderException {
+        FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
+        String encode = frenchPhonetic.encode("couts");
+        MatcherAssert.assertThat(encode, equalTo("KOU"));
     }
 
     @Test
@@ -191,6 +218,34 @@ public class FrenchPhoneticTest {
         FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
         String encode = frenchPhonetic.encode("balai");
         MatcherAssert.assertThat(encode, equalTo("BAL2"));
+    }
+
+    @Test
+    public void testEncodeWithCEnding() throws EncoderException {
+        FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
+        String encode = frenchPhonetic.encode("FRANC");
+        MatcherAssert.assertThat(encode, equalTo("FR3"));
+    }
+
+    @Test
+    public void testEncodeWithCKEnding() throws EncoderException {
+        FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
+        String encode = frenchPhonetic.encode("FRANCK");
+        MatcherAssert.assertThat(encode, equalTo("FR3K"));
+    }
+
+    @Test
+    public void testEncodeWithKEnding() throws EncoderException {
+        FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
+        String encode = frenchPhonetic.encode("FRANK");
+        MatcherAssert.assertThat(encode, equalTo("FR3K"));
+    }
+
+    @Test
+    public void testEncodeWithFDSQFSFSDFEnding() throws EncoderException {
+        FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
+        String encode = frenchPhonetic.encode("BRAISE");
+        MatcherAssert.assertThat(encode, equalTo("BR2Z"));
     }
 
     @Test
@@ -434,62 +489,62 @@ public class FrenchPhoneticTest {
     @Test
     public void testSubstringStartIndexGreaterThanLengthExpectedEmptyString() throws Exception {
         FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
-        String result = frenchPhonetic.substring("E", true, 2, 4);
+        String result = frenchPhonetic.substring("E", 2, 4);
         MatcherAssert.assertThat(result, equalTo(""));
     }
     @Test
     public void testSubstringStartIndexEqualsToLengthExpectedEmptyString() throws Exception {
         FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
-        String result = frenchPhonetic.substring("E", true, 1, 4);
+        String result = frenchPhonetic.substring("E", 1, 4);
         MatcherAssert.assertThat(result, equalTo(""));
     }
 
     @Test
     public void testSubstringStartIndexGreaterThanLengthExpectedNull() throws Exception {
         FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
-        String result = frenchPhonetic.substring("E", false, 2, 4);
+        String result = frenchPhonetic.substring("E", 2, 4);
         MatcherAssert.assertThat(result, isEmptyOrNullString());
     }
 
     @Test
     public void testSubstringStartIndexEqualsToLengthExpectedNull() throws Exception {
         FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
-        String result = frenchPhonetic.substring("E", false, 1, 4);
+        String result = frenchPhonetic.substring("E", 1, 4);
         MatcherAssert.assertThat(result, isEmptyOrNullString());
     }
 
     @Test
     public void testSubstringEndIndexEqualsToTailLength() throws Exception {
         FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
-        String result = frenchPhonetic.substring("E", false, 1, 1);
+        String result = frenchPhonetic.substring("E", 1, 1);
         MatcherAssert.assertThat(result, isEmptyOrNullString());
     }
 
     @Test
     public void testSubstringEndIndexGreaterToTailLength() throws Exception {
         FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
-        String result = frenchPhonetic.substring("EE", false, 0, 2);
+        String result = frenchPhonetic.substring("EE", 0, 2);
         MatcherAssert.assertThat(result, equalTo("EE"));
     }
 
     @Test
     public void testSubstringEndIndexEqualsToStartIndex() throws Exception {
         FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
-        String result = frenchPhonetic.substring("ERT", false, 2, 2);
+        String result = frenchPhonetic.substring("ERT", 2, 2);
         MatcherAssert.assertThat(result, equalTo(""));
     }
 
     @Test
     public void testSubstringEndIndexLesserThanLength() throws Exception {
         FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
-        String result = frenchPhonetic.substring("ERT", false, 1, 2);
+        String result = frenchPhonetic.substring("ERT", 1, 2);
         MatcherAssert.assertThat(result, equalTo("R"));
     }
 
     @Test
     public void testSubstringEndIndexEqualsToLength() throws Exception {
         FrenchPhonetic frenchPhonetic = new FrenchPhonetic();
-        String result = frenchPhonetic.substring("ERT", false, 1, 3);
+        String result = frenchPhonetic.substring("ERT", 1, 3);
         MatcherAssert.assertThat(result, equalTo("RT"));
     }
     @Test

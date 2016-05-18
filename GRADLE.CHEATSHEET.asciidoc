@@ -1,14 +1,36 @@
+To compile `x-plugins`, you must clone the Elasticsearch repository into the same parent directory. For example:
+
+[source,bash]
+----
+$ mkdir elastic
+$ cd elastic
+$ git clone git@github.com:elastic/elasticsearch.git
+$ git clone git@github.com:elastic/x-plugins.git
+----
+
+Once cloned, any command should be issused from the **elasticsearch** directory.
+
+[source,bash]
+----
+$ cd elasticsearch
+$ gradle clean test check <1>
+----
+<1> This will run the `clean` task, `test` task, and then the `check` task on _every_ project that has it. However, `check` requires that `test` be run, so it won't _rerun_ `test`. `clean` is unnecessary here, but people often use it anyway.
+
 As a quick helper, below are the equivalent commands from `maven` to `gradle`. You can also run `gradle tasks` to see all tasks that are available to run.
 
 [cols="3*", options="header"]
 |====
 | Maven                       | Gradle      | Description
-| `clean`                     | `clean`     | Delete anything that exists already.
+| `clean`                     | `clean`     | Delete anything that exists already. You do _not_ generally need to run `clean` with Gradle for any task that _Gradle_ manages the inputs/outputs (in other words, it knows when it needs to rebuild versus reuse).
 | `test`                      | `test`      | Run all unit tests.
-| `verify`                    | `check`     | Run all unit tests, plus extra checks (e.g., line length)
-| `verify -Dskip.unit.tests`  | `integTest` | 
+| `verify`                    | `check`     | Run all tests, plus extra checks (e.g., line length).
+| `verify -Dskip.unit.tests`  | `integTest` | Run only integration tests.
 | `package -DskipTests`       | `assemble`  | Output is in `${project.projectDir}/build/distributions`
-| `install -DskipTests`       | `install`   | 
+| `install -DskipTests`       | `install`   | Build jars and place them into the local _Maven_ repository (yes, even with Gradle).
++
+This should be unnecessary with the unified build!
+|====
 
 With Gradle, you can easily target specific `projects` to run commands against, and it will build all necessary dependencies to make it happen. For example, if you make a change to a specific test in the `x-pack` subproject, then you can specifically invoke its `test` task.
 

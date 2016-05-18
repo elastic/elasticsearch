@@ -19,12 +19,23 @@
 
 package org.elasticsearch.monitor.fs;
 
+import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class FsProbe extends AbstractComponent {
 
@@ -35,16 +46,80 @@ public class FsProbe extends AbstractComponent {
         this.nodeEnv = nodeEnv;
     }
 
-    public FsInfo stats() throws IOException {
+    public FsInfo stats(FsInfo previous) throws IOException {
         if (!nodeEnv.hasNodeFile()) {
-            return new FsInfo(System.currentTimeMillis(), new FsInfo.Path[0]);
+            return new FsInfo(System.currentTimeMillis(), null, new FsInfo.Path[0]);
         }
         NodePath[] dataLocations = nodeEnv.nodePaths();
         FsInfo.Path[] paths = new FsInfo.Path[dataLocations.length];
         for (int i = 0; i < dataLocations.length; i++) {
             paths[i] = getFSInfo(dataLocations[i]);
         }
-        return new FsInfo(System.currentTimeMillis(), paths);
+        FsInfo.IoStats ioStats = null;
+        if (Constants.LINUX) {
+            Set<Tuple<Integer, Integer>> devicesNumbers = new HashSet<>();
+            for (int i = 0; i < dataLocations.length; i++) {
+                if (dataLocations[i].majorDeviceNumber != -1 && dataLocations[i].minorDeviceNumber != -1) {
+                    devicesNumbers.add(Tuple.tuple(dataLocations[i].majorDeviceNumber, dataLocations[i].minorDeviceNumber));
+                }
+            }
+            ioStats = ioStats(devicesNumbers, previous);
+        }
+        return new FsInfo(System.currentTimeMillis(), ioStats, paths);
+    }
+
+    final FsInfo.IoStats ioStats(final Set<Tuple<Integer, Integer>> devicesNumbers, final FsInfo previous) {
+        try {
+            final Map<Tuple<Integer, Integer>, FsInfo.DeviceStats> deviceMap = new HashMap<>();
+            if (previous != null && previous.getIoStats() != null && previous.getIoStats().devicesStats != null) {
+                for (int i = 0; i < previous.getIoStats().devicesStats.length; i++) {
+                    FsInfo.DeviceStats deviceStats = previous.getIoStats().devicesStats[i];
+                    deviceMap.put(Tuple.tuple(deviceStats.majorDeviceNumber, deviceStats.minorDeviceNumber), deviceStats);
+                }
+            }
+
+            List<FsInfo.DeviceStats> devicesStats = new ArrayList<>();
+
+            List<String> lines = readProcDiskStats();
+            if (!lines.isEmpty()) {
+                for (String line : lines) {
+                    String fields[] = line.trim().split("\\s+");
+                    final int majorDeviceNumber = Integer.parseInt(fields[0]);
+                    final int minorDeviceNumber = Integer.parseInt(fields[1]);
+                    if (!devicesNumbers.contains(Tuple.tuple(majorDeviceNumber, minorDeviceNumber))) {
+                        continue;
+                    }
+                    final String deviceName = fields[2];
+                    final long readsCompleted = Long.parseLong(fields[3]);
+                    final long sectorsRead = Long.parseLong(fields[5]);
+                    final long writesCompleted = Long.parseLong(fields[7]);
+                    final long sectorsWritten = Long.parseLong(fields[9]);
+                    final FsInfo.DeviceStats deviceStats =
+                            new FsInfo.DeviceStats(
+                                    majorDeviceNumber,
+                                    minorDeviceNumber,
+                                    deviceName,
+                                    readsCompleted,
+                                    sectorsRead,
+                                    writesCompleted,
+                                    sectorsWritten,
+                                    deviceMap.get(Tuple.tuple(majorDeviceNumber, minorDeviceNumber)));
+                    devicesStats.add(deviceStats);
+                }
+            }
+
+            return new FsInfo.IoStats(devicesStats.toArray(new FsInfo.DeviceStats[devicesStats.size()]));
+        } catch (Exception e) {
+            // do not fail Elasticsearch if something unexpected
+            // happens here
+            logger.debug("unexpected exception processing /proc/diskstats for devices {}", e, devicesNumbers);
+            return null;
+        }
+    }
+
+    @SuppressForbidden(reason = "read /proc/diskstats")
+    List<String> readProcDiskStats() throws IOException {
+        return Files.readAllLines(PathUtils.get("/proc/diskstats"));
     }
 
     public static FsInfo.Path getFSInfo(NodePath nodePath) throws IOException {
@@ -62,4 +137,5 @@ public class FsProbe extends AbstractComponent {
         fsPath.spins = nodePath.spins;
         return fsPath;
     }
+
 }

@@ -6,9 +6,10 @@ evaluation>> (based on different fields) for each hit, for example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "query" : {
-        ...
+        "match_all": {}
     },
     "script_fields" : {
         "test1" : {
@@ -25,6 +26,8 @@ evaluation>> (based on different fields) for each hit, for example:
     }
 }
 --------------------------------------------------
+// CONSOLE
+
 
 Script fields can work on fields that are not stored (`my_field_name` in
 the above case), and allow to return custom values to be returned (the
@@ -36,9 +39,10 @@ type). Here is an example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
     {
         "query" : {
-            ...
+            "match_all": {}
         },
         "script_fields" : {
             "test1" : {
@@ -47,6 +51,7 @@ type). Here is an example:
         }
     }
 --------------------------------------------------
+// CONSOLE
 
 Note the `_source` keyword here to navigate the json-like model.
 

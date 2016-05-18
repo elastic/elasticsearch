@@ -78,6 +78,19 @@ public class ElasticsearchResponse implements Closeable {
     }
 
     /**
+     * Returns the value of the first header with a specified name of this message.
+     * If there is more than one matching header in the message the first element is returned.
+     * If there is no matching header in the message <code>null</code> is returned.
+     */
+    public String getFirstHeader(String name) {
+        Header header = response.getFirstHeader(name);
+        if (header == null) {
+            return null;
+        }
+        return header.getValue();
+    }
+
+    /**
      * Returns the response body available, null otherwise
      * @see HttpEntity
      */

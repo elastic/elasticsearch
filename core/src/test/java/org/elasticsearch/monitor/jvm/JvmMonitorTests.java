@@ -279,6 +279,8 @@ public class JvmMonitorTests extends ESTestCase {
                 Math.max(youngCollectionTime + youngCollectionTimeIncrement, oldCollectionTime + oldCollectionTimeIncrement),
                 Integer.MAX_VALUE);
 
+        final AtomicBoolean invoked = new AtomicBoolean();
+
         final JvmGcMonitorService.JvmMonitor monitor = new JvmGcMonitorService.JvmMonitor(Collections.emptyMap(), IGNORE) {
 
             @Override
@@ -295,6 +297,7 @@ public class JvmMonitorTests extends ESTestCase {
 
             @Override
             void checkGcOverhead(long current, long elapsed, long seq) {
+                invoked.set(true);
                 assertThat(current, equalTo((long)(youngCollectionTimeIncrement + oldCollectionTimeIncrement)));
                 assertThat(elapsed, equalTo(expectedElapsed));
             }
@@ -306,7 +309,7 @@ public class JvmMonitorTests extends ESTestCase {
         };
 
         monitor.monitorGcOverhead(currentJvmStats, expectedElapsed);
-
+        assertTrue(invoked.get());
     }
 
     private JvmStats.GarbageCollector collector(final String name, final int collectionCount, final int collectionTime) {

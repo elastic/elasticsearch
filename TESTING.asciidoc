@@ -325,7 +325,7 @@ Elasticsearch is pulled from the maven reop. If you change something in core and
 re-running the tests:
 
 ---------------------------------------------------------------------------
-mvn package -DskipTests -pl org.elasticsearch:elasticsearch
+mvn install -DskipTests -pl org.elasticsearch:elasticsearch
 ---------------------------------------------------------------------------
 
 == Testing scripts

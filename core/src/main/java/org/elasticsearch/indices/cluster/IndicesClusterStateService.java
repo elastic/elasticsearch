@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -40,6 +39,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Callback;
@@ -57,7 +57,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
@@ -512,21 +511,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 assert currentRoutingEntry.isSameAllocation(shardRouting) :
                     "local shard has a different allocation id but wasn't cleaning by applyDeletedShards. "
                         + "cluster state: " + shardRouting + " local: " + currentRoutingEntry;
-                if (isPeerRecovery(shardRouting)) {
-                    final DiscoveryNode sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting);
-                    // check if there is an existing recovery going, and if so, and the source node is not the same, cancel the recovery to restart it
-                    if (recoveryTargetService.cancelRecoveriesForShard(indexShard.shardId(), "recovery source node changed", status -> !status.sourceNode().equals(sourceNode))) {
-                        logger.debug("[{}][{}] removing shard (recovery source changed), current [{}], global [{}])", shardRouting.index(), shardRouting.id(), currentRoutingEntry, shardRouting);
-                        // closing the shard will also cancel any ongoing recovery.
-                        indexService.removeShard(shardRouting.id(), "removing shard (recovery source node changed)");
-                        shardHasBeenRemoved = true;
+                if (shardRouting.isPeerRecovery()) {
+                    RecoveryState recoveryState = indexShard.recoveryState();
+                    final DiscoveryNode sourceNode = findSourceNodeForPeerRecovery(logger, routingTable, nodes, shardRouting);
+                    if (recoveryState.getSourceNode().equals(sourceNode) == false) {
+                        if (recoveryTargetService.cancelRecoveriesForShard(currentRoutingEntry.shardId(), "recovery source node changed")) {
+                            // getting here means that the shard was still recovering
+                            logger.debug("[{}][{}] removing shard (recovery source changed), current [{}], global [{}])", shardRouting.index(), shardRouting.id(), currentRoutingEntry, shardRouting);
+                            indexService.removeShard(shardRouting.id(), "removing shard (recovery source node changed)");
+                            shardHasBeenRemoved = true;
+                        }
                     }
                 }
 
                 if (shardHasBeenRemoved == false) {
-                    // shadow replicas do not support primary promotion. The master would reinitialize the shard, giving it a new allocation, meaning we should be there.
-                    assert (shardRouting.primary() && currentRoutingEntry.primary() == false) == false || indexShard.allowsPrimaryPromotion() :
-                        "shard for doesn't support primary promotion but master promoted it with changing allocation. New routing " + shardRouting + ", current routing " + currentRoutingEntry;
                     try {
                         indexShard.updateRoutingEntry(shardRouting, event.state().blocks().disableStatePersistence() == false);
                     } catch (Throwable e) {
@@ -536,12 +534,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
 
             if (shardRouting.initializing()) {
-                applyInitializingShard(event.state(), indexMetaData, indexService, shardRouting);
+                applyInitializingShard(event.state(), indexService, shardRouting);
             }
         }
     }
 
-    private void applyInitializingShard(final ClusterState state, final IndexMetaData indexMetaData, IndexService indexService, final ShardRouting shardRouting) {
+    private void applyInitializingShard(final ClusterState state, IndexService indexService, final ShardRouting shardRouting) {
         final RoutingTable routingTable = state.routingTable();
         final DiscoveryNodes nodes = state.getNodes();
         final int shardId = shardRouting.id();
@@ -572,8 +570,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
         // if we're in peer recovery, try to find out the source node now so in case it fails, we will not create the index shard
         DiscoveryNode sourceNode = null;
-        if (isPeerRecovery(shardRouting)) {
-            sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting);
+        if (shardRouting.isPeerRecovery()) {
+            sourceNode = findSourceNodeForPeerRecovery(logger, routingTable, nodes, shardRouting);
             if (sourceNode == null) {
                 logger.trace("ignoring initializing shard {} - no source node can be found.", shardRouting.shardId());
                 return;
@@ -612,93 +610,27 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             return;
         }
 
-        final RestoreSource restoreSource = shardRouting.restoreSource();
-
-        if (isPeerRecovery(shardRouting)) {
-            try {
-
-                assert sourceNode != null : "peer recovery started but sourceNode is null";
-
-                // we don't mark this one as relocated at the end.
-                // For primaries: requests in any case are routed to both when its relocating and that way we handle
-                //    the edge case where its mark as relocated, and we might need to roll it back...
-                // For replicas: we are recovering a backup from a primary
-                RecoveryState.Type type = shardRouting.primary() ? RecoveryState.Type.PRIMARY_RELOCATION : RecoveryState.Type.REPLICA;
-                RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), shardRouting.primary(), type, sourceNode, nodes.getLocalNode());
-                indexShard.markAsRecovering("from " + sourceNode, recoveryState);
-                recoveryTargetService.startRecovery(indexShard, type, sourceNode, new PeerRecoveryListener(shardRouting, indexService, indexMetaData));
-            } catch (Throwable e) {
-                indexShard.failShard("corrupted preexisting index", e);
-                handleRecoveryFailure(indexService, shardRouting, true, e);
-            }
-        } else if (restoreSource == null) {
-            assert indexShard.routingEntry().equals(shardRouting); // should have already be done before
-            // recover from filesystem store
-            final RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), shardRouting.primary(),
-                RecoveryState.Type.STORE,
-                nodes.getLocalNode(), nodes.getLocalNode());
-            indexShard.markAsRecovering("from store", recoveryState); // mark the shard as recovering on the cluster state thread
-            threadPool.generic().execute(() -> {
-                try {
-                    if (indexShard.recoverFromStore(nodes.getLocalNode())) {
-                        shardStateAction.shardStarted(shardRouting, "after recovery from store", SHARD_STATE_ACTION_LISTENER);
-                    }
-                } catch (Throwable t) {
-                    handleRecoveryFailure(indexService, shardRouting, true, t);
-                }
-
-            });
-        } else {
-            // recover from a restore
-            final RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), shardRouting.primary(),
-                RecoveryState.Type.SNAPSHOT, shardRouting.restoreSource(), nodes.getLocalNode());
-            indexShard.markAsRecovering("from snapshot", recoveryState); // mark the shard as recovering on the cluster state thread
-            threadPool.generic().execute(() -> {
-                final ShardId sId = indexShard.shardId();
-                try {
-                    final IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(restoreSource.snapshotId().getRepository());
-                    if (indexShard.restoreFromRepository(indexShardRepository, nodes.getLocalNode())) {
-                        restoreService.indexShardRestoreCompleted(restoreSource.snapshotId(), sId);
-                        shardStateAction.shardStarted(shardRouting, "after recovery from repository", SHARD_STATE_ACTION_LISTENER);
-                    }
-                } catch (Throwable first) {
-                    try {
-                        if (Lucene.isCorruptionException(first)) {
-                            restoreService.failRestore(restoreSource.snapshotId(), sId);
-                        }
-                    } catch (Throwable second) {
-                        first.addSuppressed(second);
-                    } finally {
-                        handleRecoveryFailure(indexService, shardRouting, true, first);
-                    }
-                }
-            });
-        }
+        indexShard.startRecovery(nodes.getLocalNode(), sourceNode, recoveryTargetService,
+            new RecoveryListener(shardRouting, indexService), repositoriesService);
     }
 
     /**
      * Finds the routing source node for peer recovery, return null if its not found. Note, this method expects the shard
-     * routing to *require* peer recovery, use {@link #isPeerRecovery(org.elasticsearch.cluster.routing.ShardRouting)} to
+     * routing to *require* peer recovery, use {@link ShardRouting#isPeerRecovery()} to
      * check if its needed or not.
      */
-    private DiscoveryNode findSourceNodeForPeerRecovery(RoutingTable routingTable, DiscoveryNodes nodes, ShardRouting shardRouting) {
+    private static DiscoveryNode findSourceNodeForPeerRecovery(ESLogger logger, RoutingTable routingTable, DiscoveryNodes nodes, ShardRouting shardRouting) {
         DiscoveryNode sourceNode = null;
         if (!shardRouting.primary()) {
-            IndexShardRoutingTable shardRoutingTable = routingTable.index(shardRouting.index()).shard(shardRouting.id());
-            for (ShardRouting entry : shardRoutingTable) {
-                if (entry.primary() && entry.active()) {
-                    // only recover from started primary, if we can't find one, we will do it next round
-                    sourceNode = nodes.get(entry.currentNodeId());
-                    if (sourceNode == null) {
-                        logger.trace("can't find replica source node because primary shard {} is assigned to an unknown node.", entry);
-                        return null;
-                    }
-                    break;
+            ShardRouting primary = routingTable.shardRoutingTable(shardRouting.shardId()).primaryShard();
+            // only recover from started primary, if we can't find one, we will do it next round
+            if (primary.active()) {
+                sourceNode = nodes.get(primary.currentNodeId());
+                if (sourceNode == null) {
+                    logger.trace("can't find replica source node because primary shard {} is assigned to an unknown node.", primary);
                 }
-            }
-
-            if (sourceNode == null) {
-                logger.trace("can't find replica source node for {} because a primary shard can not be found.", shardRouting.shardId());
+            } else {
+                logger.trace("can't find replica source node because primary shard {} is not active.", primary);
             }
         } else if (shardRouting.relocatingNodeId() != null) {
             sourceNode = nodes.get(shardRouting.relocatingNodeId());
@@ -711,30 +643,49 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         return sourceNode;
     }
 
-    private boolean isPeerRecovery(ShardRouting shardRouting) {
-        return !shardRouting.primary() || shardRouting.relocatingNodeId() != null;
-    }
-
-    private class PeerRecoveryListener implements RecoveryTargetService.RecoveryListener {
+    private class RecoveryListener implements RecoveryTargetService.RecoveryListener {
 
         private final ShardRouting shardRouting;
         private final IndexService indexService;
-        private final IndexMetaData indexMetaData;
 
-        private PeerRecoveryListener(ShardRouting shardRouting, IndexService indexService, IndexMetaData indexMetaData) {
+        private RecoveryListener(ShardRouting shardRouting, IndexService indexService) {
             this.shardRouting = shardRouting;
             this.indexService = indexService;
-            this.indexMetaData = indexMetaData;
         }
 
         @Override
         public void onRecoveryDone(RecoveryState state) {
-            shardStateAction.shardStarted(shardRouting, "after recovery (replica) from node [" + state.getSourceNode() + "]", SHARD_STATE_ACTION_LISTENER);
+            if (state.getType() == RecoveryState.Type.SNAPSHOT) {
+                restoreService.indexShardRestoreCompleted(state.getRestoreSource().snapshotId(), shardRouting.shardId());
+            }
+            shardStateAction.shardStarted(shardRouting, message(state), SHARD_STATE_ACTION_LISTENER);
+        }
+
+        private String message(RecoveryState state) {
+            switch (state.getType()) {
+                case SNAPSHOT: return "after recovery from repository";
+                case STORE: return "after recovery from store";
+                case PRIMARY_RELOCATION: return "after recovery (primary relocation) from node [" + state.getSourceNode() + "]";
+                case REPLICA: return "after recovery (replica) from node [" + state.getSourceNode() + "]";
+                default: throw new IllegalArgumentException(state.getType().name());
+            }
         }
 
         @Override
         public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-            handleRecoveryFailure(indexService, shardRouting, sendShardFailure, e);
+            if (state.getType() == RecoveryState.Type.SNAPSHOT) {
+                try {
+                    if (Lucene.isCorruptionException(e.getCause())) {
+                        restoreService.failRestore(state.getRestoreSource().snapshotId(), shardRouting.shardId());
+                    }
+                } catch (Throwable inner) {
+                    e.addSuppressed(inner);
+                } finally {
+                    handleRecoveryFailure(indexService, shardRouting, sendShardFailure, e);
+                }
+            } else {
+                handleRecoveryFailure(indexService, shardRouting, sendShardFailure, e);
+            }
         }
     }
 

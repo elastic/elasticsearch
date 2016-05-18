@@ -57,7 +57,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
                                             IndicesRequestCache indicesQueryCache, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClearIndicesCacheAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                ClearIndicesCacheRequest.class, ThreadPool.Names.MANAGEMENT);
+                ClearIndicesCacheRequest.class, ThreadPool.Names.MANAGEMENT, false);
         this.indicesService = indicesService;
         this.indicesRequestCache = indicesQueryCache;
     }

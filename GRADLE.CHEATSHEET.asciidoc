@@ -25,7 +25,7 @@ If this command were run in a different order, then it would still follow the sa
 ----
 $ gradle check test clean <1>
 ----
-<1> It would run every task that `check` requires (e.g., `test` and `integTest`), skips `test` because it has already been run (indirectly by `check`), and then finally it would _wastefully_ delete every project output.
+<1> It would run every task that `check` requires (e.g., `test` and `integTest`), skip `test` because it has already been run (indirectly by `check`), and then finally it would _wastefully_ delete every project output.
 
 As a quick helper, below are the equivalent commands from `maven` to `gradle`. You can also run `gradle tasks` to see all tasks that are available to run.
 
@@ -38,7 +38,7 @@ As a quick helper, below are the equivalent commands from `maven` to `gradle`. Y
 | `verify -Dskip.unit.tests`  | `integTest` | Run only integration tests.
 | `package -DskipTests`       | `assemble`  | Output is in `${project.projectDir}/build/distributions`
 | `install -DskipTests`       | `install`   | Build jars and place them into the local _Maven_ repository (yes, even with Gradle).
-+
+
 This should be unnecessary with the unified build!
 |====
 

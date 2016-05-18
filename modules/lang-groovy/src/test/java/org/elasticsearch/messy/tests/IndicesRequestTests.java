@@ -390,6 +390,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18453")
     public void testForceMerge() {
         String mergeShardAction = ForceMergeAction.NAME + "[n]";
         interceptTransportActions(mergeShardAction);
@@ -415,6 +416,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18453")
     public void testClearCache() {
         String clearCacheAction = ClearIndicesCacheAction.NAME + "[n]";
         interceptTransportActions(clearCacheAction);
@@ -427,6 +429,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18453")
     public void testRecovery() {
         String recoveryAction = RecoveryAction.NAME + "[n]";
         interceptTransportActions(recoveryAction);
@@ -439,6 +442,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18453")
     public void testSegments() {
         String segmentsAction = IndicesSegmentsAction.NAME + "[n]";
         interceptTransportActions(segmentsAction);
@@ -451,6 +455,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18453")
     public void testIndicesStats() {
         String indicesStats = IndicesStatsAction.NAME + "[n]";
         interceptTransportActions(indicesStats);

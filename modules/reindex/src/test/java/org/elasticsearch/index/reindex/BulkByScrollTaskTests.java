@@ -127,25 +127,28 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     public void testStatusHatesNegatives() {
-        expectThrows(IllegalArgumentException.class, status(-1, 0, 0, 0, 0, 0, 0, 0));
-        expectThrows(IllegalArgumentException.class, status(0, -1, 0, 0, 0, 0, 0, 0));
-        expectThrows(IllegalArgumentException.class, status(0, 0, -1, 0, 0, 0, 0, 0));
-        expectThrows(IllegalArgumentException.class, status(0, 0, 0, -1, 0, 0, 0, 0));
-        expectThrows(IllegalArgumentException.class, status(0, 0, 0, 0, -1, 0, 0, 0));
-        expectThrows(IllegalArgumentException.class, status(0, 0, 0, 0, 0, -1, 0, 0));
-        expectThrows(IllegalArgumentException.class, status(0, 0, 0, 0, 0, 0, -1, 0));
-        expectThrows(IllegalArgumentException.class, status(0, 0, 0, 0, 0, 0, 0, -1));
+        checkStatusNegatives(-1, 0, 0, 0, 0, 0, 0, 0, 0, "total");
+        checkStatusNegatives(0, -1, 0, 0, 0, 0, 0, 0, 0, "updated");
+        checkStatusNegatives(0, 0, -1, 0, 0, 0, 0, 0, 0, "created");
+        checkStatusNegatives(0, 0, 0, -1, 0, 0, 0, 0, 0, "deleted");
+        checkStatusNegatives(0, 0, 0, 0, -1, 0, 0, 0, 0, "batches");
+        checkStatusNegatives(0, 0, 0, 0, 0, -1, 0, 0, 0, "versionConflicts");
+        checkStatusNegatives(0, 0, 0, 0, 0, 0, -1, 0, 0, "noops");
+        checkStatusNegatives(0, 0, 0, 0, 0, 0, 0, -1, 0, "bulkRetries");
+        checkStatusNegatives(0, 0, 0, 0, 0, 0, 0, 0, -1, "searchRetries");
     }
 
     /**
      * Build a task status with only some values. Used for testing negative values.
      */
-    private ThrowingRunnable status(long total, long updated, long created, long deleted, int batches, long versionConflicts,
-            long noops, long retries) {
+    private void checkStatusNegatives(long total, long updated, long created, long deleted, int batches, long versionConflicts,
+            long noops, long bulkRetries, long searchRetries, String fieldName) {
         TimeValue throttle = parseTimeValue(randomPositiveTimeValue(), "test");
         TimeValue throttledUntil = parseTimeValue(randomPositiveTimeValue(), "test");
 
-        return () -> new BulkByScrollTask.Status(-1, 0, 0, 0, 0, 0, 0, 0, throttle, 0f, null, throttledUntil);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new BulkByScrollTask.Status(total, updated, created,
+                deleted, batches, versionConflicts, noops, bulkRetries, searchRetries, throttle, 0f, null, throttledUntil));
+        assertEquals(e.getMessage(), fieldName + " must be greater than 0 but was [-1]");
     }
 
     /**

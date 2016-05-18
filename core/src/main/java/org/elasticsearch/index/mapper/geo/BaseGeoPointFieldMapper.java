@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.apache.lucene.util.LegacyNumericUtils;
 import org.elasticsearch.Version;
@@ -47,6 +48,8 @@ import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.core.LegacyNumberFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
@@ -365,6 +368,11 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                     + "] does not support custom time zones");
             }
             return DocValueFormat.GEOHASH;
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead: [" + name() + "]");
         }
     }
 

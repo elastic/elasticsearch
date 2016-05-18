@@ -44,6 +44,7 @@
  * {@link org.elasticsearch.painless.node.ENull} - Represents a null constant.
  * {@link org.elasticsearch.painless.node.ENumeric} - Respresents a non-decimal numeric constant.
  * {@link org.elasticsearch.painless.node.EUnary} - Represents a unary math expression.
+ * {@link org.elasticsearch.painless.node.IDefLink} - A marker interface for all LDef* (link) nodes.
  * {@link org.elasticsearch.painless.node.LArrayLength} - Represents an array length field load.
  * {@link org.elasticsearch.painless.node.LBrace} - Represents an array load/store or defers to possible shortcuts.
  * {@link org.elasticsearch.painless.node.LCall} - Represents a method call or deferes to a def call.

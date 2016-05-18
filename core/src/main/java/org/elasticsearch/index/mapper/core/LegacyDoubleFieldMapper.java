@@ -36,7 +36,6 @@ import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -168,16 +167,6 @@ public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
                 lowerTerm == null ? null : parseDoubleValue(lowerTerm),
                 upperTerm == null ? null : parseDoubleValue(upperTerm),
                 includeLower, includeUpper);
-        }
-
-        @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            double iValue = parseDoubleValue(value);
-            double iSim = fuzziness.asDouble();
-            return LegacyNumericRangeQuery.newDoubleRange(name(), numericPrecisionStep(),
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
         }
 
         @Override

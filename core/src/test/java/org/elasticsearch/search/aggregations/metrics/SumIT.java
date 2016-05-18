@@ -453,11 +453,6 @@ public class SumIT extends AbstractNumericTestCase {
                         }
 
                         @Override
-                        public float runAsFloat() {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
                         public double runAsDouble() {
                             throw new UnsupportedOperationException();
                         }
@@ -581,11 +576,6 @@ public class SumIT extends AbstractNumericTestCase {
                         @Override
                         public long runAsLong() {
                             return ((Number) vars.get("_value")).longValue() + inc;
-                        }
-
-                        @Override
-                        public float runAsFloat() {
-                            throw new UnsupportedOperationException();
                         }
 
                         @Override

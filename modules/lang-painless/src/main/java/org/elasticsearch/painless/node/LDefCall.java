@@ -23,7 +23,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 
@@ -32,7 +32,7 @@ import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 /**
  * Represents a method call made on a def type. (Internal only.)
  */
-final class LDefCall extends ALink {
+final class LDefCall extends ALink implements IDefLink {
 
     final String name;
     final List<AExpression> arguments;
@@ -61,12 +61,12 @@ final class LDefCall extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         final StringBuilder signature = new StringBuilder();
 
         signature.append('(');
@@ -84,11 +84,11 @@ final class LDefCall extends ALink {
         // return value
         signature.append(after.type.getDescriptor());
 
-        adapter.visitInvokeDynamicInsn(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.METHOD_CALL });
+        adapter.invokeDynamic(name, signature.toString(), DEF_BOOTSTRAP_HANDLE, DefBootstrap.METHOD_CALL);
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

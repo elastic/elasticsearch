@@ -17,29 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.script;
+package org.elasticsearch.painless.node;
 
 /**
- * A simpler base class instead of {@link AbstractSearchScript} for computations
- * that return a float number.
+ * A marker interface applied to LDef* nodes allowing changes to {@link ALink#after} from outside,
+ * by default {@code after} is {@code DEF}.
  */
-public abstract class AbstractFloatSearchScript extends AbstractSearchScript {
-
-    @Override
-    public Object run() {
-        return runAsFloat();
-    }
-
-    @Override
-    public abstract float runAsFloat();
-
-    @Override
-    public double runAsDouble() {
-        return runAsFloat();
-    }
-
-    @Override
-    public long runAsLong() {
-        return (long) runAsFloat();
-    }
+interface IDefLink {
 }

@@ -19,6 +19,10 @@
 
 package org.elasticsearch.painless;
 
+import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
+
+import java.util.Locale;
+
 public class StringTests extends ScriptTestCase {
 
     public void testAppend() {
@@ -63,6 +67,34 @@ public class StringTests extends ScriptTestCase {
         assertEquals("cat" + "cat", exec("String s = 'cat'; return s + s;"));
     }
 
+    public void testAppendMultiple() {
+        assertEquals("cat" + true + "abc" + null, exec("String s = \"cat\"; return s + true + 'abc' + null;"));
+    }
+    
+    public void testAppendMany() {
+        for (int i = MAX_INDY_STRING_CONCAT_ARGS - 5; i < MAX_INDY_STRING_CONCAT_ARGS + 5; i++) {
+            doTestAppendMany(i);
+        }
+    }
+    
+    private void doTestAppendMany(int count) {
+        StringBuilder script = new StringBuilder("String s = \"cat\"; return s");
+        StringBuilder result = new StringBuilder("cat");
+        for (int i = 1; i < count; i++) {
+            final String s = String.format(Locale.ROOT, "%03d", i);
+            script.append(" + '").append(s).append("'.toString()");
+            result.append(s);
+        }
+        final String s = script.toString();
+        assertTrue("every string part should be separatly pushed to stack.",
+                Debugger.toString(s).contains(String.format(Locale.ROOT, "LDC \"%03d\"", count/2)));
+        assertEquals(result.toString(), exec(s));
+    }
+    
+    public void testNestedConcats() {
+        assertEquals("foo1010foo", exec("String s = 'foo'; String x = '10'; return s + Integer.parseInt(x + x) + s;"));
+    }
+    
     public void testStringAPI() {
         assertEquals("", exec("return new String();"));
         assertEquals('x', exec("String s = \"x\"; return s.charAt(0);"));
@@ -127,8 +159,8 @@ public class StringTests extends ScriptTestCase {
         assertEquals("c", exec("return (String)(char)\"c\""));
         assertEquals("c", exec("return (String)(char)'c'"));
 
-        assertEquals('c', exec("String s = \"c\" (char)s"));
-        assertEquals('c', exec("String s = 'c' (char)s"));
+        assertEquals('c', exec("String s = \"c\"; (char)s"));
+        assertEquals('c', exec("String s = 'c'; (char)s"));
 
         try {
             assertEquals("cc", exec("return (String)(char)\"cc\""));
@@ -145,14 +177,14 @@ public class StringTests extends ScriptTestCase {
         }
 
         try {
-            assertEquals('c', exec("String s = \"cc\" (char)s"));
+            assertEquals('c', exec("String s = \"cc\"; (char)s"));
             fail();
         } catch (final ClassCastException cce) {
             assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
         }
 
         try {
-            assertEquals('c', exec("String s = 'cc' (char)s"));
+            assertEquals('c', exec("String s = 'cc'; (char)s"));
             fail();
         } catch (final ClassCastException cce) {
             assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
@@ -163,8 +195,8 @@ public class StringTests extends ScriptTestCase {
         assertEquals("c", exec("return (String)(Character)\"c\""));
         assertEquals("c", exec("return (String)(Character)'c'"));
 
-        assertEquals('c', exec("String s = \"c\" (Character)s"));
-        assertEquals('c', exec("String s = 'c' (Character)s"));
+        assertEquals('c', exec("String s = \"c\"; (Character)s"));
+        assertEquals('c', exec("String s = 'c'; (Character)s"));
 
         try {
             assertEquals("cc", exec("return (String)(Character)\"cc\""));
@@ -181,14 +213,14 @@ public class StringTests extends ScriptTestCase {
         }
 
         try {
-            assertEquals('c', exec("String s = \"cc\" (Character)s"));
+            assertEquals('c', exec("String s = \"cc\"; (Character)s"));
             fail();
         } catch (final ClassCastException cce) {
             assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [Character]."));
         }
 
         try {
-            assertEquals('c', exec("String s = 'cc' (Character)s"));
+            assertEquals('c', exec("String s = 'cc'; (Character)s"));
             fail();
         } catch (final ClassCastException cce) {
             assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [Character]."));

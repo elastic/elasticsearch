@@ -43,7 +43,7 @@ public class RethrottleTests extends ReindexTestCase {
         testCase(updateByQuery().source("test"), UpdateByQueryAction.NAME);
     }
 
-    private void testCase(AbstractBulkIndexByScrollRequestBuilder<?, ? extends BulkIndexByScrollResponse, ?> request, String actionName)
+    private void testCase(AbstractBulkIndexByScrollRequestBuilder<?, ?> request, String actionName)
             throws Exception {
         // Use a single shard so the reindex has to happen in multiple batches
         client().admin().indices().prepareCreate("test").setSettings("index.number_of_shards", 1).get();

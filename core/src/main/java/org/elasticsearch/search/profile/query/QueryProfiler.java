@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.search.profile;
+package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.search.profile.ProfileResult;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,16 +36,16 @@ import java.util.Objects;
  * request may execute two searches (query + global agg).  A Profiler just
  * represents one of those
  */
-public final class Profiler {
+public final class QueryProfiler {
 
-    private final InternalProfileTree queryTree = new InternalProfileTree();
+    private final InternalQueryProfileTree queryTree = new InternalQueryProfileTree();
 
     /**
      * The root Collector used in the search
      */
     private InternalProfileCollector collector;
 
-    public Profiler() {}
+    public QueryProfiler() {}
 
     /** Set the collector that is associated with this profiler. */
     public void setCollector(InternalProfileCollector collector) {
@@ -56,11 +56,11 @@ public final class Profiler {
     }
 
     /**
-     * Get the {@link ProfileBreakdown} for the given query, potentially creating it if it did not exist.
+     * Get the {@link QueryProfileBreakdown} for the given query, potentially creating it if it did not exist.
      * This should only be used for queries that will be undergoing scoring. Do not use it to profile the
      * rewriting phase
      */
-    public ProfileBreakdown getQueryBreakdown(Query query) {
+    public QueryProfileBreakdown getQueryBreakdown(Query query) {
         return queryTree.getQueryBreakdown(query);
     }
 
@@ -109,23 +109,6 @@ public final class Profiler {
      */
     public CollectorResult getCollector() {
         return collector.getCollectorTree();
-    }
-
-    /**
-     * Helper method to convert Profiler into  InternalProfileShardResults, which can be
-     * serialized to other nodes, emitted as JSON, etc.
-     *
-     * @param profilers A list of Profilers to convert into InternalProfileShardResults
-     * @return          A list of corresponding InternalProfileShardResults
-     */
-    public static List<ProfileShardResult> buildShardResults(List<Profiler> profilers) {
-        List<ProfileShardResult> results = new ArrayList<>(profilers.size());
-        for (Profiler profiler : profilers) {
-            ProfileShardResult result =  new ProfileShardResult(
-                    profiler.getQueryTree(), profiler.getRewriteTime(), profiler.getCollector());
-            results.add(result);
-        }
-        return results;
     }
 
 

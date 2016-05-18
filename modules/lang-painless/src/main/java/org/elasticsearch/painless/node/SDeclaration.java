@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.Variables.Variable;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a single variable declaration.
@@ -58,7 +58,7 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         writeDebugInfo(adapter);
         final org.objectweb.asm.Type type = variable.type.type;
         final Sort sort = variable.type.sort;

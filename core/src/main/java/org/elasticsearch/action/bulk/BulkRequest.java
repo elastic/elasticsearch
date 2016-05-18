@@ -169,6 +169,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     }
 
     public BulkRequest add(DeleteRequest request, @Nullable Object payload) {
+        Objects.requireNonNull(request, "'request' must not be null");
         requests.add(request);
         addPayload(payload);
         sizeInBytes += REQUEST_OVERHEAD;

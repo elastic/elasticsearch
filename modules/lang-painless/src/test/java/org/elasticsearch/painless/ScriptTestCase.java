@@ -57,4 +57,13 @@ public abstract class ScriptTestCase extends ESTestCase {
         CompiledScript compiled = new CompiledScript(ScriptService.ScriptType.INLINE, getTestName(), "painless", object);
         return scriptEngine.executable(compiled, vars).run();
     }
+
+    /**
+     * Uses the {@link Debugger} to get the bytecode output for a script and compare
+     * it against an expected bytecode passed in as a String.
+     */
+    public void assertBytecodeExists(String script, String bytecode) {
+        final String asm = Debugger.toString(script);
+        assertTrue("bytecode not found", asm.contains(bytecode));
+    }
 }

@@ -99,6 +99,20 @@ public class BulkIndexByScrollResponse extends ActionResponse implements ToXCont
     }
 
     /**
+     * The number of times that the request had retry bulk actions.
+     */
+    public long getBulkRetries() {
+        return status.getBulkRetries();
+    }
+
+    /**
+     * The number of times that the request had retry search actions.
+     */
+    public long getSearchRetries() {
+        return status.getSearchRetries();
+    }
+
+    /**
      * All of the indexing failures. Version conflicts are only included if the request sets abortOnVersionConflict to true (the
      * default).
      */

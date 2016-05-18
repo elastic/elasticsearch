@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
 
 /**
  * The superclass for all other nodes.
@@ -51,7 +51,7 @@ public abstract class ANode {
      * <p>
      * Currently we emit line number data for for leaf S-nodes
      */
-    void writeDebugInfo(GeneratorAdapter adapter) {
+    void writeDebugInfo(MethodWriter adapter) {
         Label label = new Label();
         adapter.visitLabel(label);
         adapter.visitLineNumber(line, label);

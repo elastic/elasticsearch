@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.profile;
+package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -38,9 +38,9 @@ import java.util.Set;
 public final class ProfileWeight extends Weight {
 
     private final Weight subQueryWeight;
-    private final ProfileBreakdown profile;
+    private final QueryProfileBreakdown profile;
 
-    public ProfileWeight(Query query, Weight subQueryWeight, ProfileBreakdown profile) throws IOException {
+    public ProfileWeight(Query query, Weight subQueryWeight, QueryProfileBreakdown profile) throws IOException {
         super(query);
         this.subQueryWeight = subQueryWeight;
         this.profile = profile;
@@ -48,7 +48,7 @@ public final class ProfileWeight extends Weight {
 
     @Override
     public Scorer scorer(LeafReaderContext context) throws IOException {
-        profile.startTime(ProfileBreakdown.TimingType.BUILD_SCORER);
+        profile.startTime(QueryTimingType.BUILD_SCORER);
         final Scorer subQueryScorer;
         try {
             subQueryScorer = subQueryWeight.scorer(context);

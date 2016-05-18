@@ -26,9 +26,8 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_NEG_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_NOT_CALL;
@@ -169,7 +168,7 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         if (operation == Operation.NOT) {
             if (tru == null && fals == null) {
                 final Label localfals = new Label();
@@ -206,14 +205,14 @@ public final class EUnary extends AExpression {
                         throw new IllegalStateException(error("Illegal tree structure."));
                     }
 
-                    adapter.math(GeneratorAdapter.XOR, type);
+                    adapter.math(MethodWriter.XOR, type);
                 }
             } else if (operation == Operation.SUB) {
                 if (sort == Sort.DEF) {
                     adapter.invokeStatic(definition.defobjType.type, DEF_NEG_CALL);
                 } else {
                     if (settings.getNumericOverflow()) {
-                        adapter.math(GeneratorAdapter.NEG, type);
+                        adapter.math(MethodWriter.NEG, type);
                     } else {
                         if (sort == Sort.INT) {
                             adapter.invokeStatic(definition.mathType.type, NEGATEEXACT_INT);
@@ -228,7 +227,7 @@ public final class EUnary extends AExpression {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
 
-            WriterUtility.writeBranch(adapter, tru, fals);
+            adapter.writeBranch(tru, fals);
         }
     }
 }

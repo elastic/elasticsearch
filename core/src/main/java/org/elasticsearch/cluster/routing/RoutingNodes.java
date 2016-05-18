@@ -54,10 +54,6 @@ import java.util.function.Predicate;
  */
 public class RoutingNodes implements Iterable<RoutingNode> {
 
-    private final MetaData metaData;
-
-    private final ClusterBlocks blocks;
-
     private final RoutingTable routingTable;
 
     private final Map<String, RoutingNode> nodesToShards = new HashMap<>();
@@ -65,8 +61,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private final UnassignedShards unassignedShards = new UnassignedShards(this);
 
     private final Map<ShardId, List<ShardRouting>> assignedShards = new HashMap<>();
-
-    private final ImmutableOpenMap<String, ClusterState.Custom> customs;
 
     private final boolean readOnly;
 
@@ -85,10 +79,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     public RoutingNodes(ClusterState clusterState, boolean readOnly) {
         this.readOnly = readOnly;
-        this.metaData = clusterState.metaData();
-        this.blocks = clusterState.blocks();
         this.routingTable = clusterState.routingTable();
-        this.customs = clusterState.customs();
 
         Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = new HashMap<>();
         // fill in the nodeToShards with the "live" nodes
@@ -231,28 +222,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     public RoutingTable getRoutingTable() {
         return routingTable();
     }
-
-    public MetaData metaData() {
-        return this.metaData;
-    }
-
-    public MetaData getMetaData() {
-        return metaData();
-    }
-
-    public ClusterBlocks blocks() {
-        return this.blocks;
-    }
-
-    public ClusterBlocks getBlocks() {
-        return this.blocks;
-    }
-
-    public ImmutableOpenMap<String, ClusterState.Custom> customs() {
-        return this.customs;
-    }
-
-    public <T extends ClusterState.Custom> T custom(String type) { return (T) customs.get(type); }
 
     public UnassignedShards unassigned() {
         return this.unassignedShards;

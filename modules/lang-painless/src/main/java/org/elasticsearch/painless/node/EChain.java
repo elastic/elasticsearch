@@ -27,8 +27,7 @@ import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 
@@ -215,23 +214,37 @@ public final class EChain extends AExpression {
         there = AnalyzerCaster.getLegalCast(definition, location, last.after, promote, false);
         back = AnalyzerCaster.getLegalCast(definition, location, promote, last.after, true);
 
-        statement = true;
-        actual = read ? last.after : definition.voidType;
+        this.statement = true;
+        this.actual = read ? last.after : definition.voidType;
     }
 
     private void analyzeWrite(final CompilerSettings settings, final Definition definition, final Variables variables) {
         final ALink last = links.get(links.size() - 1);
 
-        expression.expected = last.after;
-        expression.analyze(settings, definition, variables);
+        // If the store node is a DEF node, we remove the cast to DEF from the expression
+        // and promote the real type to it:
+        if (last instanceof IDefLink) {
+            expression.analyze(settings, definition, variables);
+            last.after = expression.expected = expression.actual;
+        } else {
+            // otherwise we adapt the type of the expression to the store type
+            expression.expected = last.after;
+            expression.analyze(settings, definition, variables);
+        }
+
         expression = expression.cast(settings, definition, variables);
 
-        statement = true;
-        actual = read ? last.after : definition.voidType;
+        this.statement = true;
+        this.actual = read ? last.after : definition.voidType;
     }
 
     private void analyzeRead() {
         final ALink last = links.get(links.size() - 1);
+
+        // If the load node is a DEF node, we adapt its after type to use _this_ expected output type:
+        if (last instanceof IDefLink && this.expected != null) {
+            last.after = this.expected;
+        }
 
         constant = last.string;
         statement = last.statement;
@@ -239,9 +252,9 @@ public final class EChain extends AExpression {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         if (cat) {
-            WriterUtility.writeNewStrings(adapter);
+            adapter.writeNewStrings();
         }
 
         final ALink last = links.get(links.size() - 1);
@@ -251,43 +264,43 @@ public final class EChain extends AExpression {
 
             if (link == last && link.store) {
                 if (cat) {
-                    WriterUtility.writeDup(adapter, link.size, 1);
+                    adapter.writeDup(link.size, 1);
                     link.load(settings, definition, adapter);
-                    WriterUtility.writeAppendStrings(adapter, link.after.sort);
+                    adapter.writeAppendStrings(link.after);
 
                     expression.write(settings, definition, adapter);
 
                     if (!(expression instanceof EBinary) ||
                         ((EBinary)expression).operation != Operation.ADD || expression.actual.sort != Sort.STRING) {
-                        WriterUtility.writeAppendStrings(adapter, expression.actual.sort);
+                        adapter.writeAppendStrings(expression.actual);
                     }
 
-                    WriterUtility.writeToStrings(adapter);
-                    WriterUtility.writeCast(adapter, back);
+                    adapter.writeToStrings();
+                    adapter.writeCast(back);
 
                     if (link.load) {
-                        WriterUtility.writeDup(adapter, link.after.sort.size, link.size);
+                        adapter.writeDup(link.after.sort.size, link.size);
                     }
 
                     link.store(settings, definition, adapter);
                 } else if (operation != null) {
-                    WriterUtility.writeDup(adapter, link.size, 0);
+                    adapter.writeDup(link.size, 0);
                     link.load(settings, definition, adapter);
 
                     if (link.load && post) {
-                        WriterUtility.writeDup(adapter, link.after.sort.size, link.size);
+                        adapter.writeDup(link.after.sort.size, link.size);
                     }
 
-                    WriterUtility.writeCast(adapter, there);
+                    adapter.writeCast(there);
                     expression.write(settings, definition, adapter);
-                    WriterUtility.writeBinaryInstruction(settings, definition, adapter, location, promote, operation);
+                    adapter.writeBinaryInstruction(settings, definition, location, promote, operation);
 
-                    if (!exact || !WriterUtility.writeExactInstruction(definition, adapter, promote.sort, link.after.sort)) {
-                        WriterUtility.writeCast(adapter, back);
+                    if (!exact || !adapter.writeExactInstruction(definition, promote.sort, link.after.sort)) {
+                        adapter.writeCast(back);
                     }
 
                     if (link.load && !post) {
-                        WriterUtility.writeDup(adapter, link.after.sort.size, link.size);
+                        adapter.writeDup(link.after.sort.size, link.size);
                     }
 
                     link.store(settings, definition, adapter);
@@ -295,7 +308,7 @@ public final class EChain extends AExpression {
                     expression.write(settings, definition, adapter);
 
                     if (link.load) {
-                        WriterUtility.writeDup(adapter, link.after.sort.size, link.size);
+                        adapter.writeDup(link.after.sort.size, link.size);
                     }
 
                     link.store(settings, definition, adapter);
@@ -305,6 +318,6 @@ public final class EChain extends AExpression {
             }
         }
 
-        WriterUtility.writeBranch(adapter, tru, fals);
+        adapter.writeBranch(tru, fals);
     }
 }

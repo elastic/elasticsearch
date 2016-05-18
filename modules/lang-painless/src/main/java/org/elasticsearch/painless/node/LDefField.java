@@ -24,14 +24,14 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Variables;
 import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_HANDLE;
 
 /**
  * Represents a field load/store or shortcut on a def type.  (Internal only.)
  */
-final class LDefField extends ALink {
+final class LDefField extends ALink implements IDefLink {
 
     final String value;
 
@@ -50,19 +50,19 @@ final class LDefField extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         final String desc = Type.getMethodDescriptor(after.type, definition.defType.type);
-        adapter.visitInvokeDynamicInsn(value, desc, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.LOAD });
+        adapter.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.LOAD);
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type, definition.defType.type);
-        adapter.visitInvokeDynamicInsn(value, desc, DEF_BOOTSTRAP_HANDLE, new Object[] { DefBootstrap.STORE });
+    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
+        final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type, after.type);
+        adapter.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.STORE);
     }
 }

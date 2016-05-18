@@ -79,6 +79,46 @@ public class JvmGcMonitorServiceSettingsTests extends ESTestCase {
         }, true, null);
     }
 
+    public void testIllegalOverheadSettings() throws InterruptedException {
+        for (final String threshold : new String[] { "warn", "info", "debug" }) {
+            final Settings.Builder builder = Settings.builder();
+            builder.put("monitor.jvm.gc.overhead." + threshold, randomIntBetween(Integer.MIN_VALUE, -1));
+            execute(builder.build(), (command, interval) -> null, t -> {
+                assertThat(t, instanceOf(IllegalArgumentException.class));
+                assertThat(t.getMessage(), containsString("setting [monitor.jvm.gc.overhead." + threshold + "] must be >= 0"));
+            }, true, null);
+        }
+
+        for (final String threshold : new String[] { "warn", "info", "debug" }) {
+            final Settings.Builder builder = Settings.builder();
+            builder.put("monitor.jvm.gc.overhead." + threshold, randomIntBetween(100 + 1, Integer.MAX_VALUE));
+            execute(builder.build(), (command, interval) -> null, t -> {
+                assertThat(t, instanceOf(IllegalArgumentException.class));
+                assertThat(t.getMessage(), containsString("setting [monitor.jvm.gc.overhead." + threshold + "] must be <= 100"));
+            }, true, null);
+        }
+
+        final Settings.Builder infoWarnOutOfOrderBuilder = Settings.builder();
+        final int info = randomIntBetween(2, 98);
+        infoWarnOutOfOrderBuilder.put("monitor.jvm.gc.overhead.info", info);
+        final int warn = randomIntBetween(1, info - 1);
+        infoWarnOutOfOrderBuilder.put("monitor.jvm.gc.overhead.warn", warn);
+        execute(infoWarnOutOfOrderBuilder.build(), (command, interval) -> null, t -> {
+            assertThat(t, instanceOf(IllegalArgumentException.class));
+            assertThat(t.getMessage(), containsString("[monitor.jvm.gc.overhead.warn] must be greater than [monitor.jvm.gc.overhead.info] [" + info + "] but was [" + warn + "]"));
+        }, true, null);
+
+        final Settings.Builder debugInfoOutOfOrderBuilder = Settings.builder();
+        debugInfoOutOfOrderBuilder.put("monitor.jvm.gc.overhead.info", info);
+        final int debug = randomIntBetween(info + 1, 99);
+        debugInfoOutOfOrderBuilder.put("monitor.jvm.gc.overhead.debug", debug);
+        debugInfoOutOfOrderBuilder.put("monitor.jvm.gc.overhead.warn", randomIntBetween(debug + 1, 100)); // or the test will fail for the wrong reason
+        execute(debugInfoOutOfOrderBuilder.build(), (command, interval) -> null, t -> {
+            assertThat(t, instanceOf(IllegalArgumentException.class));
+            assertThat(t.getMessage(), containsString("[monitor.jvm.gc.overhead.info] must be greater than [monitor.jvm.gc.overhead.debug] [" + debug + "] but was [" + info + "]"));
+        }, true, null);
+    }
+
     private static void execute(Settings settings, BiFunction<Runnable, TimeValue, ScheduledFuture<?>> scheduler, Runnable asserts) throws InterruptedException {
         execute(settings, scheduler, null, false, asserts);
     }

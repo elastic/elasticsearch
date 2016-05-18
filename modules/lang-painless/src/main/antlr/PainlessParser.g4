@@ -28,20 +28,20 @@ source
 statement
     : IF LP expression RP block ( ELSE block )?                                              # if
     | WHILE LP expression RP ( block | empty )                                               # while
-    | DO block WHILE LP expression RP SEMICOLON?                                             # do
+    | DO block WHILE LP expression RP ( SEMICOLON | EOF )                                    # do
     | FOR LP initializer? SEMICOLON expression? SEMICOLON afterthought? RP ( block | empty ) # for
-    | declaration SEMICOLON?                                                                 # decl
-    | CONTINUE SEMICOLON?                                                                    # continue
-    | BREAK SEMICOLON?                                                                       # break
-    | RETURN expression SEMICOLON?                                                           # return
+    | declaration ( SEMICOLON | EOF )                                                        # decl
+    | CONTINUE ( SEMICOLON | EOF )                                                           # continue
+    | BREAK ( SEMICOLON | EOF )                                                              # break
+    | RETURN expression ( SEMICOLON | EOF )                                                  # return
     | TRY block trap+                                                                        # try
-    | THROW expression SEMICOLON?                                                            # throw
-    | expression SEMICOLON?                                                                  # expr
+    | THROW expression ( SEMICOLON | EOF )                                                   # throw
+    | expression ( SEMICOLON | EOF )                                                         # expr
     ;
 
 block
-    : LBRACK statement+ RBRACK                 # multiple
-    | statement                                # single
+    : LBRACK statement+ RBRACK # multiple
+    | statement                # single
     ;
 
 empty

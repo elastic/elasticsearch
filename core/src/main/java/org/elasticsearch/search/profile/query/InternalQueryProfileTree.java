@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.search.profile;
+package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.search.profile.ProfileResult;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,12 +31,12 @@ import java.util.concurrent.LinkedBlockingDeque;
 
 /**
  * This class tracks the dependency tree for queries (scoring and rewriting) and
- * generates {@link ProfileBreakdown} for each node in the tree.  It also finalizes the tree
+ * generates {@link QueryProfileBreakdown} for each node in the tree.  It also finalizes the tree
  * and returns a list of {@link ProfileResult} that can be serialized back to the client
  */
-final class InternalProfileTree {
+final class InternalQueryProfileTree {
 
-    private ArrayList<ProfileBreakdown> timings;
+    private ArrayList<QueryProfileBreakdown> timings;
 
     /** Maps the Query to it's list of children.  This is basically the dependency tree */
     private ArrayList<ArrayList<Integer>> tree;
@@ -55,7 +56,7 @@ final class InternalProfileTree {
 
     private int currentToken = 0;
 
-    public InternalProfileTree() {
+    public InternalQueryProfileTree() {
         timings = new ArrayList<>(10);
         stack = new LinkedBlockingDeque<>(10);
         tree = new ArrayList<>(10);
@@ -64,7 +65,7 @@ final class InternalProfileTree {
     }
 
     /**
-     * Returns a {@link ProfileBreakdown} for a scoring query.  Scoring queries (e.g. those
+     * Returns a {@link QueryProfileBreakdown} for a scoring query.  Scoring queries (e.g. those
      * that are past the rewrite phase and are now being wrapped by createWeight() ) follow
      * a recursive progression.  We can track the dependency tree by a simple stack
      *
@@ -74,7 +75,7 @@ final class InternalProfileTree {
      * @param query The scoring query we wish to profile
      * @return      A ProfileBreakdown for this query
      */
-    public ProfileBreakdown getQueryBreakdown(Query query) {
+    public QueryProfileBreakdown getQueryBreakdown(Query query) {
         int token = currentToken;
 
         boolean stackEmpty = stack.isEmpty();
@@ -131,14 +132,14 @@ final class InternalProfileTree {
      * Helper method to add a new node to the dependency tree.
      *
      * Initializes a new list in the dependency tree, saves the query and
-     * generates a new {@link ProfileBreakdown} to track the timings
+     * generates a new {@link QueryProfileBreakdown} to track the timings
      * of this query
      *
      * @param query             The query to profile
      * @param token             The assigned token for this query
      * @return                  A ProfileBreakdown to profile this query
      */
-    private ProfileBreakdown addDependencyNode(Query query, int token) {
+    private QueryProfileBreakdown addDependencyNode(Query query, int token) {
 
         // Add a new slot in the dependency tree
         tree.add(new ArrayList<>(5));
@@ -146,7 +147,7 @@ final class InternalProfileTree {
         // Save our query for lookup later
         queries.add(query);
 
-        ProfileBreakdown queryTimings = new ProfileBreakdown();
+        QueryProfileBreakdown queryTimings = new QueryProfileBreakdown();
         timings.add(token, queryTimings);
         return queryTimings;
     }
@@ -180,7 +181,7 @@ final class InternalProfileTree {
      */
     private ProfileResult doGetQueryTree(int token) {
         Query query = queries.get(token);
-        ProfileBreakdown breakdown = timings.get(token);
+        QueryProfileBreakdown breakdown = timings.get(token);
         Map<String, Long> timings = breakdown.toTimingMap();
         List<Integer> children = tree.get(token);
         List<ProfileResult> childrenProfileResults = Collections.emptyList();

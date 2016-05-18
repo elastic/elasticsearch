@@ -144,6 +144,9 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             if (query != null) {
                 for (String param: query.tokenize('&')) {
                     def (String name, String value) = param.tokenize('=')
+                    if (value == null) {
+                        value = ''
+                    }
                     current.println("        $name: \"$value\"")
                 }
             }

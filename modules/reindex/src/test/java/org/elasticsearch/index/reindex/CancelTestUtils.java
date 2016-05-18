@@ -61,16 +61,15 @@ public class CancelTestUtils {
     private static final CyclicBarrier barrier = new CyclicBarrier(2);
 
     public static <Request extends AbstractBulkIndexByScrollRequest<Request>,
-                    Response extends BulkIndexByScrollResponse,
-                    Builder extends AbstractBulkIndexByScrollRequestBuilder<Request, Response, Builder>>
-            Response testCancel(ESIntegTestCase test, Builder request, String actionToCancel) throws Exception {
+                    Builder extends AbstractBulkIndexByScrollRequestBuilder<Request, Builder>>
+            BulkIndexByScrollResponse testCancel(ESIntegTestCase test, Builder request, String actionToCancel) throws Exception {
 
         test.indexRandom(true, client().prepareIndex("source", "test", "1").setSource("foo", "a"),
                 client().prepareIndex("source", "test", "2").setSource("foo", "a"));
 
         request.source("source").script(new Script("sticky", ScriptType.INLINE, "native", emptyMap()));
         request.source().setSize(1);
-        ListenableActionFuture<Response> response = request.execute();
+        ListenableActionFuture<BulkIndexByScrollResponse> response = request.execute();
 
         // Wait until the script is on the first document.
         barrier.await(30, TimeUnit.SECONDS);

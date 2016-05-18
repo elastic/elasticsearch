@@ -53,7 +53,7 @@ final class Writer {
     private final SSource root;
 
     private final ClassWriter writer;
-    private final GeneratorAdapter adapter;
+    private final MethodWriter adapter;
 
     private Writer(final CompilerSettings settings, final Definition definition,
                      String name, final String source, final Variables variables, final SSource root) {
@@ -69,7 +69,7 @@ final class Writer {
         writeBegin();
         writeConstructor();
 
-        adapter = new GeneratorAdapter(Opcodes.ACC_PUBLIC, EXECUTE, null, null, writer);
+        adapter = new MethodWriter(Opcodes.ACC_PUBLIC, EXECUTE, null, writer);
 
         writeExecute();
         writeEnd();

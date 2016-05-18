@@ -103,7 +103,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                         .nodes(DiscoveryNodes.EMPTY_NODES)
                         .build(), false
         );
-        RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current.nodes(), ClusterInfo.EMPTY, System.nanoTime());
+        RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current, ClusterInfo.EMPTY, System.nanoTime());
         allocator.allocateUnassigned(routingAllocation);
     }
 

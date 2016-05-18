@@ -138,7 +138,7 @@ public class RoundTripTests extends ESTestCase {
 
     private BulkByScrollTask.Status randomStatus() {
         return new BulkByScrollTask.Status(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
-                randomInt(Integer.MAX_VALUE), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
+                randomInt(Integer.MAX_VALUE), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
                 parseTimeValue(randomPositiveTimeValue(), "test"), abs(random().nextFloat()),
                 random().nextBoolean() ? null : randomSimpleString(random()), parseTimeValue(randomPositiveTimeValue(), "test"));
     }
@@ -210,7 +210,8 @@ public class RoundTripTests extends ESTestCase {
         assertEquals(expected.getBatches(), actual.getBatches());
         assertEquals(expected.getVersionConflicts(), actual.getVersionConflicts());
         assertEquals(expected.getNoops(), actual.getNoops());
-        assertEquals(expected.getRetries(), actual.getRetries());
+        assertEquals(expected.getBulkRetries(), actual.getBulkRetries());
+        assertEquals(expected.getSearchRetries(), actual.getSearchRetries());
         assertEquals(expected.getThrottled(), actual.getThrottled());
         assertEquals(expected.getRequestsPerSecond(), actual.getRequestsPerSecond(), 0f);
         assertEquals(expected.getReasonCancelled(), actual.getReasonCancelled());

@@ -45,6 +45,7 @@ import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -77,12 +78,17 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             query.operator(randomFrom(Operator.values()));
         }
         if (randomBoolean()) {
-            query.analyzer(randomAnalyzer());
+            if (fieldName.equals(DATE_FIELD_NAME)) {
+                // tokenized dates would trigger parse errors
+                query.analyzer("keyword");
+            } else {
+                query.analyzer(randomAnalyzer());
+            }
         }
         if (randomBoolean()) {
             query.slop(randomIntBetween(0, 5));
         }
-        if (randomBoolean() && (query.type() == Type.BEST_FIELDS || query.type() == Type.MOST_FIELDS)) {
+        if (fieldName.equals(STRING_FIELD_NAME) && randomBoolean() && (query.type() == Type.BEST_FIELDS || query.type() == Type.MOST_FIELDS)) {
             query.fuzziness(randomFuzziness(fieldName));
         }
         if (randomBoolean()) {
@@ -290,5 +296,24 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
 
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[multi_match] unknown token [START_ARRAY] after [query]", e.getMessage());
+    }
+
+    public void testFuzzinessOnNonStringField() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        MultiMatchQueryBuilder query = new MultiMatchQueryBuilder(42).field(INT_FIELD_NAME).field(BOOLEAN_FIELD_NAME);
+        query.fuzziness(randomFuzziness(INT_FIELD_NAME));
+        QueryShardContext context = createShardContext();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> query.toQuery(context));
+        assertThat(e.getMessage(), containsString("Can only use fuzzy queries on keyword and text fields"));
+        query.analyzer("keyword"); // triggers a different code path
+        e = expectThrows(IllegalArgumentException.class,
+                () -> query.toQuery(context));
+        assertThat(e.getMessage(), containsString("Can only use fuzzy queries on keyword and text fields"));
+
+        query.lenient(true);
+        query.toQuery(context); // no exception
+        query.analyzer(null);
+        query.toQuery(context); // no exception
     }
 }

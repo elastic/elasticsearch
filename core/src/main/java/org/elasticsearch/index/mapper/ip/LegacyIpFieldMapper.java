@@ -232,21 +232,6 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            long iValue = parseValue(value);
-            long iSim;
-            try {
-                iSim = ipToLong(fuzziness.asString());
-            } catch (IllegalArgumentException e) {
-                iSim = fuzziness.asLong();
-            }
-            return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
-        }
-
-        @Override
         public FieldStats stats(IndexReader reader) throws IOException {
             int maxDoc = reader.maxDoc();
             Terms terms = org.apache.lucene.index.MultiFields.getTerms(reader, name());

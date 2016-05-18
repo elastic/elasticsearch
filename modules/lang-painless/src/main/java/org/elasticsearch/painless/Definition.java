@@ -33,6 +33,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -195,16 +196,71 @@ public final class Definition {
         }
     }
 
+    // TODO: instead of hashing on this, we could have a 'next' pointer in Method itself, but it would make code more complex
+    // please do *NOT* under any circumstances change this to be the crappy Tuple from elasticsearch!
+    /**
+     * Key for looking up a method.
+     * <p>
+     * Methods are keyed on both name and arity, and can be overloaded once per arity.
+     * This allows signatures such as {@code String.indexOf(String) vs String.indexOf(String, int)}.
+     * <p>
+     * It is less flexible than full signature overloading where types can differ too, but
+     * better than just the name, and overloading types adds complexity to users, too.
+     */
+    public static final class MethodKey {
+        public final String name;
+        public final int arity;
+
+        /**
+         * Create a new lookup key
+         * @param name name of the method
+         * @param arity number of parameters
+         */
+        public MethodKey(String name, int arity) {
+            this.name = Objects.requireNonNull(name);
+            this.arity = arity;
+        }
+
+        @Override
+        public int hashCode() {
+            final int prime = 31;
+            int result = 1;
+            result = prime * result + arity;
+            result = prime * result + name.hashCode();
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null) return false;
+            if (getClass() != obj.getClass()) return false;
+            MethodKey other = (MethodKey) obj;
+            if (arity != other.arity) return false;
+            if (!name.equals(other.name)) return false;
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(name);
+            sb.append('/');
+            sb.append(arity);
+            return sb.toString();
+        }
+    }
+
     public static final class Struct {
         public final String name;
         public final Class<?> clazz;
         public final org.objectweb.asm.Type type;
 
-        public final Map<String, Constructor> constructors;
-        public final Map<String, Method> functions;
-        public final Map<String, Method> methods;
+        public final Map<MethodKey, Constructor> constructors;
+        public final Map<MethodKey, Method> staticMethods;
+        public final Map<MethodKey, Method> methods;
 
-        public final Map<String, Field> statics;
+        public final Map<String, Field> staticMembers;
         public final Map<String, Field> members;
 
         private Struct(final String name, final Class<?> clazz, final org.objectweb.asm.Type type) {
@@ -213,10 +269,10 @@ public final class Definition {
             this.type = type;
 
             constructors = new HashMap<>();
-            functions = new HashMap<>();
+            staticMethods = new HashMap<>();
             methods = new HashMap<>();
 
-            statics = new HashMap<>();
+            staticMembers = new HashMap<>();
             members = new HashMap<>();
         }
 
@@ -226,10 +282,10 @@ public final class Definition {
             type = struct.type;
 
             constructors = Collections.unmodifiableMap(struct.constructors);
-            functions = Collections.unmodifiableMap(struct.functions);
+            staticMethods = Collections.unmodifiableMap(struct.staticMethods);
             methods = Collections.unmodifiableMap(struct.methods);
 
-            statics = Collections.unmodifiableMap(struct.statics);
+            staticMembers = Collections.unmodifiableMap(struct.staticMembers);
             members = Collections.unmodifiableMap(struct.members);
         }
 
@@ -257,10 +313,12 @@ public final class Definition {
     public static class Cast {
         public final Type from;
         public final Type to;
+        public final boolean explicit;
 
-        public Cast(final Type from, final Type to) {
+        public Cast(final Type from, final Type to, final boolean explicit) {
             this.from = from;
             this.to = to;
+            this.explicit = explicit;
         }
 
         @Override
@@ -275,28 +333,27 @@ public final class Definition {
 
             final Cast cast = (Cast)object;
 
-            return from.equals(cast.from) && to.equals(cast.to);
+            return from.equals(cast.from) && to.equals(cast.to) && explicit == cast.explicit;
         }
 
         @Override
         public int hashCode() {
             int result = from.hashCode();
             result = 31 * result + to.hashCode();
+            result = 31 * result + (explicit ? 1 : 0);
 
             return result;
         }
     }
 
     public static final class Transform extends Cast {
-        public final Cast cast;
         public final Method method;
         public final Type upcast;
         public final Type downcast;
 
         public Transform(final Cast cast, Method method, final Type upcast, final Type downcast) {
-            super(cast.from, cast.to);
+            super(cast.from, cast.to, cast.explicit);
 
-            this.cast = cast;
             this.method = method;
             this.upcast = upcast;
             this.downcast = downcast;
@@ -304,11 +361,11 @@ public final class Definition {
     }
 
     public static final class RuntimeClass {
-        public final Map<String, Method> methods;
+        public final Map<MethodKey, Method> methods;
         public final Map<String, MethodHandle> getters;
         public final Map<String, MethodHandle> setters;
 
-        private RuntimeClass(final Map<String, Method> methods,
+        private RuntimeClass(final Map<MethodKey, Method> methods,
                              final Map<String, MethodHandle> getters, final Map<String, MethodHandle> setters) {
             this.methods = methods;
             this.getters = getters;
@@ -317,7 +374,7 @@ public final class Definition {
     }
 
     public final Map<String, Struct> structsMap;
-    public final Map<Cast, Transform> transformsMap;
+    public final Map<Cast, Cast> transformsMap;
     public final Map<Class<?>, RuntimeClass> runtimeMap;
 
     public final Type voidType;
@@ -395,6 +452,9 @@ public final class Definition {
     public final Type longsType;
     public final Type doublesType;
     public final Type geoPointsType;
+
+    // for testing features not currently "used" by the whitelist (we should not rush the API for that!)
+    public final Type featureTestType;
 
     private Definition() {
         structsMap = new HashMap<>();
@@ -476,6 +536,8 @@ public final class Definition {
         longsType = getType("Longs");
         doublesType = getType("Doubles");
         geoPointsType = getType("GeoPoints");
+
+        featureTestType = getType("FeatureTest");
 
         addElements();
         copyStructs();
@@ -567,6 +629,8 @@ public final class Definition {
         this.longsType = definition.longsType;
         this.doublesType = definition.doublesType;
         this.geoPointsType = definition.geoPointsType;
+
+        this.featureTestType = definition.featureTestType;
     }
 
     private void addStructs() {
@@ -643,53 +707,111 @@ public final class Definition {
         addStruct( "Longs"     , ScriptDocValues.Longs.class);
         addStruct( "Doubles"   , ScriptDocValues.Doubles.class);
         addStruct( "GeoPoints" , ScriptDocValues.GeoPoints.class);
+
+        addStruct( "FeatureTest", FeatureTest.class);
     }
 
     private void addElements() {
-        addMethod("Object", "toString", null, false, stringType, new Type[] {}, null, null);
         addMethod("Object", "equals", null, false, booleanType, new Type[] {objectType}, null, null);
         addMethod("Object", "hashCode", null, false, intType, new Type[] {}, null, null);
+        addMethod("Object", "toString", null, false, stringType, new Type[] {}, null, null);
 
-        addMethod("def", "toString", null, false, stringType, new Type[] {}, null, null);
         addMethod("def", "equals", null, false, booleanType, new Type[] {objectType}, null, null);
         addMethod("def", "hashCode", null, false, intType, new Type[] {}, null, null);
+        addMethod("def", "toString", null, false, stringType, new Type[] {}, null, null);
 
         addConstructor("Boolean", "new", new Type[] {booleanType}, null);
-        addMethod("Boolean", "valueOf", null, true, booleanobjType, new Type[] {booleanType}, null, null);
         addMethod("Boolean", "booleanValue", null, false, booleanType, new Type[] {}, null, null);
+        addMethod("Boolean", "compare", null, true, intType, new Type[] {booleanType,booleanType}, null, null);
+        addMethod("Boolean", "compareTo", null, false, intType, new Type[] {booleanobjType}, null, null);
+        addMethod("Boolean", "parseBoolean", null, true, booleanType, new Type[] {stringType}, null, null);
+        addMethod("Boolean", "valueOf", null, true, booleanobjType, new Type[] {booleanType}, null, null);
+        addField("Boolean", "FALSE", null, true, booleanobjType, null);
+        addField("Boolean", "TRUE", null, true, booleanobjType, null);
 
         addConstructor("Byte", "new", new Type[] {byteType}, null);
+        addMethod("Byte", "compare", null, true, intType, new Type[] {byteType,byteType}, null, null);
+        addMethod("Byte", "compareTo", null, false, intType, new Type[] {byteobjType}, null, null);
+        addMethod("Byte", "parseByte", null, true, byteType, new Type[] {stringType}, null, null);
         addMethod("Byte", "valueOf", null, true, byteobjType, new Type[] {byteType}, null, null);
         addField("Byte", "MIN_VALUE", null, true, byteType, null);
         addField("Byte", "MAX_VALUE", null, true, byteType, null);
 
         addConstructor("Short", "new", new Type[] {shortType}, null);
+        addMethod("Short", "compare", null, true, intType, new Type[] {shortType,shortType}, null, null);
+        addMethod("Short", "compareTo", null, false, intType, new Type[] {shortobjType}, null, null);
+        addMethod("Short", "parseShort", null, true, shortType, new Type[] {stringType}, null, null);
         addMethod("Short", "valueOf", null, true, shortobjType, new Type[] {shortType}, null, null);
         addField("Short", "MIN_VALUE", null, true, shortType, null);
         addField("Short", "MAX_VALUE", null, true, shortType, null);
 
         addConstructor("Character", "new", new Type[] {charType}, null);
-        addMethod("Character", "valueOf", null, true, charobjType, new Type[] {charType}, null, null);
+        addMethod("Character", "charCount", null, true, intType, new Type[] {intType}, null, null);
         addMethod("Character", "charValue", null, false, charType, new Type[] {}, null, null);
+        addMethod("Character", "compare", null, true, intType, new Type[] {charType,charType}, null, null);
+        addMethod("Character", "compareTo", null, false, intType, new Type[] {charobjType}, null, null);
+        addMethod("Character", "digit", null, true, intType, new Type[] {intType,intType}, null, null);
+        addMethod("Character", "forDigit", null, true, charType, new Type[] {intType,intType}, null, null);
+        addMethod("Character", "getName", null, true, stringType, new Type[] {intType}, null, null);
+        addMethod("Character", "getNumericValue", null, true, intType, new Type[] {intType}, null, null);
+        addMethod("Character", "isAlphabetic", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isDefined", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isDigit", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isIdeographic", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isLetter", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isLetterOrDigit", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isLowerCase", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isMirrored", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isSpaceChar", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isTitleCase", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isUpperCase", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "isWhitespace", null, true, booleanType, new Type[] {intType}, null, null);
+        addMethod("Character", "valueOf", null, true, charobjType, new Type[] {charType}, null, null);
         addField("Character", "MIN_VALUE", null, true, charType, null);
         addField("Character", "MAX_VALUE", null, true, charType, null);
 
         addConstructor("Integer", "new", new Type[] {intType}, null);
+        addMethod("Integer", "compare", null, true, intType, new Type[] {intType,intType}, null, null);
+        addMethod("Integer", "compareTo", null, false, intType, new Type[] {intobjType}, null, null);
+        addMethod("Integer", "min", null, true, intType, new Type[] {intType,intType}, null, null);
+        addMethod("Integer", "max", null, true, intType, new Type[] {intType,intType}, null, null);
+        addMethod("Integer", "parseInt", null, true, intType, new Type[] {stringType}, null, null);
+        addMethod("Integer", "signum", null, true, intType, new Type[] {intType}, null, null);
+        addMethod("Integer", "toHexString", null, true, stringType, new Type[] {intType}, null, null);
         addMethod("Integer", "valueOf", null, true, intobjType, new Type[] {intType}, null, null);
         addField("Integer", "MIN_VALUE", null, true, intType, null);
         addField("Integer", "MAX_VALUE", null, true, intType, null);
 
         addConstructor("Long", "new", new Type[] {longType}, null);
+        addMethod("Long", "compare", null, true, intType, new Type[] {longType,longType}, null, null);
+        addMethod("Long", "compareTo", null, false, intType, new Type[] {longobjType}, null, null);
+        addMethod("Long", "min", null, true, longType, new Type[] {longType,longType}, null, null);
+        addMethod("Long", "max", null, true, longType, new Type[] {longType,longType}, null, null);
+        addMethod("Long", "parseLong", null, true, longType, new Type[] {stringType}, null, null);
+        addMethod("Long", "signum", null, true, intType, new Type[] {longType}, null, null);
+        addMethod("Long", "toHexString", null, true, stringType, new Type[] {longType}, null, null);
         addMethod("Long", "valueOf", null, true, longobjType, new Type[] {longType}, null, null);
         addField("Long", "MIN_VALUE", null, true, longType, null);
         addField("Long", "MAX_VALUE", null, true, longType, null);
 
         addConstructor("Float", "new", new Type[] {floatType}, null);
+        addMethod("Float", "compare", null, true, intType, new Type[] {floatType,floatType}, null, null);
+        addMethod("Float", "compareTo", null, false, intType, new Type[] {floatobjType}, null, null);
+        addMethod("Float", "min", null, true, floatType, new Type[] {floatType,floatType}, null, null);
+        addMethod("Float", "max", null, true, floatType, new Type[] {floatType,floatType}, null, null);
+        addMethod("Float", "parseFloat", null, true, floatType, new Type[] {stringType}, null, null);
+        addMethod("Float", "toHexString", null, true, stringType, new Type[] {floatType}, null, null);
         addMethod("Float", "valueOf", null, true, floatobjType, new Type[] {floatType}, null, null);
         addField("Float", "MIN_VALUE", null, true, floatType, null);
         addField("Float", "MAX_VALUE", null, true, floatType, null);
 
         addConstructor("Double", "new", new Type[] {doubleType}, null);
+        addMethod("Double", "compare", null, true, intType, new Type[] {doubleType,doubleType}, null, null);
+        addMethod("Double", "compareTo", null, false, intType, new Type[] {doubleobjType}, null, null);
+        addMethod("Double", "min", null, true, doubleType, new Type[] {doubleType,doubleType}, null, null);
+        addMethod("Double", "max", null, true, doubleType, new Type[] {doubleType,doubleType}, null, null);
+        addMethod("Double", "parseDouble", null, true, doubleType, new Type[] {stringType}, null, null);
+        addMethod("Double", "toHexString", null, true, stringType, new Type[] {doubleType}, null, null);
         addMethod("Double", "valueOf", null, true, doubleobjType, new Type[] {doubleType}, null, null);
         addField("Double", "MIN_VALUE", null, true, doubleType, null);
         addField("Double", "MAX_VALUE", null, true, doubleType, null);
@@ -709,6 +831,7 @@ public final class Definition {
         addMethod("String", "compareTo", null, false, intType, new Type[] {stringType}, null, null);
         addMethod("String", "concat", null, false, stringType, new Type[] {stringType}, null, null);
         addMethod("String", "endsWith", null, false, booleanType, new Type[] {stringType}, null, null);
+        addMethod("String", "indexOf", null, false, intType, new Type[] {stringType}, null, null);
         addMethod("String", "indexOf", null, false, intType, new Type[] {stringType, intType}, null, null);
         addMethod("String", "isEmpty", null, false, booleanType, new Type[] {}, null, null);
         addMethod("String", "replace", null, false, stringType, new Type[] {charseqType, charseqType}, null, null);
@@ -830,9 +953,6 @@ public final class Definition {
         addMethod("Utility", "StringToCharacter", null, true, charobjType, new Type[] {stringType}, null, null);
 
         addMethod("Math", "abs", null, true, doubleType, new Type[] {doubleType}, null, null);
-        addMethod("Math", "fabs", "abs", true, floatType, new Type[] {floatType}, null, null);
-        addMethod("Math", "labs", "abs", true, longType, new Type[] {longType}, null, null);
-        addMethod("Math", "iabs", "abs", true, intType, new Type[] {intType}, null, null);
         addMethod("Math", "acos", null, true, doubleType, new Type[] {doubleType}, null, null);
         addMethod("Math", "asin", null, true, doubleType, new Type[] {doubleType}, null, null);
         addMethod("Math", "atan", null, true, doubleType, new Type[] {doubleType}, null, null);
@@ -848,14 +968,8 @@ public final class Definition {
         addMethod("Math", "log", null, true, doubleType, new Type[] {doubleType}, null, null);
         addMethod("Math", "log10", null, true, doubleType, new Type[] {doubleType}, null, null);
         addMethod("Math", "log1p", null, true, doubleType, new Type[] {doubleType}, null, null);
-        addMethod("Math", "max", "max", true, doubleType, new Type[] {doubleType, doubleType}, null, null);
-        addMethod("Math", "fmax", "max", true, floatType, new Type[] {floatType, floatType}, null, null);
-        addMethod("Math", "lmax", "max", true, longType, new Type[] {longType, longType}, null, null);
-        addMethod("Math", "imax", "max", true, intType, new Type[] {intType, intType}, null, null);
-        addMethod("Math", "min", "min", true, doubleType, new Type[] {doubleType, doubleType}, null, null);
-        addMethod("Math", "fmin", "min", true, floatType, new Type[] {floatType, floatType}, null, null);
-        addMethod("Math", "lmin", "min", true, longType, new Type[] {longType, longType}, null, null);
-        addMethod("Math", "imin", "min", true, intType, new Type[] {intType, intType}, null, null);
+        addMethod("Math", "max", null, true, doubleType, new Type[] {doubleType, doubleType}, null, null);
+        addMethod("Math", "min", null, true, doubleType, new Type[] {doubleType, doubleType}, null, null);
         addMethod("Math", "pow", null, true, doubleType, new Type[] {doubleType, doubleType}, null, null);
         addMethod("Math", "random", null, true, doubleType, new Type[] {}, null, null);
         addMethod("Math", "rint", null, true, doubleType, new Type[] {doubleType}, null, null);
@@ -867,23 +981,37 @@ public final class Definition {
         addMethod("Math", "tanh", null, true, doubleType, new Type[] {doubleType}, null, null);
         addMethod("Math", "toDegrees", null, true, doubleType, new Type[] {doubleType}, null, null);
         addMethod("Math", "toRadians", null, true, doubleType, new Type[] {doubleType}, null, null);
+        addField("Math", "E", null, true, doubleType, null);
+        addField("Math", "PI", null, true, doubleType, null);
 
-        addMethod("Def", "DefToboolean", null, true, booleanType, new Type[] {defType}, null, null);
-        addMethod("Def", "DefTobyte", null, true, byteType, new Type[] {defType}, null, null);
-        addMethod("Def", "DefToshort", null, true, shortType, new Type[] {defType}, null, null);
-        addMethod("Def", "DefTochar", null, true, charType, new Type[] {defType}, null, null);
-        addMethod("Def", "DefToint", null, true, intType, new Type[] {defType}, null, null);
-        addMethod("Def", "DefTolong", null, true, longType, new Type[] {defType}, null, null);
-        addMethod("Def", "DefTofloat", null, true, floatType, new Type[] {defType}, null, null);
-        addMethod("Def", "DefTodouble", null, true, doubleType, new Type[] {defType}, null, null);
-        addMethod("Def", "DefToBoolean", null, true, booleanobjType, new Type[] {defType}, null, null);
-        addMethod("Def", "DefToByte", null, true, byteobjType, new Type[] {defType}, null, null);
-        addMethod("Def", "DefToShort", null, true, shortobjType, new Type[] {defType}, null, null);
-        addMethod("Def", "DefToCharacter", null, true, charobjType, new Type[] {defType}, null, null);
-        addMethod("Def", "DefToInteger", null, true, intobjType, new Type[] {defType}, null, null);
-        addMethod("Def", "DefToLong", null, true, longobjType, new Type[] {defType}, null, null);
-        addMethod("Def", "DefToFloat", null, true, floatobjType, new Type[] {defType}, null, null);
-        addMethod("Def", "DefToDouble", null, true, doubleobjType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefTobyteImplicit", null, true, byteType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToshortImplicit", null, true, shortType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefTocharImplicit", null, true, charType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefTointImplicit", null, true, intType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefTolongImplicit", null, true, longType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefTofloatImplicit", null, true, floatType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefTodoubleImplicit", null, true, doubleType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToByteImplicit", null, true, byteobjType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToShortImplicit", null, true, shortobjType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToCharacterImplicit", null, true, charobjType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToIntegerImplicit", null, true, intobjType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToLongImplicit", null, true, longobjType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToFloatImplicit", null, true, floatobjType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToDoubleImplicit", null, true, doubleobjType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefTobyteExplicit", null, true, byteType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToshortExplicit", null, true, shortType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefTocharExplicit", null, true, charType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefTointExplicit", null, true, intType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefTolongExplicit", null, true, longType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefTofloatExplicit", null, true, floatType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefTodoubleExplicit", null, true, doubleType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToByteExplicit", null, true, byteobjType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToShortExplicit", null, true, shortobjType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToCharacterExplicit", null, true, charobjType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToIntegerExplicit", null, true, intobjType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToLongExplicit", null, true, longobjType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToFloatExplicit", null, true, floatobjType, new Type[] {defType}, null, null);
+        addMethod("Def", "DefToDoubleExplicit", null, true, doubleobjType, new Type[] {defType}, null, null);
 
         addMethod("Iterator", "hasNext", null, false, booleanType, new Type[] {}, null, null);
         addMethod("Iterator", "next", null, false, objectType, new Type[] {}, defType, null);
@@ -1063,6 +1191,16 @@ public final class Definition {
                   new Type[] { stringType }, null, null);
         addMethod("GeoPoints", "geohashDistanceInMiles", null, false, doubleType,
                   new Type[] { stringType }, null, null);
+
+        // currently FeatureTest exposes overloaded constructor, field load store, and overloaded static methods
+        addConstructor("FeatureTest", "new", new Type[] {}, null);
+        addConstructor("FeatureTest", "new", new Type[] {intType, intType}, null);
+        addMethod("FeatureTest", "getX", null, false, intType, new Type[] {}, null, null);
+        addMethod("FeatureTest", "getY", null, false, intType, new Type[] {}, null, null);
+        addMethod("FeatureTest", "setX", null, false, voidType, new Type[] {intType}, null, null);
+        addMethod("FeatureTest", "setY", null, false, voidType, new Type[] {intType}, null, null);
+        addMethod("FeatureTest", "overloadedStatic", null, true, booleanType, new Type[] {}, null, null);
+        addMethod("FeatureTest", "overloadedStatic", null, true, booleanType, new Type[] {booleanType}, null, null);
     }
 
     private void copyStructs() {
@@ -1116,281 +1254,293 @@ public final class Definition {
         copyStruct("Longs", "List", "Collection", "Object");
         copyStruct("Doubles", "List", "Collection", "Object");
         copyStruct("GeoPoints", "List", "Collection", "Object");
+
+        copyStruct("FeatureTest", "Object");
     }
 
     private void addTransforms() {
-        addTransform(booleanType, byteType, "Utility", "booleanTobyte", true);
-        addTransform(booleanType, shortType, "Utility", "booleanToshort", true);
-        addTransform(booleanType, charType, "Utility", "booleanTochar", true);
-        addTransform(booleanType, intType, "Utility", "booleanToint", true);
-        addTransform(booleanType, longType, "Utility", "booleanTolong", true);
-        addTransform(booleanType, floatType, "Utility", "booleanTofloat", true);
-        addTransform(booleanType, doubleType, "Utility", "booleanTodouble", true);
-        addTransform(booleanType, objectType, "Boolean", "valueOf", true);
-        addTransform(booleanType, defType, "Boolean", "valueOf", true);
-        addTransform(booleanType, numberType, "Utility", "booleanToInteger", true);
-        addTransform(booleanType, booleanobjType, "Boolean", "valueOf", true);
+        addTransform(booleanType, objectType, "Boolean", "valueOf", true, false);
+        addTransform(booleanType, defType, "Boolean", "valueOf", true, false);
+        addTransform(booleanType, booleanobjType, "Boolean", "valueOf", true, false);
 
-        addTransform(byteType, booleanType, "Utility", "byteToboolean", true);
-        addTransform(byteType, objectType, "Byte", "valueOf", true);
-        addTransform(byteType, defType, "Byte", "valueOf", true);
-        addTransform(byteType, numberType, "Byte", "valueOf", true);
-        addTransform(byteType, byteobjType, "Byte", "valueOf", true);
-        addTransform(byteType, shortobjType, "Utility", "byteToShort", true);
-        addTransform(byteType, charobjType, "Utility", "byteToCharacter", true);
-        addTransform(byteType, intobjType, "Utility", "byteToInteger", true);
-        addTransform(byteType, longobjType, "Utility", "byteToLong", true);
-        addTransform(byteType, floatobjType, "Utility", "byteToFloat", true);
-        addTransform(byteType, doubleobjType, "Utility", "byteToDouble", true);
+        addTransform(byteType, shortType, false);
+        addTransform(byteType, charType, true);
+        addTransform(byteType, intType, false);
+        addTransform(byteType, longType, false);
+        addTransform(byteType, floatType, false);
+        addTransform(byteType, doubleType, false);
+        addTransform(byteType, objectType, "Byte", "valueOf", true, false);
+        addTransform(byteType, defType, "Byte", "valueOf", true, false);
+        addTransform(byteType, numberType, "Byte", "valueOf", true, false);
+        addTransform(byteType, byteobjType, "Byte", "valueOf", true, false);
+        addTransform(byteType, shortobjType, "Utility", "byteToShort", true, false);
+        addTransform(byteType, charobjType, "Utility", "byteToCharacter", true, true);
+        addTransform(byteType, intobjType, "Utility", "byteToInteger", true, false);
+        addTransform(byteType, longobjType, "Utility", "byteToLong", true, false);
+        addTransform(byteType, floatobjType, "Utility", "byteToFloat", true, false);
+        addTransform(byteType, doubleobjType, "Utility", "byteToDouble", true, false);
 
-        addTransform(shortType, booleanType, "Utility", "shortToboolean", true);
-        addTransform(shortType, objectType, "Short", "valueOf", true);
-        addTransform(shortType, defType, "Short", "valueOf", true);
-        addTransform(shortType, numberType, "Short", "valueOf", true);
-        addTransform(shortType, byteobjType, "Utility", "shortToByte", true);
-        addTransform(shortType, shortobjType, "Short", "valueOf", true);
-        addTransform(shortType, charobjType, "Utility", "shortToCharacter", true);
-        addTransform(shortType, intobjType, "Utility", "shortToInteger", true);
-        addTransform(shortType, longobjType, "Utility", "shortToLong", true);
-        addTransform(shortType, floatobjType, "Utility", "shortToFloat", true);
-        addTransform(shortType, doubleobjType, "Utility", "shortToDouble", true);
+        addTransform(shortType, byteType, true);
+        addTransform(shortType, charType, true);
+        addTransform(shortType, intType, false);
+        addTransform(shortType, longType, false);
+        addTransform(shortType, floatType, false);
+        addTransform(shortType, doubleType, false);
+        addTransform(shortType, objectType, "Short", "valueOf", true, false);
+        addTransform(shortType, defType, "Short", "valueOf", true, false);
+        addTransform(shortType, numberType, "Short", "valueOf", true, false);
+        addTransform(shortType, byteobjType, "Utility", "shortToByte", true, true);
+        addTransform(shortType, shortobjType, "Short", "valueOf", true, false);
+        addTransform(shortType, charobjType, "Utility", "shortToCharacter", true, true);
+        addTransform(shortType, intobjType, "Utility", "shortToInteger", true, false);
+        addTransform(shortType, longobjType, "Utility", "shortToLong", true, false);
+        addTransform(shortType, floatobjType, "Utility", "shortToFloat", true, false);
+        addTransform(shortType, doubleobjType, "Utility", "shortToDouble", true, false);
 
-        addTransform(charType, booleanType, "Utility", "charToboolean", true);
-        addTransform(charType, objectType, "Character", "valueOf", true);
-        addTransform(charType, defType, "Character", "valueOf", true);
-        addTransform(charType, numberType, "Utility", "charToInteger", true);
-        addTransform(charType, byteobjType, "Utility", "charToByte", true);
-        addTransform(charType, shortobjType, "Utility", "charToShort", true);
-        addTransform(charType, charobjType, "Character", "valueOf", true);
-        addTransform(charType, intobjType, "Utility", "charToInteger", true);
-        addTransform(charType, longobjType, "Utility", "charToLong", true);
-        addTransform(charType, floatobjType, "Utility", "charToFloat", true);
-        addTransform(charType, doubleobjType, "Utility", "charToDouble", true);
-        addTransform(charType, stringType, "Utility", "charToString", true);
+        addTransform(charType, byteType, true);
+        addTransform(charType, shortType, true);
+        addTransform(charType, intType, false);
+        addTransform(charType, longType, false);
+        addTransform(charType, floatType, false);
+        addTransform(charType, doubleType, false);
+        addTransform(charType, objectType, "Character", "valueOf", true, false);
+        addTransform(charType, defType, "Character", "valueOf", true, false);
+        addTransform(charType, numberType, "Utility", "charToInteger", true, false);
+        addTransform(charType, byteobjType, "Utility", "charToByte", true, true);
+        addTransform(charType, shortobjType, "Utility", "charToShort", true, true);
+        addTransform(charType, charobjType, "Character", "valueOf", true, false);
+        addTransform(charType, intobjType, "Utility", "charToInteger", true, false);
+        addTransform(charType, longobjType, "Utility", "charToLong", true, false);
+        addTransform(charType, floatobjType, "Utility", "charToFloat", true, false);
+        addTransform(charType, doubleobjType, "Utility", "charToDouble", true, false);
+        addTransform(charType, stringType, "Utility", "charToString", true, true);
 
-        addTransform(intType, booleanType, "Utility", "intToboolean", true);
-        addTransform(intType, objectType, "Integer", "valueOf", true);
-        addTransform(intType, defType, "Integer", "valueOf", true);
-        addTransform(intType, numberType, "Integer", "valueOf", true);
-        addTransform(intType, byteobjType, "Utility", "intToByte", true);
-        addTransform(intType, shortobjType, "Utility", "intToShort", true);
-        addTransform(intType, charobjType, "Utility", "intToCharacter", true);
-        addTransform(intType, intobjType, "Integer", "valueOf", true);
-        addTransform(intType, longobjType, "Utility", "intToLong", true);
-        addTransform(intType, floatobjType, "Utility", "intToFloat", true);
-        addTransform(intType, doubleobjType, "Utility", "intToDouble", true);
+        addTransform(intType, byteType, true);
+        addTransform(intType, shortType, true);
+        addTransform(intType, charType, true);
+        addTransform(intType, longType, false);
+        addTransform(intType, floatType, false);
+        addTransform(intType, doubleType, false);
+        addTransform(intType, objectType, "Integer", "valueOf", true, false);
+        addTransform(intType, defType, "Integer", "valueOf", true, false);
+        addTransform(intType, numberType, "Integer", "valueOf", true, false);
+        addTransform(intType, byteobjType, "Utility", "intToByte", true, true);
+        addTransform(intType, shortobjType, "Utility", "intToShort", true, true);
+        addTransform(intType, charobjType, "Utility", "intToCharacter", true, true);
+        addTransform(intType, intobjType, "Integer", "valueOf", true, false);
+        addTransform(intType, longobjType, "Utility", "intToLong", true, false);
+        addTransform(intType, floatobjType, "Utility", "intToFloat", true, false);
+        addTransform(intType, doubleobjType, "Utility", "intToDouble", true, false);
 
-        addTransform(longType, booleanType, "Utility", "longToboolean", true);
-        addTransform(longType, objectType, "Long", "valueOf", true);
-        addTransform(longType, defType, "Long", "valueOf", true);
-        addTransform(longType, numberType, "Long", "valueOf", true);
-        addTransform(longType, byteobjType, "Utility", "longToByte", true);
-        addTransform(longType, shortobjType, "Utility", "longToShort", true);
-        addTransform(longType, charobjType, "Utility", "longToCharacter", true);
-        addTransform(longType, intobjType, "Utility", "longToInteger", true);
-        addTransform(longType, longobjType, "Long", "valueOf", true);
-        addTransform(longType, floatobjType, "Utility", "longToFloat", true);
-        addTransform(longType, doubleobjType, "Utility", "longToDouble", true);
+        addTransform(longType, byteType, true);
+        addTransform(longType, shortType, true);
+        addTransform(longType, charType, true);
+        addTransform(longType, intType, false);
+        addTransform(longType, floatType, false);
+        addTransform(longType, doubleType, false);
+        addTransform(longType, objectType, "Long", "valueOf", true, false);
+        addTransform(longType, defType, "Long", "valueOf", true, false);
+        addTransform(longType, numberType, "Long", "valueOf", true, false);
+        addTransform(longType, byteobjType, "Utility", "longToByte", true, true);
+        addTransform(longType, shortobjType, "Utility", "longToShort", true, true);
+        addTransform(longType, charobjType, "Utility", "longToCharacter", true, true);
+        addTransform(longType, intobjType, "Utility", "longToInteger", true, true);
+        addTransform(longType, longobjType, "Long", "valueOf", true, false);
+        addTransform(longType, floatobjType, "Utility", "longToFloat", true, false);
+        addTransform(longType, doubleobjType, "Utility", "longToDouble", true, false);
 
-        addTransform(floatType, booleanType, "Utility", "floatToboolean", true);
-        addTransform(floatType, objectType, "Float", "valueOf", true);
-        addTransform(floatType, defType, "Float", "valueOf", true);
-        addTransform(floatType, numberType, "Float", "valueOf", true);
-        addTransform(floatType, byteobjType, "Utility", "floatToByte", true);
-        addTransform(floatType, shortobjType, "Utility", "floatToShort", true);
-        addTransform(floatType, charobjType, "Utility", "floatToCharacter", true);
-        addTransform(floatType, intobjType, "Utility", "floatToInteger", true);
-        addTransform(floatType, longobjType, "Utility", "floatToLong", true);
-        addTransform(floatType, floatobjType, "Float", "valueOf", true);
-        addTransform(floatType, doubleobjType, "Utility", "floatToDouble", true);
+        addTransform(floatType, byteType, true);
+        addTransform(floatType, shortType, true);
+        addTransform(floatType, charType, true);
+        addTransform(floatType, intType, true);
+        addTransform(floatType, longType, false);
+        addTransform(floatType, doubleType, false);
+        addTransform(floatType, objectType, "Float", "valueOf", true, false);
+        addTransform(floatType, defType, "Float", "valueOf", true, false);
+        addTransform(floatType, numberType, "Float", "valueOf", true, false);
+        addTransform(floatType, byteobjType, "Utility", "floatToByte", true, true);
+        addTransform(floatType, shortobjType, "Utility", "floatToShort", true, true);
+        addTransform(floatType, charobjType, "Utility", "floatToCharacter", true, true);
+        addTransform(floatType, intobjType, "Utility", "floatToInteger", true, true);
+        addTransform(floatType, longobjType, "Utility", "floatToLong", true, true);
+        addTransform(floatType, floatobjType, "Float", "valueOf", true, false);
+        addTransform(floatType, doubleobjType, "Utility", "floatToDouble", true, false);
 
-        addTransform(doubleType, booleanType, "Utility", "doubleToboolean", true);
-        addTransform(doubleType, objectType, "Double", "valueOf", true);
-        addTransform(doubleType, defType, "Double", "valueOf", true);
-        addTransform(doubleType, numberType, "Double", "valueOf", true);
-        addTransform(doubleType, byteobjType, "Utility", "doubleToByte", true);
-        addTransform(doubleType, shortobjType, "Utility", "doubleToShort", true);
-        addTransform(doubleType, charobjType, "Utility", "doubleToCharacter", true);
-        addTransform(doubleType, intobjType, "Utility", "doubleToInteger", true);
-        addTransform(doubleType, longobjType, "Utility", "doubleToLong", true);
-        addTransform(doubleType, floatobjType, "Utility", "doubleToFloat", true);
-        addTransform(doubleType, doubleobjType, "Double", "valueOf", true);
+        addTransform(doubleType, byteType, true);
+        addTransform(doubleType, shortType, true);
+        addTransform(doubleType, charType, true);
+        addTransform(doubleType, intType, true);
+        addTransform(doubleType, longType, true);
+        addTransform(doubleType, floatType, false);
+        addTransform(doubleType, objectType, "Double", "valueOf", true, false);
+        addTransform(doubleType, defType, "Double", "valueOf", true, false);
+        addTransform(doubleType, numberType, "Double", "valueOf", true, false);
+        addTransform(doubleType, byteobjType, "Utility", "doubleToByte", true, true);
+        addTransform(doubleType, shortobjType, "Utility", "doubleToShort", true, true);
+        addTransform(doubleType, charobjType, "Utility", "doubleToCharacter", true, true);
+        addTransform(doubleType, intobjType, "Utility", "doubleToInteger", true, true);
+        addTransform(doubleType, longobjType, "Utility", "doubleToLong", true, true);
+        addTransform(doubleType, floatobjType, "Utility", "doubleToFloat", true, true);
+        addTransform(doubleType, doubleobjType, "Double", "valueOf", true, false);
 
-        addTransform(objectType, booleanType, "Boolean", "booleanValue", false);
-        addTransform(objectType, byteType, "Number", "byteValue", false);
-        addTransform(objectType, shortType, "Number", "shortValue", false);
-        addTransform(objectType, charType, "Character", "charValue", false);
-        addTransform(objectType, intType, "Number", "intValue", false);
-        addTransform(objectType, longType, "Number", "longValue", false);
-        addTransform(objectType, floatType, "Number", "floatValue", false);
-        addTransform(objectType, doubleType, "Number", "doubleValue", false);
+        addTransform(objectType, booleanType, "Boolean", "booleanValue", false, true);
+        addTransform(objectType, byteType, "Number", "byteValue", false, true);
+        addTransform(objectType, shortType, "Number", "shortValue", false, true);
+        addTransform(objectType, charType, "Character", "charValue", false, true);
+        addTransform(objectType, intType, "Number", "intValue", false, true);
+        addTransform(objectType, longType, "Number", "longValue", false, true);
+        addTransform(objectType, floatType, "Number", "floatValue", false, true);
+        addTransform(objectType, doubleType, "Number", "doubleValue", false, true);
 
-        addTransform(defType, booleanType, "Def", "DefToboolean", true);
-        addTransform(defType, byteType, "Def", "DefTobyte", true);
-        addTransform(defType, shortType, "Def", "DefToshort", true);
-        addTransform(defType, charType, "Def", "DefTochar", true);
-        addTransform(defType, intType, "Def", "DefToint", true);
-        addTransform(defType, longType, "Def", "DefTolong", true);
-        addTransform(defType, floatType, "Def", "DefTofloat", true);
-        addTransform(defType, doubleType, "Def", "DefTodouble", true);
-        addTransform(defType, booleanobjType, "Def", "DefToBoolean", true);
-        addTransform(defType, byteobjType, "Def", "DefToByte", true);
-        addTransform(defType, shortobjType, "Def", "DefToShort", true);
-        addTransform(defType, charobjType, "Def", "DefToCharacter", true);
-        addTransform(defType, intobjType, "Def", "DefToInteger", true);
-        addTransform(defType, longobjType, "Def", "DefToLong", true);
-        addTransform(defType, floatobjType, "Def", "DefToFloat", true);
-        addTransform(defType, doubleobjType, "Def", "DefToDouble", true);
+        addTransform(defType, booleanType, "Boolean", "booleanValue", false, false);
+        addTransform(defType, byteType, "Def", "DefTobyteImplicit", true, false);
+        addTransform(defType, shortType, "Def", "DefToshortImplicit", true, false);
+        addTransform(defType, charType, "Def", "DefTocharImplicit", true, false);
+        addTransform(defType, intType, "Def", "DefTointImplicit", true, false);
+        addTransform(defType, longType, "Def", "DefTolongImplicit", true, false);
+        addTransform(defType, floatType, "Def", "DefTofloatImplicit", true, false);
+        addTransform(defType, doubleType, "Def", "DefTodoubleImplicit", true, false);
+        addTransform(defType, byteobjType, "Def", "DefToByteImplicit", true, false);
+        addTransform(defType, shortobjType, "Def", "DefToShortImplicit", true, false);
+        addTransform(defType, charobjType, "Def", "DefToCharacterImplicit", true, false);
+        addTransform(defType, intobjType, "Def", "DefToIntegerImplicit", true, false);
+        addTransform(defType, longobjType, "Def", "DefToLongImplicit", true, false);
+        addTransform(defType, floatobjType, "Def", "DefToFloatImplicit", true, false);
+        addTransform(defType, doubleobjType, "Def", "DefToDoubleImplicit", true, false);
+        addTransform(defType, byteType, "Def", "DefTobyteExplicit", true, true);
+        addTransform(defType, shortType, "Def", "DefToshortExplicit", true, true);
+        addTransform(defType, charType, "Def", "DefTocharExplicit", true, true);
+        addTransform(defType, intType, "Def", "DefTointExplicit", true, true);
+        addTransform(defType, longType, "Def", "DefTolongExplicit", true, true);
+        addTransform(defType, floatType, "Def", "DefTofloatExplicit", true, true);
+        addTransform(defType, doubleType, "Def", "DefTodoubleExplicit", true, true);
+        addTransform(defType, byteobjType, "Def", "DefToByteExplicit", true, true);
+        addTransform(defType, shortobjType, "Def", "DefToShortExplicit", true, true);
+        addTransform(defType, charobjType, "Def", "DefToCharacterExplicit", true, true);
+        addTransform(defType, intobjType, "Def", "DefToIntegerExplicit", true, true);
+        addTransform(defType, longobjType, "Def", "DefToLongExplicit", true, true);
+        addTransform(defType, floatobjType, "Def", "DefToFloatExplicit", true, true);
+        addTransform(defType, doubleobjType, "Def", "DefToDoubleExplicit", true, true);
 
-        addTransform(numberType, booleanType, "Utility", "NumberToboolean", true);
-        addTransform(numberType, byteType, "Number", "byteValue", false);
-        addTransform(numberType, shortType, "Number", "shortValue", false);
-        addTransform(numberType, charType, "Utility", "NumberTochar", true);
-        addTransform(numberType, intType, "Number", "intValue", false);
-        addTransform(numberType, longType, "Number", "longValue", false);
-        addTransform(numberType, floatType, "Number", "floatValue", false);
-        addTransform(numberType, doubleType, "Number", "doubleValue", false);
-        addTransform(numberType, booleanobjType, "Utility", "NumberToBoolean", true);
-        addTransform(numberType, byteobjType, "Utility", "NumberToByte", true);
-        addTransform(numberType, shortobjType, "Utility", "NumberToShort", true);
-        addTransform(numberType, charobjType, "Utility", "NumberToCharacter", true);
-        addTransform(numberType, intobjType, "Utility", "NumberToInteger", true);
-        addTransform(numberType, longobjType, "Utility", "NumberToLong", true);
-        addTransform(numberType, floatobjType, "Utility", "NumberToFloat", true);
-        addTransform(numberType, doubleobjType, "Utility", "NumberToDouble", true);
+        addTransform(numberType, byteType, "Number", "byteValue", false, true);
+        addTransform(numberType, shortType, "Number", "shortValue", false, true);
+        addTransform(numberType, charType, "Utility", "NumberTochar", true, true);
+        addTransform(numberType, intType, "Number", "intValue", false, true);
+        addTransform(numberType, longType, "Number", "longValue", false, true);
+        addTransform(numberType, floatType, "Number", "floatValue", false, true);
+        addTransform(numberType, doubleType, "Number", "doubleValue", false, true);
+        addTransform(numberType, booleanobjType, "Utility", "NumberToBoolean", true, true);
+        addTransform(numberType, byteobjType, "Utility", "NumberToByte", true, true);
+        addTransform(numberType, shortobjType, "Utility", "NumberToShort", true, true);
+        addTransform(numberType, charobjType, "Utility", "NumberToCharacter", true, true);
+        addTransform(numberType, intobjType, "Utility", "NumberToInteger", true, true);
+        addTransform(numberType, longobjType, "Utility", "NumberToLong", true, true);
+        addTransform(numberType, floatobjType, "Utility", "NumberToFloat", true, true);
+        addTransform(numberType, doubleobjType, "Utility", "NumberToDouble", true, true);
 
-        addTransform(booleanobjType, booleanType, "Boolean", "booleanValue", false);
-        addTransform(booleanobjType, byteType, "Utility", "BooleanTobyte", true);
-        addTransform(booleanobjType, shortType, "Utility", "BooleanToshort", true);
-        addTransform(booleanobjType, charType, "Utility", "BooleanTochar", true);
-        addTransform(booleanobjType, intType, "Utility", "BooleanToint", true);
-        addTransform(booleanobjType, longType, "Utility", "BooleanTolong", true);
-        addTransform(booleanobjType, floatType, "Utility", "BooleanTofloat", true);
-        addTransform(booleanobjType, doubleType, "Utility", "BooleanTodouble", true);
-        addTransform(booleanobjType, numberType, "Utility", "BooleanToLong", true);
-        addTransform(booleanobjType, byteobjType, "Utility", "BooleanToByte", true);
-        addTransform(booleanobjType, shortobjType, "Utility", "BooleanToShort", true);
-        addTransform(booleanobjType, charobjType, "Utility", "BooleanToCharacter", true);
-        addTransform(booleanobjType, intobjType, "Utility", "BooleanToInteger", true);
-        addTransform(booleanobjType, longobjType, "Utility", "BooleanToLong", true);
-        addTransform(booleanobjType, floatobjType, "Utility", "BooleanToFloat", true);
-        addTransform(booleanobjType, doubleobjType, "Utility", "BooleanToDouble", true);
+        addTransform(booleanobjType, booleanType, "Boolean", "booleanValue", false, false);
 
-        addTransform(byteobjType, booleanType, "Utility", "ByteToboolean", true);
-        addTransform(byteobjType, byteType, "Byte", "byteValue", false);
-        addTransform(byteobjType, shortType, "Byte", "shortValue", false);
-        addTransform(byteobjType, charType, "Utility", "ByteTochar", true);
-        addTransform(byteobjType, intType, "Byte", "intValue", false);
-        addTransform(byteobjType, longType, "Byte", "longValue", false);
-        addTransform(byteobjType, floatType, "Byte", "floatValue", false);
-        addTransform(byteobjType, doubleType, "Byte", "doubleValue", false);
-        addTransform(byteobjType, booleanobjType, "Utility", "NumberToBoolean", true);
-        addTransform(byteobjType, shortobjType, "Utility", "NumberToShort", true);
-        addTransform(byteobjType, charobjType, "Utility", "NumberToCharacter", true);
-        addTransform(byteobjType, intobjType, "Utility", "NumberToInteger", true);
-        addTransform(byteobjType, longobjType, "Utility", "NumberToLong", true);
-        addTransform(byteobjType, floatobjType, "Utility", "NumberToFloat", true);
-        addTransform(byteobjType, doubleobjType, "Utility", "NumberToDouble", true);
+        addTransform(byteobjType, byteType, "Byte", "byteValue", false, false);
+        addTransform(byteobjType, shortType, "Byte", "shortValue", false, false);
+        addTransform(byteobjType, charType, "Utility", "ByteTochar", true, false);
+        addTransform(byteobjType, intType, "Byte", "intValue", false, false);
+        addTransform(byteobjType, longType, "Byte", "longValue", false, false);
+        addTransform(byteobjType, floatType, "Byte", "floatValue", false, false);
+        addTransform(byteobjType, doubleType, "Byte", "doubleValue", false, false);
+        addTransform(byteobjType, shortobjType, "Utility", "NumberToShort", true, false);
+        addTransform(byteobjType, charobjType, "Utility", "NumberToCharacter", true, false);
+        addTransform(byteobjType, intobjType, "Utility", "NumberToInteger", true, false);
+        addTransform(byteobjType, longobjType, "Utility", "NumberToLong", true, false);
+        addTransform(byteobjType, floatobjType, "Utility", "NumberToFloat", true, false);
+        addTransform(byteobjType, doubleobjType, "Utility", "NumberToDouble", true, false);
 
-        addTransform(shortobjType, booleanType, "Utility", "ShortToboolean", true);
-        addTransform(shortobjType, byteType, "Short", "byteValue", false);
-        addTransform(shortobjType, shortType, "Short", "shortValue", false);
-        addTransform(shortobjType, charType, "Utility", "ShortTochar", true);
-        addTransform(shortobjType, intType, "Short", "intValue", false);
-        addTransform(shortobjType, longType, "Short", "longValue", false);
-        addTransform(shortobjType, floatType, "Short", "floatValue", false);
-        addTransform(shortobjType, doubleType, "Short", "doubleValue", false);
-        addTransform(shortobjType, booleanobjType, "Utility", "NumberToBoolean", true);
-        addTransform(shortobjType, byteobjType, "Utility", "NumberToByte", true);
-        addTransform(shortobjType, charobjType, "Utility", "NumberToCharacter", true);
-        addTransform(shortobjType, intobjType, "Utility", "NumberToInteger", true);
-        addTransform(shortobjType, longobjType, "Utility", "NumberToLong", true);
-        addTransform(shortobjType, floatobjType, "Utility", "NumberToFloat", true);
-        addTransform(shortobjType, doubleobjType, "Utility", "NumberToDouble", true);
+        addTransform(shortobjType, byteType, "Short", "byteValue", false, true);
+        addTransform(shortobjType, shortType, "Short", "shortValue", false, true);
+        addTransform(shortobjType, charType, "Utility", "ShortTochar", true, false);
+        addTransform(shortobjType, intType, "Short", "intValue", false, false);
+        addTransform(shortobjType, longType, "Short", "longValue", false, false);
+        addTransform(shortobjType, floatType, "Short", "floatValue", false, false);
+        addTransform(shortobjType, doubleType, "Short", "doubleValue", false, false);
+        addTransform(shortobjType, byteobjType, "Utility", "NumberToByte", true, true);
+        addTransform(shortobjType, charobjType, "Utility", "NumberToCharacter", true, true);
+        addTransform(shortobjType, intobjType, "Utility", "NumberToInteger", true, false);
+        addTransform(shortobjType, longobjType, "Utility", "NumberToLong", true, false);
+        addTransform(shortobjType, floatobjType, "Utility", "NumberToFloat", true, false);
+        addTransform(shortobjType, doubleobjType, "Utility", "NumberToDouble", true, false);
 
-        addTransform(charobjType, booleanType, "Utility", "CharacterToboolean", true);
-        addTransform(charobjType, byteType, "Utility", "CharacterTobyte", true);
-        addTransform(charobjType, shortType, "Utility", "CharacterToshort", true);
-        addTransform(charobjType, charType, "Character", "charValue", false);
-        addTransform(charobjType, intType, "Utility", "CharacterToint", true);
-        addTransform(charobjType, longType, "Utility", "CharacterTolong", true);
-        addTransform(charobjType, floatType, "Utility", "CharacterTofloat", true);
-        addTransform(charobjType, doubleType, "Utility", "CharacterTodouble", true);
-        addTransform(charobjType, booleanobjType, "Utility", "CharacterToBoolean", true);
-        addTransform(charobjType, byteobjType, "Utility", "CharacterToByte", true);
-        addTransform(charobjType, shortobjType, "Utility", "CharacterToShort", true);
-        addTransform(charobjType, intobjType, "Utility", "CharacterToInteger", true);
-        addTransform(charobjType, longobjType, "Utility", "CharacterToLong", true);
-        addTransform(charobjType, floatobjType, "Utility", "CharacterToFloat", true);
-        addTransform(charobjType, doubleobjType, "Utility", "CharacterToDouble", true);
-        addTransform(charobjType, stringType, "Utility", "CharacterToString", true);
+        addTransform(charobjType, byteType, "Utility", "CharacterTobyte", true, true);
+        addTransform(charobjType, shortType, "Utility", "CharacterToshort", true, false);
+        addTransform(charobjType, charType, "Character", "charValue", false, true);
+        addTransform(charobjType, intType, "Utility", "CharacterToint", true, false);
+        addTransform(charobjType, longType, "Utility", "CharacterTolong", true, false);
+        addTransform(charobjType, floatType, "Utility", "CharacterTofloat", true, false);
+        addTransform(charobjType, doubleType, "Utility", "CharacterTodouble", true, false);
+        addTransform(charobjType, byteobjType, "Utility", "CharacterToByte", true, true);
+        addTransform(charobjType, shortobjType, "Utility", "CharacterToShort", true, true);
+        addTransform(charobjType, intobjType, "Utility", "CharacterToInteger", true, false);
+        addTransform(charobjType, longobjType, "Utility", "CharacterToLong", true, false);
+        addTransform(charobjType, floatobjType, "Utility", "CharacterToFloat", true, false);
+        addTransform(charobjType, doubleobjType, "Utility", "CharacterToDouble", true, false);
+        addTransform(charobjType, stringType, "Utility", "CharacterToString", true, true);
 
-        addTransform(intobjType, booleanType, "Utility", "IntegerToboolean", true);
-        addTransform(intobjType, byteType, "Integer", "byteValue", false);
-        addTransform(intobjType, shortType, "Integer", "shortValue", false);
-        addTransform(intobjType, charType, "Utility", "IntegerTochar", true);
-        addTransform(intobjType, intType, "Integer", "intValue", false);
-        addTransform(intobjType, longType, "Integer", "longValue", false);
-        addTransform(intobjType, floatType, "Integer", "floatValue", false);
-        addTransform(intobjType, doubleType, "Integer", "doubleValue", false);
-        addTransform(intobjType, booleanobjType, "Utility", "NumberToBoolean", true);
-        addTransform(intobjType, byteobjType, "Utility", "NumberToByte", true);
-        addTransform(intobjType, shortobjType, "Utility", "NumberToShort", true);
-        addTransform(intobjType, charobjType, "Utility", "NumberToCharacter", true);
-        addTransform(intobjType, longobjType, "Utility", "NumberToLong", true);
-        addTransform(intobjType, floatobjType, "Utility", "NumberToFloat", true);
-        addTransform(intobjType, doubleobjType, "Utility", "NumberToDouble", true);
+        addTransform(intobjType, byteType, "Integer", "byteValue", false, true);
+        addTransform(intobjType, shortType, "Integer", "shortValue", false, true);
+        addTransform(intobjType, charType, "Utility", "IntegerTochar", true, true);
+        addTransform(intobjType, intType, "Integer", "intValue", false, false);
+        addTransform(intobjType, longType, "Integer", "longValue", false, false);
+        addTransform(intobjType, floatType, "Integer", "floatValue", false, false);
+        addTransform(intobjType, doubleType, "Integer", "doubleValue", false, false);
+        addTransform(intobjType, byteobjType, "Utility", "NumberToByte", true, true);
+        addTransform(intobjType, shortobjType, "Utility", "NumberToShort", true, true);
+        addTransform(intobjType, charobjType, "Utility", "NumberToCharacter", true, true);
+        addTransform(intobjType, longobjType, "Utility", "NumberToLong", true, false);
+        addTransform(intobjType, floatobjType, "Utility", "NumberToFloat", true, false);
+        addTransform(intobjType, doubleobjType, "Utility", "NumberToDouble", true, false);
 
-        addTransform(longobjType, booleanType, "Utility", "LongToboolean", true);
-        addTransform(longobjType, byteType, "Long", "byteValue", false);
-        addTransform(longobjType, shortType, "Long", "shortValue", false);
-        addTransform(longobjType, charType, "Utility", "LongTochar", true);
-        addTransform(longobjType, intType, "Long", "intValue", false);
-        addTransform(longobjType, longType, "Long", "longValue", false);
-        addTransform(longobjType, floatType, "Long", "floatValue", false);
-        addTransform(longobjType, doubleType, "Long", "doubleValue", false);
-        addTransform(longobjType, booleanobjType, "Utility", "NumberToBoolean", true);
-        addTransform(longobjType, byteobjType, "Utility", "NumberToByte", true);
-        addTransform(longobjType, shortobjType, "Utility", "NumberToShort", true);
-        addTransform(longobjType, charobjType, "Utility", "NumberToCharacter", true);
-        addTransform(longobjType, intobjType, "Utility", "NumberToInteger", true);
-        addTransform(longobjType, floatobjType, "Utility", "NumberToFloat", true);
-        addTransform(longobjType, doubleobjType, "Utility", "NumberToDouble", true);
+        addTransform(longobjType, byteType, "Long", "byteValue", false, true);
+        addTransform(longobjType, shortType, "Long", "shortValue", false, true);
+        addTransform(longobjType, charType, "Utility", "LongTochar", true, true);
+        addTransform(longobjType, intType, "Long", "intValue", false, true);
+        addTransform(longobjType, longType, "Long", "longValue", false, false);
+        addTransform(longobjType, floatType, "Long", "floatValue", false, false);
+        addTransform(longobjType, doubleType, "Long", "doubleValue", false, false);
+        addTransform(longobjType, byteobjType, "Utility", "NumberToByte", true, true);
+        addTransform(longobjType, shortobjType, "Utility", "NumberToShort", true, true);
+        addTransform(longobjType, charobjType, "Utility", "NumberToCharacter", true, true);
+        addTransform(longobjType, intobjType, "Utility", "NumberToInteger", true, true);
+        addTransform(longobjType, floatobjType, "Utility", "NumberToFloat", true, false);
+        addTransform(longobjType, doubleobjType, "Utility", "NumberToDouble", true, false);
 
-        addTransform(floatobjType, booleanType, "Utility", "FloatToboolean", true);
-        addTransform(floatobjType, byteType, "Float", "byteValue", false);
-        addTransform(floatobjType, shortType, "Float", "shortValue", false);
-        addTransform(floatobjType, charType, "Utility", "FloatTochar", true);
-        addTransform(floatobjType, intType, "Float", "intValue", false);
-        addTransform(floatobjType, longType, "Float", "longValue", false);
-        addTransform(floatobjType, floatType, "Float", "floatValue", false);
-        addTransform(floatobjType, doubleType, "Float", "doubleValue", false);
-        addTransform(floatobjType, booleanobjType, "Utility", "NumberToBoolean", true);
-        addTransform(floatobjType, byteobjType, "Utility", "NumberToByte", true);
-        addTransform(floatobjType, shortobjType, "Utility", "NumberToShort", true);
-        addTransform(floatobjType, charobjType, "Utility", "NumberToCharacter", true);
-        addTransform(floatobjType, intobjType, "Utility", "NumberToInteger", true);
-        addTransform(floatobjType, longobjType, "Utility", "NumberToLong", true);
-        addTransform(floatobjType, doubleobjType, "Utility", "NumberToDouble", true);
+        addTransform(floatobjType, byteType, "Float", "byteValue", false, true);
+        addTransform(floatobjType, shortType, "Float", "shortValue", false, true);
+        addTransform(floatobjType, charType, "Utility", "FloatTochar", true, true);
+        addTransform(floatobjType, intType, "Float", "intValue", false, true);
+        addTransform(floatobjType, longType, "Float", "longValue", false, true);
+        addTransform(floatobjType, floatType, "Float", "floatValue", false, false);
+        addTransform(floatobjType, doubleType, "Float", "doubleValue", false, false);
+        addTransform(floatobjType, byteobjType, "Utility", "NumberToByte", true, true);
+        addTransform(floatobjType, shortobjType, "Utility", "NumberToShort", true, true);
+        addTransform(floatobjType, charobjType, "Utility", "NumberToCharacter", true, true);
+        addTransform(floatobjType, intobjType, "Utility", "NumberToInteger", true, true);
+        addTransform(floatobjType, longobjType, "Utility", "NumberToLong", true, true);
+        addTransform(floatobjType, doubleobjType, "Utility", "NumberToDouble", true, false);
 
-        addTransform(doubleobjType, booleanType, "Utility", "DoubleToboolean", true);
-        addTransform(doubleobjType, byteType, "Double", "byteValue", false);
-        addTransform(doubleobjType, shortType, "Double", "shortValue", false);
-        addTransform(doubleobjType, charType, "Utility", "DoubleTochar", true);
-        addTransform(doubleobjType, intType, "Double", "intValue", false);
-        addTransform(doubleobjType, longType, "Double", "longValue", false);
-        addTransform(doubleobjType, floatType, "Double", "floatValue", false);
-        addTransform(doubleobjType, doubleType, "Double", "doubleValue", false);
-        addTransform(doubleobjType, booleanobjType, "Utility", "NumberToBoolean", true);
-        addTransform(doubleobjType, byteobjType, "Utility", "NumberToByte", true);
-        addTransform(doubleobjType, shortobjType, "Utility", "NumberToShort", true);
-        addTransform(doubleobjType, charobjType, "Utility", "NumberToCharacter", true);
-        addTransform(doubleobjType, intobjType, "Utility", "NumberToInteger", true);
-        addTransform(doubleobjType, longobjType, "Utility", "NumberToLong", true);
-        addTransform(doubleobjType, floatobjType, "Utility", "NumberToFloat", true);
+        addTransform(doubleobjType, byteType, "Double", "byteValue", false, true);
+        addTransform(doubleobjType, shortType, "Double", "shortValue", false, true);
+        addTransform(doubleobjType, charType, "Utility", "DoubleTochar", true, true);
+        addTransform(doubleobjType, intType, "Double", "intValue", false, true);
+        addTransform(doubleobjType, longType, "Double", "longValue", false, true);
+        addTransform(doubleobjType, floatType, "Double", "floatValue", false, true);
+        addTransform(doubleobjType, doubleType, "Double", "doubleValue", false, false);
+        addTransform(doubleobjType, byteobjType, "Utility", "NumberToByte", true, true);
+        addTransform(doubleobjType, shortobjType, "Utility", "NumberToShort", true, true);
+        addTransform(doubleobjType, charobjType, "Utility", "NumberToCharacter", true, true);
+        addTransform(doubleobjType, intobjType, "Utility", "NumberToInteger", true, true);
+        addTransform(doubleobjType, longobjType, "Utility", "NumberToLong", true, true);
+        addTransform(doubleobjType, floatobjType, "Utility", "NumberToFloat", true, true);
 
-        addTransform(stringType, charType, "Utility", "StringTochar", true);
-        addTransform(stringType, charobjType, "Utility", "StringToCharacter", true);
+        addTransform(stringType, charType, "Utility", "StringTochar", true, true);
+        addTransform(stringType, charobjType, "Utility", "StringToCharacter", true, true);
     }
 
     private void addRuntimeClasses() {
@@ -1433,6 +1583,8 @@ public final class Definition {
         addRuntimeClass(longsType.struct);
         addRuntimeClass(doublesType.struct);
         addRuntimeClass(geoPointsType.struct);
+
+        addRuntimeClass(featureTestType.struct);
     }
 
     private final void addStruct(final String name, final Class<?> clazz) {
@@ -1462,28 +1614,28 @@ public final class Definition {
                 "Invalid constructor name [" + name + "] with the struct [" + owner.name + "].");
         }
 
-        if (owner.constructors.containsKey(name)) {
+        MethodKey methodKey = new MethodKey(name, args.length);
+
+        if (owner.constructors.containsKey(methodKey)) {
             throw new IllegalArgumentException(
-                "Duplicate constructor name [" + name + "] found within the struct [" + owner.name + "].");
+                "Duplicate constructor [" + methodKey + "] found within the struct [" + owner.name + "].");
         }
 
-        if (owner.statics.containsKey(name)) {
-            throw new IllegalArgumentException("Constructors and functions may not have the same name" +
-                " [" + name + "] within the same struct [" + owner.name + "].");
+        if (owner.staticMethods.containsKey(methodKey)) {
+            throw new IllegalArgumentException("Constructors and static methods may not have the same signature" +
+                " [" + methodKey + "] within the same struct [" + owner.name + "].");
         }
 
-        if (owner.methods.containsKey(name)) {
-            throw new IllegalArgumentException("Constructors and methods may not have the same name" +
-                " [" + name + "] within the same struct [" + owner.name + "].");
+        if (owner.methods.containsKey(methodKey)) {
+            throw new IllegalArgumentException("Constructors and methods may not have the same signature" +
+                " [" + methodKey + "] within the same struct [" + owner.name + "].");
         }
 
         final Class<?>[] classes = new Class<?>[args.length];
 
         for (int count = 0; count < classes.length; ++count) {
             if (genargs != null) {
-                try {
-                    genargs[count].clazz.asSubclass(args[count].clazz);
-                } catch (final ClassCastException exception) {
+                if (!args[count].clazz.isAssignableFrom(genargs[count].clazz)) {
                     throw new ClassCastException("Generic argument [" + genargs[count].name + "]" +
                         " is not a sub class of [" + args[count].name + "] in the constructor" +
                         " [" + name + " ] from the struct [" + owner.name + "].");
@@ -1506,7 +1658,7 @@ public final class Definition {
         final Constructor constructor =
             new Constructor(name, owner, Arrays.asList(genargs != null ? genargs : args), asm, reflect);
 
-        owner.constructors.put(name, constructor);
+        owner.constructors.put(methodKey, constructor);
     }
 
     private final void addMethod(final String struct, final String name, final String alias, final boolean statik,
@@ -1519,40 +1671,40 @@ public final class Definition {
         }
 
         if (!name.matches("^[_a-zA-Z][_a-zA-Z0-9]*$")) {
-            throw new IllegalArgumentException("Invalid " + (statik ? "function" : "method") +
+            throw new IllegalArgumentException("Invalid " + (statik ? "static method" : "method") +
                 " name [" + name + "] with the struct [" + owner.name + "].");
         }
 
-        if (owner.constructors.containsKey(name)) {
-            throw new IllegalArgumentException("Constructors and " + (statik ? "functions" : "methods") +
-                " may not have the same name [" + name + "] within the same struct" +
+        MethodKey methodKey = new MethodKey(name, args.length);
+
+        if (owner.constructors.containsKey(methodKey)) {
+            throw new IllegalArgumentException("Constructors and " + (statik ? "static methods" : "methods") +
+                " may not have the same signature [" + methodKey + "] within the same struct" +
                 " [" + owner.name + "].");
         }
 
-        if (owner.statics.containsKey(name)) {
+        if (owner.staticMethods.containsKey(methodKey)) {
             if (statik) {
                 throw new IllegalArgumentException(
-                    "Duplicate function name [" + name + "] found within the struct [" + owner.name + "].");
+                    "Duplicate static method signature [" + methodKey + "] found within the struct [" + owner.name + "].");
             } else {
-                throw new IllegalArgumentException("Functions and methods may not have the same name" +
-                    " [" + name + "] within the same struct [" + owner.name + "].");
+                throw new IllegalArgumentException("Static methods and methods may not have the same signature" +
+                    " [" + methodKey + "] within the same struct [" + owner.name + "].");
             }
         }
 
-        if (owner.methods.containsKey(name)) {
+        if (owner.methods.containsKey(methodKey)) {
             if (statik) {
-                throw new IllegalArgumentException("Functions and methods may not have the same name" +
-                    " [" + name + "] within the same struct [" + owner.name + "].");
+                throw new IllegalArgumentException("Static methods and methods may not have the same signature" +
+                    " [" + methodKey + "] within the same struct [" + owner.name + "].");
             } else {
-                throw new IllegalArgumentException("Duplicate method name [" + name + "]" +
+                throw new IllegalArgumentException("Duplicate method signature [" + methodKey + "]" +
                     " found within the struct [" + owner.name + "].");
             }
         }
 
         if (genrtn != null) {
-            try {
-                genrtn.clazz.asSubclass(rtn.clazz);
-            } catch (final ClassCastException exception) {
+            if (!rtn.clazz.isAssignableFrom(genrtn.clazz)) {
                 throw new ClassCastException("Generic return [" + genrtn.clazz.getCanonicalName() + "]" +
                     " is not a sub class of [" + rtn.clazz.getCanonicalName() + "] in the method" +
                     " [" + name + " ] from the struct [" + owner.name + "].");
@@ -1569,9 +1721,7 @@ public final class Definition {
 
         for (int count = 0; count < classes.length; ++count) {
             if (genargs != null) {
-                try {
-                    genargs[count].clazz.asSubclass(args[count].clazz);
-                } catch (final ClassCastException exception) {
+                if (!args[count].clazz.isAssignableFrom(genargs[count].clazz)) {
                     throw new ClassCastException("Generic argument [" + genargs[count].name + "] is not a sub class" +
                         " of [" + args[count].name + "] in the " + (statik ? "function" : "method") +
                         " [" + name + " ] from the struct [" + owner.name + "].");
@@ -1620,14 +1770,14 @@ public final class Definition {
                     " within the struct [" + owner.name + "] is not linked to a static Java method.");
             }
 
-            owner.functions.put(name, method);
+            owner.staticMethods.put(methodKey, method);
         } else {
             if (java.lang.reflect.Modifier.isStatic(modifiers)) {
                 throw new IllegalArgumentException("Method [" + name + "]" +
                     " within the struct [" + owner.name + "] is not linked to a non-static Java method.");
             }
 
-            owner.methods.put(name, method);
+            owner.methods.put(methodKey, method);
         }
     }
 
@@ -1645,7 +1795,7 @@ public final class Definition {
                 " name [" + name + "] with the struct [" + owner.name + "].");
         }
 
-        if (owner.statics.containsKey(name)) {
+        if (owner.staticMembers.containsKey(name)) {
             if (statik) {
                 throw new IllegalArgumentException("Duplicate static name [" + name + "]" +
                     " found within the struct [" + owner.name + "].");
@@ -1666,9 +1816,7 @@ public final class Definition {
         }
 
         if (generic != null) {
-            try {
-                generic.clazz.asSubclass(type.clazz);
-            } catch (final ClassCastException exception) {
+            if (!type.clazz.isAssignableFrom(generic.clazz)) {
                 throw new ClassCastException("Generic type [" + generic.clazz.getCanonicalName() + "]" +
                     " is not a sub class of [" + type.clazz.getCanonicalName() + "] for the field" +
                     " [" + name + " ] from the struct [" + owner.name + "].");
@@ -1710,7 +1858,7 @@ public final class Definition {
                     " within the struct [" + owner.name + "] is not linked to static Java field.");
             }
 
-            owner.statics.put(alias == null ? name : alias, field);
+            owner.staticMembers.put(alias == null ? name : alias, field);
         } else {
             if (java.lang.reflect.Modifier.isStatic(modifiers)) {
                 throw new IllegalArgumentException("Member [" + name + "]" +
@@ -1736,9 +1884,7 @@ public final class Definition {
                     " not defined for copy to owner struct [" + owner.name + "].");
             }
 
-            try {
-                owner.clazz.asSubclass(child.clazz);
-            } catch (final ClassCastException exception) {
+            if (!child.clazz.isAssignableFrom(owner.clazz)) {
                 throw new ClassCastException("Child struct [" + child.name + "]" +
                     " is not a super type of owner struct [" + owner.name + "] in copy.");
             }
@@ -1746,8 +1892,10 @@ public final class Definition {
             final boolean object = child.clazz.equals(Object.class) &&
                 java.lang.reflect.Modifier.isInterface(owner.clazz.getModifiers());
 
-            for (final Method method : child.methods.values()) {
-                if (owner.methods.get(method.name) == null) {
+            for (Map.Entry<MethodKey,Method> kvPair : child.methods.entrySet()) {
+                MethodKey methodKey = kvPair.getKey();
+                Method method = kvPair.getValue();
+                if (owner.methods.get(methodKey) == null) {
                     final Class<?> clazz = object ? Object.class : owner.clazz;
 
                     java.lang.reflect.Method reflect;
@@ -1769,7 +1917,7 @@ public final class Definition {
                             Arrays.toString(method.reflect.getParameterTypes()) + ".");
                     }
 
-                    owner.methods.put(method.name,
+                    owner.methods.put(methodKey,
                         new Method(method.name, owner, method.rtn, method.arguments, method.method, reflect, handle));
                 }
             }
@@ -1802,8 +1950,29 @@ public final class Definition {
         }
     }
 
+    private final void addTransform(final Type from, final Type to, final boolean explicit) {
+        if (from.equals(to)) {
+            throw new IllegalArgumentException("Transform cannot" +
+                " have cast type from [" + from.name + "] be the same as cast type to [" + to.name + "].");
+        }
+
+        if (!from.sort.primitive || !to.sort.primitive) {
+            throw new IllegalArgumentException("Only transforms between two primitives may be a simple cast, but" +
+                "found [" + from.name + "] and [" + to.name + "].");
+        }
+
+        final Cast cast = new Cast(from, to, explicit);
+
+        if (transformsMap.containsKey(cast)) {
+            throw new IllegalArgumentException("Transform with " +
+                " cast type from [" + from.name + "] to cast type to [" + to.name + "] already defined.");
+        }
+
+        transformsMap.put(cast, cast);
+    }
+
     private final void addTransform(final Type from, final Type to, final String struct,
-                                   final String name, final boolean statik) {
+                                   final String name, final boolean statik, final boolean explicit) {
         final Struct owner = structsMap.get(struct);
 
         if (owner == null) {
@@ -1816,19 +1985,24 @@ public final class Definition {
                 " have cast type from [" + from.name + "] be the same as cast type to [" + to.name + "].");
         }
 
-        final Cast cast = new Cast(from, to);
+        final Cast cast = new Cast(from, to, explicit);
 
         if (transformsMap.containsKey(cast)) {
             throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
                 " and cast type from [" + from.name + "] to cast type to [" + to.name + "] already defined.");
         }
 
-        Method method;
+        final Cast transform;
+
+        final Method method;
         Type upcast = null;
         Type downcast = null;
 
+        // transforms are implicitly arity of 0, unless a static method where its 1 (receiver passed)
+        final MethodKey methodKey = new MethodKey(name, statik ? 1 : 0);
+
         if (statik) {
-            method = owner.functions.get(name);
+            method = owner.staticMethods.get(methodKey);
 
             if (method == null) {
                 throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
@@ -1844,13 +2018,10 @@ public final class Definition {
 
             Type argument = method.arguments.get(0);
 
-            try {
-                from.clazz.asSubclass(argument.clazz);
-            } catch (final ClassCastException cce0) {
-                try {
-                    argument.clazz.asSubclass(from.clazz);
+            if (!argument.clazz.isAssignableFrom(from.clazz)) {
+                if (from.clazz.isAssignableFrom(argument.clazz)) {
                     upcast = argument;
-                } catch (final ClassCastException cce1) {
+                } else {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
                         " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
                         " function [" + name + "] cannot cast from type to the function input argument type.");
@@ -1859,20 +2030,17 @@ public final class Definition {
 
             final Type rtn = method.rtn;
 
-            try {
-                rtn.clazz.asSubclass(to.clazz);
-            } catch (final ClassCastException cce0) {
-                try {
-                    to.clazz.asSubclass(rtn.clazz);
+            if (!to.clazz.isAssignableFrom(rtn.clazz)) {
+                if (rtn.clazz.isAssignableFrom(to.clazz)) {
                     downcast = to;
-                } catch (final ClassCastException cce1) {
+                } else {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
                         " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
                         " function [" + name + "] cannot cast to type to the function return argument type.");
                 }
             }
         } else {
-            method = owner.methods.get(name);
+            method = owner.methods.get(methodKey);
 
             if (method == null) {
                 throw new IllegalArgumentException("Transform with owner struct [" + owner.name + "]" +
@@ -1886,13 +2054,10 @@ public final class Definition {
                     "] using method [" + name + "] does not have a single type argument.");
             }
 
-            try {
-                from.clazz.asSubclass(owner.clazz);
-            } catch (final ClassCastException cce0) {
-                try {
-                    owner.clazz.asSubclass(from.clazz);
+            if (!owner.clazz.isAssignableFrom(from.clazz)) {
+                if (from.clazz.isAssignableFrom(owner.clazz)) {
                     upcast = getType(owner.name);
-                } catch (final ClassCastException cce1) {
+                } else {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
                         " and cast type from [" + from.name + "] to cast type to [" + to.name + "] using" +
                         " method [" + name + "] cannot cast from type to the method input argument type.");
@@ -1901,13 +2066,10 @@ public final class Definition {
 
             final Type rtn = method.rtn;
 
-            try {
-                rtn.clazz.asSubclass(to.clazz);
-            } catch (final ClassCastException cce0) {
-                try {
-                    to.clazz.asSubclass(rtn.clazz);
+            if (!to.clazz.isAssignableFrom(rtn.clazz)) {
+                if (rtn.clazz.isAssignableFrom(to.clazz)) {
                     downcast = to;
-                } catch (final ClassCastException cce1) {
+                } else {
                     throw new ClassCastException("Transform with owner struct [" + owner.name + "]" +
                         " and cast type from [" + from.name + "] to cast type to [" + to.name + "]" +
                         " using method [" + name + "] cannot cast to type to the method return argument type.");
@@ -1915,7 +2077,7 @@ public final class Definition {
             }
         }
 
-        final Transform transform = new Transform(cast, method, upcast, downcast);
+        transform = new Transform(cast, method, upcast, downcast);
         transformsMap.put(cast, transform);
     }
 
@@ -1923,7 +2085,7 @@ public final class Definition {
      * Precomputes a more efficient structure for dynamic method/field access.
      */
     private void addRuntimeClass(final Struct struct) {
-        final Map<String, Method> methods = struct.methods;
+        final Map<MethodKey, Method> methods = struct.methods;
         final Map<String, MethodHandle> getters = new HashMap<>();
         final Map<String, MethodHandle> setters = new HashMap<>();
 
@@ -1934,8 +2096,8 @@ public final class Definition {
         }
 
         // add all getters/setters
-        for (final Map.Entry<String, Method> method : methods.entrySet()) {
-            final String name = method.getKey();
+        for (final Map.Entry<MethodKey, Method> method : methods.entrySet()) {
+            final String name = method.getKey().name;
             final Method m = method.getValue();
 
             if (m.arguments.size() == 0 &&

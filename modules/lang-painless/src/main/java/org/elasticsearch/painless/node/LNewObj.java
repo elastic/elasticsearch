@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Definition.Constructor;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.List;
 
@@ -63,7 +63,7 @@ public final class LNewObj extends ALink {
         }
 
         final Struct struct = type.struct;
-        constructor = struct.constructors.get("new");
+        constructor = struct.constructors.get(new Definition.MethodKey("new", arguments.size()));
 
         if (constructor != null) {
             final Type[] types = new Type[constructor.arguments.size()];
@@ -92,12 +92,12 @@ public final class LNewObj extends ALink {
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         // Do nothing.
     }
 
     @Override
-    void load(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         adapter.newInstance(after.type);
 
         if (load) {
@@ -112,7 +112,7 @@ public final class LNewObj extends ALink {
     }
 
     @Override
-    void store(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
+    void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         throw new IllegalStateException(error("Illegal tree structure."));
     }
 }

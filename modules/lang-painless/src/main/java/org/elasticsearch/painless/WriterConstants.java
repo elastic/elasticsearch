@@ -27,6 +27,7 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
 import java.lang.invoke.CallSite;
+import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.Map;
@@ -37,9 +38,10 @@ import java.util.Map;
 public final class WriterConstants {
 
     public final static String BASE_CLASS_NAME = Executable.class.getName();
-    public final static String CLASS_NAME      = BASE_CLASS_NAME + "$Script";
     public final static Type BASE_CLASS_TYPE   = Type.getType(Executable.class);
-    public final static Type CLASS_TYPE        = Type.getType("L" + CLASS_NAME.replace(".", "/") + ";");
+    
+    public final static String CLASS_NAME      = BASE_CLASS_NAME + "$Script";
+    public final static Type CLASS_TYPE        = Type.getObjectType(CLASS_NAME.replace('.', '/'));
 
     public final static Method CONSTRUCTOR = getAsmMethod(void.class, "<init>", String.class, String.class);
     public final static Method EXECUTE     =
@@ -80,6 +82,27 @@ public final class WriterConstants {
     public final static Method DEF_GT_CALL  = getAsmMethod(boolean.class, "gt" , Object.class, Object.class);
     public final static Method DEF_GTE_CALL = getAsmMethod(boolean.class, "gte", Object.class, Object.class);
 
+    /** dynamic invokedynamic bootstrap for indy string concats (Java 9+) */
+    public final static Handle INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
+    static {
+        Handle bs;
+        try {
+            final Class<?> factory = Class.forName("java.lang.invoke.StringConcatFactory");
+            final String methodName = "makeConcat";
+            final MethodType type = MethodType.methodType(CallSite.class, MethodHandles.Lookup.class, String.class, MethodType.class);
+            // ensure it is there:
+            MethodHandles.publicLookup().findStatic(factory, methodName, type);
+            bs = new Handle(Opcodes.H_INVOKESTATIC, Type.getInternalName(factory), methodName, type.toMethodDescriptorString());
+        } catch (ReflectiveOperationException e) {
+            // not Java 9 - we set it null, so MethodWriter uses StringBuilder:
+            bs = null;
+        }
+        INDY_STRING_CONCAT_BOOTSTRAP_HANDLE = bs;
+    }
+    
+    public final static int MAX_INDY_STRING_CONCAT_ARGS = 200;
+    
+    public final static Type STRING_TYPE = Type.getType(String.class);
     public final static Type STRINGBUILDER_TYPE = Type.getType(StringBuilder.class);
 
     public final static Method STRINGBUILDER_CONSTRUCTOR    = getAsmMethod(void.class, "<init>");

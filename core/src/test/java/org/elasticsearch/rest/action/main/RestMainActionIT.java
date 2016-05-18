@@ -18,16 +18,18 @@
  */
 package org.elasticsearch.rest.action.main;
 
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class RestMainActionIT extends ESIntegTestCase {
     @Override
@@ -39,14 +41,19 @@ public class RestMainActionIT extends ESIntegTestCase {
     }
 
     public void testHeadRequest() throws IOException {
-        final HttpResponse response = httpClient().method("HEAD").path("/").execute();
-        assertThat(response.getStatusCode(), equalTo(200));
-        assertThat(response.getBody(), nullValue());
+        try (RestClient client = restClient()) {
+            ElasticsearchResponse response = client.performRequest("HEAD", "/", Collections.emptyMap(), null);
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+            assertNull(response.getEntity());
+        }
     }
 
     public void testGetRequest() throws IOException {
-        final HttpResponse response = httpClient().path("/").execute();
-        assertThat(response.getStatusCode(), equalTo(200));
-        assertThat(response.getBody(), containsString("cluster_name"));
+        try (RestClient client = restClient()) {
+            ElasticsearchResponse response = client.performRequest("GET", "/", Collections.emptyMap(), null);
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+            assertNotNull(response.getEntity());
+            assertThat(EntityUtils.toString(response.getEntity()), containsString("cluster_name"));
+        }
     }
 }

@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.test.hamcrest;
 
+import org.elasticsearch.client.ElasticsearchResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 
@@ -118,27 +118,27 @@ public class ElasticsearchMatchers {
         }
     }
 
-    public static class HttpResponseHasStatusMatcher extends TypeSafeMatcher<HttpResponse> {
+    public static class ElasticsearchResponseHasStatusMatcher extends TypeSafeMatcher<ElasticsearchResponse> {
 
         private RestStatus restStatus;
 
-        public HttpResponseHasStatusMatcher(RestStatus restStatus) {
+        public ElasticsearchResponseHasStatusMatcher(RestStatus restStatus) {
             this.restStatus = restStatus;
         }
 
         @Override
-        protected boolean matchesSafely(HttpResponse response) {
-            return response.getStatusCode() == restStatus.getStatus();
+        protected boolean matchesSafely(ElasticsearchResponse response) {
+            return response.getStatusLine().getStatusCode() == restStatus.getStatus();
         }
 
         @Override
-        public void describeMismatchSafely(final HttpResponse response, final Description mismatchDescription) {
-            mismatchDescription.appendText(" was ").appendValue(response.getStatusCode());
+        public void describeMismatchSafely(final ElasticsearchResponse response, final Description mismatchDescription) {
+            mismatchDescription.appendText(" was ").appendValue(response.getStatusLine().getStatusCode());
         }
 
         @Override
         public void describeTo(final Description description) {
-            description.appendText("HTTP response status code should be ").appendValue(restStatus.getStatus());
+            description.appendText("Elasticsearch response status code should be ").appendValue(restStatus.getStatus());
         }
     }
 }

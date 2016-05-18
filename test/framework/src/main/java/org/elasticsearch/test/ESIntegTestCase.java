@@ -22,8 +22,8 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.apache.http.HttpHost;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -57,6 +57,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -118,7 +119,6 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -2033,20 +2033,34 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return builder.build();
     }
 
-    protected HttpRequestBuilder httpClient() {
-        return httpClient(HttpClients.createDefault());
+    protected static RestClient restClient() {
+        return restClient(null);
     }
 
-    protected HttpRequestBuilder httpClient(CloseableHttpClient httpClient) {
+    protected static RestClient restClient(CloseableHttpClient httpClient) {
+        return restClient(httpClient, "http");
+    }
+
+    protected static RestClient restClient(CloseableHttpClient httpClient, String protocol) {
         final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         final List<NodeInfo> nodes = nodeInfos.getNodes();
         assertFalse(nodeInfos.hasFailures());
-        TransportAddress publishAddress = randomFrom(nodes).getHttp().address().publishAddress();
-        assertEquals(1, publishAddress.uniqueAddressTypeId());
-        InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
-        return new HttpRequestBuilder(httpClient).host(NetworkAddress.format(address.getAddress())).port(address.getPort());
-    }
+        List<HttpHost> hosts = new ArrayList<>();
+        for (NodeInfo node : nodes) {
+            if (node.getHttp() != null) {
+                TransportAddress publishAddress = node.getHttp().address().publishAddress();
+                assertEquals(1, publishAddress.uniqueAddressTypeId());
+                InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
+                hosts.add(new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), protocol));
+            }
+        }
 
+        RestClient.Builder builder = RestClient.builder().setHosts(hosts.toArray(new HttpHost[hosts.size()]));
+        if (httpClient != null) {
+            builder.setHttpClient(httpClient);
+        }
+        return builder.build();
+    }
 
     /**
      * This method is executed iff the test is annotated with {@link SuiteScopeTestCase}

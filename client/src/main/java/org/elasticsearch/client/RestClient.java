@@ -20,6 +20,7 @@ package org.elasticsearch.client;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.Consts;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -32,6 +33,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.entity.ContentType;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
@@ -55,6 +57,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class RestClient implements Closeable {
 
     private static final Log logger = LogFactory.getLog(RestClient.class);
+    public static ContentType JSON_CONTENT_TYPE = ContentType.create("application/json", Consts.UTF_8);
 
     private final CloseableHttpClient client;
     private final long maxRetryTimeout;

@@ -18,14 +18,18 @@
  */
 package org.elasticsearch.plugins;
 
+import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.responseheader.TestResponseHeaderPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.UNAUTHORIZED;
@@ -52,12 +56,20 @@ public class ResponseHeaderPluginIT extends ESIntegTestCase {
 
     public void testThatSettingHeadersWorks() throws Exception {
         ensureGreen();
-        HttpResponse response = httpClient().method("GET").path("/_protected").execute();
-        assertThat(response, hasStatus(UNAUTHORIZED));
-        assertThat(response.getHeaders().get("Secret"), equalTo("required"));
+        try (RestClient client = restClient()) {
+            try {
+                client.performRequest("GET", "/_protected", Collections.emptyMap(), null);
+                fail("request should have failed");
+            } catch(ElasticsearchResponseException e) {
+                ElasticsearchResponse response = e.getElasticsearchResponse();
+                assertThat(response, hasStatus(UNAUTHORIZED));
+                assertThat(response.getFirstHeader("Secret"), equalTo("required"));
+            }
 
-        HttpResponse authResponse = httpClient().method("GET").path("/_protected").addHeader("Secret", "password").execute();
-        assertThat(authResponse, hasStatus(OK));
-        assertThat(authResponse.getHeaders().get("Secret"), equalTo("granted"));
+            ElasticsearchResponse authResponse = client.performRequest("GET", "/_protected", Collections.emptyMap(), null,
+                    new BasicHeader("Secret", "password"));
+            assertThat(authResponse, hasStatus(OK));
+            assertThat(authResponse.getFirstHeader("Secret"), equalTo("granted"));
+        }
     }
 }

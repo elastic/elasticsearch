@@ -19,16 +19,16 @@
 
 package org.elasticsearch.options.detailederrors;
 
-import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.rest.client.http.HttpDeleteWithEntity;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -47,25 +47,26 @@ public class DetailedErrorsEnabledIT extends ESIntegTestCase {
     }
 
     public void testThatErrorTraceWorksByDefault() throws Exception {
-        // Make the HTTP request
-        HttpResponse response = new HttpRequestBuilder(HttpClients.createDefault())
-                .httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
-                .path("/")
-                .addParam("error_trace", "true")
-                .method(HttpDeleteWithEntity.METHOD_NAME)
-                .execute();
+        try (RestClient restClient = restClient()) {
+            try {
+                restClient.performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"), null);
+                fail("request should have failed");
+            } catch(ElasticsearchResponseException e) {
+                ElasticsearchResponse response = e.getElasticsearchResponse();
+                assertThat(response.getFirstHeader("Content-Type"), containsString("application/json"));
+                assertThat(e.getResponseBody(), containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; " +
+                        "nested: ActionRequestValidationException[Validation Failed: 1:"));
+            }
 
-        assertThat(response.getHeaders().get("Content-Type"), containsString("application/json"));
-        assertThat(response.getBody(), containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; nested: ActionRequestValidationException[Validation Failed: 1:"));
-
-        // Make the HTTP request
-        response = new HttpRequestBuilder(HttpClients.createDefault())
-                .httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
-                .path("/")
-                .method(HttpDeleteWithEntity.METHOD_NAME)
-                .execute();
-
-        assertThat(response.getHeaders().get("Content-Type"), containsString("application/json"));
-        assertThat(response.getBody(), not(containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; nested: ActionRequestValidationException[Validation Failed: 1:")));
+            try {
+                restClient.performRequest("DELETE", "/", Collections.emptyMap(), null);
+                fail("request should have failed");
+            } catch(ElasticsearchResponseException e) {
+                ElasticsearchResponse response = e.getElasticsearchResponse();
+                assertThat(response.getFirstHeader("Content-Type"), containsString("application/json"));
+                assertThat(e.getResponseBody(), not(containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; "
+                        + "nested: ActionRequestValidationException[Validation Failed: 1:")));
+            }
+        }
     }
 }

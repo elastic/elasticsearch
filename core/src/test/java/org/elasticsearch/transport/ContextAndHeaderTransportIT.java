@@ -19,8 +19,7 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
@@ -33,12 +32,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
@@ -50,8 +50,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -217,26 +215,22 @@ public class ContextAndHeaderTransportIT extends ESIntegTestCase {
     }
 
     public void testThatRelevantHttpHeadersBecomeRequestHeaders() throws Exception {
-        String releventHeaderName = "relevant_" + randomHeaderKey;
-        for (RestController restController : internalCluster().getDataNodeInstances(RestController.class)) {
-            restController.registerRelevantHeaders(releventHeaderName);
+        String relevantHeaderName = "relevant_" + randomHeaderKey;
+        for (RestController restController : internalCluster().getInstances(RestController.class)) {
+            restController.registerRelevantHeaders(relevantHeaderName);
         }
 
-        CloseableHttpClient httpClient = HttpClients.createDefault();
-        HttpResponse response = new HttpRequestBuilder(httpClient)
-            .httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
-            .addHeader(randomHeaderKey, randomHeaderValue)
-            .addHeader(releventHeaderName, randomHeaderValue)
-            .path("/" + queryIndex + "/_search")
-            .execute();
-
-        assertThat(response, hasStatus(OK));
-        List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
-        assertThat(searchRequests, hasSize(greaterThan(0)));
-        for (RequestAndHeaders requestAndHeaders : searchRequests) {
-            assertThat(requestAndHeaders.headers.containsKey(releventHeaderName), is(true));
-            // was not specified, thus is not included
-            assertThat(requestAndHeaders.headers.containsKey(randomHeaderKey), is(false));
+        try (RestClient client = restClient()) {
+            ElasticsearchResponse response = client.performRequest("GET", "/" + queryIndex + "/_search", Collections.emptyMap(), null,
+                    new BasicHeader(randomHeaderKey, randomHeaderValue), new BasicHeader(relevantHeaderName, randomHeaderValue));
+            assertThat(response, hasStatus(OK));
+            List<RequestAndHeaders> searchRequests = getRequests(SearchRequest.class);
+            assertThat(searchRequests, hasSize(greaterThan(0)));
+            for (RequestAndHeaders requestAndHeaders : searchRequests) {
+                assertThat(requestAndHeaders.headers.containsKey(relevantHeaderName), is(true));
+                // was not specified, thus is not included
+                assertThat(requestAndHeaders.headers.containsKey(randomHeaderKey), is(false));
+            }
         }
     }
 

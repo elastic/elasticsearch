@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license.plugin.core;
 
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -15,6 +14,7 @@ import org.elasticsearch.license.core.License;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Base64;
 import java.util.Collections;
 
 import static org.elasticsearch.license.core.CryptUtils.decrypt;
@@ -39,7 +39,7 @@ public class TrialLicense {
             byteBuffer.putInt(-License.VERSION_CURRENT)
                     .putInt(encrypt.length)
                     .put(encrypt);
-            signature = Base64.encodeBytes(bytes);
+            signature = Base64.getEncoder().encodeToString(bytes);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
@@ -48,7 +48,7 @@ public class TrialLicense {
 
     public static boolean verify(final License license) {
         try {
-            byte[] signatureBytes = Base64.decode(license.signature());
+            byte[] signatureBytes = Base64.getDecoder().decode(license.signature());
             ByteBuffer byteBuffer = ByteBuffer.wrap(signatureBytes);
             int version = byteBuffer.getInt();
             int contentLen = byteBuffer.getInt();

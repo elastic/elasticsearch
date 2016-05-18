@@ -10,7 +10,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -60,6 +59,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -214,7 +214,7 @@ public class SearchTransformIT extends ESIntegTestCase {
         assertThat(map.get("query"), instanceOf(String.class));
 
         String queryAsBase64 = (String) map.get("query");
-        String decodedQuery = new String(Base64.decode(queryAsBase64), StandardCharsets.UTF_8);
+        String decodedQuery = new String(Base64.getDecoder().decode(queryAsBase64), StandardCharsets.UTF_8);
         assertThat(decodedQuery, containsString("_unknown_query_"));
     }
 

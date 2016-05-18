@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -53,6 +52,7 @@ import java.security.AccessController;
 import java.security.KeyStore;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -683,7 +683,7 @@ public class HttpExporter extends Exporter {
 
         void apply(HttpURLConnection connection) throws UnsupportedEncodingException {
             String userInfo = username + ":" + (password != null ? new String(password) : "");
-            String basicAuth = "Basic " + Base64.encodeBytes(userInfo.getBytes("ISO-8859-1"));
+            String basicAuth = "Basic " + Base64.getEncoder().encodeToString(userInfo.getBytes("ISO-8859-1"));
             connection.setRequestProperty("Authorization", basicAuth);
         }
     }

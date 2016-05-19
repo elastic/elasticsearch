@@ -89,7 +89,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         }
 
         if (randomBoolean()) {
-            matchQuery.maxExpansions(randomIntBetween(0, 1000));
+            matchQuery.maxExpansions(randomIntBetween(1, 1000));
         }
 
         if (randomBoolean()) {

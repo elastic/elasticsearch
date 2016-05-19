@@ -13,6 +13,7 @@ To disable `_source` retrieval set to `false`:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "_source": false,
     "query" : {
@@ -20,6 +21,7 @@ To disable `_source` retrieval set to `false`:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The `_source` also accepts one or more wildcard patterns to control what parts of the `_source` should be returned:
 
@@ -27,6 +29,7 @@ For example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "_source": "obj.*",
     "query" : {
@@ -34,11 +37,13 @@ For example:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Or
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "_source": [ "obj1.*", "obj2.*" ],
     "query" : {
@@ -46,11 +51,13 @@ Or
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Finally, for complete control, you can specify both include and exclude patterns:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "_source": {
         "include": [ "obj1.*", "obj2.*" ],
@@ -61,3 +68,4 @@ Finally, for complete control, you can specify both include and exclude patterns
     }
 }
 --------------------------------------------------
+// CONSOLE

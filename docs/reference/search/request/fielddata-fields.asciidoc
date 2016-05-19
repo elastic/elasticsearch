@@ -6,13 +6,15 @@ example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "query" : {
-        ...
+        "match_all": {}
     },
     "fielddata_fields" : ["test1", "test2"]
 }
 --------------------------------------------------
+// CONSOLE
 
 Field data fields can work on fields that are not stored.
 

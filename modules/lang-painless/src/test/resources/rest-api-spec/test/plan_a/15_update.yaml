@@ -1,0 +1,59 @@
+---
+"Update Script":
+
+  - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     1
+          body:
+              foo:    bar
+              count:  1
+
+  - do:
+      update:
+          index:  test_1
+          type:   test
+          id:     1
+          script: "1"
+          body:
+            lang:   painless
+            script: "ctx._source.foo = params.bar"
+            params: { bar: 'xxx' }
+
+  - match: { _index:   test_1 }
+  - match: { _type:    test   }
+  - match: { _id:      "1"    }
+  - match: { _version: 2      }
+
+  - do:
+      get:
+          index:  test_1
+          type:   test
+          id:     1
+
+  - match: { _source.foo:        xxx }
+  - match: { _source.count:      1   }
+
+  - do:
+      update:
+          index:  test_1
+          type:   test
+          id:     1
+          lang:   painless
+          script: "ctx._source.foo = 'yyy'"
+
+  - match: { _index:   test_1 }
+  - match: { _type:    test   }
+  - match: { _id:      "1"    }
+  - match: { _version: 3      }
+
+  - do:
+      get:
+          index:  test_1
+          type:   test
+          id:     1
+
+  - match: { _source.foo:        yyy }
+  - match: { _source.count:      1   }
+  

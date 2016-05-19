@@ -19,11 +19,14 @@
 
 package org.elasticsearch.search.suggest.completion;
 
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -40,7 +43,7 @@ public abstract class QueryContextTestCase<QC extends ToXContent> extends ESTest
     /**
      * read the context
      */
-    protected abstract QC fromXContent(XContentParser parser) throws IOException;
+    protected abstract QC fromXContent(QueryParseContext context) throws IOException;
 
     public void testToXContext() throws IOException {
         for (int i = 0; i < NUMBER_OF_RUNS; i++) {
@@ -50,7 +53,7 @@ public abstract class QueryContextTestCase<QC extends ToXContent> extends ESTest
             BytesReference bytesReference = builder.bytes();
             XContentParser parser = XContentFactory.xContent(bytesReference).createParser(bytesReference);
             parser.nextToken();
-            QC fromXContext = fromXContent(parser);
+            QC fromXContext = fromXContent(new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT));
             assertEquals(toXContent, fromXContext);
             assertEquals(toXContent.hashCode(), fromXContext.hashCode());
         }

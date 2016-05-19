@@ -53,7 +53,7 @@ name, as follows:
 ./bin/elasticsearch -E es.cluster.name=my_cluster -E es.node.name=node_1
 --------------------------------------------
 
-NOTE: Values that contain spaces must be surrounded with qoutes.  For instance `-E es.path.logs="C:\My Logs\logs"`.
+NOTE: Values that contain spaces must be surrounded with quotes.  For instance `-E es.path.logs="C:\My Logs\logs"`.
 
 TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
 added to the `elasticsearch.yml` config file, while any node-specific settings
@@ -105,6 +105,11 @@ Installing service      :  "elasticsearch-service-x64"
 Using JAVA_HOME (64-bit):  "c:\jvm\jdk1.8"
 The service 'elasticsearch-service-x64' has been installed.
 --------------------------------------------------
+
+NOTE: The service installer requires that the thread stack size setting
+be configured in jvm.options *before* you install the service. On
+32-bit Windows, you should add `-Xss320k` to the jvm.options file, and
+on 64-bit Windows you should add `-Xss1m` to the jvm.options file.
 
 NOTE: While a JRE can be used for the Elasticsearch service, due to its use of a client VM (as opposed to a server JVM which offers better performance for long-running applications) its usage is discouraged and a warning will be issued.
 

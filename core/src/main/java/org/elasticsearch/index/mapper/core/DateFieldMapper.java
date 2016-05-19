@@ -20,12 +20,12 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.XPointValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -36,7 +36,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -139,7 +138,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
 
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().before(Version.V_5_0_0)) {
+            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
                 return new LegacyDateFieldMapper.TypeParser().parse(name, node, parserContext);
             }
             Builder builder = new Builder(name);
@@ -152,7 +151,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
-                    builder.nullValue(InetAddresses.forString(propNode.toString()));
+                    builder.nullValue(propNode.toString());
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
                     builder.ignoreMalformed(TypeParsers.nodeBooleanValue("ignore_malformed", propNode, parserContext));
@@ -318,31 +317,20 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            long baseLo = parseToMilliseconds(value, false, null, dateMathParser);
-            long baseHi = parseToMilliseconds(value, true, null, dateMathParser);
-            long delta;
-            try {
-                delta = fuzziness.asTimeValue().millis();
-            } catch (Exception e) {
-                // not a time format
-                delta = fuzziness.asLong();
-            }
-            return LongPoint.newRangeQuery(name(), baseLo - delta, baseHi + delta);
-        }
-
-        @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            failIfNotIndexed();
             return rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, null, null);
         }
 
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
                 @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
+            failIfNotIndexed();
             return new LateParsingQuery(lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser);
         }
 
         Query innerRangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
                 @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser) {
+            failIfNotIndexed();
             DateMathParser parser = forcedDateParser == null
                     ? dateMathParser
                     : forcedDateParser;
@@ -394,17 +382,16 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         @Override
         public FieldStats.Date stats(IndexReader reader) throws IOException {
             String field = name();
-            long size = PointValues.size(reader, field);
+            long size = XPointValues.size(reader, field);
             if (size == 0) {
                 return null;
             }
-            int docCount = PointValues.getDocCount(reader, field);
-            byte[] min = PointValues.getMinPackedValue(reader, field);
-            byte[] max = PointValues.getMaxPackedValue(reader, field);
+            int docCount = XPointValues.getDocCount(reader, field);
+            byte[] min = XPointValues.getMinPackedValue(reader, field);
+            byte[] max = XPointValues.getMaxPackedValue(reader, field);
             return new FieldStats.Date(reader.maxDoc(),docCount, -1L, size,
-                    LongPoint.decodeDimension(min, 0),
-                    LongPoint.decodeDimension(max, 0),
-                    dateTimeFormatter());
+                isSearchable(), isAggregatable(),
+                dateTimeFormatter(), LongPoint.decodeDimension(min, 0), LongPoint.decodeDimension(max, 0));
         }
 
         @Override
@@ -416,13 +403,13 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
                 dateParser = this.dateMathParser;
             }
 
-            if (PointValues.size(reader, name()) == 0) {
+            if (XPointValues.size(reader, name()) == 0) {
                 // no points, so nothing matches
                 return Relation.DISJOINT;
             }
 
-            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
-            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
+            long minValue = LongPoint.decodeDimension(XPointValues.getMinPackedValue(reader, name()), 0);
+            long maxValue = LongPoint.decodeDimension(XPointValues.getMaxPackedValue(reader, name()), 0);
 
             long fromInclusive = Long.MIN_VALUE;
             if (from != null) {
@@ -558,7 +545,7 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
                 dateAsString = dateAsObject.toString();
             }
         } else {
-            dateAsString = context.parser().text();
+            dateAsString = context.parser().textOrNull();
         }
 
         if (dateAsString == null) {
@@ -612,6 +599,11 @@ public class DateFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field("ignore_malformed", ignoreMalformed.value());
         }
+
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", fieldType().nullValueAsString());
+        }
+
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
         } else if (includeDefaults) {

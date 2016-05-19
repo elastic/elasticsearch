@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -49,22 +50,22 @@ public class AggregatorParsers {
      * Returns the parser that is registered under the given aggregation type.
      *
      * @param type The aggregation type
-     * @param parser the parser the type was read from. Used to lookup the ParseFieldMatcher and for making error messages.
+     * @param parseFieldMatcher used for making error messages.
      * @return The parser associated with the given aggregation type or null if it wasn't found.
      */
-    public Aggregator.Parser parser(String type, XContentParser parser) {
-        return aggregationParserRegistry.lookupReturningNullIfNotFound(type, parser);
+    public Aggregator.Parser parser(String type, ParseFieldMatcher parseFieldMatcher) {
+        return aggregationParserRegistry.lookupReturningNullIfNotFound(type, parseFieldMatcher);
     }
 
     /**
      * Returns the parser that is registered under the given pipeline aggregator type.
      *
      * @param type The pipeline aggregator type
-     * @param parser the parser the type was read from. Used to lookup the ParseFieldMatcher and for making error messages.
+     * @param parseFieldMatcher used for making error messages.
      * @return The parser associated with the given pipeline aggregator type or null if it wasn't found.
      */
-    public PipelineAggregator.Parser pipelineParser(String type, XContentParser parser) {
-        return pipelineAggregationParserRegistry.lookupReturningNullIfNotFound(type, parser);
+    public PipelineAggregator.Parser pipelineParser(String type, ParseFieldMatcher parseFieldMatcher) {
+        return pipelineAggregationParserRegistry.lookupReturningNullIfNotFound(type, parseFieldMatcher);
     }
 
     /**
@@ -103,7 +104,7 @@ public class AggregatorParsers {
                         + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
             }
 
-            AggregatorBuilder<?> aggFactory = null;
+            AggregationBuilder<?> aggFactory = null;
             PipelineAggregatorBuilder<?> pipelineAggregatorFactory = null;
             AggregatorFactories.Builder subFactories = null;
 
@@ -142,9 +143,10 @@ public class AggregatorParsers {
                                     + aggregationName + "]: [" + pipelineAggregatorFactory + "] and [" + fieldName + "]");
                         }
 
-                        Aggregator.Parser aggregatorParser = parser(fieldName, parser);
+                        Aggregator.Parser aggregatorParser = parser(fieldName, parseContext.getParseFieldMatcher());
                         if (aggregatorParser == null) {
-                            PipelineAggregator.Parser pipelineAggregatorParser = pipelineParser(fieldName, parser);
+                            PipelineAggregator.Parser pipelineAggregatorParser = pipelineParser(fieldName,
+                                    parseContext.getParseFieldMatcher());
                             if (pipelineAggregatorParser == null) {
                                 throw new ParsingException(parser.getTokenLocation(),
                                         "Could not find aggregator type [" + fieldName + "] in [" + aggregationName + "]");

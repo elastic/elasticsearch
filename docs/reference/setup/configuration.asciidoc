@@ -39,7 +39,7 @@ example of changing the path of the data and logs directories:
 --------------------------------------------------
 path:
     data: /var/lib/elasticsearch
-    logs: /var/logs/elasticsearch
+    logs: /var/log/elasticsearch
 --------------------------------------------------
 
 Settings can also be flattened as follows:
@@ -47,7 +47,7 @@ Settings can also be flattened as follows:
 [source,yaml]
 --------------------------------------------------
 path.data: /var/lib/elasticsearch
-path.logs: /var/logs/elasticsearch
+path.logs: /var/log/elasticsearch
 --------------------------------------------------
 
 [float]

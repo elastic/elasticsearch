@@ -26,7 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -133,7 +133,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         int counter = 0;
         int numberOfFields = 0;
         while (true) {
-            mapping.startObject(Strings.randomBase64UUID()).field("type", "text").endObject();
+            mapping.startObject(UUIDs.randomBase64UUID()).field("type", "text").endObject();
             counter += 10; // each field is about 10 bytes, assuming compression in place
             numberOfFields++;
             if (counter > estimatedBytesSize) {

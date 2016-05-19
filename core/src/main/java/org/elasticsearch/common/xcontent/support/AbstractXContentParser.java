@@ -22,7 +22,6 @@ package org.elasticsearch.common.xcontent.support;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -36,8 +35,6 @@ import java.util.Map;
  *
  */
 public abstract class AbstractXContentParser implements XContentParser {
-
-    private ParseFieldMatcher matcher = ParseFieldMatcher.STRICT;
 
     // Currently this is not a setting that can be changed and is a policy
     // that relates to how parsing of things like "boost" are done across
@@ -337,12 +334,4 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     @Override
     public abstract boolean isClosed();
-
-    public ParseFieldMatcher getParseFieldMatcher() {
-        return matcher;
-    }
-
-    public void setParseFieldMatcher(ParseFieldMatcher matcher) {
-        this.matcher = matcher;
-    }
 }

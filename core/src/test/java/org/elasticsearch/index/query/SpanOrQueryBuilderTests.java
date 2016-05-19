@@ -45,14 +45,14 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
         assertThat(query, instanceOf(SpanOrQuery.class));
         SpanOrQuery spanOrQuery = (SpanOrQuery) query;
         assertThat(spanOrQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));
-        Iterator<SpanQueryBuilder<?>> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
+        Iterator<SpanQueryBuilder> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
         for (SpanQuery spanQuery : spanOrQuery.getClauses()) {
             assertThat(spanQuery, equalTo(spanQueryBuilderIterator.next().toQuery(context)));
         }
     }
 
     public void testIllegalArguments() {
-        expectThrows(IllegalArgumentException.class, () -> new SpanOrQueryBuilder((SpanQueryBuilder<?>) null));
+        expectThrows(IllegalArgumentException.class, () -> new SpanOrQueryBuilder((SpanQueryBuilder) null));
 
         try {
             SpanOrQueryBuilder spanOrBuilder = new SpanOrQueryBuilder(new SpanTermQueryBuilder("field", "value"));

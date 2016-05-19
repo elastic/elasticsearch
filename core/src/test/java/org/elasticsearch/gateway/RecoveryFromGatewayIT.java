@@ -63,9 +63,9 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -568,12 +568,12 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             .execute(new TransportNodesListGatewayStartedShards.Request(shardId, new String[]{node.getId()}))
             .get();
 
-        assertThat(response.getNodes(), arrayWithSize(1));
-        assertThat(response.getNodes()[0].allocationId(), notNullValue());
+        assertThat(response.getNodes(), hasSize(1));
+        assertThat(response.getNodes().get(0).allocationId(), notNullValue());
         if (corrupt) {
-            assertThat(response.getNodes()[0].storeException(), notNullValue());
+            assertThat(response.getNodes().get(0).storeException(), notNullValue());
         } else {
-            assertThat(response.getNodes()[0].storeException(), nullValue());
+            assertThat(response.getNodes().get(0).storeException(), nullValue());
         }
 
         // start another node so cluster consistency checks won't time out due to the lack of state

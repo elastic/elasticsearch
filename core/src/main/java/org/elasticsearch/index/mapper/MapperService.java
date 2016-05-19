@@ -23,7 +23,9 @@ import com.carrotsearch.hppc.ObjectHashSet;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.document.FieldType;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -90,7 +92,7 @@ public class MapperService extends AbstractIndexComponent {
             Setting.longSetting("index.mapping.depth.limit", 20L, 1, Property.Dynamic, Property.IndexScope);
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
-        Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, Property.IndexScope);
+        Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, Property.Dynamic, Property.IndexScope);
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
@@ -104,7 +106,6 @@ public class MapperService extends AbstractIndexComponent {
     private final boolean dynamic;
 
     private volatile String defaultMappingSource;
-    private volatile String defaultPercolatorMappingSource;
 
     private volatile Map<String, DocumentMapper> mappers = emptyMap();
 
@@ -137,30 +138,10 @@ public class MapperService extends AbstractIndexComponent {
         this.mapperRegistry = mapperRegistry;
 
         this.dynamic = this.indexSettings.getValue(INDEX_MAPPER_DYNAMIC_SETTING);
-        defaultPercolatorMappingSource = "{\n" +
-            "\"_default_\":{\n" +
-                "\"properties\" : {\n" +
-                    "\"query\" : {\n" +
-                        "\"type\" : \"percolator\"\n" +
-                    "}\n" +
-                "}\n" +
-            "}\n" +
-        "}";
-        if (index().getName().equals(ScriptService.SCRIPT_INDEX)){
-            defaultMappingSource =  "{" +
-                "\"_default_\": {" +
-                    "\"properties\": {" +
-                        "\"script\": { \"enabled\": false }," +
-                        "\"template\": { \"enabled\": false }" +
-                    "}" +
-                "}" +
-            "}";
-        } else {
-            defaultMappingSource = "{\"_default_\":{}}";
-        }
+        defaultMappingSource = "{\"_default_\":{}}";
 
         if (logger.isTraceEnabled()) {
-            logger.trace("using dynamic[{}], default mapping source[{}], default percolator mapping source[{}]", dynamic, defaultMappingSource, defaultPercolatorMappingSource);
+            logger.trace("using dynamic[{}], default mapping source[{}]", dynamic, defaultMappingSource);
         } else if (logger.isDebugEnabled()) {
             logger.debug("using dynamic[{}]", dynamic);
         }
@@ -288,6 +269,7 @@ public class MapperService extends AbstractIndexComponent {
             checkNestedFieldsLimit(fullPathObjectMappers);
             checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size());
             checkDepthLimit(fullPathObjectMappers.keySet());
+            checkPercolatorFieldLimit(fieldTypes);
         }
 
         Set<String> parentTypes = this.parentTypes;
@@ -337,7 +319,12 @@ public class MapperService extends AbstractIndexComponent {
     }
 
     private boolean typeNameStartsWithIllegalDot(DocumentMapper mapper) {
-        return mapper.type().startsWith(".") && !PercolatorFieldMapper.TYPE_NAME.equals(mapper.type());
+        boolean legacyIndex = getIndexSettings().getIndexVersionCreated().before(Version.V_5_0_0_alpha1);
+        if (legacyIndex) {
+            return mapper.type().startsWith(".") && !PercolatorFieldMapper.LEGACY_TYPE_NAME.equals(mapper.type());
+        } else {
+            return mapper.type().startsWith(".");
+        }
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {
@@ -445,13 +432,26 @@ public class MapperService extends AbstractIndexComponent {
         }
     }
 
-    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
-        String defaultMappingSource;
-        if (PercolatorFieldMapper.TYPE_NAME.equals(mappingType)) {
-            defaultMappingSource = this.defaultPercolatorMappingSource;
-        }  else {
-            defaultMappingSource = this.defaultMappingSource;
+    /**
+     * We only allow upto 1 percolator field per index.
+     *
+     * Reasoning here is that the PercolatorQueryCache only supports a single document having a percolator query.
+     * Also specifying multiple queries per document feels like an anti pattern
+     */
+    private void checkPercolatorFieldLimit(Iterable<MappedFieldType> fieldTypes) {
+        List<String> percolatorFieldTypes = new ArrayList<>();
+        for (MappedFieldType fieldType : fieldTypes) {
+            if (fieldType instanceof PercolatorFieldMapper.PercolatorFieldType) {
+                percolatorFieldTypes.add(fieldType.name());
+            }
         }
+        if (percolatorFieldTypes.size() > 1) {
+            throw new IllegalArgumentException("Up to one percolator field type is allowed per index, " +
+                    "found the following percolator fields [" + percolatorFieldTypes + "]");
+        }
+    }
+
+    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
         return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
     }
 

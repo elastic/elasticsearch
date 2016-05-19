@@ -673,7 +673,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
             .endObject().endObject().string();
 
         assertEquals(expectedMapping, mapper.mappingSource().toString());
-        IllegalStateException e = expectThrows(IllegalStateException.class,
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> mapper.mappers().getMapper("field").fieldType().fielddataBuilder());
         assertThat(e.getMessage(), containsString("Fielddata is disabled"));
     }

@@ -47,9 +47,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index template.
@@ -71,7 +71,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     private Map<String, String> mappings = new HashMap<>();
 
     private final Set<Alias> aliases = new HashSet<>();
-    
+
     private Map<String, IndexMetaData.Custom> customs = new HashMap<>();
 
     public PutIndexTemplateRequest() {
@@ -356,7 +356,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     public Map<String, IndexMetaData.Custom> customs() {
         return this.customs;
     }
-       
+
     public Set<Alias> aliases() {
         return this.aliases;
     }
@@ -393,8 +393,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * Sets the aliases that will be associated with the index when it gets created
      */
     public PutIndexTemplateRequest aliases(BytesReference source) {
-        try {
-            XContentParser parser = XContentHelper.createParser(source);
+        try (XContentParser parser = XContentHelper.createParser(source)) {
             //move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {

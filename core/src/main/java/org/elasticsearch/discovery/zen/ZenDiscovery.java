@@ -201,7 +201,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         this.joinThreadControl = new JoinThreadControl(threadPool);
 
-        transportService.registerRequestHandler(DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
+        transportService.registerRequestHandler(
+            DISCOVERY_REJOIN_ACTION_NAME, RejoinClusterRequest::new, ThreadPool.Names.SAME, new RejoinClusterRequestHandler());
     }
 
     @Override
@@ -832,7 +833,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             try {
                 membership.sendValidateJoinRequestBlocking(node, state, joinTimeout);
             } catch (Throwable e) {
-                logger.warn("failed to validate incoming join request from node [{}]", node);
+                logger.warn("failed to validate incoming join request from node [{}]", e, node);
                 callback.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
                 return;
             }

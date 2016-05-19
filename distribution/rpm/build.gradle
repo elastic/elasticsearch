@@ -38,6 +38,9 @@ task buildRpm(type: Rpm) {
   license '2009'
   distribution 'Elasticsearch'
   vendor 'Elasticsearch'
+  dirMode 0755
+  fileMode 0644
+  addParentDirs false
   // TODO ospackage doesn't support icon but we used to have one
 }
 

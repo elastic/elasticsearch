@@ -19,9 +19,8 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 /**
  *
@@ -37,19 +36,15 @@ public class PercentilesParser extends AbstractPercentilesParser {
     public final static double[] DEFAULT_PERCENTS = new double[] { 1, 5, 25, 50, 75, 95, 99 };
 
     @Override
-    public String type() {
-        return InternalTDigestPercentiles.TYPE.name();
-    }
-
-    @Override
     protected ParseField keysField() {
         return PERCENTS_FIELD;
     }
 
     @Override
-    protected ValuesSourceAggregatorBuilder<Numeric, ?> buildFactory(String aggregationName, double[] keys, PercentilesMethod method,
-            Double compression, Integer numberOfSignificantValueDigits, Boolean keyed) {
-        PercentilesAggregatorBuilder factory = new PercentilesAggregatorBuilder(aggregationName);
+    protected ValuesSourceAggregationBuilder<Numeric, ?> buildFactory(String aggregationName, double[] keys, PercentilesMethod method,
+                                                                      Double compression, Integer numberOfSignificantValueDigits,
+                                                                      Boolean keyed) {
+        PercentilesAggregationBuilder factory = new PercentilesAggregationBuilder(aggregationName);
         if (keys != null) {
             factory.percentiles(keys);
         }
@@ -67,10 +62,4 @@ public class PercentilesParser extends AbstractPercentilesParser {
         }
         return factory;
     }
-
-    @Override
-    public PercentilesAggregatorBuilder getFactoryPrototypes() {
-        return PercentilesAggregatorBuilder.PROTOTYPE;
-    }
-
 }

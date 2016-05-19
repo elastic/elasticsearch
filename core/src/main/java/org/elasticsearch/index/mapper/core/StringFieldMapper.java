@@ -29,7 +29,6 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -70,11 +69,16 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
     // If a string field is created on 5.x and all parameters are in this list then we
     // will automatically upgrade to a text/keyword field. Otherwise we will just fail
     // saying that string fields are not supported anymore.
-    private static final Set<String> SUPPORTED_PARAMETERS_FOR_AUTO_UPGRADE = new HashSet<>(Arrays.asList(
+    private static final Set<String> SUPPORTED_PARAMETERS_FOR_AUTO_UPGRADE_TO_KEYWORD = new HashSet<>(Arrays.asList(
             "type",
-            // most common parameters, for which the upgrade is straightforward
+            // common keyword parameters, for which the upgrade is straightforward
             "index", "store", "doc_values", "omit_norms", "norms", "fields", "copy_to",
             "fielddata", "ignore_above"));
+    private static final Set<String> SUPPORTED_PARAMETERS_FOR_AUTO_UPGRADE_TO_TEXT = new HashSet<>(Arrays.asList(
+            "type",
+            // common text parameters, for which the upgrade is straightforward
+            "index", "store", "doc_values", "omit_norms", "norms", "fields", "copy_to",
+            "fielddata", "analyzer", "search_analyzer", "search_quote_analyzer"));
 
     public static class Defaults {
         public static double FIELDDATA_MIN_FREQUENCY = 0;
@@ -198,12 +202,19 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         @Override
         public Mapper.Builder parse(String fieldName, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha1)) {
+                final Object index = node.get("index");
+                if (Arrays.asList(null, "no", "not_analyzed", "analyzed").contains(index) == false) {
+                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [no], [not_analyzed] or [analyzed]");
+                }
+                final boolean keyword = index != null && "analyzed".equals(index) == false;
+
                 // Automatically upgrade simple mappings for ease of upgrade, otherwise fail
-                if (SUPPORTED_PARAMETERS_FOR_AUTO_UPGRADE.containsAll(node.keySet())) {
+                Set<String> autoUpgradeParameters = keyword
+                        ? SUPPORTED_PARAMETERS_FOR_AUTO_UPGRADE_TO_KEYWORD
+                        : SUPPORTED_PARAMETERS_FOR_AUTO_UPGRADE_TO_TEXT;
+                if (autoUpgradeParameters.containsAll(node.keySet())) {
                     deprecationLogger.deprecated("The [string] field is deprecated, please use [text] or [keyword] instead on [{}]",
                             fieldName);
-                    final Object index = node.remove("index");
-                    final boolean keyword = index != null && "analyzed".equals(index) == false;
                     {
                         // upgrade the index setting
                         node.put("index", "no".equals(index) == false);
@@ -254,13 +265,13 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                 throw new IllegalArgumentException("The [string] type is removed in 5.0. You should now use either a [text] "
                         + "or [keyword] field instead for field [" + fieldName + "]");
             }
-            
+
             StringFieldMapper.Builder builder = new StringFieldMapper.Builder(fieldName);
             // hack for the fact that string can't just accept true/false for
             // the index property and still accepts no/not_analyzed/analyzed
             final Object index = node.remove("index");
             if (index != null) {
-                final String normalizedIndex = Strings.toUnderscoreCase(index.toString());
+                final String normalizedIndex = index.toString();
                 switch (normalizedIndex) {
                 case "analyzed":
                     builder.tokenized(true);
@@ -274,7 +285,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                     node.put("index", false);
                     break;
                 default:
-                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true], [false], [no], [not_analyzed] or [analyzed]");
+                    throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [no], [not_analyzed] or [analyzed]");
                 }
             }
             final Object fielddataObject = node.get("fielddata");
@@ -295,7 +306,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             parseTextField(builder, fieldName, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String propName = Strings.toUnderscoreCase(entry.getKey());
+                String propName = entry.getKey();
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
                     if (propNode == null) {
@@ -344,7 +355,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         }
     }
 
-    public static final class StringFieldType extends MappedFieldType {
+    public static final class StringFieldType extends org.elasticsearch.index.mapper.StringFieldType {
 
         private boolean fielddata;
         private double fielddataMinFrequency;
@@ -469,19 +480,10 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             } else if (fielddata) {
                 return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
             } else {
-                throw new IllegalStateException("Fielddata is disabled on analyzed string fields by default. Set fielddata=true on ["
+                throw new IllegalArgumentException("Fielddata is disabled on analyzed string fields by default. Set fielddata=true on ["
                         + name() + "] in order to load fielddata in memory by uninverting the inverted index. Note that this can however "
                         + "use significant memory.");
             }
-        }
-
-        @Override
-        public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
-            RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), flags, maxDeterminizedStates);
-            if (method != null) {
-                query.setRewriteMethod(method);
-            }
-            return query;
         }
     }
 

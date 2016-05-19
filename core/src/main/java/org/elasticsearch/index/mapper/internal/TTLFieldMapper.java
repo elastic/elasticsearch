@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -104,7 +103,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
             Builder builder = new Builder();
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     EnabledAttributeMapper enabledState = lenientNodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
@@ -223,7 +222,8 @@ public class TTLFieldMapper extends MetadataFieldMapper {
                 long now = System.currentTimeMillis();
                 // there is not point indexing already expired doc
                 if (context.sourceToParse().origin() == SourceToParse.Origin.PRIMARY && now >= expire) {
-                    throw new AlreadyExpiredException(context.index(), context.type(), context.id(), timestamp, ttl, now);
+                    throw new AlreadyExpiredException(context.sourceToParse().index(),
+                            context.sourceToParse().type(), context.sourceToParse().id(), timestamp, ttl, now);
                 }
                 // the expiration timestamp (timestamp + ttl) is set as field
                 fields.add(new LegacyLongFieldMapper.CustomLongNumericField(expire, fieldType()));

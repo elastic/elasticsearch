@@ -40,8 +40,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
-public final class DirectCandidateGeneratorBuilder
-        implements CandidateGenerator {
+public final class DirectCandidateGeneratorBuilder implements CandidateGenerator {
 
     private static final String TYPE = "direct_generator";
 
@@ -375,13 +374,15 @@ public final class DirectCandidateGeneratorBuilder
         DirectCandidateGeneratorBuilder tempGenerator = new DirectCandidateGeneratorBuilder("_na_");
         // bucket for the field name, needed as constructor arg later
         Set<String> tmpFieldName = new HashSet<>(1);
-        PARSER.parse(parseContext.parser(), new Tuple<Set<String>, DirectCandidateGeneratorBuilder>(tmpFieldName, tempGenerator));
+        PARSER.parse(parseContext.parser(), new Tuple<Set<String>, DirectCandidateGeneratorBuilder>(tmpFieldName, tempGenerator),
+                parseContext);
         if (tmpFieldName.size() != 1) {
             throw new IllegalArgumentException("[" + TYPE + "] expects exactly one field parameter, but found " + tmpFieldName);
         }
         return replaceField(tmpFieldName.iterator().next(), tempGenerator);
     }
 
+    @Override
     public PhraseSuggestionContext.DirectCandidateGenerator build(MapperService mapperService) throws IOException {
         PhraseSuggestionContext.DirectCandidateGenerator generator = new PhraseSuggestionContext.DirectCandidateGenerator();
         generator.setField(this.field);

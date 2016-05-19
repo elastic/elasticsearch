@@ -35,10 +35,10 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
     // Used to ensure clock moves forward:
     private long lastTimestamp;
 
-    private static final byte[] secureMungedAddress = MacAddressProvider.getSecureMungedAddress();
+    private static final byte[] SECURE_MUNGED_ADDRESS = MacAddressProvider.getSecureMungedAddress();
 
     static {
-        assert secureMungedAddress.length == 6;
+        assert SECURE_MUNGED_ADDRESS.length == 6;
     }
 
     /** Puts the lower numberOfLongBytes from l into the array, starting index pos. */
@@ -73,12 +73,12 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
         putLong(uuidBytes, timestamp, 0, 6);
 
         // MAC address adds 6 bytes:
-        System.arraycopy(secureMungedAddress, 0, uuidBytes, 6, secureMungedAddress.length);
+        System.arraycopy(SECURE_MUNGED_ADDRESS, 0, uuidBytes, 6, SECURE_MUNGED_ADDRESS.length);
 
         // Sequence number adds 3 bytes:
         putLong(uuidBytes, sequenceId, 12, 3);
 
-        assert 9 + secureMungedAddress.length == uuidBytes.length;
+        assert 9 + SECURE_MUNGED_ADDRESS.length == uuidBytes.length;
 
         byte[] encoded;
         try {

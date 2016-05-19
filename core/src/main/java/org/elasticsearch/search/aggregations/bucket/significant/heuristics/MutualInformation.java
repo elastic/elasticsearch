@@ -28,16 +28,21 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 public class MutualInformation extends NXYSignificanceHeuristic {
-
-    static final MutualInformation PROTOTYPE = new MutualInformation(false, false);
-
-    protected static final ParseField NAMES_FIELD = new ParseField("mutual_information");
+    public static final ParseField NAMES_FIELD = new ParseField("mutual_information");
 
     private static final double log2 = Math.log(2.0);
 
     public MutualInformation(boolean includeNegatives, boolean backgroundIsSuperset) {
         super(includeNegatives, backgroundIsSuperset);
     }
+
+    /**
+     * Read from a stream.
+     */
+    public MutualInformation(StreamInput in) throws IOException {
+        super(in);
+    }
+
 
     @Override
     public boolean equals(Object other) {
@@ -107,11 +112,6 @@ public class MutualInformation extends NXYSignificanceHeuristic {
     }
 
     @Override
-    public SignificanceHeuristic readFrom(StreamInput in) throws IOException {
-        return new MutualInformation(in.readBoolean(), in.readBoolean());
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAMES_FIELD.getPreferredName());
         super.build(builder);
@@ -119,18 +119,12 @@ public class MutualInformation extends NXYSignificanceHeuristic {
         return builder;
     }
 
-    public static class MutualInformationParser extends NXYParser {
-
+    public static SignificanceHeuristicParser PARSER = new NXYParser() {
         @Override
         protected SignificanceHeuristic newHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
             return new MutualInformation(includeNegatives, backgroundIsSuperset);
         }
-
-        @Override
-        public String[] getNames() {
-            return NAMES_FIELD.getAllNamesIncludedDeprecated();
-        }
-    }
+    };
 
     public static class MutualInformationBuilder extends NXYBuilder {
 

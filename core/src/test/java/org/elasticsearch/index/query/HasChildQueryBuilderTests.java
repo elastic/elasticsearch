@@ -38,23 +38,22 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.query.support.InnerHitBuilder;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.TestSearchContext;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -71,7 +70,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     @BeforeClass
     public static void before() throws Exception {
         similarity = randomFrom("classic", "BM25");
-        MapperService mapperService = queryShardContext().getMapperService();
+        MapperService mapperService = createShardContext().getMapperService();
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=text",
                 STRING_FIELD_NAME_2, "type=keyword",
@@ -91,26 +90,6 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-    }
-
-    @Override
-    protected void setSearchContext(String[] types) {
-        final MapperService mapperService = queryShardContext().getMapperService();
-        final IndexFieldDataService fieldData = indexFieldDataService();
-        TestSearchContext testSearchContext = new TestSearchContext(queryShardContext()) {
-
-            @Override
-            public MapperService mapperService() {
-                return mapperService; // need to build / parse inner hits sort fields
-            }
-
-            @Override
-            public IndexFieldDataService fieldData() {
-                return fieldData; // need to build / parse inner hits sort fields
-            }
-        };
-        testSearchContext.getQueryShardContext().setTypes(types);
-        SearchContext.setCurrent(testSearchContext);
     }
 
     /**
@@ -136,7 +115,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
 
     @Override
     protected void doAssertLuceneQuery(HasChildQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        QueryBuilder<?> innerQueryBuilder = queryBuilder.query();
+        QueryBuilder innerQueryBuilder = queryBuilder.query();
         if (innerQueryBuilder instanceof EmptyQueryBuilder) {
             assertNull(query);
         } else {
@@ -147,24 +126,30 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             assertEquals(queryBuilder.scoreMode(), lpq.getScoreMode()); // WTF is this why do we have two?
         }
         if (queryBuilder.innerHit() != null) {
-            assertNotNull(SearchContext.current());
+            SearchContext searchContext = SearchContext.current();
+            assertNotNull(searchContext);
             if (query != null) {
-                assertNotNull(SearchContext.current().innerHits());
-                assertEquals(1, SearchContext.current().innerHits().getInnerHits().size());
-                assertTrue(SearchContext.current().innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
+                Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+                InnerHitBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
+                for (InnerHitBuilder builder : innerHitBuilders.values()) {
+                    builder.build(searchContext, searchContext.innerHits());
+                }
+                assertNotNull(searchContext.innerHits());
+                assertEquals(1, searchContext.innerHits().getInnerHits().size());
+                assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
                 InnerHitsContext.BaseInnerHits innerHits =
-                        SearchContext.current().innerHits().getInnerHits().get(queryBuilder.innerHit().getName());
+                        searchContext.innerHits().getInnerHits().get(queryBuilder.innerHit().getName());
                 assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
-                assertEquals(innerHits.sort().getSort().length, 1);
-                assertEquals(innerHits.sort().getSort()[0].getField(), STRING_FIELD_NAME_2);
+                assertEquals(innerHits.sort().sort.getSort().length, 1);
+                assertEquals(innerHits.sort().sort.getSort()[0].getField(), STRING_FIELD_NAME_2);
             } else {
-                assertThat(SearchContext.current().innerHits().getInnerHits().size(), equalTo(0));
+                assertThat(searchContext.innerHits().getInnerHits().size(), equalTo(0));
             }
         }
     }
 
     public void testIllegalValues() {
-        QueryBuilder<?> query = RandomQueryBuilder.createQuery(random());
+        QueryBuilder query = RandomQueryBuilder.createQuery(random());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> QueryBuilders.hasChildQuery(null, query, ScoreMode.None));
         assertEquals("[has_child] requires 'type' field", e.getMessage());
@@ -210,7 +195,6 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "    \"boost\" : 2.0,\n" +
                 "    \"_name\" : \"WNzYMJKRwePuRBh\",\n" +
                 "    \"inner_hits\" : {\n" +
-                "      \"type\" : \"child\",\n" +
                 "      \"name\" : \"inner_hits_name\",\n" +
                 "      \"from\" : 0,\n" +
                 "      \"size\" : 100,\n" +
@@ -221,18 +205,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "        \"mapped_string\" : {\n" +
                 "          \"order\" : \"asc\"\n" +
                 "        }\n" +
-                "      } ],\n" +
-                "      \"query\" : {\n" +
-                "        \"range\" : {\n" +
-                "          \"mapped_string\" : {\n" +
-                "            \"from\" : \"agJhRET\",\n" +
-                "            \"to\" : \"zvqIq\",\n" +
-                "            \"include_lower\" : true,\n" +
-                "            \"include_upper\" : true,\n" +
-                "            \"boost\" : 1.0\n" +
-                "          }\n" +
-                "        }\n" +
-                "      }\n" +
+                "      } ]\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";
@@ -245,11 +218,11 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertEquals(query, queryBuilder.childType(), "child");
         assertEquals(query, queryBuilder.scoreMode(), ScoreMode.Avg);
         assertNotNull(query, queryBuilder.innerHit());
-        assertEquals(query, queryBuilder.innerHit(), new InnerHitBuilder().setParentChildType("child")
+        InnerHitBuilder expected = new InnerHitBuilder(new InnerHitBuilder(), queryBuilder.query(), "child")
                 .setName("inner_hits_name")
                 .setSize(100)
-                .addSort(new FieldSortBuilder("mapped_string").order(SortOrder.ASC))
-                .setQuery(queryBuilder.query()));
+                .addSort(new FieldSortBuilder("mapped_string").order(SortOrder.ASC));
+        assertEquals(query, queryBuilder.innerHit(), expected);
 
     }
     public void testToQueryInnerQueryType() throws IOException {
@@ -380,13 +353,13 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     public void testIgnoreUnmapped() throws IOException {
         final HasChildQueryBuilder queryBuilder = new HasChildQueryBuilder("unmapped", new MatchAllQueryBuilder(), ScoreMode.None);
         queryBuilder.ignoreUnmapped(true);
-        Query query = queryBuilder.toQuery(queryShardContext());
+        Query query = queryBuilder.toQuery(createShardContext());
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final HasChildQueryBuilder failingQueryBuilder = new HasChildQueryBuilder("unmapped", new MatchAllQueryBuilder(), ScoreMode.None);
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("[" + HasChildQueryBuilder.NAME + "] no mapping found for type [unmapped]"));
     }
 }

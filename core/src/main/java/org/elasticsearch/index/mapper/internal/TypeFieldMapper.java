@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -73,20 +74,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, TypeFieldMapper> {
-
-        public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
-            indexName = Defaults.NAME;
-        }
-
-        @Override
-        public TypeFieldMapper build(BuilderContext context) {
-            fieldType.setName(buildFullName(context));
-            return new TypeFieldMapper(fieldType, context.indexSettings());
-        }
-    }
-
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
@@ -99,7 +86,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class TypeFieldType extends MappedFieldType {
+    static final class TypeFieldType extends StringFieldType {
 
         public TypeFieldType() {
         }
@@ -208,9 +195,9 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
             return;
         }
-        fields.add(new Field(fieldType().name(), context.type(), fieldType()));
+        fields.add(new Field(fieldType().name(), context.sourceToParse().type(), fieldType()));
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(context.type())));
+            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(context.sourceToParse().type())));
         }
     }
 

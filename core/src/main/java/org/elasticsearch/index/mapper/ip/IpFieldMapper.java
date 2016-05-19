@@ -23,9 +23,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.XInetAddressPoint;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.XPointValues;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -34,7 +36,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -46,14 +47,12 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.LegacyNumberFieldMapper.Defaults;
 import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.mapper.ip.LegacyIpFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -103,7 +102,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
 
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().before(Version.V_5_0_0)) {
+            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
                 return new LegacyIpFieldMapper.TypeParser().parse(name, node, parserContext);
             }
             Builder builder = new Builder(name);
@@ -164,6 +163,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
 
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
+            failIfNotIndexed();
             if (value instanceof InetAddress) {
                 return InetAddressPoint.newExactQuery(name(), (InetAddress) value);
             } else {
@@ -176,7 +176,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
                     if (fields.length == 2) {
                         InetAddress address = InetAddresses.forString(fields[0]);
                         int prefixLength = Integer.parseInt(fields[1]);
-                        return InetAddressPoint.newPrefixQuery(name(), address, prefixLength);
+                        return XInetAddressPoint.newPrefixQuery(name(), address, prefixLength);
                     } else {
                         throw new IllegalArgumentException("Expected [ip/prefix] but was [" + term + "]");
                     }
@@ -188,49 +188,49 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
-            if (includeLower == false || includeUpper == false) {
-                // TODO: should we drop range support entirely
-                throw new IllegalArgumentException("range on ip addresses only supports inclusive bounds");
-            }
+            failIfNotIndexed();
             InetAddress lower;
             if (lowerTerm == null) {
-                lower = InetAddressPoint.decode(new byte[16]);
+                lower = XInetAddressPoint.MIN_VALUE;
             } else {
                 lower = parse(lowerTerm);
+                if (includeLower == false) {
+                    if (lower.equals(XInetAddressPoint.MAX_VALUE)) {
+                        return new MatchNoDocsQuery();
+                    }
+                    lower = XInetAddressPoint.nextUp(lower);
+                }
             }
 
             InetAddress upper;
             if (upperTerm == null) {
-                byte[] bytes = new byte[16];
-                Arrays.fill(bytes, (byte) 255); 
-                upper = InetAddressPoint.decode(bytes);
+                upper = XInetAddressPoint.MAX_VALUE;
             } else {
                 upper = parse(upperTerm);
+                if (includeUpper == false) {
+                    if (upper.equals(XInetAddressPoint.MIN_VALUE)) {
+                        return new MatchNoDocsQuery();
+                    }
+                    upper = XInetAddressPoint.nextDown(upper);
+                }
             }
 
             return InetAddressPoint.newRangeQuery(name(), lower, upper);
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            InetAddress base = parse(value);
-            int mask = fuzziness.asInt();
-            return InetAddressPoint.newPrefixQuery(name(), base, mask);
-        }
-
-        @Override
         public FieldStats.Ip stats(IndexReader reader) throws IOException {
             String field = name();
-            long size = PointValues.size(reader, field);
+            long size = XPointValues.size(reader, field);
             if (size == 0) {
                 return null;
             }
-            int docCount = PointValues.getDocCount(reader, field);
-            byte[] min = PointValues.getMinPackedValue(reader, field);
-            byte[] max = PointValues.getMaxPackedValue(reader, field);
-            return new FieldStats.Ip(reader.maxDoc(),docCount, -1L, size,
-                    InetAddressPoint.decode(min),
-                    InetAddressPoint.decode(max));
+            int docCount = XPointValues.getDocCount(reader, field);
+            byte[] min = XPointValues.getMinPackedValue(reader, field);
+            byte[] max = XPointValues.getMaxPackedValue(reader, field);
+            return new FieldStats.Ip(reader.maxDoc(), docCount, -1L, size,
+                isSearchable(), isAggregatable(),
+                InetAddressPoint.decode(min), InetAddressPoint.decode(max));
         }
 
         @Override
@@ -330,7 +330,7 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
         if (context.externalValueSet()) {
             addressAsObject = context.externalValue();
         } else {
-            addressAsObject = context.parser().text();
+            addressAsObject = context.parser().textOrNull();
         }
 
         if (addressAsObject == null) {
@@ -385,6 +385,14 @@ public class IpFieldMapper extends FieldMapper implements AllFieldMapper.Include
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
+
+        if (includeDefaults || fieldType().nullValue() != null) {
+            Object nullValue = fieldType().nullValue();
+            if (nullValue != null) {
+                nullValue = InetAddresses.toAddrString((InetAddress) nullValue);
+            }
+            builder.field("null_value", nullValue);
+        }
 
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field("ignore_malformed", ignoreMalformed.value());

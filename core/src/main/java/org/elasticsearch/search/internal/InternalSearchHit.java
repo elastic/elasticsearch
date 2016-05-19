@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,8 +32,8 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
@@ -45,6 +44,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -327,21 +327,13 @@ public class InternalSearchHit implements SearchHit {
         this.highlightFields = highlightFields;
     }
 
-    public void sortValues(Object[] sortValues) {
-        // LUCENE 4 UPGRADE: There must be a better way
-        // we want to convert to a Text object here, and not BytesRef
-
-        // Don't write into sortValues! Otherwise the fields in FieldDoc is modified, which may be used in other places. (SearchContext#lastEmitedDoc)
-        Object[] sortValuesCopy = new Object[sortValues.length];
-        System.arraycopy(sortValues, 0, sortValuesCopy, 0, sortValues.length);
-        if (sortValues != null) {
-            for (int i = 0; i < sortValues.length; i++) {
-                if (sortValues[i] instanceof BytesRef) {
-                    sortValuesCopy[i] = new Text(new BytesArray((BytesRef) sortValues[i]));
-                }
+    public void sortValues(Object[] sortValues, DocValueFormat[] sortValueFormats) {
+        this.sortValues = Arrays.copyOf(sortValues, sortValues.length);
+        for (int i = 0; i < sortValues.length; ++i) {
+            if (this.sortValues[i] instanceof BytesRef) {
+                this.sortValues[i] = sortValueFormats[i].format((BytesRef) sortValues[i]);
             }
         }
-        this.sortValues = sortValuesCopy;
     }
 
     @Override
@@ -407,20 +399,20 @@ public class InternalSearchHit implements SearchHit {
     }
 
     public static class Fields {
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString _SCORE = new XContentBuilderString("_score");
-        static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
-        static final XContentBuilderString HIGHLIGHT = new XContentBuilderString("highlight");
-        static final XContentBuilderString SORT = new XContentBuilderString("sort");
-        static final XContentBuilderString MATCHED_QUERIES = new XContentBuilderString("matched_queries");
-        static final XContentBuilderString _EXPLANATION = new XContentBuilderString("_explanation");
-        static final XContentBuilderString VALUE = new XContentBuilderString("value");
-        static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
-        static final XContentBuilderString DETAILS = new XContentBuilderString("details");
-        static final XContentBuilderString INNER_HITS = new XContentBuilderString("inner_hits");
+        static final String _INDEX = "_index";
+        static final String _TYPE = "_type";
+        static final String _ID = "_id";
+        static final String _VERSION = "_version";
+        static final String _SCORE = "_score";
+        static final String FIELDS = "fields";
+        static final String HIGHLIGHT = "highlight";
+        static final String SORT = "sort";
+        static final String MATCHED_QUERIES = "matched_queries";
+        static final String _EXPLANATION = "_explanation";
+        static final String VALUE = "value";
+        static final String DESCRIPTION = "description";
+        static final String DETAILS = "details";
+        static final String INNER_HITS = "inner_hits";
     }
 
     @Override
@@ -619,8 +611,6 @@ public class InternalSearchHit implements SearchHit {
                     sortValues[i] = in.readShort();
                 } else if (type == 8) {
                     sortValues[i] = in.readBoolean();
-                } else if (type == 9) {
-                    sortValues[i] = in.readText();
                 } else {
                     throw new IOException("Can't match type [" + type + "]");
                 }
@@ -727,9 +717,6 @@ public class InternalSearchHit implements SearchHit {
                     } else if (type == Boolean.class) {
                         out.writeByte((byte) 8);
                         out.writeBoolean((Boolean) sortValue);
-                    } else if (sortValue instanceof Text) {
-                        out.writeByte((byte) 9);
-                        out.writeText((Text) sortValue);
                     } else {
                         throw new IOException("Can't handle sort field value of type [" + type + "]");
                     }
@@ -836,9 +823,9 @@ public class InternalSearchHit implements SearchHit {
 
         public static class Fields {
 
-            static final XContentBuilderString _NESTED = new XContentBuilderString("_nested");
-            static final XContentBuilderString _NESTED_FIELD = new XContentBuilderString("field");
-            static final XContentBuilderString _NESTED_OFFSET = new XContentBuilderString("offset");
+            static final String _NESTED = "_nested";
+            static final String _NESTED_FIELD = "field";
+            static final String _NESTED_OFFSET = "offset";
 
         }
     }

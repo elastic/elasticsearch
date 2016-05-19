@@ -32,9 +32,12 @@ way to do this is to upgrade to Elasticsearch 2.3 or later and to use the
 * <<breaking_50_search_changes>>
 * <<breaking_50_mapping_changes>>
 * <<breaking_50_percolator>>
+* <<breaking_50_suggester>>
 * <<breaking_50_index_apis>>
+* <<breaking_50_document_api_changes>>
 * <<breaking_50_settings_changes>>
 * <<breaking_50_allocation>>
+* <<breaking_50_http_changes>>
 * <<breaking_50_rest_api_changes>>
 * <<breaking_50_cat_api>>
 * <<breaking_50_java_api_changes>>
@@ -42,6 +45,7 @@ way to do this is to upgrade to Elasticsearch 2.3 or later and to use the
 * <<breaking_50_plugins>>
 * <<breaking_50_fs>>
 * <<breaking_50_aggregations_changes>>
+* <<breaking_50_scripting>>
 
 
 include::migrate_5_0/search.asciidoc[]
@@ -50,11 +54,17 @@ include::migrate_5_0/mapping.asciidoc[]
 
 include::migrate_5_0/percolator.asciidoc[]
 
+include::migrate_5_0/suggest.asciidoc[]
+
 include::migrate_5_0/index-apis.asciidoc[]
+
+include::migrate_5_0/docs.asciidoc[]
 
 include::migrate_5_0/settings.asciidoc[]
 
 include::migrate_5_0/allocation.asciidoc[]
+
+include::migrate_5_0/http.asciidoc[]
 
 include::migrate_5_0/rest.asciidoc[]
 
@@ -69,3 +79,5 @@ include::migrate_5_0/plugins.asciidoc[]
 include::migrate_5_0/fs.asciidoc[]
 
 include::migrate_5_0/aggregations.asciidoc[]
+
+include::migrate_5_0/scripting.asciidoc[]

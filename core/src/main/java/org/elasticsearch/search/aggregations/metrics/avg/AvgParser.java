@@ -38,25 +38,14 @@ public class AvgParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalAvg.TYPE.name();
-    }
-
-    @Override
     protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
             ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
         return false;
     }
 
     @Override
-    protected AvgAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new AvgAggregatorBuilder(aggregationName);
+    protected AvgAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                  ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        return new AvgAggregationBuilder(aggregationName);
     }
-
-    @Override
-    public AvgAggregatorBuilder getFactoryPrototypes() {
-        return AvgAggregatorBuilder.PROTOTYPE;
-    }
-
 }

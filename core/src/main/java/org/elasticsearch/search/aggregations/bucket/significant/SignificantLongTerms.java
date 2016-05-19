@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -82,18 +81,15 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
     static class Bucket extends InternalSignificantTerms.Bucket {
 
         long term;
-        private transient final DocValueFormat format;
 
-        public Bucket(long subsetSize, long supersetSize, DocValueFormat formatter) {
-            super(subsetSize, supersetSize);
-            this.format = formatter;
+        public Bucket(long subsetSize, long supersetSize, DocValueFormat format) {
+            super(subsetSize, supersetSize, format);
             // for serialization
         }
 
         public Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations,
                 DocValueFormat format) {
-            super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations);
-            this.format = format;
+            super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
             this.term = term;
         }
 
@@ -161,7 +157,6 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
             return builder;
         }
     }
-    private DocValueFormat format;
 
     SignificantLongTerms() {
     } // for serialization
@@ -170,8 +165,7 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
             long minDocCount, SignificanceHeuristic significanceHeuristic, List<? extends InternalSignificantTerms.Bucket> buckets,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
 
-        super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets, pipelineAggregators, metaData);
-        this.format = Objects.requireNonNull(format);
+        super(subsetSize, supersetSize, name, format, requiredSize, minDocCount, significanceHeuristic, buckets, pipelineAggregators, metaData);
     }
 
     @Override
@@ -202,12 +196,12 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {
-        this.format = in.readValueFormat();
+        this.format = in.readNamedWriteable(DocValueFormat.class);
         this.requiredSize = readSize(in);
         this.minDocCount = in.readVLong();
         this.subsetSize = in.readVLong();
         this.supersetSize = in.readVLong();
-        significanceHeuristic = SignificanceHeuristicStreams.read(in);
+        significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
 
         int size = in.readVInt();
         List<InternalSignificantTerms.Bucket> buckets = new ArrayList<>(size);
@@ -223,12 +217,12 @@ public class SignificantLongTerms extends InternalSignificantTerms<SignificantLo
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeValueFormat(format);
+        out.writeNamedWriteable(format);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
         out.writeVLong(subsetSize);
         out.writeVLong(supersetSize);
-        SignificanceHeuristicStreams.writeTo(significanceHeuristic, out);
+        out.writeNamedWriteable(significanceHeuristic);
         out.writeVInt(buckets.size());
         for (InternalSignificantTerms.Bucket bucket : buckets) {
 

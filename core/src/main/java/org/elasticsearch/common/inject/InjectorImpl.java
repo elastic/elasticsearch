@@ -84,12 +84,7 @@ class InjectorImpl implements Injector, Lookups {
         if (parent != null) {
             localContext = parent.localContext;
         } else {
-            localContext = new ThreadLocal<Object[]>() {
-                @Override
-                protected Object[] initialValue() {
-                    return new Object[1];
-                }
-            };
+            localContext = new ThreadLocal<>();
         }
     }
 
@@ -867,13 +862,17 @@ class InjectorImpl implements Injector, Lookups {
         return getProvider(type).get();
     }
 
-    final ThreadLocal<Object[]> localContext;
+    private final ThreadLocal<Object[]> localContext;
 
     /**
      * Looks up thread local context. Creates (and removes) a new context if necessary.
      */
     <T> T callInContext(ContextualCallable<T> callable) throws ErrorsException {
         Object[] reference = localContext.get();
+        if (reference == null) {
+            reference = new Object[1];
+            localContext.set(reference);
+        }
         if (reference[0] == null) {
             reference[0] = new InternalContext();
             try {

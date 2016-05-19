@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -56,9 +57,9 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.InvalidSnapshotNameException;
-import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotCreationException;
 import org.elasticsearch.snapshots.SnapshotException;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
@@ -164,9 +165,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
 
     private LegacyBlobStoreFormat<IndexMetaData> indexMetaDataLegacyFormat;
 
-    private ChecksumBlobStoreFormat<Snapshot> snapshotFormat;
+    private ChecksumBlobStoreFormat<SnapshotInfo> snapshotFormat;
 
-    private LegacyBlobStoreFormat<Snapshot> snapshotLegacyFormat;
+    private LegacyBlobStoreFormat<SnapshotInfo> snapshotLegacyFormat;
 
     private final boolean readOnly;
 
@@ -201,8 +202,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         indexMetaDataFormat = new ChecksumBlobStoreFormat<>(INDEX_METADATA_CODEC, METADATA_NAME_FORMAT, IndexMetaData.PROTO, parseFieldMatcher, isCompress());
         indexMetaDataLegacyFormat = new LegacyBlobStoreFormat<>(LEGACY_SNAPSHOT_NAME_FORMAT, IndexMetaData.PROTO, parseFieldMatcher);
 
-        snapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT, Snapshot.PROTO, parseFieldMatcher, isCompress());
-        snapshotLegacyFormat = new LegacyBlobStoreFormat<>(LEGACY_SNAPSHOT_NAME_FORMAT, Snapshot.PROTO, parseFieldMatcher);
+        snapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT, SnapshotInfo.PROTO, parseFieldMatcher, isCompress());
+        snapshotLegacyFormat = new LegacyBlobStoreFormat<>(LEGACY_SNAPSHOT_NAME_FORMAT, SnapshotInfo.PROTO, parseFieldMatcher);
     }
 
     /**
@@ -293,7 +294,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             throw new RepositoryException(this.repositoryName, "cannot delete snapshot from a readonly repository");
         }
         List<String> indices = Collections.emptyList();
-        Snapshot snapshot = null;
+        SnapshotInfo snapshot = null;
         try {
             snapshot = readSnapshot(snapshotId);
             indices = snapshot.indices();
@@ -367,9 +368,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * {@inheritDoc}
      */
     @Override
-    public Snapshot finalizeSnapshot(SnapshotId snapshotId, List<String> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures) {
+    public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<String> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures) {
         try {
-            Snapshot blobStoreSnapshot = new Snapshot(snapshotId.getSnapshot(), indices, startTime, failure, System.currentTimeMillis(), totalShards, shardFailures);
+            SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId.getSnapshot(), indices, startTime, failure, System.currentTimeMillis(), totalShards, shardFailures);
             snapshotFormat.write(blobStoreSnapshot, snapshotsBlobContainer, snapshotId.getSnapshot());
             List<SnapshotId> snapshotIds = snapshots();
             if (!snapshotIds.contains(snapshotId)) {
@@ -424,7 +425,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * {@inheritDoc}
      */
     @Override
-    public MetaData readSnapshotMetaData(SnapshotId snapshotId, Snapshot snapshot, List<String> indices) throws IOException {
+    public MetaData readSnapshotMetaData(SnapshotId snapshotId, SnapshotInfo snapshot, List<String> indices) throws IOException {
         return readSnapshotMetaData(snapshotId, snapshot.version(), indices, false);
     }
 
@@ -432,7 +433,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * {@inheritDoc}
      */
     @Override
-    public Snapshot readSnapshot(SnapshotId snapshotId) {
+    public SnapshotInfo readSnapshot(SnapshotId snapshotId) {
         try {
             return snapshotFormat.read(snapshotsBlobContainer, snapshotId.getSnapshot());
         } catch (FileNotFoundException | NoSuchFileException ex) {
@@ -519,7 +520,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     /**
      * Returns appropriate snapshot format based on the provided version of the snapshot
      */
-    private BlobStoreFormat<Snapshot> snapshotFormat(Version version) {
+    private BlobStoreFormat<SnapshotInfo> snapshotFormat(Version version) {
         if(legacyMetaData(version)) {
             return snapshotLegacyFormat;
         } else {
@@ -634,7 +635,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 // It's readonly - so there is not much we can do here to verify it
                 return null;
             } else {
-                String seed = Strings.randomBase64UUID();
+                String seed = UUIDs.randomBase64UUID();
                 byte[] testBytes = Strings.toUTF8Bytes(seed);
                 BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
                 String blobName = "master.dat";

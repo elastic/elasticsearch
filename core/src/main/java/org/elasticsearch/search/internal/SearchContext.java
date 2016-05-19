@@ -59,6 +59,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
@@ -128,8 +129,6 @@ public abstract class SearchContext implements Releasable {
     public abstract ShardSearchRequest request();
 
     public abstract SearchType searchType();
-
-    public abstract SearchContext searchType(SearchType searchType);
 
     public abstract SearchShardTarget shardTarget();
 
@@ -246,9 +245,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract Float minimumScore();
 
-    public abstract SearchContext sort(Sort sort);
+    public abstract SearchContext sort(SortAndFormats sort);
 
-    public abstract Sort sort();
+    public abstract SortAndFormats sort();
 
     public abstract SearchContext trackScores(boolean trackScores);
 

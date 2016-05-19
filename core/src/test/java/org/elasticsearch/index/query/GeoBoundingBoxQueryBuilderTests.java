@@ -439,8 +439,9 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     private void assertGeoBoundingBoxQuery(String query) throws IOException {
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        if (queryShardContext().indexVersionCreated().before(Version.V_2_2_0)) {
+        QueryShardContext shardContext = createShardContext();
+        Query parsedQuery = parseQuery(query).toQuery(shardContext);
+        if (shardContext.indexVersionCreated().before(Version.V_2_2_0)) {
             InMemoryGeoBoundingBoxQuery filter = (InMemoryGeoBoundingBoxQuery) parsedQuery;
             assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
             assertThat(filter.topLeft().lat(), closeTo(40, 1E-5));
@@ -493,7 +494,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                         "    \"boost\" : 1.0\n" +
                         "  }\n" +
                         "}";
-        QueryBuilder<?> parsedGeoBboxShortcut = parseQuery(json, ParseFieldMatcher.EMPTY);
+        QueryBuilder parsedGeoBboxShortcut = parseQuery(json, ParseFieldMatcher.EMPTY);
         assertThat(parsedGeoBboxShortcut, equalTo(parsed));
 
         try {
@@ -502,6 +503,42 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Deprecated field [geo_bbox] used, expected [geo_bounding_box] instead"));
         }
+    }
+
+    public void testFromJsonCoerceFails() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_bounding_box\" : {\n" +
+                "    \"pin.location\" : {\n" +
+                "      \"top_left\" : [ -74.1, 40.73 ],\n" +
+                "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
+                "    },\n" +
+                "    \"coerce\" : true,\n" +
+                "    \"type\" : \"MEMORY\",\n" +
+                        "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
+    }
+
+    public void testFromJsonIgnoreMalformedFails() throws IOException {
+        String json =
+                "{\n" +
+                "  \"geo_bounding_box\" : {\n" +
+                "    \"pin.location\" : {\n" +
+                "      \"top_left\" : [ -74.1, 40.73 ],\n" +
+                "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
+                "    },\n" +
+                "    \"ignore_malformed\" : true,\n" +
+                "    \"type\" : \"MEMORY\",\n" +
+                        "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertTrue(e.getMessage().startsWith("Deprecated field "));
     }
 
     @Override
@@ -513,13 +550,14 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     public void testIgnoreUnmapped() throws IOException {
         final GeoBoundingBoxQueryBuilder queryBuilder = new GeoBoundingBoxQueryBuilder("unmapped").setCorners(1.0, 0.0, 0.0, 1.0);
         queryBuilder.ignoreUnmapped(true);
-        Query query = queryBuilder.toQuery(queryShardContext());
+        QueryShardContext shardContext = createShardContext();
+        Query query = queryBuilder.toQuery(shardContext);
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final GeoBoundingBoxQueryBuilder failingQueryBuilder = new GeoBoundingBoxQueryBuilder("unmapped").setCorners(1.0, 0.0, 0.0, 1.0);
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(queryShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(shardContext));
         assertThat(e.getMessage(), containsString("failed to find geo_point field [unmapped]"));
     }
 }

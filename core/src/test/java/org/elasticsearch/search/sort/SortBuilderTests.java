@@ -19,6 +19,7 @@ x * Licensed to Elasticsearch under one or more contributor
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -236,8 +237,7 @@ public class SortBuilderTests extends ESTestCase {
 
     private static List<SortBuilder<?>> parseSort(String jsonString) throws IOException {
         XContentParser itemParser = XContentHelper.createParser(new BytesArray(jsonString));
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-        context.reset(itemParser);
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
 
         assertEquals(XContentParser.Token.START_OBJECT, itemParser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, itemParser.nextToken());

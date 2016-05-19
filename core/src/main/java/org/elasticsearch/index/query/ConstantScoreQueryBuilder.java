@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -42,7 +43,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     private static final ParseField INNER_QUERY_FIELD = new ParseField("filter", "query");
 
-    private final QueryBuilder<?> filterBuilder;
+    private final QueryBuilder filterBuilder;
 
     /**
      * A query that wraps another query and simply returns a constant score equal to the
@@ -50,7 +51,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
      *
      * @param filterBuilder The query to wrap in a constant score query
      */
-    public ConstantScoreQueryBuilder(QueryBuilder<?> filterBuilder) {
+    public ConstantScoreQueryBuilder(QueryBuilder filterBuilder) {
         if (filterBuilder == null) {
             throw new IllegalArgumentException("inner clause [filter] cannot be null.");
         }
@@ -62,18 +63,18 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
      */
     public ConstantScoreQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        filterBuilder = in.readQuery();
+        filterBuilder = in.readNamedWriteable(QueryBuilder.class);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(filterBuilder);
+        out.writeNamedWriteable(filterBuilder);
     }
 
     /**
      * @return the query that was wrapped in this constant score query
      */
-    public QueryBuilder<?> innerQuery() {
+    public QueryBuilder innerQuery() {
         return this.filterBuilder;
     }
 
@@ -89,7 +90,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     public static ConstantScoreQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        QueryBuilder<?> query = null;
+        QueryBuilder query = null;
         boolean queryFound = false;
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -102,7 +103,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, INNER_QUERY_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, INNER_QUERY_FIELD)) {
                     if (queryFound) {
                         throw new ParsingException(parser.getTokenLocation(), "[" + ConstantScoreQueryBuilder.NAME + "]"
                                 + " accepts only one 'filter' element.");
@@ -114,9 +115,9 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
                             "[constant_score] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -162,11 +163,16 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryBuilder<?> rewrite = filterBuilder.rewrite(queryRewriteContext);
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder rewrite = filterBuilder.rewrite(queryRewriteContext);
         if (rewrite != filterBuilder) {
             return new ConstantScoreQueryBuilder(rewrite);
         }
         return this;
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+        InnerHitBuilder.extractInnerHits(filterBuilder, innerHits);
     }
 }

@@ -23,6 +23,7 @@ These metadata attributes can be used with the
 group of nodes.  For instance, we can move the index `test` to either `big` or
 `medium` nodes as follows:
 
+
 [source,js]
 ------------------------
 PUT test/_settings
@@ -30,7 +31,8 @@ PUT test/_settings
   "index.routing.allocation.include.size": "big,medium"
 }
 ------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT test\n/]
 
 Alternatively, we can move the index `test` away from the `small` nodes with
 an `exclude` rule:
@@ -42,7 +44,8 @@ PUT test/_settings
   "index.routing.allocation.exclude.size": "small"
 }
 ------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT test\n/]
 
 Multiple rules can be specified, in which case all conditions must be
 satisfied.  For instance, we could move the index `test` to `big` nodes in
@@ -56,7 +59,8 @@ PUT test/_settings
   "index.routing.allocation.include.rack": "rack1"
 }
 ------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT test\n/]
 
 NOTE: If some conditions cannot be satisfied then shards will not be moved.
 
@@ -96,4 +100,5 @@ PUT test/_settings
   "index.routing.allocation.include._ip": "192.168.2.*"
 }
 ------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[skip:indexes don't assign]

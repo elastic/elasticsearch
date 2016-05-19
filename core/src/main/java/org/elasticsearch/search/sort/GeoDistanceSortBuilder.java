@@ -47,9 +47,11 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -65,16 +67,18 @@ import java.util.Objects;
 public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> {
     public static final String NAME = "_geo_distance";
     public static final String ALTERNATIVE_NAME = "_geoDistance";
-    public static final boolean DEFAULT_COERCE = false;
-    public static final boolean DEFAULT_IGNORE_MALFORMED = false;
-    public static final ParseField UNIT_FIELD = new ParseField("unit");
-    public static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
-    public static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
-    public static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
-    public static final ParseField SORTMODE_FIELD = new ParseField("mode", "sort_mode");
-    public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path");
-    public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter");
-    public static final ParseField REVERSE_FORBIDDEN = new ParseField("reverse");
+    public static final GeoValidationMethod DEFAULT_VALIDATION = GeoValidationMethod.DEFAULT;
+
+    private static final ParseField UNIT_FIELD = new ParseField("unit");
+    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
+    private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
+    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
+            .withAllDeprecated("use validation_method instead");
+    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize")
+            .withAllDeprecated("use validation_method instead");
+    private static final ParseField SORTMODE_FIELD = new ParseField("mode", "sort_mode");
+    private static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path");
+    private static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter");
 
     private final String fieldName;
     private final List<GeoPoint> points = new ArrayList<>();
@@ -87,9 +91,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     private QueryBuilder nestedFilter;
     private String nestedPath;
 
-    // TODO switch to GeoValidationMethod enum
-    private boolean coerce = DEFAULT_COERCE;
-    private boolean ignoreMalformed = DEFAULT_IGNORE_MALFORMED;
+    private GeoValidationMethod validation = DEFAULT_VALIDATION;
 
     /**
      * Constructs a new distance based sort on a geo point like field.
@@ -144,8 +146,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         this.sortMode = original.sortMode;
         this.nestedFilter = original.nestedFilter;
         this.nestedPath = original.nestedPath;
-        this.coerce = original.coerce;
-        this.ignoreMalformed = original.ignoreMalformed;
+        this.validation = original.validation;
     }
 
     /**
@@ -159,10 +160,9 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         unit = DistanceUnit.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
-        nestedFilter = in.readOptionalQuery();
+        nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nestedPath = in.readOptionalString();
-        coerce = in.readBoolean();
-        ignoreMalformed =in.readBoolean();
+        validation = GeoValidationMethod.readFromStream(in);
     }
 
     @Override
@@ -173,10 +173,9 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         unit.writeTo(out);
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
-        out.writeOptionalQuery(nestedFilter);
+        out.writeOptionalNamedWriteable(nestedFilter);
         out.writeOptionalString(nestedPath);
-        out.writeBoolean(coerce);
-        out.writeBoolean(ignoreMalformed);
+        validation.writeTo(out);
     }
 
     /**
@@ -258,6 +257,21 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     /**
+     * Sets validation method for this sort builder. 
+     */
+    public GeoDistanceSortBuilder validation(GeoValidationMethod method) {
+        this.validation = method;
+        return this;
+    }
+
+    /**
+     * Returns the validation method to use for this sort builder. 
+     */
+    public GeoValidationMethod validation() {
+        return validation;
+    }
+
+    /**
      * Defines which distance to use for sorting in the case a document contains multiple geo points.
      * Possible values: min and max
      */
@@ -279,7 +293,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
      * Sets the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
      */
-    public GeoDistanceSortBuilder setNestedFilter(QueryBuilder<?> nestedFilter) {
+    public GeoDistanceSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
     }
@@ -288,7 +302,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
      * Returns the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
      **/
-    public QueryBuilder<?> getNestedFilter() {
+    public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
 
@@ -307,26 +321,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
      */
     public String getNestedPath() {
         return this.nestedPath;
-    }
-
-    public GeoDistanceSortBuilder coerce(boolean coerce) {
-        this.coerce = coerce;
-        return this;
-    }
-
-    public boolean coerce() {
-        return this.coerce;
-    }
-
-    public GeoDistanceSortBuilder ignoreMalformed(boolean ignoreMalformed) {
-        if (coerce == false) {
-            this.ignoreMalformed = ignoreMalformed;
-        }
-        return this;
-    }
-
-    public boolean ignoreMalformed() {
-        return this.ignoreMalformed;
     }
 
     @Override
@@ -354,8 +348,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         if (nestedFilter != null) {
             builder.field(NESTED_FILTER_FIELD.getPreferredName(), nestedFilter, params);
         }
-        builder.field(COERCE_FIELD.getPreferredName(), coerce);
-        builder.field(IGNORE_MALFORMED_FIELD.getPreferredName(), ignoreMalformed);
+        builder.field(VALIDATION_METHOD_FIELD.getPreferredName(), validation);
 
         builder.endObject();
         builder.endObject();
@@ -386,14 +379,14 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 Objects.equals(order, other.order) &&
                 Objects.equals(nestedFilter, other.nestedFilter) &&
                 Objects.equals(nestedPath, other.nestedPath) &&
-                Objects.equals(coerce, other.coerce) &&
-                Objects.equals(ignoreMalformed, other.ignoreMalformed);
+                Objects.equals(validation, other.validation);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(this.fieldName, this.points, this.geoDistance,
-                this.unit, this.sortMode, this.order, this.nestedFilter, this.nestedPath, this.coerce, this.ignoreMalformed);
+                this.unit, this.sortMode, this.order, this.nestedFilter,
+                this.nestedPath, this.validation);
     }
 
     /**
@@ -407,18 +400,19 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
      */
     public static GeoDistanceSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
         XContentParser parser = context.parser();
-        ParseFieldMatcher parseFieldMatcher = context.parseFieldMatcher();
+        ParseFieldMatcher parseFieldMatcher = context.getParseFieldMatcher();
         String fieldName = null;
         List<GeoPoint> geoPoints = new ArrayList<>();
         DistanceUnit unit = DistanceUnit.DEFAULT;
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         SortOrder order = SortOrder.ASC;
         SortMode sortMode = null;
-        QueryBuilder<?> nestedFilter = null;
+        QueryBuilder nestedFilter = null;
         String nestedPath = null;
 
-        boolean coerce = GeoDistanceSortBuilder.DEFAULT_COERCE;
-        boolean ignoreMalformed = GeoDistanceSortBuilder.DEFAULT_IGNORE_MALFORMED;
+        boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
+        boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
+        GeoValidationMethod validation = null;
 
         XContentParser.Token token;
         String currentName = parser.currentName();
@@ -463,6 +457,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     if (coerce == false) {
                         ignoreMalformed = ignore_malformed_value;
                     }
+                } else if (parseFieldMatcher.match(currentName, VALIDATION_METHOD_FIELD)) {
+                    validation = GeoValidationMethod.fromString(parser.text());
                 } else if (parseFieldMatcher.match(currentName, SORTMODE_FIELD)) {
                     sortMode = SortMode.fromString(parser.text());
                 } else if (parseFieldMatcher.match(currentName, NESTED_PATH_FIELD)) {
@@ -498,13 +494,18 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         }
         result.setNestedFilter(nestedFilter);
         result.setNestedPath(nestedPath);
-        result.coerce(coerce);
-        result.ignoreMalformed(ignoreMalformed);
+        if (validation == null) {
+            // looks like either validation was left unset or we are parsing old validation json
+            result.validation(GeoValidationMethod.infer(coerce, ignoreMalformed));
+        } else {
+            // ignore deprecated coerce/ignore_malformed
+            result.validation(validation);
+        }
         return result;
     }
 
     @Override
-    public SortField build(QueryShardContext context) throws IOException {
+    public SortFieldAndFormat build(QueryShardContext context) throws IOException {
         final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);
         // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
         List<GeoPoint> localPoints = new ArrayList<GeoPoint>();
@@ -512,7 +513,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             localPoints.add(new GeoPoint(geoPoint));
         }
 
-        if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
+        if (!indexCreatedBeforeV2_0 && !GeoValidationMethod.isIgnoreMalformed(validation)) {
             for (GeoPoint point : localPoints) {
                 if (GeoUtils.isValidLatitude(point.lat()) == false) {
                     throw new ElasticsearchParseException(
@@ -529,9 +530,9 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
             }
         }
 
-        if (coerce) {
+        if (GeoValidationMethod.isCoerce(validation)) {
             for (GeoPoint point : localPoints) {
-                GeoUtils.normalizePoint(point, coerce, coerce);
+                GeoUtils.normalizePoint(point, true, true);
             }
         }
 
@@ -585,7 +586,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
         };
 
-        return new SortField(fieldName, geoDistanceComparatorSource, reverse);
+        return new SortFieldAndFormat(new SortField(fieldName, geoDistanceComparatorSource, reverse), DocValueFormat.RAW);
     }
 
     static void parseGeoPoints(XContentParser parser, List<GeoPoint> geoPoints) throws IOException {

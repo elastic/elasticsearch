@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -51,7 +50,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 
 /**
- * Utilities for testing reindex and update-by-query cancellation. This whole class isn't thread safe. Luckily we run out tests in separate
+ * Utilities for testing reindex and update-by-query cancellation. This whole class isn't thread safe. Luckily we run our tests in separate
  * jvms.
  */
 public class CancelTestUtils {
@@ -62,16 +61,15 @@ public class CancelTestUtils {
     private static final CyclicBarrier barrier = new CyclicBarrier(2);
 
     public static <Request extends AbstractBulkIndexByScrollRequest<Request>,
-                    Response extends ActionResponse,
-                    Builder extends AbstractBulkIndexByScrollRequestBuilder<Request, Response, Builder>>
-            Response testCancel(ESIntegTestCase test, Builder request, String actionToCancel) throws Exception {
+                    Builder extends AbstractBulkIndexByScrollRequestBuilder<Request, Builder>>
+            BulkIndexByScrollResponse testCancel(ESIntegTestCase test, Builder request, String actionToCancel) throws Exception {
 
         test.indexRandom(true, client().prepareIndex("source", "test", "1").setSource("foo", "a"),
                 client().prepareIndex("source", "test", "2").setSource("foo", "a"));
 
         request.source("source").script(new Script("sticky", ScriptType.INLINE, "native", emptyMap()));
         request.source().setSize(1);
-        ListenableActionFuture<Response> response = request.execute();
+        ListenableActionFuture<BulkIndexByScrollResponse> response = request.execute();
 
         // Wait until the script is on the first document.
         barrier.await(30, TimeUnit.SECONDS);

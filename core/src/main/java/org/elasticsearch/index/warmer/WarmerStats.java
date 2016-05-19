@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -104,11 +103,11 @@ public class WarmerStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString WARMER = new XContentBuilderString("warmer");
-        static final XContentBuilderString CURRENT = new XContentBuilderString("current");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString TOTAL_TIME = new XContentBuilderString("total_time");
-        static final XContentBuilderString TOTAL_TIME_IN_MILLIS = new XContentBuilderString("total_time_in_millis");
+        static final String WARMER = "warmer";
+        static final String CURRENT = "current";
+        static final String TOTAL = "total";
+        static final String TOTAL_TIME = "total_time";
+        static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
     }
 
     @Override

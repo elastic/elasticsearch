@@ -23,8 +23,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -64,16 +62,6 @@ public interface Rescorer {
      */
     public Explanation explain(int topLevelDocId, SearchContext context, RescoreSearchContext rescoreContext,
             Explanation sourceExplanation) throws IOException;
-
-    /**
-     * Parses the {@link RescoreSearchContext} for this implementation
-     *
-     * @param parser  the parser to read the context from
-     * @param context the current shard context
-     * @return the parsed {@link RescoreSearchContext}
-     * @throws IOException if an {@link IOException} occurs while parsing the context
-     */
-    public RescoreSearchContext parse(XContentParser parser, QueryShardContext context) throws IOException;
 
     /**
      * Extracts all terms needed to execute this {@link Rescorer}. This method

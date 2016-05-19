@@ -19,10 +19,12 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,7 +48,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VAL
 /**
  * A base class for all elasticsearch exceptions.
  */
-public class ElasticsearchException extends RuntimeException implements ToXContent {
+public class ElasticsearchException extends RuntimeException implements ToXContent, Writeable {
 
     public static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.cause.skip";
     public static final String REST_EXCEPTION_SKIP_STACK_TRACE = "rest.exception.stacktrace.skip";
@@ -234,6 +236,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         }
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(this.getMessage());
         out.writeThrowable(this.getCause());
@@ -412,7 +415,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         if (simpleName.startsWith("Elasticsearch")) {
             simpleName = simpleName.substring("Elasticsearch".length());
         }
-        return Strings.toUnderscoreCase(simpleName);
+        // TODO: do we really need to make the exception name in underscore casing?
+        return toUnderscoreCase(simpleName);
     }
 
     @Override
@@ -595,8 +599,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.common.util.concurrent.EsRejectedExecutionException::new, 59),
         EARLY_TERMINATION_EXCEPTION(org.elasticsearch.common.lucene.Lucene.EarlyTerminationException.class,
                 org.elasticsearch.common.lucene.Lucene.EarlyTerminationException::new, 60),
-        ROUTING_VALIDATION_EXCEPTION(org.elasticsearch.cluster.routing.RoutingValidationException.class,
-                org.elasticsearch.cluster.routing.RoutingValidationException::new, 61),
+        // 61 used to be for RoutingValidationException
         NOT_SERIALIZABLE_EXCEPTION_WRAPPER(org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class,
                 org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper::new, 62),
         ALIAS_FILTER_PARSING_EXCEPTION(org.elasticsearch.indices.AliasFilterParsingException.class,
@@ -696,8 +699,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.translog.TranslogException::new, 115),
         PROCESS_CLUSTER_EVENT_TIMEOUT_EXCEPTION(org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException.class,
                 org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException::new, 116),
-        RETRY_ON_PRIMARY_EXCEPTION(org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnPrimaryException.class,
-                org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnPrimaryException::new, 117),
+        RETRY_ON_PRIMARY_EXCEPTION(ReplicationOperation.RetryOnPrimaryException.class,
+                ReplicationOperation.RetryOnPrimaryException::new, 117),
         ELASTICSEARCH_TIMEOUT_EXCEPTION(org.elasticsearch.ElasticsearchTimeoutException.class,
                 org.elasticsearch.ElasticsearchTimeoutException::new, 118),
         QUERY_PHASE_EXECUTION_EXCEPTION(org.elasticsearch.search.query.QueryPhaseExecutionException.class,
@@ -844,5 +847,40 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     interface FunctionThatThrowsIOException<T, R> {
         R apply(T t) throws IOException;
+    }
+
+    // lower cases and adds underscores to transitions in a name
+    private static String toUnderscoreCase(String value) {
+        StringBuilder sb = new StringBuilder();
+        boolean changed = false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (Character.isUpperCase(c)) {
+                if (!changed) {
+                    // copy it over here
+                    for (int j = 0; j < i; j++) {
+                        sb.append(value.charAt(j));
+                    }
+                    changed = true;
+                    if (i == 0) {
+                        sb.append(Character.toLowerCase(c));
+                    } else {
+                        sb.append('_');
+                        sb.append(Character.toLowerCase(c));
+                    }
+                } else {
+                    sb.append('_');
+                    sb.append(Character.toLowerCase(c));
+                }
+            } else {
+                if (changed) {
+                    sb.append(c);
+                }
+            }
+        }
+        if (!changed) {
+            return value;
+        }
+        return sb.toString();
     }
 }

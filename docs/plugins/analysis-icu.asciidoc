@@ -81,7 +81,7 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Uses the default `nfkc_cf` normalization.
 <2> Uses the customized `nfd_normalizer` token filter, which is set to use `nfc` normalization with decomposition.
@@ -113,7 +113,75 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+
+===== Rules customization
+
+experimental[]
+
+You can customize the `icu-tokenizer` behavior by specifying per-script rule files, see the
+http://userguide.icu-project.org/boundaryanalysis#TOC-RBBI-Rules[RBBI rules syntax reference]
+for a more detailed explanation.
+
+To add icu tokenizer rules, set the `rule_files` settings, which should contain a comma-separated list of
+`code:rulefile` pairs in the following format:
+http://unicode.org/iso15924/iso15924-codes.html[four-letter ISO 15924 script code],
+followed by a colon, then a rule file name. Rule files are placed `ES_HOME/config` directory.
+
+As a demonstration of how the rule files can be used, save the following user file to `$ES_HOME/config/KeywordTokenizer.rbbi`:
+
+[source,text]
+-----------------------
+.+ {200};
+-----------------------
+
+Then create an analyzer to use this rule file as follows:
+
+[source,json]
+--------------------------------------------------
+PUT icu_sample
+{
+    "settings": {
+        "index":{
+            "analysis":{
+                "tokenizer" : {
+                    "icu_user_file" : {
+                       "type" : "icu_tokenizer",
+                       "rule_files" : "Latn:KeywordTokenizer.rbbi"
+                    }
+                },
+                "analyzer" : {
+                    "my_analyzer" : {
+                        "type" : "custom",
+                        "tokenizer" : "icu_user_file"
+                    }
+                }
+            }
+        }
+    }
+}
+
+POST icu_sample/_analyze?analyzer=my_analyzer&text=Elasticsearch. Wow!
+--------------------------------------------------
+// CONSOLE
+
+The above `analyze` request returns the following:
+
+[source,json]
+--------------------------------------------------
+# Result
+{
+   "tokens": [
+      {
+         "token": "Elasticsearch. Wow!",
+         "start_offset": 0,
+         "end_offset": 19,
+         "type": "<ALPHANUM>",
+         "position": 0
+      }
+   ]
+}
+--------------------------------------------------
 
 
 [[analysis-icu-normalization]]
@@ -162,7 +230,7 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Uses the default `nfkc_cf` normalization.
 <2> Uses the customized `nfc_normalizer` token filter, which is set to use `nfc` normalization.
@@ -196,7 +264,7 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The ICU folding token filter already does Unicode normalization, so there is
 no need to use Normalize character or token filter as well.
@@ -237,7 +305,7 @@ PUT icu_sample
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [[analysis-icu-collation]]
 ==== ICU Collation Token Filter
@@ -302,7 +370,7 @@ GET _search <3>
 }
 
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `name` field uses the `standard` analyzer, and so support full text queries.
 <2> The `name.sort` field uses the `keyword` analyzer to preserve the name as
@@ -426,7 +494,7 @@ GET icu_sample/_analyze?analyzer=latin
 }
 
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> This transforms transliterates characters to Latin, and separates accents
     from their base characters, removes the accents, and then puts the

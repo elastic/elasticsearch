@@ -46,11 +46,13 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.eq;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.argThat;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -378,6 +380,22 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         assertThat(ingestStats.getStatsPerPipeline().get("_id1").getIngestCount(), equalTo(1L));
         assertThat(ingestStats.getStatsPerPipeline().get("_id2").getIngestCount(), equalTo(1L));
         assertThat(ingestStats.getTotalStats().getIngestCount(), equalTo(2L));
+    }
+
+    // issue: https://github.com/elastic/elasticsearch/issues/18126
+    public void testUpdatingStatsWhenRemovingPipelineWorks() throws Exception {
+        Map<String, PipelineConfiguration> configurationMap = new HashMap<>();
+        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}")));
+        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}")));
+        executionService.updatePipelineStats(new IngestMetadata(configurationMap));
+        assertThat(executionService.stats().getStatsPerPipeline(), hasKey("_id1"));
+        assertThat(executionService.stats().getStatsPerPipeline(), hasKey("_id2"));
+
+        configurationMap = new HashMap<>();
+        configurationMap.put("_id3", new PipelineConfiguration("_id3", new BytesArray("{}")));
+        executionService.updatePipelineStats(new IngestMetadata(configurationMap));
+        assertThat(executionService.stats().getStatsPerPipeline(), not(hasKey("_id1")));
+        assertThat(executionService.stats().getStatsPerPipeline(), not(hasKey("_id2")));
     }
 
     private IngestDocument eqID(String index, String type, String id, Map<String, Object> source) {

@@ -257,7 +257,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             // Min value was 01/01/2012 (dd/MM/yyyy)
             DateTime min = DateTime.parse("2012-01-01T00:00:00.000+00");
             assertThat(((LegacyNumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
-    
+
             // Max value was 2030 (yyyy)
             DateTime max = DateTime.parse("2030-01-01T00:00:00.000+00");
             assertThat(((LegacyNumericRangeQuery) parsedQuery).getMax().longValue(), is(max.getMillis()));
@@ -300,11 +300,11 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
         if (parsedQuery instanceof LegacyNumericRangeQuery) {
             LegacyNumericRangeQuery rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
-    
+
             DateTime min = DateTime.parse("2014-11-01T00:00:00.000+00");
             assertThat(rangeQuery.getMin().longValue(), is(min.getMillis()));
             assertTrue(rangeQuery.includesMin());
-    
+
             DateTime max = DateTime.parse("2014-12-08T23:59:59.999+00");
             assertThat(rangeQuery.getMax().longValue(), is(max.getMillis()));
             assertTrue(rangeQuery.includesMax());
@@ -327,11 +327,11 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(parsedQuery, either(instanceOf(LegacyNumericRangeQuery.class)).or(instanceOf(PointRangeQuery.class)));
         if (parsedQuery instanceof LegacyNumericRangeQuery) {
             LegacyNumericRangeQuery rangeQuery = (LegacyNumericRangeQuery) parsedQuery;
-    
+
             DateTime min = DateTime.parse("2014-11-30T23:59:59.999+00");
             assertThat(rangeQuery.getMin().longValue(), is(min.getMillis()));
             assertFalse(rangeQuery.includesMin());
-    
+
             DateTime max = DateTime.parse("2014-12-08T00:00:00.000+00");
             assertThat(rangeQuery.getMax().longValue(), is(max.getMillis()));
             assertFalse(rangeQuery.includesMax());
@@ -360,14 +360,14 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             // TODO what can we assert
         } else {
             assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
-    
+
             // Min value was 2012-01-01 (UTC) so we need to remove one hour
             DateTime min = DateTime.parse("2012-01-01T00:00:00.000+01:00");
             // Max value is when we started the test. So it should be some ms from now
             DateTime max = new DateTime(startDate, DateTimeZone.UTC);
-    
+
             assertThat(((LegacyNumericRangeQuery) parsedQuery).getMin().longValue(), is(min.getMillis()));
-    
+
             // We should not have a big difference here (should be some ms)
             assertThat(((LegacyNumericRangeQuery) parsedQuery).getMax().longValue() - max.getMillis(), lessThanOrEqualTo(60000L));
         }
@@ -452,6 +452,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     public void testRewriteDateToMatchAll() throws IOException {
         String fieldName = randomAsciiOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
+            @Override
             protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
                 return Relation.WITHIN;
             }
@@ -462,8 +463,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         DateTime shardMaxValue = new DateTime(2015, 9, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         query.from(queryFromValue);
         query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
         RangeQueryBuilder rewrittenRange = (RangeQueryBuilder) rewritten;
         assertThat(rewrittenRange.fieldName(), equalTo(fieldName));
@@ -474,6 +475,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     public void testRewriteDateToMatchNone() throws IOException {
         String fieldName = randomAsciiOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
+            @Override
             protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
                 return Relation.DISJOINT;
             }
@@ -482,14 +484,15 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         DateTime queryToValue = new DateTime(2016, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         query.from(queryFromValue);
         query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
     }
 
     public void testRewriteDateToSame() throws IOException {
         String fieldName = randomAsciiOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
+            @Override
             protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
                 return Relation.INTERSECTS;
             }
@@ -498,20 +501,21 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         DateTime queryToValue = new DateTime(2016, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         query.from(queryFromValue);
         query.to(queryToValue);
-        QueryShardContext queryShardContext = queryShardContext();
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, sameInstance(query));
     }
 
     public void testRewriteOpenBoundsToSame() throws IOException {
         String fieldName = randomAsciiOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
+            @Override
             protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
                 return Relation.INTERSECTS;
             }
         };
-        QueryShardContext queryShardContext = queryShardContext();
-        QueryBuilder<?> rewritten = query.rewrite(queryShardContext);
+        QueryShardContext queryShardContext = createShardContext();
+        QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, sameInstance(query));
     }
 }

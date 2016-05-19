@@ -51,7 +51,7 @@ Note that you have to set the cluster name if you use one different than
 
 [source,java]
 --------------------------------------------------
-Settings settings = Settings.settingsBuilder()
+Settings settings = Settings.builder()
         .put("cluster.name", "myClusterName").build();
 Client client = TransportClient.builder().settings(settings).build();
 //Add transport addresses and do something with the client...

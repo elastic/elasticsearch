@@ -20,13 +20,23 @@ package org.elasticsearch.indices;
 
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasAction;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayMetaState;
+import org.elasticsearch.gateway.LocalAllocateDangledIndices;
+import org.elasticsearch.gateway.MetaStateService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -34,10 +44,16 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class IndicesServiceTests extends ESSingleNodeTestCase {
 
@@ -54,9 +70,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         return true;
     }
 
-    public void testCanDeleteIndexContent() {
-        IndicesService indicesService = getIndicesService();
-
+    public void testCanDeleteIndexContent() throws IOException {
+        final IndicesService indicesService = getIndicesService();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder()
                 .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
                 .put(IndexMetaData.SETTING_DATA_PATH, "/foo/bar")
@@ -192,6 +207,126 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
         assertAcked(client().admin().indices().prepareOpen("test"));
 
+    }
+
+    public void testVerifyIfIndexContentDeleted() throws Exception {
+        final Index index = new Index("test", UUIDs.randomBase64UUID());
+        final IndicesService indicesService = getIndicesService();
+        final NodeEnvironment nodeEnv = getNodeEnvironment();
+        final MetaStateService metaStateService = getInstanceFromNode(MetaStateService.class);
+
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final Settings idxSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                                                        .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
+                                                        .build();
+        final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
+                                                             .settings(idxSettings)
+                                                             .numberOfShards(1)
+                                                             .numberOfReplicas(0)
+                                                             .build();
+        metaStateService.writeIndex("test index being created", indexMetaData);
+        final MetaData metaData = MetaData.builder(clusterService.state().metaData()).put(indexMetaData, true).build();
+        final ClusterState csWithIndex = new ClusterState.Builder(clusterService.state()).metaData(metaData).build();
+        try {
+            indicesService.verifyIndexIsDeleted(index, csWithIndex);
+            fail("Should not be able to delete index contents when the index is part of the cluster state.");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("Cannot delete index"));
+        }
+
+        final ClusterState withoutIndex = new ClusterState.Builder(csWithIndex)
+                                                          .metaData(MetaData.builder(csWithIndex.metaData()).remove(index.getName()))
+                                                          .build();
+        indicesService.verifyIndexIsDeleted(index, withoutIndex);
+        assertFalse("index files should be deleted", FileSystemUtils.exists(nodeEnv.indexPaths(index)));
+    }
+
+    public void testDanglingIndicesWithAliasConflict() throws Exception {
+        final String indexName = "test-idx1";
+        final String alias = "test-alias";
+        final IndicesService indicesService = getIndicesService();
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        final IndexService test = createIndex(indexName);
+
+        // create the alias for the index
+        AliasAction action = new AliasAction(AliasAction.Type.ADD, indexName, alias);
+        IndicesAliasesRequest request = new IndicesAliasesRequest().addAliasAction(action);
+        client().admin().indices().aliases(request).actionGet();
+        final ClusterState originalState = clusterService.state();
+
+        // try to import a dangling index with the same name as the alias, it should fail
+        final LocalAllocateDangledIndices dangling = getInstanceFromNode(LocalAllocateDangledIndices.class);
+        final Settings idxSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                                                       .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                                                       .build();
+        final IndexMetaData indexMetaData = new IndexMetaData.Builder(alias)
+                                                             .settings(idxSettings)
+                                                             .numberOfShards(1)
+                                                             .numberOfReplicas(0)
+                                                             .build();
+        DanglingListener listener = new DanglingListener();
+        dangling.allocateDangled(Arrays.asList(indexMetaData), listener);
+        listener.latch.await();
+        assertThat(clusterService.state(), equalTo(originalState));
+
+        // remove the alias
+        action = new AliasAction(AliasAction.Type.REMOVE, indexName, alias);
+        request = new IndicesAliasesRequest().addAliasAction(action);
+        client().admin().indices().aliases(request).actionGet();
+
+        // now try importing a dangling index with the same name as the alias, it should succeed.
+        listener = new DanglingListener();
+        dangling.allocateDangled(Arrays.asList(indexMetaData), listener);
+        listener.latch.await();
+        assertThat(clusterService.state(), not(originalState));
+        assertNotNull(clusterService.state().getMetaData().index(alias));
+
+        // cleanup
+        indicesService.deleteIndex(test.index(), "finished with test");
+    }
+
+    /**
+     * This test checks an edge case where, if a node had an index (lets call it A with UUID 1), then
+     * deleted it (so a tombstone entry for A will exist in the cluster state), then created
+     * a new index A with UUID 2, then shutdown, when the node comes back online, it will look at the
+     * tombstones for deletions, and it should proceed with trying to delete A with UUID 1 and not
+     * throw any errors that the index still exists in the cluster state.  This is a case of ensuring
+     * that tombstones that have the same name as current valid indices don't cause confusion by
+     * trying to delete an index that exists.
+     * See https://github.com/elastic/elasticsearch/issues/18054
+     */
+    public void testIndexAndTombstoneWithSameNameOnStartup() throws Exception {
+        final String indexName = "test";
+        final Index index = new Index(indexName, UUIDs.randomBase64UUID());
+        final IndicesService indicesService = getIndicesService();
+        final Settings idxSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                                         .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID())
+                                         .build();
+        final IndexMetaData indexMetaData = new IndexMetaData.Builder(index.getName())
+                                                .settings(idxSettings)
+                                                .numberOfShards(1)
+                                                .numberOfReplicas(0)
+                                                .build();
+        final Index tombstonedIndex = new Index(indexName, UUIDs.randomBase64UUID());
+        final IndexGraveyard graveyard = IndexGraveyard.builder().addTombstone(tombstonedIndex).build();
+        final MetaData metaData = MetaData.builder().put(indexMetaData, true).indexGraveyard(graveyard).build();
+        final ClusterState clusterState = new ClusterState.Builder(new ClusterName("testCluster")).metaData(metaData).build();
+        // if all goes well, this won't throw an exception, otherwise, it will throw an IllegalStateException
+        indicesService.verifyIndexIsDeleted(tombstonedIndex, clusterState);
+    }
+
+    private static class DanglingListener implements LocalAllocateDangledIndices.Listener {
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        @Override
+        public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse response) {
+            latch.countDown();
+        }
+
+        @Override
+        public void onFailure(Throwable e) {
+            latch.countDown();
+        }
     }
 
 }

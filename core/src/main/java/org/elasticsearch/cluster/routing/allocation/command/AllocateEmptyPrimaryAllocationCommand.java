@@ -28,6 +28,8 @@ import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,7 +47,8 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
     public static final String NAME = "allocate_empty_primary";
     public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
 
-    private static final ObjectParser<Builder, Void> EMPTY_PRIMARY_PARSER = BasePrimaryAllocationCommand.createAllocatePrimaryParser(NAME);
+    private static final ObjectParser<Builder, ParseFieldMatcherSupplier> EMPTY_PRIMARY_PARSER = BasePrimaryAllocationCommand
+            .createAllocatePrimaryParser(NAME);
 
     /**
      * Creates a new {@link AllocateEmptyPrimaryAllocationCommand}
@@ -78,7 +81,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
 
         @Override
         public Builder parse(XContentParser parser) throws IOException {
-            return EMPTY_PRIMARY_PARSER.parse(parser, this);
+            return EMPTY_PRIMARY_PARSER.parse(parser, this, () -> ParseFieldMatcher.STRICT);
         }
 
         @Override
@@ -117,15 +120,16 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
                 "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please confirm by setting the accept_data_loss parameter to true");
         }
 
-        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting,
-            shr -> {
-                if (shr.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED) {
-                    // we need to move the unassigned info back to treat it as if it was index creation
-                    shr.updateUnassignedInfo(new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED,
-                        "force empty allocation from previous reason " + shardRouting.unassignedInfo().getReason() + ", " + shardRouting.unassignedInfo().getMessage(),
-                        shardRouting.unassignedInfo().getFailure(), System.nanoTime(), System.currentTimeMillis()));
-                }
-            });
+        UnassignedInfo unassignedInfoToUpdate = null;
+        if (shardRouting.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED) {
+            // we need to move the unassigned info back to treat it as if it was index creation
+            unassignedInfoToUpdate = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED,
+                "force empty allocation from previous reason " + shardRouting.unassignedInfo().getReason() + ", " + shardRouting.unassignedInfo().getMessage(),
+                shardRouting.unassignedInfo().getFailure(), System.nanoTime(), System.currentTimeMillis());
+        }
+
+        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, unassignedInfoToUpdate);
+
         return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders"));
     }
 }

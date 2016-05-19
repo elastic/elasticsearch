@@ -26,7 +26,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -210,23 +209,23 @@ public class MergeStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString MERGES = new XContentBuilderString("merges");
-        static final XContentBuilderString CURRENT = new XContentBuilderString("current");
-        static final XContentBuilderString CURRENT_DOCS = new XContentBuilderString("current_docs");
-        static final XContentBuilderString CURRENT_SIZE = new XContentBuilderString("current_size");
-        static final XContentBuilderString CURRENT_SIZE_IN_BYTES = new XContentBuilderString("current_size_in_bytes");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString TOTAL_TIME = new XContentBuilderString("total_time");
-        static final XContentBuilderString TOTAL_TIME_IN_MILLIS = new XContentBuilderString("total_time_in_millis");
-        static final XContentBuilderString TOTAL_STOPPED_TIME = new XContentBuilderString("total_stopped_time");
-        static final XContentBuilderString TOTAL_STOPPED_TIME_IN_MILLIS = new XContentBuilderString("total_stopped_time_in_millis");
-        static final XContentBuilderString TOTAL_THROTTLED_TIME = new XContentBuilderString("total_throttled_time");
-        static final XContentBuilderString TOTAL_THROTTLED_TIME_IN_MILLIS = new XContentBuilderString("total_throttled_time_in_millis");
-        static final XContentBuilderString TOTAL_DOCS = new XContentBuilderString("total_docs");
-        static final XContentBuilderString TOTAL_SIZE = new XContentBuilderString("total_size");
-        static final XContentBuilderString TOTAL_SIZE_IN_BYTES = new XContentBuilderString("total_size_in_bytes");
-        static final XContentBuilderString TOTAL_THROTTLE_BYTES_PER_SEC_IN_BYTES = new XContentBuilderString("total_auto_throttle_in_bytes");
-        static final XContentBuilderString TOTAL_THROTTLE_BYTES_PER_SEC = new XContentBuilderString("total_auto_throttle");
+        static final String MERGES = "merges";
+        static final String CURRENT = "current";
+        static final String CURRENT_DOCS = "current_docs";
+        static final String CURRENT_SIZE = "current_size";
+        static final String CURRENT_SIZE_IN_BYTES = "current_size_in_bytes";
+        static final String TOTAL = "total";
+        static final String TOTAL_TIME = "total_time";
+        static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
+        static final String TOTAL_STOPPED_TIME = "total_stopped_time";
+        static final String TOTAL_STOPPED_TIME_IN_MILLIS = "total_stopped_time_in_millis";
+        static final String TOTAL_THROTTLED_TIME = "total_throttled_time";
+        static final String TOTAL_THROTTLED_TIME_IN_MILLIS = "total_throttled_time_in_millis";
+        static final String TOTAL_DOCS = "total_docs";
+        static final String TOTAL_SIZE = "total_size";
+        static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
+        static final String TOTAL_THROTTLE_BYTES_PER_SEC_IN_BYTES = "total_auto_throttle_in_bytes";
+        static final String TOTAL_THROTTLE_BYTES_PER_SEC = "total_auto_throttle";
     }
 
     @Override

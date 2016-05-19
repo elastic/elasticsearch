@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.script.ScriptService;
+
 import java.util.Date;
 import java.util.Map;
 
@@ -26,6 +28,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class UpdateByQueryWithScriptTests
         extends AbstractAsyncBulkIndexByScrollActionScriptTestCase<UpdateByQueryRequest, BulkIndexByScrollResponse> {
+
     public void testModifyingCtxNotAllowed() {
         /*
          * Its important that none of these actually match any of the fields.
@@ -49,8 +52,8 @@ public class UpdateByQueryWithScriptTests
     }
 
     @Override
-    protected AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest, BulkIndexByScrollResponse> action() {
-        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, null, threadPool,
-                request(), listener());
+    protected AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest> action(ScriptService scriptService, UpdateByQueryRequest request) {
+        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, listener(),
+                scriptService, null);
     }
 }

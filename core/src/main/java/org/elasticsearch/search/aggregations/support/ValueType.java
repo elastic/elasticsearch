@@ -34,7 +34,7 @@ import java.io.IOException;
 /**
  *
  */
-public enum ValueType implements Writeable<ValueType> {
+public enum ValueType implements Writeable {
 
     STRING((byte) 1, "string", "string", ValuesSourceType.BYTES,
             IndexFieldData.class, DocValueFormat.RAW),
@@ -70,12 +70,7 @@ public enum ValueType implements Writeable<ValueType> {
             return true;
         }
     },
-    IP((byte) 6, "ip", "ip", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.IP) {
-        @Override
-        public boolean isNumeric() {
-            return true;
-        }
-    },
+    IP((byte) 6, "ip", "ip", ValuesSourceType.BYTES, IndexFieldData.class, DocValueFormat.IP),
     NUMERIC((byte) 7, "numeric", "numeric", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW) {
         @Override
         public boolean isNumeric() {
@@ -96,8 +91,8 @@ public enum ValueType implements Writeable<ValueType> {
     private final byte id;
     private String preferredName;
 
-    private ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType, Class<? extends IndexFieldData> fieldDataType,
-            DocValueFormat defaultFormat) {
+    private ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType,
+            Class<? extends IndexFieldData> fieldDataType, DocValueFormat defaultFormat) {
         this.id = id;
         this.description = description;
         this.preferredName = preferredName;
@@ -168,8 +163,7 @@ public enum ValueType implements Writeable<ValueType> {
         return description;
     }
 
-    @Override
-    public ValueType readFrom(StreamInput in) throws IOException {
+    public static ValueType readFromStream(StreamInput in) throws IOException {
         byte id = in.readByte();
         for (ValueType valueType : values()) {
             if (id == valueType.id) {

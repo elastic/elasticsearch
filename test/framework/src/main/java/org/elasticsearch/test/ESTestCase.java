@@ -87,6 +87,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
@@ -410,10 +411,21 @@ public abstract class ESTestCase extends LuceneTestCase {
      * helper to get a random value in a certain range that's different from the input
      */
     public static <T> T randomValueOtherThan(T input, Supplier<T> randomSupplier) {
+        if (input != null) {
+            return randomValueOtherThanMany(input::equals, randomSupplier);
+        }
+
+        return(randomSupplier.get());
+    }
+
+    /**
+     * helper to get a random value in a certain range that's different from the input
+     */
+    public static <T> T randomValueOtherThanMany(Predicate<T> input, Supplier<T> randomSupplier) {
         T randomValue = null;
         do {
             randomValue = randomSupplier.get();
-        } while (randomValue.equals(input));
+        } while (input.test(randomValue));
         return randomValue;
     }
 
@@ -622,25 +634,29 @@ public abstract class ESTestCase extends LuceneTestCase {
      * recursive shuffling behavior can be made by passing in the names of fields which
      * internally should stay untouched.
      */
-    public static XContentBuilder shuffleXContent(XContentBuilder builder, Set<String> exceptFieldNames) throws IOException {
+    public static XContentBuilder shuffleXContent(XContentBuilder builder, String... exceptFieldNames) throws IOException {
         BytesReference bytes = builder.bytes();
         XContentParser parser = XContentFactory.xContent(bytes).createParser(bytes);
         // use ordered maps for reproducibility
-        Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), exceptFieldNames);
-        XContentBuilder jsonBuilder = XContentFactory.contentBuilder(builder.contentType());
-        return jsonBuilder.map(shuffledMap);
+        Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), new HashSet<>(Arrays.asList(exceptFieldNames)));
+        XContentBuilder xContentBuilder = XContentFactory.contentBuilder(builder.contentType());
+        if (builder.isPrettyPrint()) {
+            xContentBuilder.prettyPrint();
+        }
+        return xContentBuilder.map(shuffledMap);
     }
 
-    private static Map<String, Object> shuffleMap(Map<String, Object> map, Set<String> exceptFieldNames) {
+    private static Map<String, Object> shuffleMap(Map<String, Object> map, Set<String> exceptFields) {
         List<String> keys = new ArrayList<>(map.keySet());
+
         // even though we shuffle later, we need this to make tests reproduce on different jvms
         Collections.sort(keys);
         Map<String, Object> targetMap = new TreeMap<>();
         Collections.shuffle(keys, random());
         for (String key : keys) {
             Object value = map.get(key);
-            if (value instanceof Map && exceptFieldNames.contains(key) == false) {
-                targetMap.put(key, shuffleMap((Map) value, exceptFieldNames));
+            if (value instanceof Map && exceptFields.contains(key) == false) {
+                targetMap.put(key, shuffleMap((Map) value, exceptFields));
             } else {
                 targetMap.put(key, value);
             }

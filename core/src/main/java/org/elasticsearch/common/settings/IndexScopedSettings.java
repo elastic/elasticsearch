@@ -58,7 +58,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
     public static final Predicate<String> INDEX_SETTINGS_KEY_PREDICATE = (s) -> s.startsWith(IndexMetaData.INDEX_SETTING_PREFIX);
 
-    public static Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+    public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         IndexSettings.INDEX_TTL_DISABLE_PURGE_SETTING,
         IndexStore.INDEX_STORE_THROTTLE_TYPE_SETTING,
         IndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING,
@@ -109,6 +109,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.INDEX_WARMER_ENABLED_SETTING,
         IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
         IndexSettings.MAX_RESULT_WINDOW_SETTING,
+        IndexSettings.MAX_RESCORE_WINDOW_SETTING,
         IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
         IndexSettings.DEFAULT_FIELD_SETTING,
         IndexSettings.QUERY_STRING_LENIENT_SETTING,
@@ -142,7 +143,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             Map<String, Settings> groups = s.getAsGroups();
             for (String key : SimilarityService.BUILT_IN.keySet()) {
                 if (groups.containsKey(key)) {
-                    throw new IllegalArgumentException("illegal value for [index.similarity."+ key + "] cannot redefine built-in similarity");
+                    throw new IllegalArgumentException("illegal value for [index.similarity." + key +
+                            "] cannot redefine built-in similarity");
                 }
             }
         }, Property.IndexScope), // this allows similarity settings to be passed
@@ -150,7 +152,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
     )));
 
-    public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+    public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY,
+            BUILT_IN_INDEX_SETTINGS);
 
     public IndexScopedSettings(Settings settings, Set<Setting<?>> settingsSet) {
         super(settings, settingsSet, Property.IndexScope);

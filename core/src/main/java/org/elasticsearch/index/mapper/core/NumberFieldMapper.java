@@ -28,7 +28,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.XPointValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -40,7 +40,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -120,7 +119,8 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         @Override
         public NumberFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            NumberFieldMapper fieldMapper = new NumberFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
+            NumberFieldMapper fieldMapper =
+                new NumberFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
                     coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             return (NumberFieldMapper) fieldMapper.includeInAll(includeInAll);
         }
@@ -135,8 +135,9 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         }
 
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            if (parserContext.indexVersionCreated().before(Version.V_5_0_0)) {
+        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node,
+                                         ParserContext parserContext) throws MapperParsingException {
+            if (parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha2)) {
                 switch (type) {
                 case BYTE:
                     return new LegacyByteFieldMapper.TypeParser().parse(name, node, parserContext);
@@ -212,7 +213,8 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query rangeQuery(String field, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+                             boolean includeLower, boolean includeUpper) {
                 float l = Float.NEGATIVE_INFINITY;
                 float u = Float.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
@@ -231,20 +233,15 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                float base = parse(value);
-                float delta = fuzziness.asFloat();
-                return rangeQuery(field, base - delta, base + delta, true, true);
-            }
-
-            @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(String name, Number value,
+                                            boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
                 if (indexed) {
                     fields.add(new FloatPoint(name, value.floatValue()));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(value.floatValue())));
+                    fields.add(new SortedNumericDocValuesField(name,
+                        NumericUtils.floatToSortableInt(value.floatValue())));
                 }
                 if (stored) {
                     fields.add(new StoredField(name, value.floatValue()));
@@ -253,17 +250,18 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            FieldStats.Double stats(IndexReader reader, String field) throws IOException {
-                long size = PointValues.size(reader, field);
+            FieldStats.Double stats(IndexReader reader, String fieldName,
+                                    boolean isSearchable, boolean isAggregatable) throws IOException {
+                long size = XPointValues.size(reader, fieldName);
                 if (size == 0) {
                     return null;
                 }
-                int docCount = PointValues.getDocCount(reader, field);
-                byte[] min = PointValues.getMinPackedValue(reader, field);
-                byte[] max = PointValues.getMaxPackedValue(reader, field);
+                int docCount = XPointValues.getDocCount(reader, fieldName);
+                byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
+                byte[] max = XPointValues.getMaxPackedValue(reader, fieldName);
                 return new FieldStats.Double(reader.maxDoc(),docCount, -1L, size,
-                        FloatPoint.decodeDimension(min, 0),
-                        FloatPoint.decodeDimension(max, 0));
+                    isSearchable, isAggregatable,
+                    FloatPoint.decodeDimension(min, 0), FloatPoint.decodeDimension(max, 0));
             }
         },
         DOUBLE("double", NumericType.DOUBLE) {
@@ -299,7 +297,8 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query rangeQuery(String field, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+                             boolean includeLower, boolean includeUpper) {
                 double l = Double.NEGATIVE_INFINITY;
                 double u = Double.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
@@ -318,20 +317,15 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                double base = parse(value);
-                double delta = fuzziness.asFloat();
-                return rangeQuery(field, base - delta, base + delta, true, true);
-            }
-
-            @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(String name, Number value,
+                                            boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
                 if (indexed) {
                     fields.add(new DoublePoint(name, value.doubleValue()));
                 }
                 if (docValued) {
-                    fields.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(value.doubleValue())));
+                    fields.add(new SortedNumericDocValuesField(name,
+                        NumericUtils.doubleToSortableLong(value.doubleValue())));
                 }
                 if (stored) {
                     fields.add(new StoredField(name, value.doubleValue()));
@@ -340,24 +334,32 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            FieldStats.Double stats(IndexReader reader, String field) throws IOException {
-                long size = PointValues.size(reader, field);
+            FieldStats.Double stats(IndexReader reader, String fieldName,
+                                    boolean isSearchable, boolean isAggregatable) throws IOException {
+                long size = XPointValues.size(reader, fieldName);
                 if (size == 0) {
                     return null;
                 }
-                int docCount = PointValues.getDocCount(reader, field);
-                byte[] min = PointValues.getMinPackedValue(reader, field);
-                byte[] max = PointValues.getMaxPackedValue(reader, field);
+                int docCount = XPointValues.getDocCount(reader, fieldName);
+                byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
+                byte[] max = XPointValues.getMaxPackedValue(reader, fieldName);
                 return new FieldStats.Double(reader.maxDoc(),docCount, -1L, size,
-                        DoublePoint.decodeDimension(min, 0),
-                        DoublePoint.decodeDimension(max, 0));
+                    isSearchable, isAggregatable,
+                    DoublePoint.decodeDimension(min, 0), DoublePoint.decodeDimension(max, 0));
             }
         },
         BYTE("byte", NumericType.BYTE) {
             @Override
             Byte parse(Object value) {
-                if (value instanceof Byte) {
-                    return (Byte) value;
+                if (value instanceof Number) {
+                    double doubleValue = ((Number) value).doubleValue();
+                    if (doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE) {
+                        throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
+                    }
+                    if (doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                    }
+                    return ((Number) value).byteValue();
                 }
                 if (value instanceof BytesRef) {
                     value = ((BytesRef) value).utf8ToString();
@@ -385,23 +387,21 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query rangeQuery(String field, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+                             boolean includeLower, boolean includeUpper) {
                 return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper);
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                return INTEGER.fuzzyQuery(field, value, fuzziness);
-            }
-
-            @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(String name, Number value,
+                                            boolean indexed, boolean docValued, boolean stored) {
                 return INTEGER.createFields(name, value, indexed, docValued, stored);
             }
 
             @Override
-            FieldStats.Long stats(IndexReader reader, String field) throws IOException {
-                return (FieldStats.Long) INTEGER.stats(reader, field);
+            FieldStats.Long stats(IndexReader reader, String fieldName,
+                                  boolean isSearchable, boolean isAggregatable) throws IOException {
+                return (FieldStats.Long) INTEGER.stats(reader, fieldName, isSearchable, isAggregatable);
             }
 
             @Override
@@ -413,6 +413,13 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             @Override
             Short parse(Object value) {
                 if (value instanceof Number) {
+                    double doubleValue = ((Number) value).doubleValue();
+                    if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
+                        throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
+                    }
+                    if (doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                    }
                     return ((Number) value).shortValue();
                 }
                 if (value instanceof BytesRef) {
@@ -441,23 +448,21 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query rangeQuery(String field, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+                             boolean includeLower, boolean includeUpper) {
                 return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper);
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                return INTEGER.fuzzyQuery(field, value, fuzziness);
-            }
-
-            @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(String name, Number value,
+                                            boolean indexed, boolean docValued, boolean stored) {
                 return INTEGER.createFields(name, value, indexed, docValued, stored);
             }
 
             @Override
-            FieldStats.Long stats(IndexReader reader, String field) throws IOException {
-                return (FieldStats.Long) INTEGER.stats(reader, field);
+            FieldStats.Long stats(IndexReader reader, String fieldName,
+                                  boolean isSearchable, boolean isAggregatable) throws IOException {
+                return (FieldStats.Long) INTEGER.stats(reader, fieldName, isSearchable, isAggregatable);
             }
 
             @Override
@@ -469,6 +474,13 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             @Override
             Integer parse(Object value) {
                 if (value instanceof Number) {
+                    double doubleValue = ((Number) value).doubleValue();
+                    if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
+                        throw new IllegalArgumentException("Value [" + value + "] is out of range for an integer");
+                    }
+                    if (doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                    }
                     return ((Number) value).intValue();
                 }
                 if (value instanceof BytesRef) {
@@ -498,7 +510,8 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query rangeQuery(String field, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+                             boolean includeLower, boolean includeUpper) {
                 int l = Integer.MIN_VALUE;
                 int u = Integer.MAX_VALUE;
                 if (lowerTerm != null) {
@@ -523,14 +536,8 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                int base = parse(value);
-                int delta = fuzziness.asInt();
-                return rangeQuery(field, base - delta, base + delta, true, true);
-            }
-
-            @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(String name, Number value,
+                                            boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
                 if (indexed) {
                     fields.add(new IntPoint(name, value.intValue()));
@@ -545,23 +552,31 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            FieldStats.Long stats(IndexReader reader, String field) throws IOException {
-                long size = PointValues.size(reader, field);
+            FieldStats.Long stats(IndexReader reader, String fieldName,
+                                  boolean isSearchable, boolean isAggregatable) throws IOException {
+                long size = XPointValues.size(reader, fieldName);
                 if (size == 0) {
                     return null;
                 }
-                int docCount = PointValues.getDocCount(reader, field);
-                byte[] min = PointValues.getMinPackedValue(reader, field);
-                byte[] max = PointValues.getMaxPackedValue(reader, field);
+                int docCount = XPointValues.getDocCount(reader, fieldName);
+                byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
+                byte[] max = XPointValues.getMaxPackedValue(reader, fieldName);
                 return new FieldStats.Long(reader.maxDoc(),docCount, -1L, size,
-                        IntPoint.decodeDimension(min, 0),
-                        IntPoint.decodeDimension(max, 0));
+                    isSearchable, isAggregatable,
+                    IntPoint.decodeDimension(min, 0), IntPoint.decodeDimension(max, 0));
             }
         },
         LONG("long", NumericType.LONG) {
             @Override
             Long parse(Object value) {
                 if (value instanceof Number) {
+                    double doubleValue = ((Number) value).doubleValue();
+                    if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
+                        throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
+                    }
+                    if (doubleValue % 1 != 0) {
+                        throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                    }
                     return ((Number) value).longValue();
                 }
                 if (value instanceof BytesRef) {
@@ -591,7 +606,8 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query rangeQuery(String field, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+                             boolean includeLower, boolean includeUpper) {
                 long l = Long.MIN_VALUE;
                 long u = Long.MAX_VALUE;
                 if (lowerTerm != null) {
@@ -616,14 +632,8 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                long base = parse(value);
-                long delta = fuzziness.asLong();
-                return rangeQuery(field, base - delta, base + delta, true, true);
-            }
-
-            @Override
-            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+            public List<Field> createFields(String name, Number value,
+                                            boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
                 if (indexed) {
                     fields.add(new LongPoint(name, value.longValue()));
@@ -638,17 +648,18 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            FieldStats.Long stats(IndexReader reader, String field) throws IOException {
-                long size = PointValues.size(reader, field);
+            FieldStats.Long stats(IndexReader reader, String fieldName,
+                                  boolean isSearchable, boolean isAggregatable) throws IOException {
+                long size = XPointValues.size(reader, fieldName);
                 if (size == 0) {
                     return null;
                 }
-                int docCount = PointValues.getDocCount(reader, field);
-                byte[] min = PointValues.getMinPackedValue(reader, field);
-                byte[] max = PointValues.getMaxPackedValue(reader, field);
+                int docCount = XPointValues.getDocCount(reader, fieldName);
+                byte[] min = XPointValues.getMinPackedValue(reader, fieldName);
+                byte[] max = XPointValues.getMaxPackedValue(reader, fieldName);
                 return new FieldStats.Long(reader.maxDoc(),docCount, -1L, size,
-                        LongPoint.decodeDimension(min, 0),
-                        LongPoint.decodeDimension(max, 0));
+                    isSearchable, isAggregatable,
+                    LongPoint.decodeDimension(min, 0), LongPoint.decodeDimension(max, 0));
             }
         };
 
@@ -670,12 +681,14 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         }
         abstract Query termQuery(String field, Object value);
         abstract Query termsQuery(String field, List<Object> values);
-        abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper);
-        abstract Query fuzzyQuery(String field, Object value, Fuzziness fuzziness);
+        abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
+                                  boolean includeLower, boolean includeUpper);
         abstract Number parse(XContentParser parser, boolean coerce) throws IOException;
         abstract Number parse(Object value);
-        public abstract List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored);
-        abstract FieldStats<? extends Number> stats(IndexReader reader, String field) throws IOException;
+        public abstract List<Field> createFields(String name, Number value, boolean indexed,
+                                                 boolean docValued, boolean stored);
+        abstract FieldStats<? extends Number> stats(IndexReader reader, String fieldName,
+                                                    boolean isSearchable, boolean isAggregatable) throws IOException;
         Number valueForSearch(Number value) {
             return value;
         }
@@ -710,6 +723,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
+            failIfNotIndexed();
             Query query = type.termQuery(name(), value);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
@@ -719,6 +733,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         @Override
         public Query termsQuery(List values, QueryShardContext context) {
+            failIfNotIndexed();
             Query query = type.termsQuery(name(), values);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
@@ -728,6 +743,7 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper) {
+            failIfNotIndexed();
             Query query = type.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
@@ -736,13 +752,8 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            return type.fuzzyQuery(name(), value, fuzziness);
-        }
-
-        @Override
         public FieldStats stats(IndexReader reader) throws IOException {
-            return type.stats(reader, name());
+            return type.stats(reader, name(), isSearchable(), isAggregatable());
         }
 
         @Override
@@ -914,6 +925,11 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         if (includeDefaults || coerce.explicit()) {
             builder.field("coerce", coerce.value());
         }
+
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", fieldType().nullValue());
+        }
+
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);
         } else if (includeDefaults) {

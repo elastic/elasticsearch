@@ -31,6 +31,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.get.GetResult;
@@ -44,6 +45,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -73,7 +75,10 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         // terms query or lookup query
         if (randomBoolean()) {
             // make between 0 and 5 different values of the same type
-            String fieldName = getRandomFieldName();
+            String fieldName;
+            do {
+                fieldName = getRandomFieldName();
+            } while (fieldName.equals(GEO_POINT_FIELD_NAME) || fieldName.equals(GEO_SHAPE_FIELD_NAME));
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {
                 values[i] = getRandomValueForFieldName(fieldName);
@@ -93,41 +98,51 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     @Override
     protected void doAssertLuceneQuery(TermsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, instanceOf(BooleanQuery.class));
-        BooleanQuery booleanQuery = (BooleanQuery) query;
-
-        // we only do the check below for string fields (otherwise we'd have to decode the values)
-        if (queryBuilder.fieldName().equals(INT_FIELD_NAME) || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)
-                || queryBuilder.fieldName().equals(BOOLEAN_FIELD_NAME) || queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
-            return;
-        }
-
-        // expected returned terms depending on whether we have a terms query or a terms lookup query
-        List<Object> terms;
-        if (queryBuilder.termsLookup() != null) {
-            terms = randomTerms;
+        if (queryBuilder.termsLookup() == null && (queryBuilder.values() == null || queryBuilder.values().isEmpty())) {
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
+            assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
+        } else if (queryBuilder.termsLookup() != null && randomTerms.size() == 0){
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
+            assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
         } else {
-            terms = queryBuilder.values();
-        }
+            assertThat(query, instanceOf(BooleanQuery.class));
+            BooleanQuery booleanQuery = (BooleanQuery) query;
 
-        // compare whether we have the expected list of terms returned
-        final List<Term> booleanTerms = new ArrayList<>();
-        for (BooleanClause booleanClause : booleanQuery) {
-            assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-            assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
-            Term term = ((TermQuery) booleanClause.getQuery()).getTerm();
-            booleanTerms.add(term);
-        }
-        CollectionUtil.timSort(booleanTerms);
-        List<Term> expectedTerms = new ArrayList<>();
-        for (Object term : terms) {
-            if (term != null) { // terms lookup filters this out
-                expectedTerms.add(new Term(queryBuilder.fieldName(), term.toString()));
+            // we only do the check below for string fields (otherwise we'd have to decode the values)
+            if (queryBuilder.fieldName().equals(INT_FIELD_NAME) || queryBuilder.fieldName().equals(DOUBLE_FIELD_NAME)
+                    || queryBuilder.fieldName().equals(BOOLEAN_FIELD_NAME) || queryBuilder.fieldName().equals(DATE_FIELD_NAME)) {
+                return;
             }
+
+            // expected returned terms depending on whether we have a terms query or a terms lookup query
+            List<Object> terms;
+            if (queryBuilder.termsLookup() != null) {
+                terms = randomTerms;
+            } else {
+                terms = queryBuilder.values();
+            }
+
+            // compare whether we have the expected list of terms returned
+            final List<Term> booleanTerms = new ArrayList<>();
+            for (BooleanClause booleanClause : booleanQuery) {
+                assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+                assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
+                Term term = ((TermQuery) booleanClause.getQuery()).getTerm();
+                booleanTerms.add(term);
+            }
+            CollectionUtil.timSort(booleanTerms);
+            List<Term> expectedTerms = new ArrayList<>();
+            for (Object term : terms) {
+                if (term != null) { // terms lookup filters this out
+                    expectedTerms.add(new Term(queryBuilder.fieldName(), term.toString()));
+                }
+            }
+            CollectionUtil.timSort(expectedTerms);
+            assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms.size(), booleanTerms.size());
+            assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms, booleanTerms);
         }
-        CollectionUtil.timSort(expectedTerms);
-        assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms.size(), booleanTerms.size());
-        assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms, booleanTerms);
     }
 
     public void testEmtpyFieldName() {
@@ -280,7 +295,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                         "    \"boost\" : 1.0\n" +
                         "  }\n" +
                         "}";
-        QueryBuilder<?> inShortcutParsed = parseQuery(json, ParseFieldMatcher.EMPTY);
+        QueryBuilder inShortcutParsed = parseQuery(json, ParseFieldMatcher.EMPTY);
         assertThat(inShortcutParsed, equalTo(parsed));
 
         try {
@@ -295,13 +310,23 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     public void testMustRewrite() throws IOException {
         TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(STRING_FIELD_NAME, randomTermsLookup());
         try {
-            termsQueryBuilder.toQuery(queryShardContext());
+            termsQueryBuilder.toQuery(createShardContext());
             fail();
         } catch (UnsupportedOperationException ex) {
             assertEquals("query must be rewritten first", ex.getMessage());
         }
-        assertEquals(termsQueryBuilder.rewrite(queryShardContext()), new TermsQueryBuilder(STRING_FIELD_NAME,
+        assertEquals(termsQueryBuilder.rewrite(createShardContext()), new TermsQueryBuilder(STRING_FIELD_NAME,
             randomTerms.stream().filter(x -> x != null).collect(Collectors.toList()))); // terms lookup removes null values
+    }
+
+    public void testGeo() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        TermsQueryBuilder query = new TermsQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
+        QueryShardContext context = createShardContext();
+        QueryShardException e = expectThrows(QueryShardException.class,
+                () -> query.toQuery(context));
+        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
+                e.getMessage());
     }
 }
 

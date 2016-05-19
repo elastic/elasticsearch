@@ -35,22 +35,13 @@ import java.util.Map;
 public abstract class PipelineAggregator implements Streamable {
 
     /**
-     * Parses the pipeline aggregation request and creates the appropriate
-     * pipeline aggregator factory for it.
-     *
-     * @see PipelineAggregatorBuilder
+     * Parse the {@link PipelineAggregatorBuilder} from a {@link QueryParseContext}.
      */
+    @FunctionalInterface
     public static interface Parser {
-
         public static final ParseField BUCKETS_PATH = new ParseField("buckets_path");
-
         public static final ParseField FORMAT = new ParseField("format");
         public static final ParseField GAP_POLICY = new ParseField("gap_policy");
-
-        /**
-         * @return The aggregation type this parser is associated with.
-         */
-        String type();
 
         /**
          * Returns the pipeline aggregator factory with which this parser is
@@ -66,13 +57,6 @@ public abstract class PipelineAggregator implements Streamable {
          */
         PipelineAggregatorBuilder<?> parse(String pipelineAggregatorName, QueryParseContext context)
                 throws IOException;
-
-        /**
-         * @return an empty {@link PipelineAggregatorBuilder} instance for this
-         *         parser that can be used for deserialization
-         */
-        PipelineAggregatorBuilder<?> getFactoryPrototype();
-
     }
 
     private String name;

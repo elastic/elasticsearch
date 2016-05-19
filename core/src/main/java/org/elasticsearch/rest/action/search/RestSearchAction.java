@@ -122,12 +122,10 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
         if (restContent != null) {
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                context.reset(parser);
-                context.parseFieldMatcher(parseFieldMatcher);
+                QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, parseFieldMatcher);
                 if (isTemplateRequest) {
-                    Template template = TemplateQueryBuilder.parse(parser, context.parseFieldMatcher(), "params", "template");
+                    Template template = TemplateQueryBuilder.parse(parser, context.getParseFieldMatcher(), "params", "template");
                     searchRequest.template(template);
                 } else {
                     searchRequest.source().parseXContent(context, aggParsers, suggesters);
@@ -164,7 +162,7 @@ public class RestSearchAction extends BaseRestHandler {
      * values that are not overridden by the rest request.
      */
     private static void parseSearchSource(final SearchSourceBuilder searchSourceBuilder, RestRequest request) {
-        QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+        QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
         if (queryBuilder != null) {
             searchSourceBuilder.query(queryBuilder);
         }

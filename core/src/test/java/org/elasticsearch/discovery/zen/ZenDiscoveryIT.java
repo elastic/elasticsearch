@@ -349,9 +349,9 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
 
         logger.info("--> request node discovery stats");
         NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setDiscovery(true).get();
-        assertThat(statsResponse.getNodes().length, equalTo(1));
+        assertThat(statsResponse.getNodes().size(), equalTo(1));
 
-        DiscoveryStats stats = statsResponse.getNodes()[0].getDiscoveryStats();
+        DiscoveryStats stats = statsResponse.getNodes().get(0).getDiscoveryStats();
         assertThat(stats.getQueueStats(), notNullValue());
         assertThat(stats.getQueueStats().getTotal(), equalTo(0));
         assertThat(stats.getQueueStats().getCommitted(), equalTo(0));

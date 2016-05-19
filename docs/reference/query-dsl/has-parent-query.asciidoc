@@ -30,7 +30,7 @@ case equal to the boost on the `has_parent` query (Defaults to 1). If
 the score is set to `true`, then the score of the matching parent
 document is aggregated into the child documents belonging to the
 matching parent document. The score mode can be specified with the
-`score_mode` field inside the `has_parent` query:
+`score` field inside the `has_parent` query:
 
 [source,js]
 --------------------------------------------------

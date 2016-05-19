@@ -52,7 +52,7 @@ public class NetworkModuleTests extends ModuleTestCase {
 
     static class FakeTransportService extends TransportService {
         public FakeTransportService() {
-            super(null, null);
+            super(null, null, null);
         }
     }
 

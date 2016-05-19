@@ -24,7 +24,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
@@ -37,7 +37,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTermsAggregatorBuilder> {
+public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTermsAggregationBuilder> {
 
     private static final String[] executionHints;
 
@@ -50,9 +50,9 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
     }
 
     @Override
-    protected SignificantTermsAggregatorBuilder createTestAggregatorBuilder() {
+    protected SignificantTermsAggregationBuilder createTestAggregatorBuilder() {
         String name = randomAsciiOfLengthBetween(3, 20);
-        SignificantTermsAggregatorBuilder factory = new SignificantTermsAggregatorBuilder(name, null);
+        SignificantTermsAggregationBuilder factory = new SignificantTermsAggregationBuilder(name, null);
         String field = randomAsciiOfLengthBetween(3, 20);
         int randomFieldBranch = randomInt(2);
         switch (randomFieldBranch) {
@@ -193,7 +193,7 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
             SignificanceHeuristic significanceHeuristic = null;
             switch (randomInt(5)) {
             case 0:
-                significanceHeuristic = PercentageScore.PROTOTYPE;
+                significanceHeuristic = new PercentageScore();
                 break;
             case 1:
                 significanceHeuristic = new ChiSquare(randomBoolean(), randomBoolean());
@@ -208,7 +208,7 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
                 significanceHeuristic = new ScriptHeuristic(new Script("foo"));
                 break;
             case 5:
-                significanceHeuristic = JLHScore.PROTOTYPE;
+                significanceHeuristic = new JLHScore();
                 break;
             default:
                 fail();

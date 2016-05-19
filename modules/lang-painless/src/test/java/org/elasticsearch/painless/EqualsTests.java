@@ -131,51 +131,51 @@ public class EqualsTests extends ScriptTestCase {
     }
 
     public void testBranchEquals() {
-        assertEquals(0, exec("Character a = 'a'; Character b = 'b'; if (a == b) return 1; else return 0;"));
-        assertEquals(1, exec("Character a = 'a'; Character b = 'a'; if (a == b) return 1; else return 0;"));
+        assertEquals(0, exec("Character a = (char)'a'; Character b = (char)'b'; if (a == b) return 1; else return 0;"));
+        assertEquals(1, exec("Character a = (char)'a'; Character b = (char)'a'; if (a == b) return 1; else return 0;"));
         assertEquals(0, exec("Integer a = new Integer(1); Integer b = 1; if (a === b) return 1; else return 0;"));
-        assertEquals(0, exec("Character a = 'a'; Character b = new Character('a'); if (a === b) return 1; else return 0;"));
-        assertEquals(1, exec("Character a = 'a'; Object b = a; if (a === b) return 1; else return 0;"));
+        assertEquals(0, exec("Character a = (char)'a'; Character b = new Character((char)'a'); if (a === b) return 1; else return 0;"));
+        assertEquals(1, exec("Character a = (char)'a'; Object b = a; if (a === b) return 1; else return 0;"));
         assertEquals(1, exec("Integer a = 1; Number b = a; Number c = a; if (c === b) return 1; else return 0;"));
-        assertEquals(0, exec("Integer a = 1; Character b = 'a'; if (a === (Object)b) return 1; else return 0;"));
+        assertEquals(0, exec("Integer a = 1; Character b = (char)'a'; if (a === (Object)b) return 1; else return 0;"));
     }
 
     public void testBranchNotEquals() {
-        assertEquals(1, exec("Character a = 'a'; Character b = 'b'; if (a != b) return 1; else return 0;"));
-        assertEquals(0, exec("Character a = 'a'; Character b = 'a'; if (a != b) return 1; else return 0;"));
+        assertEquals(1, exec("Character a = (char)'a'; Character b = (char)'b'; if (a != b) return 1; else return 0;"));
+        assertEquals(0, exec("Character a = (char)'a'; Character b = (char)'a'; if (a != b) return 1; else return 0;"));
         assertEquals(1, exec("Integer a = new Integer(1); Integer b = 1; if (a !== b) return 1; else return 0;"));
-        assertEquals(1, exec("Character a = 'a'; Character b = new Character('a'); if (a !== b) return 1; else return 0;"));
-        assertEquals(0, exec("Character a = 'a'; Object b = a; if (a !== b) return 1; else return 0;"));
+        assertEquals(1, exec("Character a = (char)'a'; Character b = new Character((char)'a'); if (a !== b) return 1; else return 0;"));
+        assertEquals(0, exec("Character a = (char)'a'; Object b = a; if (a !== b) return 1; else return 0;"));
         assertEquals(0, exec("Integer a = 1; Number b = a; Number c = a; if (c !== b) return 1; else return 0;"));
-        assertEquals(1, exec("Integer a = 1; Character b = 'a'; if (a !== (Object)b) return 1; else return 0;"));
+        assertEquals(1, exec("Integer a = 1; Character b = (char)'a'; if (a !== (Object)b) return 1; else return 0;"));
     }
 
     public void testRightHandNull() {
-        assertEquals(false, exec("Character a = 'a'; return a == null;"));
-        assertEquals(false, exec("Character a = 'a'; return a === null;"));
-        assertEquals(true, exec("Character a = 'a'; return a != null;"));
-        assertEquals(true, exec("Character a = 'a'; return a !== null;"));
+        assertEquals(false, exec("Character a = (char)'a'; return a == null;"));
+        assertEquals(false, exec("Character a = (char)'a'; return a === null;"));
+        assertEquals(true, exec("Character a = (char)'a'; return a != null;"));
+        assertEquals(true, exec("Character a = (char)'a'; return a !== null;"));
         assertEquals(true, exec("Character a = null; return a == null;"));
         assertEquals(false, exec("Character a = null; return a != null;"));
-        assertEquals(false, exec("Character a = 'a'; Character b = null; return a == b;"));
+        assertEquals(false, exec("Character a = (char)'a'; Character b = null; return a == b;"));
         assertEquals(true, exec("Character a = null; Character b = null; return a === b;"));
-        assertEquals(true, exec("Character a = 'a'; Character b = null; return a != b;"));
+        assertEquals(true, exec("Character a = (char)'a'; Character b = null; return a != b;"));
         assertEquals(false, exec("Character a = null; Character b = null; return a !== b;"));
         assertEquals(false, exec("Integer x = null; double y = 2.0; return x == y;"));
         assertEquals(true, exec("Integer x = null; Short y = null; return x == y;"));
     }
 
     public void testLeftHandNull() {
-        assertEquals(false, exec("Character a = 'a'; return null == a;"));
-        assertEquals(false, exec("Character a = 'a'; return null === a;"));
-        assertEquals(true, exec("Character a = 'a'; return null != a;"));
-        assertEquals(true, exec("Character a = 'a'; return null !== a;"));
+        assertEquals(false, exec("Character a = (char)'a'; return null == a;"));
+        assertEquals(false, exec("Character a = (char)'a'; return null === a;"));
+        assertEquals(true, exec("Character a = (char)'a'; return null != a;"));
+        assertEquals(true, exec("Character a = (char)'a'; return null !== a;"));
         assertEquals(true, exec("Character a = null; return null == a;"));
         assertEquals(false, exec("Character a = null; return null != a;"));
-        assertEquals(false, exec("Character a = null; Character b = 'a'; return a == b;"));
+        assertEquals(false, exec("Character a = null; Character b = (char)'a'; return a == b;"));
         assertEquals(true, exec("Character a = null; Character b = null; return a == b;"));
         assertEquals(true, exec("Character a = null; Character b = null; return b === a;"));
-        assertEquals(true, exec("Character a = null; Character b = 'a'; return a != b;"));
+        assertEquals(true, exec("Character a = null; Character b = (char)'a'; return a != b;"));
         assertEquals(false, exec("Character a = null; Character b = null; return b != a;"));
         assertEquals(false, exec("Character a = null; Character b = null; return b !== a;"));
         assertEquals(false, exec("Integer x = null; double y = 2.0; return y == x;"));

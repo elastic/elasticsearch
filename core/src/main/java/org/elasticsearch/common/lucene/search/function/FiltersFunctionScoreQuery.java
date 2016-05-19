@@ -75,7 +75,7 @@ public class FiltersFunctionScoreQuery extends Query {
         }
     }
 
-    public enum ScoreMode implements Writeable<ScoreMode> {
+    public enum ScoreMode implements Writeable {
         FIRST, AVG, MAX, SUM, MIN, MULTIPLY;
 
         @Override

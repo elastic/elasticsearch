@@ -84,7 +84,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
     }
 
     @Override
-    public final ValuesSourceAggregatorBuilder<VS, ?> parse(String aggregationName, QueryParseContext context)
+    public final ValuesSourceAggregationBuilder<VS, ?> parse(String aggregationName, QueryParseContext context)
             throws IOException {
 
         XContentParser parser = context.parser();
@@ -103,7 +103,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
                 currentFieldName = parser.currentName();
             } else if ("missing".equals(currentFieldName) && token.isValue()) {
                 missing = parser.objectText();
-            } else if (timezoneAware && context.parseFieldMatcher().match(currentFieldName, TIME_ZONE)) {
+            } else if (timezoneAware && context.getParseFieldMatcher().match(currentFieldName, TIME_ZONE)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     timezone = DateTimeZone.forID(parser.text());
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
@@ -122,32 +122,32 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
                         valueType = ValueType.resolveForScript(parser.text());
                         if (targetValueType != null && valueType.isNotA(targetValueType)) {
                             throw new ParsingException(parser.getTokenLocation(),
-                                    type() + " aggregation [" + aggregationName + "] was configured with an incompatible value type ["
-                                            + valueType + "]. [" + type() + "] aggregation can only work on value of type ["
+                                    "Aggregation [" + aggregationName + "] was configured with an incompatible value type ["
+                                            + valueType + "]. It can only work on value of type ["
                                             + targetValueType + "]");
                         }
-                    } else if (!token(aggregationName, currentFieldName, token, parser, context.parseFieldMatcher(), otherOptions)) {
+                    } else if (!token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
                         throw new ParsingException(parser.getTokenLocation(),
                                 "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                     }
-                } else if (!token(aggregationName, currentFieldName, token, parser, context.parseFieldMatcher(), otherOptions)) {
+                } else if (!token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
             } else if (scriptable && token == XContentParser.Token.START_OBJECT) {
-                if (context.parseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, context.parseFieldMatcher());
-                } else if (!token(aggregationName, currentFieldName, token, parser, context.parseFieldMatcher(), otherOptions)) {
+                if (context.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                    script = Script.parse(parser, context.getParseFieldMatcher());
+                } else if (!token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
-            } else if (!token(aggregationName, currentFieldName, token, parser, context.parseFieldMatcher(), otherOptions)) {
+            } else if (!token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
                 throw new ParsingException(parser.getTokenLocation(),
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
             }
         }
 
-        ValuesSourceAggregatorBuilder<VS, ?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
+        ValuesSourceAggregationBuilder<VS, ?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
                 otherOptions);
         if (field != null) {
             factory.field(field);
@@ -171,7 +171,7 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
     }
 
     /**
-     * Creates a {@link ValuesSourceAggregatorBuilder} from the information
+     * Creates a {@link ValuesSourceAggregationBuilder} from the information
      * gathered by the subclass. Options parsed in
      * {@link AbstractValuesSourceParser} itself will be added to the factory
      * after it has been returned by this method.
@@ -189,8 +189,8 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
      *            method
      * @return the created factory
      */
-    protected abstract ValuesSourceAggregatorBuilder<VS, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions);
+    protected abstract ValuesSourceAggregationBuilder<VS, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                                           ValueType targetValueType, Map<ParseField, Object> otherOptions);
 
     /**
      * Allows subclasses of {@link AbstractValuesSourceParser} to parse extra

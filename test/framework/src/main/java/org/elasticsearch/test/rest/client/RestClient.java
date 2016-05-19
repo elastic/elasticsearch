@@ -19,6 +19,7 @@
 package org.elasticsearch.test.rest.client;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
@@ -60,6 +61,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * REST client used to test the elasticsearch REST layer
@@ -186,6 +189,19 @@ public class RestClient implements Closeable {
     }
 
     private HttpRequestBuilder callApiBuilder(String apiName, Map<String, String> params, String body) {
+        if ("raw".equals(apiName)) {
+            // Raw requests are bit simpler....
+            HttpRequestBuilder httpRequestBuilder = httpRequestBuilder();
+            httpRequestBuilder.method(requireNonNull(params.remove("method"), "Method must be set to use raw request"));
+            httpRequestBuilder.path("/"+ requireNonNull(params.remove("path"), "Path must be set to use raw request"));
+            httpRequestBuilder.body(body);
+
+            // And everything else is a url parameter!
+            for (Map.Entry<String, String> entry : params.entrySet()) {
+                httpRequestBuilder.addParam(entry.getKey(), entry.getValue());
+            }
+            return httpRequestBuilder;
+        }
 
         //create doesn't exist in the spec but is supported in the clients (index with op_type=create)
         boolean indexCreateApi = "create".equals(apiName);

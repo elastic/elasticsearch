@@ -46,7 +46,7 @@ import java.util.Objects;
  * <tt>?</tt>.
  */
 public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuilder>
-        implements MultiTermQueryBuilder<WildcardQueryBuilder> {
+        implements MultiTermQueryBuilder {
 
     public static final String NAME = "wildcard";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
@@ -155,15 +155,15 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else {
-                    if (parseContext.parseFieldMatcher().match(currentFieldName, WILDCARD_FIELD)) {
+                    if (parseContext.getParseFieldMatcher().match(currentFieldName, WILDCARD_FIELD)) {
                         value = parser.text();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
                         value = parser.text();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                         boost = parser.floatValue();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
                         rewrite = parser.textOrNull();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                    } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                         queryName = parser.text();
                     } else {
                         throw new ParsingException(parser.getTokenLocation(),
@@ -198,7 +198,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         }
 
         WildcardQuery query = new WildcardQuery(term);
-        MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(context.parseFieldMatcher(), rewrite, null);
+        MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(context.getParseFieldMatcher(), rewrite, null);
         QueryParsers.setRewriteMethod(query, rewriteMethod);
         return query;
     }

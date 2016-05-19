@@ -20,6 +20,7 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 
 import java.io.IOException;
@@ -44,14 +45,29 @@ import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_NUMBE
 import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_STRING;
 
 /**
- * A declarative Object parser to parse any kind of XContent structures into existing object with setters. The Parser is designed to be
- * declarative and stateless. A single parser is defined for one object level, nested elements can be added via
- * {@link #declareObject(BiConsumer, BiFunction, ParseField)} which is commonly done by declaring yet another instance of
- * {@link ObjectParser}. Instances of {@link ObjectParser} are thread-safe and can be re-used across parsing operations. It's recommended to
- * use the high level declare methods like {@link #declareString(BiConsumer, ParseField)} instead of {@link #declareField} which can be used
- * to implement exceptional parsing operations not covered by the high level methods.
+ * A declarative, stateless parser that turns XContent into setter calls. A single parser should be defined for each object being parsed,
+ * nested elements can be added via {@link #declareObject(BiConsumer, BiFunction, ParseField)} which should be satisfied where possible by
+ * passing another instance of {@link ObjectParser}, this one customized for that Object.
+ * <p>
+ * This class works well for object that do have a constructor argument or that can be built using information available from earlier in the
+ * XContent. For objects that have constructors with required arguments that are specified on the same level as other fields see
+ * {@link ConstructingObjectParser}.
+ * </p>
+ * <p>
+ * Instances of {@link ObjectParser} should be setup by declaring a constant field for the parsers and declaring all fields in a static
+ * block just below the creation of the parser. Like this:
+ * </p>
+ * <pre>{@code
+ *   private static final ObjectParser<Thing, SomeContext> PARSER = new ObjectParser<>("thing", Thing::new));
+ *   static {
+ *       PARSER.declareInt(Thing::setMineral, new ParseField("mineral"));
+ *       PARSER.declareInt(Thing::setFruit, new ParseField("fruit"));
+ *   }
+ * }</pre>
+ * It's highly recommended to use the high level declare methods like {@link #declareString(BiConsumer, ParseField)} instead of
+ * {@link #declareField} which can be used to implement exceptional parsing operations not covered by the high level methods.
  */
-public final class ObjectParser<Value, Context> implements BiFunction<XContentParser, Context, Value> {
+public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier> extends AbstractObjectParser<Value, Context> {
     /**
      * Adapts an array (or varags) setter into a list setter.
      */
@@ -64,6 +80,7 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
         };
     }
 
+    private final Map<String, FieldParser> fieldParserMap = new HashMap<>();
     private final String name;
     private final Supplier<Value> valueSupplier;
 
@@ -87,32 +104,22 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
     /**
      * Parses a Value from the given {@link XContentParser}
      * @param parser the parser to build a value from
+     * @param context must at least provide a {@link ParseFieldMatcher}
      * @return a new value instance drawn from the provided value supplier on {@link #ObjectParser(String, Supplier)}
      * @throws IOException if an IOException occurs.
      */
-    public Value parse(XContentParser parser) throws IOException {
+    public Value parse(XContentParser parser, Context context) throws IOException {
         if (valueSupplier == null) {
             throw new NullPointerException("valueSupplier is not set");
         }
-        return parse(parser, valueSupplier.get(), null);
+        return parse(parser, valueSupplier.get(), context);
     }
 
     /**
      * Parses a Value from the given {@link XContentParser}
      * @param parser the parser to build a value from
      * @param value the value to fill from the parser
-     * @return the parsed value
-     * @throws IOException if an IOException occurs.
-     */
-    public Value parse(XContentParser parser, Value value) throws IOException {
-        return parse(parser, value, null);
-    }
-
-    /**
-     * Parses a Value from the given {@link XContentParser}
-     * @param parser the parser to build a value from
-     * @param value the value to fill from the parser
-     * @param context an optional context that is passed along to all declared field parsers
+     * @param context a context that is passed along to all declared field parsers
      * @return the parsed value
      * @throws IOException if an IOException occurs.
      */
@@ -138,58 +145,12 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
                     throw new IllegalStateException("[" + name  + "] no field found");
                 }
                 assert fieldParser != null;
-                fieldParser.assertSupports(name, token, currentFieldName, parser.getParseFieldMatcher());
+                fieldParser.assertSupports(name, token, currentFieldName, context.getParseFieldMatcher());
                 parseSub(parser, fieldParser, currentFieldName, value, context);
                 fieldParser = null;
             }
         }
         return value;
-    }
-
-    private void parseArray(XContentParser parser, FieldParser<Value> fieldParser, String currentFieldName, Value value, Context context)
-            throws IOException {
-        assert parser.currentToken() == XContentParser.Token.START_ARRAY : "Token was: " + parser.currentToken();
-        parseValue(parser, fieldParser, currentFieldName, value, context);
-    }
-
-    private void parseValue(XContentParser parser, FieldParser<Value> fieldParser, String currentFieldName, Value value, Context context)
-            throws IOException {
-        try {
-            fieldParser.parser.parse(parser, value, context);
-        } catch (Exception ex) {
-            throw new ParsingException(parser.getTokenLocation(), "[" + name  + "] failed to parse field [" + currentFieldName + "]", ex);
-        }
-    }
-
-    private void parseSub(XContentParser parser, FieldParser<Value> fieldParser, String currentFieldName, Value value, Context context)
-            throws IOException {
-        final XContentParser.Token token = parser.currentToken();
-        switch (token) {
-            case START_OBJECT:
-                parseValue(parser, fieldParser, currentFieldName, value, context);
-                break;
-            case START_ARRAY:
-                parseArray(parser, fieldParser, currentFieldName, value, context);
-                break;
-            case END_OBJECT:
-            case END_ARRAY:
-            case FIELD_NAME:
-                throw new IllegalStateException("[" + name  + "]" + token + " is unexpected");
-            case VALUE_STRING:
-            case VALUE_NUMBER:
-            case VALUE_BOOLEAN:
-            case VALUE_EMBEDDED_OBJECT:
-            case VALUE_NULL:
-                parseValue(parser, fieldParser, currentFieldName, value, context);
-        }
-    }
-
-    protected FieldParser getParser(String fieldName) {
-        FieldParser<Value> parser = fieldParserMap.get(fieldName);
-        if (parser == null) {
-            throw new IllegalArgumentException("[" + name  + "] unknown field [" + fieldName + "], parser not found");
-        }
-        return parser;
     }
 
     @Override
@@ -207,13 +168,6 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
     public interface Parser<Value, Context> {
         void parse(XContentParser parser, Value value, Context context) throws IOException;
     }
-
-    private interface IOSupplier<T> {
-        T get() throws IOException;
-    }
-
-    private final Map<String, FieldParser> fieldParserMap = new HashMap<>();
-
     public void declareField(Parser<Value, Context> p, ParseField parseField, ValueType type) {
         FieldParser fieldParser = new FieldParser(p, type.supportedTokens(), parseField, type);
         for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
@@ -221,51 +175,11 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
         }
     }
 
-    public void declareStringArray(BiConsumer<Value, List<String>> consumer, ParseField field) {
-        declareField((p, v, c) -> consumer.accept(v, parseArray(p, p::text)), field, ValueType.STRING_ARRAY);
+    @Override
+    public <T> void declareField(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser, ParseField parseField,
+            ValueType type) {
+        declareField((p, v, c) -> consumer.accept(v, parser.parse(p, c)), parseField, type);
     }
-
-    public void declareDoubleArray(BiConsumer<Value, List<Double>> consumer, ParseField field) {
-        declareField((p, v, c) -> consumer.accept(v, parseArray(p, p::doubleValue)), field, ValueType.DOUBLE_ARRAY);
-    }
-
-    public void declareFloatArray(BiConsumer<Value, List<Float>> consumer, ParseField field) {
-        declareField((p, v, c) -> consumer.accept(v, parseArray(p, p::floatValue)), field, ValueType.FLOAT_ARRAY);
-    }
-
-    public void declareLongArray(BiConsumer<Value, List<Long>> consumer, ParseField field) {
-        declareField((p, v, c) -> consumer.accept(v, parseArray(p, p::longValue)), field, ValueType.LONG_ARRAY);
-    }
-
-    public void declareIntArray(BiConsumer<Value, List<Integer>> consumer, ParseField field) {
-        declareField((p, v, c) -> consumer.accept(v, parseArray(p, p::intValue)), field, ValueType.INT_ARRAY);
-    }
-
-    private final <T> List<T> parseArray(XContentParser parser, IOSupplier<T> supplier) throws IOException {
-        List<T> list = new ArrayList<>();
-        if (parser.currentToken().isValue()) {
-            list.add(supplier.get()); // single value
-        } else {
-            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                if (parser.currentToken().isValue() || parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                    list.add(supplier.get());
-                } else {
-                    throw new IllegalStateException("expected value but got [" + parser.currentToken() + "]");
-                }
-            }
-        }
-        return list;
-    }
-
-    public <T> void declareObject(BiConsumer<Value, T> consumer, BiFunction<XContentParser, Context, T> objectParser, ParseField field) {
-        declareField((p, v, c) -> consumer.accept(v, objectParser.apply(p, c)), field, ValueType.OBJECT);
-    }
-
-    public <T> void declareObjectArray(BiConsumer<Value, List<T>> consumer, BiFunction<XContentParser, Context, T> objectParser,
-            ParseField field) {
-        declareField((p, v, c) -> consumer.accept(v, parseArray(p, () -> objectParser.apply(p, c))), field, ValueType.OBJECT_ARRAY);
-    }
-
 
     public <T> void declareObjectOrDefault(BiConsumer<Value, T> consumer, BiFunction<XContentParser, Context, T> objectParser,
             Supplier<T> defaultValue, ParseField field) {
@@ -277,41 +191,7 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
             } else {
                 consumer.accept(v, objectParser.apply(p, c));
             }
-        } , field, ValueType.OBJECT_OR_BOOLEAN);
-    }
-
-
-    public void declareFloat(BiConsumer<Value, Float> consumer, ParseField field) {
-        declareField((p, v, c) -> consumer.accept(v, p.floatValue()), field, ValueType.FLOAT);
-    }
-
-    public void declareDouble(BiConsumer<Value, Double> consumer, ParseField field) {
-        declareField((p, v, c) -> consumer.accept(v, p.doubleValue()), field, ValueType.DOUBLE);
-    }
-
-    public void declareLong(BiConsumer<Value, Long> consumer, ParseField field) {
-        declareField((p, v, c) -> consumer.accept(v, p.longValue()), field, ValueType.LONG);
-    }
-
-    public void declareInt(BiConsumer<Value, Integer> consumer, ParseField field) {
-        declareField((p, v, c) -> consumer.accept(v, p.intValue()), field, ValueType.INT);
-    }
-
-    public void declareValue(BiConsumer<Value, XContentParser> consumer, ParseField field) {
-        declareField((p, v, c) -> consumer.accept(v, p), field, ValueType.VALUE);
-    }
-
-    public void declareString(BiConsumer<Value, String> consumer, ParseField field) {
-        declareField((p, v, c) -> consumer.accept(v, p.text()), field, ValueType.STRING);
-    }
-
-    public void declareStringOrNull(BiConsumer<Value, String> consumer, ParseField field) {
-        declareField((p, v, c) -> consumer.accept(v, p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.text()), field,
-                ValueType.STRING_OR_NULL);
-    }
-
-    public void declareBoolean(BiConsumer<Value, Boolean> consumer, ParseField field) {
-        declareField((p, v, c) -> consumer.accept(v, p.booleanValue()), field, ValueType.BOOLEAN);
+        }, field, ValueType.OBJECT_OR_BOOLEAN);
     }
 
     /**
@@ -420,7 +300,7 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
      */
     public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
             ParseField field) {
-        Consumer<Value> orderedModeCallback = (Value v) -> {
+        Consumer<Value> orderedModeCallback = (v) -> {
             throw new IllegalArgumentException("[" + field + "] doesn't support arrays. Use a single object with multiple fields.");
         };
         declareNamedObjects(consumer, namedObjectParser, orderedModeCallback, field);
@@ -433,6 +313,59 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
     @FunctionalInterface
     public interface NamedObjectParser<T, Context> {
         T parse(XContentParser p, Context c, String name) throws IOException;
+    }
+
+    /**
+     * Get the name of the parser.
+     */
+    public String getName() {
+        return name;
+    }
+
+    private void parseArray(XContentParser parser, FieldParser<Value> fieldParser, String currentFieldName, Value value, Context context)
+            throws IOException {
+        assert parser.currentToken() == XContentParser.Token.START_ARRAY : "Token was: " + parser.currentToken();
+        parseValue(parser, fieldParser, currentFieldName, value, context);
+    }
+
+    private void parseValue(XContentParser parser, FieldParser<Value> fieldParser, String currentFieldName, Value value, Context context)
+            throws IOException {
+        try {
+            fieldParser.parser.parse(parser, value, context);
+        } catch (Exception ex) {
+            throw new ParsingException(parser.getTokenLocation(), "[" + name  + "] failed to parse field [" + currentFieldName + "]", ex);
+        }
+    }
+
+    private void parseSub(XContentParser parser, FieldParser<Value> fieldParser, String currentFieldName, Value value, Context context)
+            throws IOException {
+        final XContentParser.Token token = parser.currentToken();
+        switch (token) {
+            case START_OBJECT:
+                parseValue(parser, fieldParser, currentFieldName, value, context);
+                break;
+            case START_ARRAY:
+                parseArray(parser, fieldParser, currentFieldName, value, context);
+                break;
+            case END_OBJECT:
+            case END_ARRAY:
+            case FIELD_NAME:
+                throw new IllegalStateException("[" + name  + "]" + token + " is unexpected");
+            case VALUE_STRING:
+            case VALUE_NUMBER:
+            case VALUE_BOOLEAN:
+            case VALUE_EMBEDDED_OBJECT:
+            case VALUE_NULL:
+                parseValue(parser, fieldParser, currentFieldName, value, context);
+        }
+    }
+
+    private FieldParser getParser(String fieldName) {
+        FieldParser<Value> parser = fieldParserMap.get(fieldName);
+        if (parser == null) {
+            throw new IllegalArgumentException("[" + name  + "] unknown field [" + fieldName + "], parser not found");
+        }
+        return parser;
     }
 
     public static class FieldParser<T> {
@@ -474,7 +407,6 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
                     ", type=" + type.name() +
                     '}';
         }
-
     }
 
     public enum ValueType {

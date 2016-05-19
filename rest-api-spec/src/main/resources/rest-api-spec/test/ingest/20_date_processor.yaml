@@ -9,9 +9,9 @@
             "processors": [
               {
                 "date" : {
-                  "match_field" : "date_source_field",
+                  "field" : "date_source_field",
                   "target_field" : "date_target_field",
-                  "match_formats" : ["dd/MM/yyyy"],
+                  "formats" : ["dd/MM/yyyy"],
                   "timezone" : "Europe/Amsterdam"
                 }
               }

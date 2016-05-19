@@ -289,6 +289,10 @@ fi
     install_and_check_plugin repository azure azure-storage-*.jar
 }
 
+@test "[$GROUP] install repository-gcs plugin" {
+    install_and_check_plugin repository gcs google-api-services-storage-*.jar
+}
+
 @test "[$GROUP] install repository-s3 plugin" {
     install_and_check_plugin repository s3 aws-java-sdk-core-*.jar
 }
@@ -387,6 +391,10 @@ fi
     remove_plugin repository-azure
 }
 
+@test "[$GROUP] remove repository-gcs plugin" {
+    remove_plugin repository-gcs
+}
+
 @test "[$GROUP] remove repository-hdfs plugin" {
     remove_plugin repository-hdfs
 }
@@ -438,7 +446,7 @@ fi
     remove_jvm_example
 
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" -Des.logger.level=DEBUG > /tmp/plugin-cli-output
+    sudo -E -u $ESPLUGIN_COMMAND_USER ES_JAVA_OPTS="-Des.logger.level=DEBUG" "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" > /tmp/plugin-cli-output
     local loglines=$(cat /tmp/plugin-cli-output | wc -l)
     if [ "$GROUP" == "TAR PLUGINS" ]; then
         [ "$loglines" -gt "3" ] || {
@@ -475,4 +483,16 @@ fi
 
     # restore JAVA_HOME
     export JAVA_HOME=$java_home
+}
+
+@test "[$GROUP] test ES_JAVA_OPTS" {
+    # preserve ES_JAVA_OPTS
+    local es_java_opts=$ES_JAVA_OPTS
+
+    export ES_JAVA_OPTS="-XX:+PrintFlagsFinal"
+    # this will fail if ES_JAVA_OPTS is not passed through
+    "$ESHOME/bin/elasticsearch-plugin" list | grep MaxHeapSize
+
+    # restore ES_JAVA_OPTS
+    export ES_JAVA_OPTS=$es_java_opts
 }

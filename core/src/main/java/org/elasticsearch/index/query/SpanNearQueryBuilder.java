@@ -39,7 +39,7 @@ import java.util.Objects;
  * of intervening unmatched positions, as well as whether matches are required to be in-order.
  * The span near query maps to Lucene {@link SpanNearQuery}.
  */
-public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder<SpanNearQueryBuilder> {
+public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder {
 
     public static final String NAME = "span_near";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
@@ -52,7 +52,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     private static final ParseField CLAUSES_FIELD = new ParseField("clauses");
     private static final ParseField IN_ORDER_FIELD = new ParseField("in_order");
 
-    private final List<SpanQueryBuilder<?>> clauses = new ArrayList<>();
+    private final List<SpanQueryBuilder> clauses = new ArrayList<>();
 
     private final int slop;
 
@@ -62,7 +62,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
      * @param initialClause an initial span query clause
      * @param slop controls the maximum number of intervening unmatched positions permitted
      */
-    public SpanNearQueryBuilder(SpanQueryBuilder<?> initialClause, int slop) {
+    public SpanNearQueryBuilder(SpanQueryBuilder initialClause, int slop) {
         if (initialClause == null) {
             throw new IllegalArgumentException("query must include at least one clause");
         }
@@ -75,8 +75,8 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
      */
     public SpanNearQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        for (QueryBuilder<?> clause : readQueries(in)) {
-            this.clauses.add((SpanQueryBuilder<?>) clause);
+        for (QueryBuilder clause : readQueries(in)) {
+            this.clauses.add((SpanQueryBuilder) clause);
         }
         slop = in.readVInt();
         inOrder = in.readBoolean();
@@ -96,7 +96,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         return this.slop;
     }
 
-    public SpanNearQueryBuilder clause(SpanQueryBuilder<?> clause) {
+    public SpanNearQueryBuilder clause(SpanQueryBuilder clause) {
         if (clause == null) {
             throw new IllegalArgumentException("query clauses cannot be null");
         }
@@ -107,7 +107,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     /**
      * @return the {@link SpanQueryBuilder} clauses that were set for this query
      */
-    public List<SpanQueryBuilder<?>> clauses() {
+    public List<SpanQueryBuilder> clauses() {
         return this.clauses;
     }
 
@@ -132,7 +132,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startArray(CLAUSES_FIELD.getPreferredName());
-        for (SpanQueryBuilder<?> clause : clauses) {
+        for (SpanQueryBuilder clause : clauses) {
             clause.toXContent(builder, params);
         }
         builder.endArray();
@@ -158,7 +158,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, CLAUSES_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, CLAUSES_FIELD)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         QueryBuilder query = parseContext.parseInnerQueryBuilder();
                         if (!(query instanceof SpanQueryBuilder)) {
@@ -170,15 +170,15 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
                     throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, IN_ORDER_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, IN_ORDER_FIELD)) {
                     inOrder = parser.booleanValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, COLLECT_PAYLOADS_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, COLLECT_PAYLOADS_FIELD)) {
                     // Deprecated in 3.0.0
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, SLOP_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SLOP_FIELD)) {
                     slop = parser.intValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");

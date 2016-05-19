@@ -40,15 +40,10 @@ public class CardinalityParser extends AnyValuesSourceParser {
     }
 
     @Override
-    public String type() {
-        return InternalCardinality.TYPE.name();
-    }
-
-    @Override
-    protected CardinalityAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        CardinalityAggregatorBuilder factory = new CardinalityAggregatorBuilder(aggregationName, targetValueType);
-        Long precisionThreshold = (Long) otherOptions.get(CardinalityAggregatorBuilder.PRECISION_THRESHOLD_FIELD);
+    protected CardinalityAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                          ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        CardinalityAggregationBuilder factory = new CardinalityAggregationBuilder(aggregationName, targetValueType);
+        Long precisionThreshold = (Long) otherOptions.get(CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD);
         if (precisionThreshold != null) {
             factory.precisionThreshold(precisionThreshold);
         }
@@ -59,8 +54,8 @@ public class CardinalityParser extends AnyValuesSourceParser {
     protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
             ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
         if (token.isValue()) {
-            if (parseFieldMatcher.match(currentFieldName, CardinalityAggregatorBuilder.PRECISION_THRESHOLD_FIELD)) {
-                otherOptions.put(CardinalityAggregatorBuilder.PRECISION_THRESHOLD_FIELD, parser.longValue());
+            if (parseFieldMatcher.match(currentFieldName, CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD)) {
+                otherOptions.put(CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD, parser.longValue());
                 return true;
             } else if (parseFieldMatcher.match(currentFieldName, REHASH)) {
                 // ignore
@@ -68,10 +63,5 @@ public class CardinalityParser extends AnyValuesSourceParser {
             }
         }
         return false;
-    }
-
-    @Override
-    public CardinalityAggregatorBuilder getFactoryPrototypes() {
-        return CardinalityAggregatorBuilder.PROTOTYPE;
     }
 }

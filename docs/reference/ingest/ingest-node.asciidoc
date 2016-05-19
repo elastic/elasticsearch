@@ -41,15 +41,16 @@ PUT _ingest/pipeline/my-pipeline-id
   "description" : "describe pipeline",
   "processors" : [
     {
-      "simple" : {
-        // settings
+      "set" : {
+        "field": "foo",
+        "value": "bar"
       }
-    },
+    }
     // other processors
   ]
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 NOTE: The put pipeline API also instructs all ingest nodes to reload their in-memory representation of pipelines, so that
       pipeline changes take effect immediately.
@@ -63,29 +64,32 @@ The get pipeline API returns pipelines based on ID. This API always returns a lo
 --------------------------------------------------
 GET _ingest/pipeline/my-pipeline-id
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 Example response:
 
 [source,js]
 --------------------------------------------------
 {
-   "my-pipeline-id": {
-      "_source" : {
-        "description": "describe pipeline",
-        "processors": [
-          {
-            "simple" : {
-              // settings
-            }
-          },
-          // other processors
-        ]
-      },
-      "_version" : 0
-   }
+  "pipelines": [ {
+    "id": "my-pipeline-id",
+    "config": {
+      "description": "describe pipeline",
+      "processors": [
+        {
+          "set" : {
+            "field": "foo",
+            "value": "bar"
+          }
+        }
+        // other processors
+      ]
+    }
+  } ]
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 For each returned pipeline, the source and the version are returned.
 The version is useful for knowing which version of the pipeline the node has.
@@ -100,7 +104,8 @@ The delete pipeline API deletes pipelines by ID.
 --------------------------------------------------
 DELETE _ingest/pipeline/my-pipeline-id
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 [[simulate-pipeline-api]]
 === Simulate Pipeline API
@@ -184,7 +189,7 @@ POST _ingest/pipeline/_simulate
   ]
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Response:
 
@@ -283,7 +288,7 @@ POST _ingest/pipeline/_simulate?verbose
   ]
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Response:
 
@@ -527,7 +532,7 @@ Elasticsearch.
     {
       "rename" : {
         "field" : "foo",
-        "to" : "bar",
+        "target_field" : "bar",
         "on_failure" : [
           {
             "set" : {
@@ -674,9 +679,9 @@ Specifying `boolean` will set the field to true if its string value is equal to 
 false if its string value is equal to `false` (ignore case), or it will throw an exception otherwise.
 
 Specifying `auto` will attempt to convert the string-valued `field` into the closest non-string type.
-For example, a field whose value is `"true"` will be converted to its respective boolean type: `true`. And 
-a value of `"242.15"` will "automatically" be converted to `242.15` of type `float`. If a provided field cannot 
-be appropriately converted, the Convert Processor will still process successfully and leave the field value as-is. In 
+For example, a field whose value is `"true"` will be converted to its respective boolean type: `true`. And
+a value of `"242.15"` will "automatically" be converted to `242.15` of type `float`. If a provided field cannot
+be appropriately converted, the Convert Processor will still process successfully and leave the field value as-is. In
 such a case, `target_field` will still be updated with the unconverted field value.
 
 [[convert-options]]
@@ -713,7 +718,7 @@ in the same order they were defined as part of the processor definition.
 [options="header"]
 |======
 | Name                   | Required  | Default             | Description
-| `match_field`          | yes       | -                   | The field to get the date from.
+| `field`                | yes       | -                   | The field to get the date from.
 | `target_field`         | no        | @timestamp          | The field that will hold the parsed date.
 | `match_formats`        | yes       | -                   | An array of the expected date formats. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`             | no        | UTC                 | The timezone to use when parsing the date.
@@ -729,7 +734,7 @@ Here is an example that adds the parsed date to the `timestamp` field based on t
   "processors" : [
     {
       "date" : {
-        "match_field" : "initial_date",
+        "field" : "initial_date",
         "target_field" : "timestamp",
         "match_formats" : ["dd/MM/yyyy hh:mm:ss"],
         "timezone" : "Europe/Amsterdam"
@@ -738,6 +743,67 @@ Here is an example that adds the parsed date to the `timestamp` field based on t
   ]
 }
 --------------------------------------------------
+
+[[date-index-name-processor]]
+=== Date Index Name Processor
+
+The purpose of this processor is to point documents to the right time based index based
+on a date or timestamp field in a document by using the <<date-math-index-names, date math index name support>>.
+
+The processor sets the `_index` meta field with a date math index name expression based on the provided index name
+prefix, a date or timestamp field in the documents being processed and the provided date rounding.
+
+First this processor fetches the date or timestamp from a field in the document being processed. Optionally
+date formatting can be configured on how the field's value should be parsed into a date. Then this date,
+the provided index name prefix and the provided date rounding get formatted into a date math index name expression.
+Also here optionally date formatting can be specified on how the date should be formatted into a date math index name
+expression.
+
+An example pipeline that points documents to a monthly index that starts with a `myindex-` prefix based on a
+date in the `date1` field:
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/1
+{
+  "processors" : [
+    {
+      "date_index_name" : {
+        "field" : "date1",
+        "index_name_prefix" : "myindex-",
+        "date_rounding" : "m"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+Using that pipeline for an index request:
+
+[source,js]
+--------------------------------------------------
+PUT /myindex/type/1?pipeline=1
+{
+  "date1" : "2016-04-25T12:02:01.789Z"
+}
+--------------------------------------------------
+
+The above request will not index this document into the `myindex` index, but into the `myindex-2016-04-01` index.
+This is because the date is being rounded by month.
+
+[[date-index-name-options]]
+.Date index name options
+[options="header"]
+|======
+| Name                   | Required  | Default                      | Description
+| `field`                | yes       | -                            | The field to get the date or timestamp from.
+| `index_name_prefix`    | no        | -                            | A prefix of the index name to be prepended before the printed date.
+| `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `m` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second).
+| `date_formats `        | no        | yyyy-MM-dd'T'HH:mm:ss.SSSZ   | An array of the expected date formats for parsing dates / timestamps in the document being preprocessed. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
+| `timezone`             | no        | UTC                          | The timezone to use when parsing the date and when date math index supports resolves expressions into concrete index names.
+| `locale`               | no        | ENGLISH                      | The locale to use when parsing the date from the document being preprocessed, relevant when parsing month names or week days.
+| `index_name_format`    | no        | yyyy-MM-dd                   | The format to be used when printing the parsed date into the index name. An valid Joda pattern is expected here.
+|======
 
 [[fail-processor]]
 === Fail Processor
@@ -1152,9 +1218,9 @@ Renames an existing field. If the field doesn't exist or the new name is already
 .Rename Options
 [options="header"]
 |======
-| Name      | Required  | Default  | Description
-| `field`   | yes       | -        | The field to be renamed
-| `to`      | yes       | -        | The new name of the field
+| Name           | Required  | Default  | Description
+| `field`        | yes       | -        | The field to be renamed
+| `target_field` | yes       | -        | The new name of the field
 |======
 
 [source,js]
@@ -1162,7 +1228,7 @@ Renames an existing field. If the field doesn't exist or the new name is already
 {
   "rename": {
     "field": "foo",
-    "to": "foobar"
+    "target_field": "foobar"
   }
 }
 --------------------------------------------------
@@ -1179,6 +1245,7 @@ its value will be replaced with the provided one.
 | Name      | Required  | Default  | Description
 | `field`   | yes       | -        | The field to insert, upsert, or update
 | `value`   | yes       | -        | The value to be set for the field
+| `override`| no        | true     | If processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
 |======
 
 [source,js]
@@ -1199,15 +1266,43 @@ Splits a field into an array using a separator character. Only works on string f
 .Split Options
 [options="header"]
 |======
-| Name     | Required  | Default  | Description
-| `field`  | yes       | -        | The field to split
+| Name        | Required  | Default  | Description
+| `field`     | yes       | -        | The field to split
+| `separator` | yes       | -        | A regex which matches the separator, eg `,` or `\s+`
 |======
 
 [source,js]
 --------------------------------------------------
 {
   "split": {
-    "field": ","
+    "field": "my_field",
+    "separator": "\\s+" <1>
+  }
+}
+--------------------------------------------------
+<1> Treat all consecutive whitespace characters as a single separator
+
+[[sort-processor]]
+=== Sort Processor
+Sorts the elements of an array ascending or descending.  Homogeneous arrays of numbers will be sorted
+numerically, while arrays of strings or heterogeneous arrays of strings + numbers will be sorted lexicographically.
+Throws an error when the field is not an array.
+
+[[sort-options]]
+.Sort Options
+[options="header"]
+|======
+| Name    | Required  | Default  | Description
+| `field` | yes       | -        | The field to be sorted
+| `order` | no        | `"asc"`  | The sort order to use. Accepts `"asc"` or `"desc"`.
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "sort": {
+    "field": "field_to_sort",
+    "order": "desc"
   }
 }
 --------------------------------------------------
@@ -1255,5 +1350,3 @@ Converts a string to its uppercase equivalent.
   }
 }
 --------------------------------------------------
-
-

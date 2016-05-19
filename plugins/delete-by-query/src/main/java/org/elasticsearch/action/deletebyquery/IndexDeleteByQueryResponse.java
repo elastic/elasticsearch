@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
@@ -137,10 +136,10 @@ public class IndexDeleteByQueryResponse extends ActionResponse implements ToXCon
     }
 
     static final class Fields {
-        static final XContentBuilderString FOUND = new XContentBuilderString("found");
-        static final XContentBuilderString DELETED = new XContentBuilderString("deleted");
-        static final XContentBuilderString MISSING = new XContentBuilderString("missing");
-        static final XContentBuilderString FAILED = new XContentBuilderString("failed");
+        static final String FOUND = "found";
+        static final String DELETED = "deleted";
+        static final String MISSING = "missing";
+        static final String FAILED = "failed";
     }
 
     @Override

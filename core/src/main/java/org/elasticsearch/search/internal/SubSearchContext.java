@@ -19,19 +19,18 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
@@ -48,7 +47,7 @@ public class SubSearchContext extends FilteredSearchContext {
 
     private int from;
     private int size = DEFAULT_SIZE;
-    private Sort sort;
+    private SortAndFormats sort;
     private ParsedQuery parsedQuery;
     private Query query;
 
@@ -84,11 +83,6 @@ public class SubSearchContext extends FilteredSearchContext {
 
     @Override
     public Query searchFilter(String[] types) {
-        throw new UnsupportedOperationException("this context should be read only");
-    }
-
-    @Override
-    public SearchContext searchType(SearchType searchType) {
         throw new UnsupportedOperationException("this context should be read only");
     }
 
@@ -177,13 +171,13 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public SearchContext sort(Sort sort) {
+    public SearchContext sort(SortAndFormats sort) {
         this.sort = sort;
         return this;
     }
 
     @Override
-    public Sort sort() {
+    public SortAndFormats sort() {
         return sort;
     }
 

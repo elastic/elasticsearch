@@ -20,6 +20,7 @@
 package org.elasticsearch.monitor.fs;
 
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -29,44 +30,54 @@ import org.elasticsearch.env.NodeEnvironment;
 
 import java.io.IOException;
 
-/**
- */
 public class FsService extends AbstractComponent {
 
     private final FsProbe probe;
-
-    private final SingleObjectCache<FsInfo> fsStatsCache;
+    private final TimeValue refreshInterval;
+    private final SingleObjectCache<FsInfo> cache;
 
     public final static Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.fs.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
+        Setting.timeSetting(
+            "monitor.fs.refresh_interval",
+            TimeValue.timeValueSeconds(1),
+            TimeValue.timeValueSeconds(1),
             Property.NodeScope);
 
-    public FsService(Settings settings, NodeEnvironment nodeEnvironment) throws IOException {
+    public FsService(final Settings settings, final NodeEnvironment nodeEnvironment) {
         super(settings);
         this.probe = new FsProbe(settings, nodeEnvironment);
-        TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
-        fsStatsCache = new FsInfoCache(refreshInterval, probe.stats());
+        refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
         logger.debug("using refresh_interval [{}]", refreshInterval);
+        cache = new FsInfoCache(refreshInterval, stats(probe, null, logger));
     }
 
     public FsInfo stats() {
-        return fsStatsCache.getOrRefresh();
+        return cache.getOrRefresh();
+    }
+
+    private static FsInfo stats(FsProbe probe, FsInfo initialValue, ESLogger logger) {
+        try {
+            return probe.stats(initialValue);
+        } catch (IOException e) {
+            logger.debug("unexpected exception reading filesystem info", e);
+            return null;
+        }
     }
 
     private class FsInfoCache extends SingleObjectCache<FsInfo> {
-        public FsInfoCache(TimeValue interval, FsInfo initValue) {
-            super(interval, initValue);
+
+        private final FsInfo initialValue;
+
+        public FsInfoCache(TimeValue interval, FsInfo initialValue) {
+            super(interval, initialValue);
+            this.initialValue = initialValue;
         }
 
         @Override
         protected FsInfo refresh() {
-            try {
-                return probe.stats();
-            } catch (IOException ex) {
-                logger.warn("Failed to fetch fs stats - returning empty instance");
-                return new FsInfo();
-            }
+            return stats(probe, initialValue, logger);
         }
+
     }
 
 }

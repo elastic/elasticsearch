@@ -426,6 +426,7 @@ public abstract class Engine implements Closeable {
                 stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
                 stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
                 stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
+                stats.addPointsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPointsReader()));
                 stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
 
                 if (includeSegmentFileSizes) {
@@ -1076,24 +1077,22 @@ public abstract class Engine implements Closeable {
             this.id = Arrays.copyOf(id, id.length);
         }
 
+        /**
+         * Read from a stream.
+         */
         public CommitId(StreamInput in) throws IOException {
             assert in != null;
             this.id = in.readByteArray();
         }
 
         @Override
-        public String toString() {
-            return Base64.encodeBytes(id);
-        }
-
-        @Override
-        public CommitId readFrom(StreamInput in) throws IOException {
-            return new CommitId(in);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByteArray(id);
+        }
+
+        @Override
+        public String toString() {
+            return Base64.encodeBytes(id);
         }
 
         public boolean idsEqual(byte[] id) {

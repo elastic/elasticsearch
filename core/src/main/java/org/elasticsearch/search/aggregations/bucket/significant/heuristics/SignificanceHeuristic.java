@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 
-public abstract class SignificanceHeuristic implements NamedWriteable<SignificanceHeuristic>, ToXContent {
+public abstract class SignificanceHeuristic implements NamedWriteable, ToXContent {
     /**
      * @param subsetFreq   The frequency of the term in the selected sample
      * @param subsetSize   The size of the selected sample (typically number of docs)

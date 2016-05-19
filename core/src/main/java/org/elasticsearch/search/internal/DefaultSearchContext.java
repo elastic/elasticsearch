@@ -25,7 +25,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
@@ -71,6 +70,7 @@ import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
@@ -114,7 +114,7 @@ public class DefaultSearchContext extends SearchContext {
     private FetchSourceContext fetchSourceContext;
     private int from = -1;
     private int size = -1;
-    private Sort sort;
+    private SortAndFormats sort;
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
     private FieldDoc searchAfter;
@@ -198,8 +198,6 @@ public class DefaultSearchContext extends SearchContext {
             long from = from() == -1 ? 0 : from();
             long size = size() == -1 ? 10 : size();
             long resultWindow = from + size;
-            // We need settingsService's view of the settings because its dynamic.
-            // indexService's isn't.
             int maxResultWindow = indexService.getIndexSettings().getMaxResultWindow();
 
             if (resultWindow > maxResultWindow) {
@@ -207,7 +205,19 @@ public class DefaultSearchContext extends SearchContext {
                         "Result window is too large, from + size must be less than or equal to: [" + maxResultWindow + "] but was ["
                                 + resultWindow + "]. See the scroll api for a more efficient way to request large data sets. "
                                 + "This limit can be set by changing the [" + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey()
-                                + "] index level parameter.");
+                                + "] index level setting.");
+            }
+        }
+        if (rescore != null) {
+            int maxWindow = indexService.getIndexSettings().getMaxRescoreWindow();
+            for (RescoreSearchContext rescoreContext: rescore) {
+                if (rescoreContext.window() > maxWindow) {
+                    throw new QueryPhaseExecutionException(this, "Rescore window [" + rescoreContext.window() + "] is too large. It must "
+                            + "be less than [" + maxWindow + "]. This prevents allocating massive heaps for storing the results to be "
+                            + "rescored. This limit can be set by chaning the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
+                            + "] index level setting.");
+                
+                }
             }
         }
 
@@ -297,12 +307,6 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public SearchType searchType() {
         return this.searchType;
-    }
-
-    @Override
-    public SearchContext searchType(SearchType searchType) {
-        this.searchType = searchType;
-        return this;
     }
 
     @Override
@@ -528,13 +532,13 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext sort(Sort sort) {
+    public SearchContext sort(SortAndFormats sort) {
         this.sort = sort;
         return this;
     }
 
     @Override
-    public Sort sort() {
+    public SortAndFormats sort() {
         return this.sort;
     }
 

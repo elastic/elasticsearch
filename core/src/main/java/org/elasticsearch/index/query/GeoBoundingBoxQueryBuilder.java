@@ -64,10 +64,12 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
      */
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
-    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
-    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
+    private static final ParseField COERCE_FIELD =new ParseField("coerce", "normalize")
+            .withAllDeprecated("use field validation_method instead");
+    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
+            .withAllDeprecated("use field validation_method instead");
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField TOP_FIELD = new ParseField("top");
     private static final ParseField BOTTOM_FIELD = new ParseField("bottom");
@@ -418,30 +420,30 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                         token = parser.nextToken();
                         if (parseContext.isDeprecatedSetting(currentFieldName)) {
                             // skip
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, FIELD_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, FIELD_FIELD)) {
                             fieldName = parser.text();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, TOP_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TOP_FIELD)) {
                             top = parser.doubleValue();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOTTOM_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, BOTTOM_FIELD)) {
                             bottom = parser.doubleValue();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, LEFT_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LEFT_FIELD)) {
                             left = parser.doubleValue();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, RIGHT_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, RIGHT_FIELD)) {
                             right = parser.doubleValue();
                         } else {
-                            if (parseContext.parseFieldMatcher().match(currentFieldName, TOP_LEFT_FIELD)) {
+                            if (parseContext.getParseFieldMatcher().match(currentFieldName, TOP_LEFT_FIELD)) {
                                 GeoUtils.parseGeoPoint(parser, sparse);
                                 top = sparse.getLat();
                                 left = sparse.getLon();
-                            } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOTTOM_RIGHT_FIELD)) {
+                            } else if (parseContext.getParseFieldMatcher().match(currentFieldName, BOTTOM_RIGHT_FIELD)) {
                                 GeoUtils.parseGeoPoint(parser, sparse);
                                 bottom = sparse.getLat();
                                 right = sparse.getLon();
-                            } else if (parseContext.parseFieldMatcher().match(currentFieldName, TOP_RIGHT_FIELD)) {
+                            } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TOP_RIGHT_FIELD)) {
                                 GeoUtils.parseGeoPoint(parser, sparse);
                                 top = sparse.getLat();
                                 right = sparse.getLon();
-                            } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOTTOM_LEFT_FIELD)) {
+                            } else if (parseContext.getParseFieldMatcher().match(currentFieldName, BOTTOM_LEFT_FIELD)) {
                                 GeoUtils.parseGeoPoint(parser, sparse);
                                 bottom = sparse.getLat();
                                 left = sparse.getLon();
@@ -456,22 +458,22 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                     }
                 }
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, COERCE_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, COERCE_FIELD)) {
                     coerce = parser.booleanValue();
                     if (coerce) {
                         ignoreMalformed = true;
                     }
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALIDATION_METHOD_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALIDATION_METHOD_FIELD)) {
                     validationMethod = GeoValidationMethod.fromString(parser.text());
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
                     type = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_MALFORMED_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, IGNORE_MALFORMED_FIELD)) {
                     ignoreMalformed = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. unexpected field [{}]",

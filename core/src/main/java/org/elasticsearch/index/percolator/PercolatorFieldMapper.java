@@ -19,8 +19,6 @@
 package org.elasticsearch.index.percolator;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
@@ -28,7 +26,9 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -36,11 +36,10 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,53 +50,55 @@ import java.util.Map;
 
 public class PercolatorFieldMapper extends FieldMapper {
 
-    public static final String TYPE_NAME = ".percolator";
-    public static final String NAME = "query";
+    @Deprecated
+    public static final String LEGACY_TYPE_NAME = ".percolator";
     public static final String CONTENT_TYPE = "percolator";
-    public static final PercolatorFieldType FIELD_TYPE = new PercolatorFieldType();
+    private static final PercolatorFieldType FIELD_TYPE = new PercolatorFieldType();
 
     private static final String EXTRACTED_TERMS_FIELD_NAME = "extracted_terms";
     private static final String UNKNOWN_QUERY_FIELD_NAME = "unknown_query";
-    private static final String QUERY_BUILDER_FIELD_NAME = "query_builder_field";
-
-    public static final String EXTRACTED_TERMS_FULL_FIELD_NAME = NAME + "." + EXTRACTED_TERMS_FIELD_NAME;
-    public static final String UNKNOWN_QUERY_FULL_FIELD_NAME = NAME + "." + UNKNOWN_QUERY_FIELD_NAME;
-    public static final String QUERY_BUILDER_FULL_FIELD_NAME = NAME + "." + QUERY_BUILDER_FIELD_NAME;
+    static final String QUERY_BUILDER_FIELD_NAME = "query_builder_field";
 
     public static class Builder extends FieldMapper.Builder<Builder, PercolatorFieldMapper> {
 
         private final QueryShardContext queryShardContext;
 
-        public Builder(QueryShardContext queryShardContext) {
-            super(NAME, FIELD_TYPE, FIELD_TYPE);
+        public Builder(String fieldName, QueryShardContext queryShardContext) {
+            super(fieldName, FIELD_TYPE, FIELD_TYPE);
             this.queryShardContext = queryShardContext;
         }
 
         @Override
         public PercolatorFieldMapper build(BuilderContext context) {
-            context.path().add(name);
-            KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(EXTRACTED_TERMS_FIELD_NAME).build(context);
-            KeywordFieldMapper unknownQueryField = createExtractQueryFieldBuilder(UNKNOWN_QUERY_FIELD_NAME).build(context);
-            BinaryFieldMapper queryBuilderField = createQueryBuilderFieldBuilder().build(context);
+            context.path().add(name());
+            KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(EXTRACTED_TERMS_FIELD_NAME, context);
+            ((PercolatorFieldType) fieldType).queryTermsField = extractedTermsField.fieldType();
+            KeywordFieldMapper unknownQueryField = createExtractQueryFieldBuilder(UNKNOWN_QUERY_FIELD_NAME, context);
+            ((PercolatorFieldType) fieldType).unknownQueryField = unknownQueryField.fieldType();
+            BinaryFieldMapper queryBuilderField = createQueryBuilderFieldBuilder(context);
+            ((PercolatorFieldType) fieldType).queryBuilderField = queryBuilderField.fieldType();
             context.path().remove();
-            return new PercolatorFieldMapper(name(), fieldType, defaultFieldType, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, queryShardContext, extractedTermsField, unknownQueryField, queryBuilderField);
+            setupFieldType(context);
+            return new PercolatorFieldMapper(name(), fieldType, defaultFieldType, context.indexSettings(),
+                    multiFieldsBuilder.build(this, context), copyTo, queryShardContext, extractedTermsField,
+                    unknownQueryField, queryBuilderField);
         }
 
-        static KeywordFieldMapper.Builder createExtractQueryFieldBuilder(String name) {
+        static KeywordFieldMapper createExtractQueryFieldBuilder(String name, BuilderContext context) {
             KeywordFieldMapper.Builder queryMetaDataFieldBuilder = new KeywordFieldMapper.Builder(name);
             queryMetaDataFieldBuilder.docValues(false);
             queryMetaDataFieldBuilder.store(false);
             queryMetaDataFieldBuilder.indexOptions(IndexOptions.DOCS);
-            return queryMetaDataFieldBuilder;
+            return queryMetaDataFieldBuilder.build(context);
         }
 
-        static BinaryFieldMapper.Builder createQueryBuilderFieldBuilder() {
+        static BinaryFieldMapper createQueryBuilderFieldBuilder(BuilderContext context) {
             BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(QUERY_BUILDER_FIELD_NAME);
             builder.docValues(true);
             builder.indexOptions(IndexOptions.NONE);
             builder.store(false);
             builder.fieldType().setDocValuesType(DocValuesType.BINARY);
-            return builder;
+            return builder.build(context);
         }
     }
 
@@ -105,21 +106,39 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         @Override
         public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            return new Builder(parserContext.queryShardContext());
+            return new Builder(name, parserContext.queryShardContext());
         }
     }
 
-    public static final class PercolatorFieldType extends MappedFieldType {
+    public static class PercolatorFieldType extends MappedFieldType {
+
+        private MappedFieldType queryTermsField;
+        private MappedFieldType unknownQueryField;
+        private MappedFieldType queryBuilderField;
 
         public PercolatorFieldType() {
-            setName(NAME);
             setIndexOptions(IndexOptions.NONE);
             setDocValuesType(DocValuesType.NONE);
             setStored(false);
         }
 
-        public PercolatorFieldType(MappedFieldType ref) {
+        public PercolatorFieldType(PercolatorFieldType ref) {
             super(ref);
+            queryTermsField = ref.queryTermsField;
+            unknownQueryField = ref.unknownQueryField;
+            queryBuilderField = ref.queryBuilderField;
+        }
+
+        public String getExtractedTermsField() {
+            return queryTermsField.name();
+        }
+
+        public String getUnknownQueryFieldName() {
+            return unknownQueryField.name();
+        }
+
+        public String getQueryBuilderFieldName() {
+            return queryBuilderField.name();
         }
 
         @Override
@@ -131,13 +150,18 @@ public class PercolatorFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            throw new QueryShardException(context, "Percolator fields are not searchable directly, use a percolate query instead");
+        }
     }
 
     private final boolean mapUnmappedFieldAsString;
     private final QueryShardContext queryShardContext;
-    private final KeywordFieldMapper queryTermsField;
-    private final KeywordFieldMapper unknownQueryField;
-    private final BinaryFieldMapper queryBuilderField;
+    private KeywordFieldMapper queryTermsField;
+    private KeywordFieldMapper unknownQueryField;
+    private BinaryFieldMapper queryBuilderField;
 
     public PercolatorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                  Settings indexSettings, MultiFields multiFields, CopyTo copyTo, QueryShardContext queryShardContext,
@@ -154,7 +178,21 @@ public class PercolatorFieldMapper extends FieldMapper {
     @Override
     public Mapper parse(ParseContext context) throws IOException {
         QueryShardContext queryShardContext = new QueryShardContext(this.queryShardContext);
-        QueryBuilder<?> queryBuilder = parseQueryBuilder(queryShardContext.parseContext(), context.parser());
+        DocumentMapper documentMapper = queryShardContext.getMapperService().documentMapper(context.sourceToParse().type());
+        for (FieldMapper fieldMapper : documentMapper.mappers()) {
+            if (fieldMapper instanceof PercolatorFieldMapper) {
+                PercolatorFieldType fieldType = (PercolatorFieldType) fieldMapper.fieldType();
+                if (context.doc().getField(fieldType.getQueryBuilderFieldName()) != null) {
+                    // If a percolator query has been defined in an array object then multiple percolator queries
+                    // could be provided. In order to prevent this we fail if we try to parse more than one query
+                    // for the current document.
+                    throw new IllegalArgumentException("a document can only contain one percolator query");
+                }
+            }
+        }
+
+        XContentParser parser = context.parser();
+        QueryBuilder queryBuilder = parseQueryBuilder(queryShardContext.newParseContext(parser), parser.getTokenLocation());
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
         queryBuilder = queryBuilder.rewrite(queryShardContext);
 
@@ -171,11 +209,10 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     public static Query parseQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, XContentParser parser) throws IOException {
-        return toQuery(context, mapUnmappedFieldsAsString, parseQueryBuilder(context.parseContext(), parser));
+        return toQuery(context, mapUnmappedFieldsAsString, parseQueryBuilder(context.newParseContext(parser), parser.getTokenLocation()));
     }
 
-    static Query toQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, QueryBuilder<?> queryBuilder) throws IOException {
-        context.reset();
+    static Query toQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, QueryBuilder queryBuilder) throws IOException {
         // This means that fields in the query need to exist in the mapping prior to registering this query
         // The reason that this is required, is that if a field doesn't exist then the query assumes defaults, which may be undesired.
         //
@@ -190,22 +227,14 @@ public class PercolatorFieldMapper extends FieldMapper {
         // as an analyzed string.
         context.setAllowUnmappedFields(false);
         context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
-        context.parseFieldMatcher(context.getIndexSettings().getParseFieldMatcher());
-        try {
-            return queryBuilder.toQuery(context);
-        } finally {
-            context.reset();
-        }
+        return queryBuilder.toQuery(context);
     }
 
-    static QueryBuilder<?> parseQueryBuilder(QueryParseContext context, XContentParser parser) {
-        context.reset(parser);
+    private static QueryBuilder parseQueryBuilder(QueryParseContext context, XContentLocation location) {
         try {
             return context.parseInnerQueryBuilder();
         } catch (IOException e) {
-            throw new ParsingException(parser.getTokenLocation(), "Failed to parse", e);
-        } finally {
-            context.reset(null);
+            throw new ParsingException(location, "Failed to parse", e);
         }
     }
 

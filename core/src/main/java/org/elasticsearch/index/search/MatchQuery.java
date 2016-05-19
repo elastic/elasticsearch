@@ -48,7 +48,7 @@ import java.io.IOException;
 
 public class MatchQuery {
 
-    public static enum Type implements Writeable<Type> {
+    public static enum Type implements Writeable {
         /**
          * The text is analyzed and terms are added to a boolean query.
          */
@@ -84,7 +84,7 @@ public class MatchQuery {
         }
     }
 
-    public static enum ZeroTermsQuery implements Writeable<ZeroTermsQuery> {
+    public static enum ZeroTermsQuery implements Writeable {
         NONE(0),
         ALL(1);
 
@@ -231,7 +231,7 @@ public class MatchQuery {
          */
         boolean noForcedAnalyzer = this.analyzer == null;
         if (fieldType != null && fieldType.tokenized() == false && noForcedAnalyzer) {
-            return termQuery(fieldType, value);
+            return blendTermQuery(new Term(fieldName, value.toString()), fieldType);
         }
 
         Analyzer analyzer = getAnalyzer(fieldType);
@@ -265,15 +265,6 @@ public class MatchQuery {
         }
     }
 
-    /**
-     * Creates a TermQuery-like-query for MappedFieldTypes that don't support
-     * QueryBuilder which is very string-ish. Just delegates to the
-     * MappedFieldType for MatchQuery but gets more complex for blended queries.
-     */
-    protected Query termQuery(MappedFieldType fieldType, Object value) {
-        return termQuery(fieldType, value, lenient);
-    }
-
     protected final Query termQuery(MappedFieldType fieldType, Object value, boolean lenient) {
         try {
             return fieldType.termQuery(value, context);
@@ -286,7 +277,11 @@ public class MatchQuery {
     }
 
     protected Query zeroTermsQuery() {
-        return zeroTermsQuery == DEFAULT_ZERO_TERMS_QUERY ? Queries.newMatchNoDocsQuery() : Queries.newMatchAllQuery();
+        if (zeroTermsQuery == DEFAULT_ZERO_TERMS_QUERY) {
+            return Queries.newMatchNoDocsQuery("Matching no documents because no terms present.");
+        }
+
+        return Queries.newMatchAllQuery();
     }
 
     private class MatchQueryBuilder extends QueryBuilder {
@@ -362,8 +357,11 @@ public class MatchQuery {
                     }
                     return query;
                 } catch (RuntimeException e) {
-                    return new TermQuery(term);
-                    // See long comment below about why we're lenient here.
+                    if (lenient) {
+                        return new TermQuery(term);
+                    } else {
+                        throw e;
+                    }
                 }
             }
             int edits = fuzziness.asDistance(term.text());
@@ -372,23 +370,7 @@ public class MatchQuery {
             return query;
         }
         if (fieldType != null) {
-            /*
-             * Its a bit weird to default to lenient here but its the backwards
-             * compatible. It makes some sense when you think about what we are
-             * doing here: at this point the user has forced an analyzer and
-             * passed some string to the match query. We cut it up using the
-             * analyzer and then tried to cram whatever we get into the field.
-             * lenient=true here means that we try the terms in the query and on
-             * the off chance that they are actually valid terms then we
-             * actually try them. lenient=false would mean that we blow up the
-             * query if they aren't valid terms. "valid" in this context means
-             * "parses properly to something of the type being queried." So "1"
-             * is a valid number, etc.
-             *
-             * We use the text form here because we we've received the term from
-             * an analyzer that cut some string into text.
-             */
-            Query query = termQuery(fieldType, term.bytes(), true);
+            Query query = termQuery(fieldType, term.bytes(), lenient);
             if (query != null) {
                 return query;
             }

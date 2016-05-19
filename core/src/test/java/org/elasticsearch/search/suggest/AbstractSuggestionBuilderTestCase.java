@@ -39,9 +39,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Set;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -146,8 +143,6 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      * instance that should be equal to original
      */
     public void testFromXContent() throws IOException {
-        QueryParseContext context = new QueryParseContext(null);
-        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB suggestionBuilder = randomTestBuilder();
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -160,7 +155,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
             XContentBuilder shuffled = shuffleXContent(xContentBuilder, shuffleProtectedFields());
             XContentParser parser = XContentHelper.createParser(shuffled.bytes());
-            context.reset(parser);
+            QueryParseContext context = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
             // we need to skip the start object and the name, those will be parsed by outer SuggestBuilder
             parser.nextToken();
 
@@ -175,8 +170,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
      * Subclasses can override this method and return a set of fields which should be protected from
      * recursive random shuffling in the {@link #testFromXContent()} test case
      */
-    protected Set<String> shuffleProtectedFields() {
-        return Collections.emptySet();
+    protected String[] shuffleProtectedFields() {
+        return new String[0];
     }
 
     private SB mutate(SB firstBuilder) throws IOException {
@@ -219,17 +214,16 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     @SuppressWarnings("unchecked")
     protected SB serializedCopy(SB original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeSuggestion(original);
+            output.writeNamedWriteable(original);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                return (SB) in.readSuggestion();
+                return (SB) in.readNamedWriteable(SuggestionBuilder.class);
             }
         }
     }
 
     protected static QueryParseContext newParseContext(final String xcontent) throws IOException {
-        final QueryParseContext parseContext = new QueryParseContext(queriesRegistry);
-        parseContext.reset(XContentFactory.xContent(xcontent).createParser(xcontent));
-        parseContext.parseFieldMatcher(parseFieldMatcher);
+        XContentParser parser = XContentFactory.xContent(xcontent).createParser(xcontent);
+        final QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         return parseContext;
     }
 }

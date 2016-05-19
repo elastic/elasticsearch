@@ -65,6 +65,7 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
@@ -86,6 +87,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -93,6 +95,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty.NettyTransport;
 import org.elasticsearch.tribe.TribeService;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -316,6 +319,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
                     ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
                     ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING,
+                    ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
                     IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING,
                     IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_SIZE_KEY,
                     IndicesRequestCache.INDICES_CACHE_QUERY_SIZE,
@@ -394,6 +398,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     JvmGcMonitorService.ENABLED_SETTING,
                     JvmGcMonitorService.REFRESH_INTERVAL_SETTING,
                     JvmGcMonitorService.GC_SETTING,
+                    JvmGcMonitorService.GC_OVERHEAD_WARN_SETTING,
+                    JvmGcMonitorService.GC_OVERHEAD_INFO_SETTING,
+                    JvmGcMonitorService.GC_OVERHEAD_DEBUG_SETTING,
                     PageCacheRecycler.LIMIT_HEAP_SETTING,
                     PageCacheRecycler.WEIGHT_BYTES_SETTING,
                     PageCacheRecycler.WEIGHT_INT_SETTING,
@@ -404,6 +411,17 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING,
                     BootstrapSettings.MLOCKALL_SETTING,
                     BootstrapSettings.SECCOMP_SETTING,
-                    BootstrapSettings.CTRLHANDLER_SETTING
+                    BootstrapSettings.CTRLHANDLER_SETTING,
+                    BootstrapSettings.IGNORE_SYSTEM_BOOTSTRAP_CHECKS,
+                    IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
+                    IndexingMemoryController.MIN_INDEX_BUFFER_SIZE_SETTING,
+                    IndexingMemoryController.MAX_INDEX_BUFFER_SIZE_SETTING,
+                    IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING,
+                    IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING,
+                    ResourceWatcherService.ENABLED,
+                    ResourceWatcherService.RELOAD_INTERVAL_HIGH,
+                    ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
+                    ResourceWatcherService.RELOAD_INTERVAL_LOW,
+                    SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING
             )));
 }

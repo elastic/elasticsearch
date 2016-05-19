@@ -50,7 +50,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     static {
         parametersToTypes.put("query", ScriptService.ScriptType.INLINE);
         parametersToTypes.put("file", ScriptService.ScriptType.FILE);
-        parametersToTypes.put("id", ScriptService.ScriptType.INDEXED);
+        parametersToTypes.put("id", ScriptService.ScriptType.STORED);
     }
 
     /** Template to fill. */
@@ -102,7 +102,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      */
     public TemplateQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        template = Template.readTemplate(in);
+        template = new Template(in);
     }
 
     @Override
@@ -122,7 +122,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      */
     public static TemplateQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        Template template = parse(parser, parseContext.parseFieldMatcher());
+        Template template = parse(parser, parseContext.getParseFieldMatcher());
         return new TemplateQueryBuilder(template);
     }
 
@@ -173,14 +173,13 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         ExecutableScript executable = queryRewriteContext.getScriptService().executable(template,
-            ScriptContext.Standard.SEARCH, Collections.emptyMap());
+            ScriptContext.Standard.SEARCH, Collections.emptyMap(), queryRewriteContext.getClusterState());
         BytesReference querySource = (BytesReference) executable.run();
-        final QueryParseContext queryParseContext = queryRewriteContext.newParseContext();
         try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
-            queryParseContext.reset(qSourceParser);
-            final QueryBuilder<?> queryBuilder = queryParseContext.parseInnerQueryBuilder();
+            final QueryParseContext queryParseContext = queryRewriteContext.newParseContext(qSourceParser);
+            final QueryBuilder queryBuilder = queryParseContext.parseInnerQueryBuilder();
             if (boost() != DEFAULT_BOOST || queryName() != null) {
                 final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                 boolQueryBuilder.must(queryBuilder);

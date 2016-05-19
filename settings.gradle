@@ -1,8 +1,10 @@
 rootProject.name = 'elasticsearch'
 
 List projects = [
+  'build-tools',
   'rest-api-spec',
   'core',
+  'docs',
   'distribution:integ-test-zip',
   'distribution:zip',
   'distribution:tar',
@@ -35,6 +37,7 @@ List projects = [
   'plugins:mapper-murmur3',
   'plugins:mapper-size',
   'plugins:repository-azure',
+  'plugins:repository-gcs',
   'plugins:repository-hdfs',
   'plugins:repository-s3',
   'plugins:jvm-example',
@@ -58,6 +61,8 @@ if (isEclipse) {
 }
 
 include projects.toArray(new String[0])
+
+project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
 
 if (isEclipse) {
   project(":core").projectDir = new File(rootProject.projectDir, 'core/src/main')

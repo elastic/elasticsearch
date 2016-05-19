@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -35,7 +36,7 @@ public abstract class AbstractAsyncBulkIndexByScrollActionTestCase<
     @Before
     public void setupForTest() {
         threadPool = new ThreadPool(getTestName());
-        task = new BulkByScrollTask(1, "test", "test", "test", 0);
+        task = new BulkByScrollTask(1, "test", "test", "test", TaskId.EMPTY_TASK_ID, 0);
     }
 
     @After
@@ -44,8 +45,6 @@ public abstract class AbstractAsyncBulkIndexByScrollActionTestCase<
         super.tearDown();
         threadPool.shutdown();
     }
-
-    protected abstract AbstractAsyncBulkIndexByScrollAction<Request, Response> action();
 
     protected abstract Request request();
 

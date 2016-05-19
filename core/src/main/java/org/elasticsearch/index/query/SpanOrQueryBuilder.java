@@ -37,16 +37,16 @@ import java.util.Objects;
 /**
  * Span query that matches the union of its clauses. Maps to {@link SpanOrQuery}.
  */
-public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder> implements SpanQueryBuilder<SpanOrQueryBuilder> {
+public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder> implements SpanQueryBuilder {
 
     public static final String NAME = "span_or";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField CLAUSES_FIELD = new ParseField("clauses");
 
-    private final List<SpanQueryBuilder<?>> clauses = new ArrayList<>();
+    private final List<SpanQueryBuilder> clauses = new ArrayList<>();
 
-    public SpanOrQueryBuilder(SpanQueryBuilder<?> initialClause) {
+    public SpanOrQueryBuilder(SpanQueryBuilder initialClause) {
         if (initialClause == null) {
             throw new IllegalArgumentException("query must include at least one clause");
         }
@@ -58,8 +58,8 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
      */
     public SpanOrQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        for (QueryBuilder<?> clause: readQueries(in)) {
-            clauses.add((SpanQueryBuilder<?>) clause);
+        for (QueryBuilder clause: readQueries(in)) {
+            clauses.add((SpanQueryBuilder) clause);
         }
     }
 
@@ -68,7 +68,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
         writeQueries(out, clauses);
     }
 
-    public SpanOrQueryBuilder clause(SpanQueryBuilder<?> clause) {
+    public SpanOrQueryBuilder clause(SpanQueryBuilder clause) {
         if (clause == null) {
             throw new IllegalArgumentException("inner bool query clause cannot be null");
         }
@@ -79,7 +79,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
     /**
      * @return the {@link SpanQueryBuilder} clauses that were set for this query
      */
-    public List<SpanQueryBuilder<?>> clauses() {
+    public List<SpanQueryBuilder> clauses() {
         return this.clauses;
     }
 
@@ -87,7 +87,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startArray(CLAUSES_FIELD.getPreferredName());
-        for (SpanQueryBuilder<?> clause : clauses) {
+        for (SpanQueryBuilder clause : clauses) {
             clause.toXContent(builder, params);
         }
         builder.endArray();
@@ -109,7 +109,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, CLAUSES_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, CLAUSES_FIELD)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         QueryBuilder query = parseContext.parseInnerQueryBuilder();
                         if (!(query instanceof SpanQueryBuilder)) {
@@ -121,9 +121,9 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
                     throw new ParsingException(parser.getTokenLocation(), "[span_or] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_or] query does not support [" + currentFieldName + "]");

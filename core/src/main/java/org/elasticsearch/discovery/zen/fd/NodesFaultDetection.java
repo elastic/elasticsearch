@@ -72,7 +72,8 @@ public class NodesFaultDetection extends FaultDetection {
 
         logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
-        transportService.registerRequestHandler(PING_ACTION_NAME, PingRequest::new, ThreadPool.Names.SAME, new PingRequestHandler());
+        transportService.registerRequestHandler(
+            PING_ACTION_NAME, PingRequest::new, ThreadPool.Names.SAME, false, false, new PingRequestHandler());
     }
 
     public void setLocalNode(DiscoveryNode localNode) {

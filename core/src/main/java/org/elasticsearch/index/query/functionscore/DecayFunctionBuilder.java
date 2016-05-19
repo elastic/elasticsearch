@@ -148,8 +148,9 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         builder.field(fieldName);
-        XContentParser parser = XContentFactory.xContent(functionBytes).createParser(functionBytes);
-        builder.copyCurrentStructure(parser);
+        try (XContentParser parser = XContentFactory.xContent(functionBytes).createParser(functionBytes)) {
+            builder.copyCurrentStructure(parser);
+        }
         builder.field(DecayFunctionParser.MULTI_VALUE_MODE.getPreferredName(), multiValueMode.name());
         builder.endObject();
     }
@@ -181,8 +182,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
 
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) throws IOException {
-        XContentParser parser = XContentFactory.xContent(functionBytes).createParser(functionBytes);
-        return parseVariable(fieldName, parser, context, multiValueMode);
+        AbstractDistanceScoreFunction scoreFunction;
+        try (XContentParser parser = XContentFactory.xContent(functionBytes).createParser(functionBytes)) {
+            scoreFunction = parseVariable(fieldName, parser, context, multiValueMode);
+        }
+        return scoreFunction;
     }
 
     /**

@@ -4,6 +4,12 @@
   - do:
       indices.create:
         index: test_index
+        body:
+          mappings:
+            queries:
+              properties:
+                query:
+                  type: percolator
 
   - do:
       indices.refresh: {}

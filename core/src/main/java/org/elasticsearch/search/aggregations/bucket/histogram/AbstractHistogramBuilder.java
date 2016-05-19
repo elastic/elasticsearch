@@ -24,14 +24,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuilder<AB>>
-        extends ValuesSourceAggregatorBuilder<ValuesSource.Numeric, AB> {
+        extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, AB> {
 
     protected long interval;
     protected long offset = 0;
@@ -57,7 +57,7 @@ public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuild
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
         if (in.readBoolean()) {
-            extendedBounds = ExtendedBounds.readFrom(in);
+            extendedBounds = new ExtendedBounds(in);
         }
     }
 
@@ -77,11 +77,6 @@ public abstract class AbstractHistogramBuilder<AB extends AbstractHistogramBuild
         if (hasExtendedBounds) {
             extendedBounds.writeTo(out);
         }
-    }
-
-    @Override
-    protected boolean usesNewStyleSerialization() {
-        return true;
     }
 
     public long interval() {

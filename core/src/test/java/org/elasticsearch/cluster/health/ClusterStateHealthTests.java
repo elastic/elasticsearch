@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTableGenerator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,7 +43,6 @@ import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -57,7 +57,6 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -70,7 +69,6 @@ public class ClusterStateHealthTests extends ESTestCase {
 
     private ClusterService clusterService;
     private TransportService transportService;
-    private CapturingTransport transport;
 
     @BeforeClass
     public static void beforeClass() {
@@ -81,9 +79,8 @@ public class ClusterStateHealthTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = new TransportService(transport, threadPool);
+        transportService = new TransportService(new CapturingTransport(), threadPool, clusterService.state().getClusterName());
         transportService.start();
         transportService.acceptIncomingRequests();
     }
@@ -168,34 +165,6 @@ public class ClusterStateHealthTests extends ESTestCase {
         assertClusterHealth(clusterStateHealth, counter);
     }
 
-    public void testValidations() throws IOException {
-        RoutingTableGenerator routingTableGenerator = new RoutingTableGenerator();
-        IndexMetaData indexMetaData = IndexMetaData
-                .builder("test")
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(2)
-                .numberOfReplicas(2)
-                .build();
-        RoutingTableGenerator.ShardCounter counter = new RoutingTableGenerator.ShardCounter();
-        IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetaData, counter);
-        indexMetaData = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(3).build();
-
-        ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
-        assertThat(indexHealth.getValidationFailures(), Matchers.hasSize(2));
-
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-        MetaData.Builder metaData = MetaData.builder();
-        metaData.put(indexMetaData, true);
-        routingTable.add(indexRoutingTable);
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable.build()).build();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), (String[]) null);
-        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
-        clusterStateHealth = maybeSerialize(clusterStateHealth);
-        // currently we have no cluster level validation failures as index validation issues are reported per index.
-        assertThat(clusterStateHealth.getValidationFailures(), Matchers.hasSize(0));
-    }
-
-
     ClusterStateHealth maybeSerialize(ClusterStateHealth clusterStateHealth) throws IOException {
         if (randomBoolean()) {
             BytesStreamOutput out = new BytesStreamOutput();
@@ -213,7 +182,6 @@ public class ClusterStateHealthTests extends ESTestCase {
         assertThat(clusterStateHealth.getInitializingShards(), equalTo(counter.initializing));
         assertThat(clusterStateHealth.getRelocatingShards(), equalTo(counter.relocating));
         assertThat(clusterStateHealth.getUnassignedShards(), equalTo(counter.unassigned));
-        assertThat(clusterStateHealth.getValidationFailures(), empty());
         assertThat(clusterStateHealth.getActiveShardsPercent(), is(allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0))));
     }
 }

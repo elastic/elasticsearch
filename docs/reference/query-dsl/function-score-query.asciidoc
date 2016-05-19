@@ -148,7 +148,7 @@ you wish to inhibit this, set `"boost_mode": "replace"`
 The `weight` score allows you to multiply the score by the provided
 `weight`. This can sometimes be desired since boost value set on
 specific queries gets normalized, while for this score function it does
-not.
+not. The number value is of type float. 
 
 [source,js]
 --------------------------------------------------
@@ -459,7 +459,7 @@ the request would look like this:
 
 [source,js]
 --------------------------------------------------
-GET /hotels/_search/
+GET _search
 {
   "query": {
     "function_score": {
@@ -491,7 +491,7 @@ GET /hotels/_search/
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Next, we show how the computed score looks like for each of the three
 possible decay functions.
@@ -546,4 +546,3 @@ Only numeric, date, and geo-point fields are supported.
 
 If the numeric field is missing in the document, the function will
 return 1.
-

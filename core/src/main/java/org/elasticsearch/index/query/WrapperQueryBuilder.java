@@ -124,7 +124,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
             throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed");
         }
         String fieldName = parser.currentName();
-        if (! parseContext.parseFieldMatcher().match(fieldName, QUERY_FIELD)) {
+        if (! parseContext.getParseFieldMatcher().match(fieldName, QUERY_FIELD)) {
             throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed, expected `query` but was" + fieldName);
         }
         parser.nextToken();
@@ -160,12 +160,11 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext context) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
         try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(source)) {
-            QueryParseContext parseContext = context.newParseContext();
-            parseContext.reset(qSourceParser);
+            QueryParseContext parseContext = context.newParseContext(qSourceParser);
 
-            final QueryBuilder<?> queryBuilder = parseContext.parseInnerQueryBuilder();
+            final QueryBuilder queryBuilder = parseContext.parseInnerQueryBuilder();
             if (boost() != DEFAULT_BOOST || queryName() != null) {
                 final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                 boolQueryBuilder.must(queryBuilder);

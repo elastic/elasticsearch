@@ -44,7 +44,6 @@ import org.elasticsearch.transport.TransportService;
 public class TransportGetAction extends TransportSingleShardAction<GetRequest, GetResponse> {
 
     private final IndicesService indicesService;
-    private final boolean realtime;
 
     @Inject
     public TransportGetAction(Settings settings, ClusterService clusterService, TransportService transportService,
@@ -53,8 +52,6 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         super(settings, GetAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 GetRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
-
-        this.realtime = settings.getAsBoolean("action.get.realtime", true);
     }
 
     @Override
@@ -70,9 +67,6 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
-        if (request.request().realtime == null) {
-            request.request().realtime = this.realtime;
-        }
         IndexMetaData indexMeta = state.getMetaData().index(request.concreteIndex());
         if (request.request().realtime && // if the realtime flag is set
                 request.request().preference() == null && // the preference flag is not already set

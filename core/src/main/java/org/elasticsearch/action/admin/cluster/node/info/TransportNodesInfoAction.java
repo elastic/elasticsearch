@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -34,36 +35,32 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  *
  */
-public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequest, NodesInfoResponse, TransportNodesInfoAction.NodeInfoRequest, NodeInfo> {
+public class TransportNodesInfoAction extends TransportNodesAction<NodesInfoRequest,
+                                                                   NodesInfoResponse,
+                                                                   TransportNodesInfoAction.NodeInfoRequest,
+                                                                   NodeInfo> {
 
     private final NodeService nodeService;
 
     @Inject
     public TransportNodesInfoAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                                     ClusterService clusterService, TransportService transportService,
-                                    NodeService nodeService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                    NodeService nodeService, ActionFilters actionFilters,
+                                    IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, NodesInfoAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, NodesInfoRequest::new, NodeInfoRequest::new, ThreadPool.Names.MANAGEMENT);
+              indexNameExpressionResolver, NodesInfoRequest::new, NodeInfoRequest::new, ThreadPool.Names.MANAGEMENT, NodeInfo.class);
         this.nodeService = nodeService;
     }
 
     @Override
-    protected NodesInfoResponse newResponse(NodesInfoRequest nodesInfoRequest, AtomicReferenceArray responses) {
-        final List<NodeInfo> nodesInfos = new ArrayList<>();
-        for (int i = 0; i < responses.length(); i++) {
-            Object resp = responses.get(i);
-            if (resp instanceof NodeInfo) {
-                nodesInfos.add((NodeInfo) resp);
-            }
-        }
-        return new NodesInfoResponse(clusterName, nodesInfos.toArray(new NodeInfo[nodesInfos.size()]));
+    protected NodesInfoResponse newResponse(NodesInfoRequest nodesInfoRequest,
+                                            List<NodeInfo> responses, List<FailedNodeException> failures) {
+        return new NodesInfoResponse(clusterName, responses, failures);
     }
 
     @Override

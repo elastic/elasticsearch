@@ -54,29 +54,29 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         logger.info("--> started nodes: {} and {}", server1NodeId, server2NodeId);
 
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
-        assertThat(response.getNodes().length, is(2));
+        assertThat(response.getNodes().size(), is(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
         response = client().admin().cluster().nodesInfo(nodesInfoRequest()).actionGet();
-        assertThat(response.getNodes().length, is(2));
+        assertThat(response.getNodes().size(), is(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
         response = client().admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
-        assertThat(response.getNodes().length, is(1));
+        assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
         response = client().admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
-        assertThat(response.getNodes().length, is(1));
+        assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
         response = client().admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
-        assertThat(response.getNodes().length, is(1));
+        assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
         response = client().admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
-        assertThat(response.getNodes().length, is(1));
+        assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
     }
 
@@ -99,7 +99,7 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
 
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
 
-        assertThat(response.getNodes().length, is(2));
+        assertThat(response.getNodes().size(), is(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 

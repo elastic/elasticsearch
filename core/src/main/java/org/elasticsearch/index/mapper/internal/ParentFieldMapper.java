@@ -31,7 +31,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -120,7 +120,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             Builder builder = new Builder(parserContext.type());
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("type")) {
                     builder.type(fieldNode.toString());
@@ -195,7 +195,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         public Query termsQuery(List values, @Nullable QueryShardContext context) {
             BytesRef[] ids = new BytesRef[values.size()];
             for (int i = 0; i < ids.length; i++) {
-                ids[i] = indexedValueForSearch(values.get(i));
+                ids[i] = BytesRefs.toBytesRef(values.get(i));
             }
             BooleanQuery.Builder query = new BooleanQuery.Builder();
             query.add(new DocValuesTermsQuery(name(), ids), BooleanClause.Occur.MUST);
@@ -239,9 +239,9 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        boolean parent = context.docMapper().isParent(context.type());
+        boolean parent = context.docMapper().isParent(context.sourceToParse().type());
         if (parent) {
-            fields.add(new SortedDocValuesField(parentJoinField.fieldType().name(), new BytesRef(context.id())));
+            fields.add(new SortedDocValuesField(parentJoinField.fieldType().name(), new BytesRef(context.sourceToParse().id())));
         }
 
         if (!active()) {
@@ -264,7 +264,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                     }
                     // we did not add it in the parsing phase, add it now
                     fields.add(new SortedDocValuesField(fieldType.name(), new BytesRef(parentId)));
-                } else if (parentId != null && !parsedParentId.equals(Uid.createUid(context.stringBuilder(), parentType, parentId))) {
+                } else if (parentId != null && !parsedParentId.equals(Uid.createUid(parentType, parentId))) {
                     throw new MapperParsingException("Parent id mismatch, document value is [" + Uid.createUid(parsedParentId).id() + "], while external value is [" + parentId + "]");
                 }
             }

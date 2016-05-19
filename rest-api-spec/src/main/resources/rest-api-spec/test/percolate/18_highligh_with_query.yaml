@@ -10,11 +10,15 @@
                     properties:
                         foo:
                             type: text
+                queries:
+                    properties:
+                      query:
+                        type: percolator
 
   - do:
       index:
         index: test_index
-        type: .percolator
+        type: queries
         id:  test_percolator
         body:
           query:

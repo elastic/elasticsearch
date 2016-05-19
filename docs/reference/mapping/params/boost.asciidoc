@@ -23,7 +23,7 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Matches on the `title` field will have twice the weight as those on the
     `content` field, which has the default `boost` of `1.0`.
@@ -34,29 +34,36 @@ You can achieve the same effect by using the boost parameter directly in the que
 
 [source,js]
 --------------------------------------------------
+POST _search
 {
-    "match" : {
-        "title": {
-            "query": "quick brown fox"
+    "query": {
+        "match" : {
+            "title": {
+                "query": "quick brown fox"
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 is equivalent to:
 
 [source,js]
 --------------------------------------------------
+POST _search
 {
-    "match" : {
-        "title": {
-            "query": "quick brown fox",
-            "boost": 2
+    "query": {
+        "match" : {
+            "title": {
+                "query": "quick brown fox",
+                "boost": 2
+            }
         }
     }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 
 The boost is also applied when it is copied with the

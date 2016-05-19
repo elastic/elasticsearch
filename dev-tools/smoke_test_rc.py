@@ -75,6 +75,7 @@ DEFAULT_PLUGINS = ["analysis-icu",
                    "mapper-murmur3",
                    "mapper-size",
                    "repository-azure",
+                   "repository-gcs",
                    "repository-hdfs",
                    "repository-s3",
                    "store-smb"]
@@ -111,9 +112,9 @@ def wait_for_node_startup(es_dir, timeout=60, header={}):
     conn = None
     try:
       time.sleep(1)
-      host, port = get_host_from_ports_file(es_dir)
-      conn = HTTPConnection(host=host, port=port, timeout=timeout)
-      conn.request('GET', '', headers=header)
+      host = get_host_from_ports_file(es_dir)
+      conn = HTTPConnection(host, timeout=1)
+      conn.request('GET', '/', headers=header)
       res = conn.getresponse()
       if res.status == 200:
         return True
@@ -160,7 +161,7 @@ def download_and_verify(version, hash, files, base_url, plugins=DEFAULT_PLUGINS)
       # way we keep the executing host unmodified since we don't have to import the key into the default keystore
       gpg_home_dir = os.path.join(current_artifact_dir, "gpg_home_dir")
       os.makedirs(gpg_home_dir, 0o700)
-      run('gpg --homedir %s --keyserver pgp.mit.edu --recv-key D88E42B4' % gpg_home_dir)
+      run('gpg --homedir %s --keyserver pool.sks-keyservers.net --recv-key D88E42B4' % gpg_home_dir)
       run('cd %s && gpg --homedir %s --verify %s' % (current_artifact_dir, gpg_home_dir, os.path.basename(gpg_file)))
       print('  ' + '*' * 80)
       print()
@@ -170,9 +171,7 @@ def download_and_verify(version, hash, files, base_url, plugins=DEFAULT_PLUGINS)
     shutil.rmtree(tmp_dir)
 
 def get_host_from_ports_file(es_dir):
-  first_host_with_port = read_fully(os.path.join(es_dir, 'logs/http.ports')).splitlines()[0]
-  host = urlparse('http://%s' % first_host_with_port)
-  return host.hostname, host.port
+  return read_fully(os.path.join(es_dir, 'logs/http.ports')).splitlines()[0]
 
 def smoke_test_release(release, files, expected_hash, plugins):
   for release_file in files:
@@ -199,12 +198,12 @@ def smoke_test_release(release, files, expected_hash, plugins):
       headers = { 'Authorization' : 'Basic %s' % base64.b64encode(b"es_admin:foobar").decode("UTF-8") }
       es_shield_path = os.path.join(es_dir, 'bin/x-pack/users')
       print("     Install dummy shield user")
-      run('%s; %s  useradd es_admin -r admin -p foobar' % (java_exe(), es_shield_path))
+      run('%s; %s  useradd es_admin -r superuser -p foobar' % (java_exe(), es_shield_path))
     else:
       headers = {}
     print('  Starting elasticsearch deamon from [%s]' % es_dir)
     try:
-      run('%s; %s -Ees.node.name=smoke_tester -Ees.cluster.name=prepare_release -Ees.script.inline=true -Ees.script.indexed=true -Ees.repositories.url.allowed_urls=http://snapshot.test* %s -Ees.pidfile=%s -Ees.node.portsfile=true'
+      run('%s; %s -Ees.node.name=smoke_tester -Ees.cluster.name=prepare_release -Ees.script.inline=true -Ees.script.stored=true -Ees.repositories.url.allowed_urls=http://snapshot.test* %s -Ees.pidfile=%s -Ees.node.portsfile=true'
           % (java_exe(), es_run_path, '-d', os.path.join(es_dir, 'es-smoke.pid')))
       if not wait_for_node_startup(es_dir, header=headers):
         print("elasticsearch logs:")
@@ -214,9 +213,9 @@ def smoke_test_release(release, files, expected_hash, plugins):
         print('*' * 80)
         raise RuntimeError('server didn\'t start up')
       try: # we now get / and /_nodes to fetch basic infos like hashes etc and the installed plugins
-        host,port = get_host_from_ports_file(es_dir)
-        conn = HTTPConnection(host=host, port=port, timeout=20)
-        conn.request('GET', '', headers=headers)
+        host = get_host_from_ports_file(es_dir)
+        conn = HTTPConnection(host, timeout=20)
+        conn.request('GET', '/', headers=headers)
         res = conn.getresponse()
         if res.status == 200:
           version = json.loads(res.read().decode("utf-8"))['version']

@@ -19,7 +19,6 @@
 package org.elasticsearch.search.fetch.explain;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -27,19 +26,11 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 
 import java.io.IOException;
-import java.util.Map;
-
-import static java.util.Collections.singletonMap;
 
 /**
  *
  */
 public class ExplainFetchSubPhase implements FetchSubPhase {
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        return singletonMap("explain", new ExplainParseElement());
-    }
 
     @Override
     public boolean hitsExecutionNeeded(SearchContext context) {

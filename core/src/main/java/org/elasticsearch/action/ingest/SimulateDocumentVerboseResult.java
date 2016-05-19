@@ -30,7 +30,7 @@ import java.util.List;
  * Holds the result of what a pipeline did to a sample document via the simulate api, but instead of {@link SimulateDocumentBaseResult}
  * this result class holds the intermediate result each processor did to the sample document.
  */
-public final class SimulateDocumentVerboseResult implements SimulateDocumentResult<SimulateDocumentVerboseResult> {
+public final class SimulateDocumentVerboseResult implements SimulateDocumentResult {
     private final List<SimulateProcessorResult> processorResults;
 
     public SimulateDocumentVerboseResult(List<SimulateProcessorResult> processorResults) {

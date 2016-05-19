@@ -326,7 +326,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         indicesOptions = IndicesOptions.readIndicesOptions(in);
 
         requestCache = in.readOptionalBoolean();
-        template = in.readOptionalStreamable(Template::new);
+        template = in.readOptionalWriteable(Template::new);
     }
 
     @Override
@@ -357,6 +357,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
-        out.writeOptionalStreamable(template);
+        out.writeOptionalWriteable(template);
     }
 }

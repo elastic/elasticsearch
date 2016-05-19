@@ -46,7 +46,7 @@ import java.util.Objects;
 /**
  * A Query that matches documents within an range of terms.
  */
-public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> implements MultiTermQueryBuilder<RangeQueryBuilder> {
+public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "range";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
@@ -323,33 +323,33 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (parseContext.parseFieldMatcher().match(currentFieldName, FROM_FIELD)) {
+                        if (parseContext.getParseFieldMatcher().match(currentFieldName, FROM_FIELD)) {
                             from = parser.objectBytes();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, TO_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TO_FIELD)) {
                             to = parser.objectBytes();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, INCLUDE_LOWER_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INCLUDE_LOWER_FIELD)) {
                             includeLower = parser.booleanValue();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, INCLUDE_UPPER_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INCLUDE_UPPER_FIELD)) {
                             includeUpper = parser.booleanValue();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                             boost = parser.floatValue();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, GT_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, GT_FIELD)) {
                             from = parser.objectBytes();
                             includeLower = false;
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, GTE_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, GTE_FIELD)) {
                             from = parser.objectBytes();
                             includeLower = true;
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, LT_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LT_FIELD)) {
                             to = parser.objectBytes();
                             includeUpper = false;
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, LTE_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LTE_FIELD)) {
                             to = parser.objectBytes();
                             includeUpper = true;
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, TIME_ZONE_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TIME_ZONE_FIELD)) {
                             timeZone = parser.text();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, FORMAT_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, FORMAT_FIELD)) {
                             format = parser.text();
-                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -358,9 +358,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                     }
                 }
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
+                if (parseContext.getParseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
                     queryName = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FIELDDATA_FIELD)) {
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, FIELDDATA_FIELD)) {
                     // ignore
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[range] query does not support [" + currentFieldName + "]");
@@ -410,7 +410,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     @Override
-    protected QueryBuilder<?> doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         final MappedFieldType.Relation relation = getRelation(queryRewriteContext);
         switch (relation) {
         case DISJOINT:

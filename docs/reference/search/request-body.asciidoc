@@ -7,41 +7,49 @@ example:
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/twitter/tweet/_search' -d '{
+GET /twitter/tweet/_search
+{
     "query" : {
         "term" : { "user" : "kimchy" }
     }
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 And here is a sample response:
 
 [source,js]
 --------------------------------------------------
 {
-    "_shards":{
-        "total" : 5,
-        "successful" : 5,
-        "failed" : 0
-    },
-    "hits":{
-        "total" : 1,
-        "hits" : [
-            {
-                "_index" : "twitter",
-                "_type" : "tweet",
-                "_id" : "1",
-                "_source" : {
-                    "user" : "kimchy",
-                    "postDate" : "2009-11-15T14:12:12",
-                    "message" : "trying out Elasticsearch"
-                }
+   "took": 42,
+   "timed_out": false,
+   "_shards": {
+      "total": 5,
+      "successful": 5,
+      "failed": 0
+   },
+   "hits": {
+      "total": 1,
+      "max_score": 1.0,
+      "hits": [
+         {
+            "_index": "twitter",
+            "_type": "tweet",
+            "_id": "0",
+            "_score": 1.0,
+            "_source": {
+               "user": "kimchy",
+               "message" : "trying out Elasticsearch",
+               "date": "2009-11-15T14:12:12",
+               "likes": 0
             }
-        ]
-    }
+         }
+      ]
+   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 42/"took": "$body.took"/]
 
 [float]
 === Parameters
@@ -105,8 +113,10 @@ matching document was found (per shard).
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/_search?q=tag:wow&size=0&terminate_after=1'
+GET /_search?q=user:kimchy&size=0&terminate_after=1
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 The response will not contain any hits as the `size` was set to `0`. The
 `hits.total` will be either equal to `0`, indicating that there were no
@@ -118,22 +128,22 @@ be set to `true` in the response.
 [source,js]
 --------------------------------------------------
 {
-  "took": 3,
+  "took": 42,
   "timed_out": false,
   "terminated_early": true,
   "_shards": {
-    "total": 1,
-    "successful": 1,
+    "total": 5,
+    "successful": 5,
     "failed": 0
   },
   "hits": {
     "total": 1,
-    "max_score": 0,
+    "max_score": 0.0,
     "hits": []
   }
 }
 --------------------------------------------------
-
+// TESTRESPONSE[s/"took": 42/"took": "$body.took"/]
 
 include::request/query.asciidoc[]
 

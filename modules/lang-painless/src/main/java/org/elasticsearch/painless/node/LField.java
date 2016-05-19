@@ -107,16 +107,8 @@ public final class LField extends ALink {
     void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         if (java.lang.reflect.Modifier.isStatic(field.reflect.getModifiers())) {
             adapter.getStatic(field.owner.type, field.reflect.getName(), field.type.type);
-
-            if (!field.generic.clazz.equals(field.type.clazz)) {
-                adapter.checkCast(field.generic.type);
-            }
         } else {
             adapter.getField(field.owner.type, field.reflect.getName(), field.type.type);
-
-            if (!field.generic.clazz.equals(field.type.clazz)) {
-                adapter.checkCast(field.generic.type);
-            }
         }
     }
 

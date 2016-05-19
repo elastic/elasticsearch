@@ -174,17 +174,15 @@ public final class Definition {
     public static final class Field {
         public final String name;
         public final Struct owner;
-        public final Type generic;
         public final Type type;
         public final java.lang.reflect.Field reflect;
         public final MethodHandle getter;
         public final MethodHandle setter;
 
-        private Field(final String name, final Struct owner, final Type generic, final Type type,
+        private Field(final String name, final Struct owner, final Type type,
                       final java.lang.reflect.Field reflect, final MethodHandle getter, final MethodHandle setter) {
             this.name = name;
             this.owner = owner;
-            this.generic = generic;
             this.type = type;
             this.reflect = reflect;
             this.getter = getter;
@@ -1048,7 +1046,7 @@ public final class Definition {
                 " not found for class [" + owner.clazz.getName() + "].");
         }
 
-        final Field field = new Field(name, owner, type, type, reflect, getter, setter);
+        final Field field = new Field(name, owner, type, reflect, getter, setter);
 
         if (isStatic) {
             // require that all static fields are static final
@@ -1138,7 +1136,7 @@ public final class Definition {
                     }
 
                     owner.members.put(field.name,
-                        new Field(field.name, owner, field.type, field.generic, reflect, getter, setter));
+                        new Field(field.name, owner, field.type, reflect, getter, setter));
                 }
             }
         }

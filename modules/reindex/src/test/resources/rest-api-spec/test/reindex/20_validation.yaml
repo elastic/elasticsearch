@@ -224,3 +224,46 @@
             stored_fields: [_id]
           dest:
             index: dest
+
+---
+"unwhitelisted remote host fails":
+  - do:
+      catch: /\[badremote:9200\] not whitelisted in reindex.remote.whitelist/
+      reindex:
+        body:
+          source:
+            remote:
+              host: http://badremote:9200
+            index: test
+          dest:
+            index: dest
+
+---
+"badly formatted remote host fails":
+  - do:
+      catch: /\[host\] must be of the form \[scheme\].//\[host\].\[port\]/
+      reindex:
+        body:
+          source:
+            remote:
+              host: badremote
+              weird: stuff
+              badkey: is bad
+            index: test
+          dest:
+            index: dest
+
+---
+"junk in remote fails":
+  - do:
+      catch: /Unsupported fields in \[remote\]. \[weird,badkey\]/
+      reindex:
+        body:
+          source:
+            remote:
+              host: http://okremote:9200
+              weird: stuff
+              badkey: is bad
+            index: test
+          dest:
+            index: dest

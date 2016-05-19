@@ -40,7 +40,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         this.enabled = Security.enabled(settings);
         this.licenseState = licenseState;
         this.realms = realms;
-        namedWriteableRegistry.register(Usage.class, Usage.WRITEABLE_NAME, Usage::new);
+        namedWriteableRegistry.register(Usage.class, Usage.writeableName(Security.NAME), Usage::new);
     }
 
     @Override
@@ -64,7 +64,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     }
 
     @Override
-    public Usage usage() {
+    public XPackFeatureSet.Usage usage() {
         List<Map<String, Object>> enabledRealms = buildEnabledRealms(realms);
         return new Usage(available(), enabled(), enabledRealms);
     }
@@ -86,7 +86,8 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     static class Usage extends XPackFeatureSet.Usage {
 
-        private static final String WRITEABLE_NAME = writeableName(Security.NAME);
+        private static final String ENABLED_REALMS_XFIELD = "enabled_realms";
+
         private List<Map<String, Object>> enabledRealms;
 
         public Usage(StreamInput in) throws IOException {
@@ -100,29 +101,17 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         }
 
         @Override
-        public String getWriteableName() {
-            return WRITEABLE_NAME;
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeList(enabledRealms.stream().map((m) -> (Writeable) o -> o.writeMap(m)).collect(Collectors.toList()));
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(Field.AVAILABLE, available);
-            builder.field(Field.ENABLED, enabled);
+        protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
+            super.innerXContent(builder, params);
             if (enabled) {
-                builder.field(Field.ENABLED_REALMS, enabledRealms);
+                builder.field(ENABLED_REALMS_XFIELD, enabledRealms);
             }
-            return builder.endObject();
-        }
-
-        interface Field extends XPackFeatureSet.Usage.Field {
-            String ENABLED_REALMS = "enabled_realms";
         }
     }
 }

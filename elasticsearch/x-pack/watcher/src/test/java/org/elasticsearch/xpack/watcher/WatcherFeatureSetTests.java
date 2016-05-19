@@ -39,7 +39,7 @@ public class WatcherFeatureSetTests extends ESTestCase {
     public void testAvailable() throws Exception {
         WatcherFeatureSet featureSet = new WatcherFeatureSet(Settings.EMPTY, licensee, namedWriteableRegistry);
         boolean available = randomBoolean();
-        when(licensee.available()).thenReturn(available);
+        when(licensee.isAvailable()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 

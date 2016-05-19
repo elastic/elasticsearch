@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.Realm;
 import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.junit.Before;
 
@@ -55,18 +56,18 @@ public class SecurityFeatureSetTests extends ESTestCase {
         assertThat(featureSet.available(), is(available));
     }
 
-    public void testEnabled() throws Exception {
+    public void testEnabledSetting() throws Exception {
         boolean enabled = randomBoolean();
-        Settings.Builder settings = Settings.builder();
-        if (enabled) {
-            if (randomBoolean()) {
-                settings.put("xpack.security.enabled", enabled);
-            }
-        } else {
-            settings.put("xpack.security.enabled", enabled);
-        }
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState, realms, namedWriteableRegistry);
+        Settings settings = Settings.builder()
+                .put("xpack.security.enabled", enabled)
+                .build();
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, namedWriteableRegistry);
         assertThat(featureSet.enabled(), is(enabled));
+    }
+
+    public void testEnabledDefault() throws Exception {
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(Settings.EMPTY, licenseState, realms, namedWriteableRegistry);
+        assertThat(featureSet.enabled(), is(true));
     }
 
     public void testUsage() throws Exception {
@@ -77,13 +78,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
         Settings.Builder settings = Settings.builder();
 
         boolean enabled = randomBoolean();
-        if (enabled) {
-            if (randomBoolean()) {
-                settings.put("xpack.security.enabled", enabled);
-            }
-        } else {
-            settings.put("xpack.security.enabled", enabled);
-        }
+        settings.put("xpack.security.enabled", enabled);
 
         List<Realm> realmsList= new ArrayList<>();
 
@@ -100,7 +95,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
         when(realms.iterator()).thenReturn(realmsList.iterator());
 
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState, realms, namedWriteableRegistry);
-        SecurityFeatureSet.Usage usage = featureSet.usage();
+        XPackFeatureSet.Usage usage = featureSet.usage();
         assertThat(usage, is(notNullValue()));
         assertThat(usage.name(), is(Security.NAME));
         assertThat(usage.enabled(), is(enabled));

@@ -61,7 +61,7 @@ public class FileRealm extends CachingUsernamePasswordRealm {
     public Map<String, Object> usageStats() {
         Map<String, Object> stats = super.usageStats();
         // here we can determine the size based on the in mem user store
-        stats.put("size", UserbaseScale.resolve(userPasswdStore.usersCount()));
+        stats.put("size", UserbaseSize.resolve(userPasswdStore.usersCount()));
         return stats;
     }
 

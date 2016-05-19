@@ -120,7 +120,7 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testHelperMethods() {
-        final User expectedUser = randomFrom((User) XPackUser.INSTANCE, (User) KibanaUser.INSTANCE);
+        final User expectedUser = randomFrom((User) XPackUser.INSTANCE, KibanaUser.INSTANCE);
         final String principal = expectedUser.principal();
         assertThat(ReservedRealm.isReserved(principal), is(true));
         assertThat(ReservedRealm.getUser(principal), sameInstance(expectedUser));

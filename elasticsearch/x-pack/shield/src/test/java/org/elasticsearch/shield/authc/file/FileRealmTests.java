@@ -180,7 +180,7 @@ public class FileRealmTests extends ESTestCase {
         assertThat(usage, hasEntry("type", "file"));
         assertThat(usage, hasEntry("name", "file-realm"));
         assertThat(usage, hasEntry("order", order));
-        assertThat(usage, hasEntry("size", UsernamePasswordRealm.UserbaseScale.resolve(userCount)));
+        assertThat(usage, hasEntry("size", UsernamePasswordRealm.UserbaseSize.resolve(userCount)));
 
     }
 

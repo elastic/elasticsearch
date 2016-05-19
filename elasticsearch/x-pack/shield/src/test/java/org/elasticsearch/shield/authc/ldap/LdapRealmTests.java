@@ -250,7 +250,7 @@ public class LdapRealmTests extends LdapTestCase {
         assertThat(stats, hasEntry("type", "ldap"));
         assertThat(stats, hasEntry("name", "ldap-realm"));
         assertThat(stats, hasEntry("order", realm.order()));
-        assertThat(stats, hasEntry("size", "small"));
+        assertThat(stats, hasEntry("size", "tiny"));
         assertThat(stats, hasEntry("ssl", false));
         assertThat(stats, hasEntry("user_search", userSearch));
     }

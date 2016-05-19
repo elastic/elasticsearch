@@ -39,21 +39,25 @@ public abstract class UsernamePasswordRealm extends Realm<UsernamePasswordToken>
         }
     }
 
-    public enum UserbaseScale {
+    public enum UserbaseSize {
 
+        TINY,
         SMALL,
         MEDIUM,
         LARGE,
         XLARGE;
 
-        public static UserbaseScale resolve(int count) {
+        public static UserbaseSize resolve(int count) {
             if (count < 10) {
+                return TINY;
+            }
+            if (count < 100) {
                 return SMALL;
             }
-            if (count < 50) {
+            if (count < 500) {
                 return MEDIUM;
             }
-            if (count < 250) {
+            if (count < 1000) {
                 return LARGE;
             }
             return XLARGE;

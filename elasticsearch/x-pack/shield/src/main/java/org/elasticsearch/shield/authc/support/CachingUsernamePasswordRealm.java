@@ -168,7 +168,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     @Override
     public Map<String, Object> usageStats() {
         Map<String, Object> stats = super.usageStats();
-        stats.put("size", UserbaseScale.resolve(cache.count()).toString());
+        stats.put("size", UserbaseSize.resolve(cache.count()).toString());
         return stats;
     }
 

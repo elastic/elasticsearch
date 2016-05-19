@@ -18,25 +18,27 @@ public class UsernamePasswordRealmTests extends ESTestCase {
 
     public void testUserbaseScaelResolve() throws Exception {
         int count = randomIntBetween(0, 1000);
-        UsernamePasswordRealm.UserbaseScale scale = UsernamePasswordRealm.UserbaseScale.resolve(count);
+        UsernamePasswordRealm.UserbaseSize size = UsernamePasswordRealm.UserbaseSize.resolve(count);
         if (count < 10) {
-            assertThat(scale, is(UsernamePasswordRealm.UserbaseScale.SMALL));
-        } else if (count < 50) {
-            assertThat(scale, is(UsernamePasswordRealm.UserbaseScale.MEDIUM));
-        } else if (count < 250) {
-            assertThat(scale, is(UsernamePasswordRealm.UserbaseScale.LARGE));
+            assertThat(size, is(UsernamePasswordRealm.UserbaseSize.SMALL));
+        } else if (count < 100) {
+            assertThat(size, is(UsernamePasswordRealm.UserbaseSize.SMALL));
+        } else if (count < 500) {
+            assertThat(size, is(UsernamePasswordRealm.UserbaseSize.MEDIUM));
+        } else if (count < 1000) {
+            assertThat(size, is(UsernamePasswordRealm.UserbaseSize.LARGE));
         } else {
-            assertThat(scale, is(UsernamePasswordRealm.UserbaseScale.XLARGE));
+            assertThat(size, is(UsernamePasswordRealm.UserbaseSize.XLARGE));
         }
     }
 
     public void testUserbaseScaleToString() throws Exception {
-        UsernamePasswordRealm.UserbaseScale scale = randomFrom(UsernamePasswordRealm.UserbaseScale.values());
-        String value = scale.toString();
-        if (scale == UsernamePasswordRealm.UserbaseScale.XLARGE) {
+        UsernamePasswordRealm.UserbaseSize size = randomFrom(UsernamePasswordRealm.UserbaseSize.values());
+        String value = size.toString();
+        if (size == UsernamePasswordRealm.UserbaseSize.XLARGE) {
             assertThat(value , is("x-large"));
         } else {
-            assertThat(value , is(scale.name().toLowerCase(Locale.ROOT)));
+            assertThat(value , is(size.name().toLowerCase(Locale.ROOT)));
         }
     }
 }

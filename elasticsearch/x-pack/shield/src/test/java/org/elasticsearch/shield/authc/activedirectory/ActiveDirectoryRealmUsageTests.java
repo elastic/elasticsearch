@@ -37,7 +37,7 @@ public class ActiveDirectoryRealmUsageTests extends AbstractActiveDirectoryInteg
         assertThat(stats, hasEntry("type", "active_directory"));
         assertThat(stats, hasEntry("name", "ad-test"));
         assertThat(stats, hasEntry("order", realm.order()));
-        assertThat(stats, hasEntry("size", "small"));
+        assertThat(stats, hasEntry("size", "tiny"));
         assertThat(stats, hasEntry("ssl", true));
         assertThat(stats, hasEntry("load_balance_type", loadBalanceType));
     }

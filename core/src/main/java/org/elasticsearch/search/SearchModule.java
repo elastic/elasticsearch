@@ -292,7 +292,7 @@ public class SearchModule extends AbstractModule {
     private final Settings settings;
     private final NamedWriteableRegistry namedWriteableRegistry;
     public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting("indices.query.bool.max_clause_count",
-        1024, 1, Integer.MAX_VALUE, Setting.Property.NodeScope, Setting.Property.Deprecated);
+        1024, 1, Integer.MAX_VALUE, Setting.Property.NodeScope);
 
     // pkg private so tests can mock
     Class<? extends SearchService> searchServiceImpl = SearchService.class;

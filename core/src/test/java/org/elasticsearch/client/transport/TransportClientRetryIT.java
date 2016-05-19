@@ -55,7 +55,6 @@ public class TransportClientRetryIT extends ESIntegTestCase {
                 .put("node.name", "transport_client_retry_test")
                 .put(Node.NODE_MODE_SETTING.getKey(), internalCluster().getNodeMode())
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), internalCluster().getClusterName())
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());
 
         try (TransportClient client = TransportClient.builder().settings(builder.build()).build()) {

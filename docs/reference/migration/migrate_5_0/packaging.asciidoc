@@ -43,3 +43,15 @@ Previously, the scripts used to start Elasticsearch and run plugin
 commands only required a Bourne-compatible shell. Starting in
 Elasticsearch 5.0.0, the bash shell is now required and `/bin/bash` is a
 hard-dependency for the RPM and Debian packages.
+
+==== Environmental Settings
+
+Previously, Elasticsearch could be configured via environment variables
+in two ways: first by using the placeholder syntax
+`${env.ENV_VAR_NAME}` and the second by using the same syntax without
+the `env` prefix: `${ENV_VAR_NAME}`. The first method has been removed
+from Elasticsearch.
+
+Additionally, it was previously possible to set any setting in
+Elasticsearch via JVM system properties. This has been removed from
+Elasticsearch.

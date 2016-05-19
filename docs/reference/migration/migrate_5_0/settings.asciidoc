@@ -202,19 +202,14 @@ the cache implementation used for the request cache and the field data cache.
 
 ==== Using system properties to configure Elasticsearch
 
-Elasticsearch can be configured by setting system properties on the
-command line via `-Des.name.of.property=value.of.property`. This will be
-removed in a future version of Elasticsearch. Instead, use
-`-E es.name.of.setting=value.of.setting`. Note that in all cases the
-name of the setting must be prefixed with `es.`.
+Elasticsearch can no longer be configured by setting system properties.
+Instead, use `-Ename.of.setting=value.of.setting`.
 
 ==== Removed using double-dashes to configure Elasticsearch
 
 Elasticsearch could previously be configured on the command line by
 setting settings via `--name.of.setting value.of.setting`. This feature
-has been removed. Instead, use
-`-Ees.name.of.setting=value.of.setting`. Note that in all cases the
-name of the setting must be prefixed with `es.`.
+has been removed. Instead, use `-Ename.of.setting=value.of.setting`.
 
 ==== Discovery Settings
 

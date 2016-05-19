@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.rest.support.RestUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -35,8 +36,11 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  *
@@ -145,6 +149,29 @@ public class BytesRestResponseTests extends ESTestCase {
         assertEquals(expected.trim(), text.trim());
         String stackTrace = ExceptionsHelper.stackTrace(ex);
         assertTrue(stackTrace.contains("Caused by: ParsingException[foobar]"));
+    }
+
+    public void testResponseWhenPathContainsEncodingError() throws IOException {
+        final String path = "%a";
+        final RestRequest request = mock(RestRequest.class);
+        when(request.rawPath()).thenReturn(path);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> RestUtils.decodeComponent(request.rawPath()));
+        final RestChannel channel = new DetailedExceptionRestChannel(request);
+        // if we try to decode the path, this will throw an IllegalArgumentException again
+        final RestStatus status = randomBoolean() ? RestStatus.BAD_REQUEST : RestStatus.INTERNAL_SERVER_ERROR;
+        final BytesRestResponse response = new BytesRestResponse(channel, new ElasticsearchException(e) {
+            // we fake the status so that we can randomly test both
+            // the 4xx and 5xx code paths
+            @Override
+            public RestStatus status() {
+                return status;
+            }
+        });
+        assertNotNull(response.content());
+        assertThat(
+            response.content().toUtf8(),
+            containsString("\"reason\":\"java.lang.IllegalArgumentException: partial escape sequence at end of string: %a\""));
+        assertThat(response.content().toUtf8(), containsString("\"status\":" + status.getStatus()));
     }
 
     public static class WithHeadersException extends ElasticsearchException {

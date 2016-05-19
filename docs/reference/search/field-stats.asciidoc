@@ -9,6 +9,28 @@ available in the Lucene index. This can be useful to explore a dataset which
 you don't know much about. For example, this allows creating a histogram
 aggregation with meaningful intervals based on the min/max range of values.
 
+For the following examples, lets assume the following indexed data:
+
+[source,js]
+-------------------------------------------------
+PUT /github/user/1?refresh
+{
+    "user": "kimchy",
+    "project": "elasticsearch",
+    "rating": "great project"
+}
+
+PUT /twitter/tweet/1?refresh
+{
+    "user": "kimchy",
+    "message": "you know, for search",
+    "rating": 10
+}
+------------------------------------------------
+// CONSOLE
+// TESTSETUP
+
+
 The field stats api by defaults executes on all indices, but can execute on
 specific indices too.
 
@@ -16,15 +38,17 @@ All indices:
 
 [source,js]
 --------------------------------------------------
-curl -XGET "http://localhost:9200/_field_stats?fields=rating"
+GET /_field_stats?fields=rating
 --------------------------------------------------
+// CONSOLE
 
 Specific indices:
 
 [source,js]
 --------------------------------------------------
-curl -XGET "http://localhost:9200/index1,index2/_field_stats?fields=rating"
+GET /twitter,github/_field_stats?fields=rating
 --------------------------------------------------
+// CONSOLE
 
 Supported request options:
 
@@ -38,10 +62,12 @@ Alternatively the `fields` option can also be defined in the request body:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
+POST /_field_stats?level=indices
+{
    "fields" : ["rating"]
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 This is equivalent to the previous request.
 
@@ -114,8 +140,9 @@ Request:
 
 [source,js]
 --------------------------------------------------
-curl -XGET "http://localhost:9200/_field_stats?fields=rating,answer_count,creation_date,display_name"
+GET /_field_stats?fields=rating,user,project,message
 --------------------------------------------------
+// CONSOLE
 
 Response:
 
@@ -123,101 +150,62 @@ Response:
 --------------------------------------------------
 {
    "_shards": {
-      "total": 1,
-      "successful": 1,
+      "total": 10,
+      "successful": 10,
       "failed": 0
    },
    "indices": {
-      "_all": { <1>
+      "_all": {    <1>
          "fields": {
-            "creation_date": {
-               "max_doc": 1326564,
-               "doc_count": 564633,
-               "density": 42,
-               "sum_doc_freq": 2258532,
-               "sum_total_term_freq": -1,
-               "min_value": "2008-08-01T16:37:51.513Z",
-               "max_value": "2013-06-02T03:23:11.593Z",
-               "is_searchable": "true",
-               "is_aggregatable": "true"
+            "project": {
+               "max_doc": 1,
+               "doc_count": 1,
+               "density": 100,
+               "sum_doc_freq": 1,
+               "sum_total_term_freq": 1,
+               "searchable": true,
+               "aggregatable": false,
+               "min_value": "elasticsearch",
+               "max_value": "elasticsearch"
             },
-            "display_name": {
-               "max_doc": 1326564,
-               "doc_count": 126741,
-               "density": 9,
-               "sum_doc_freq": 166535,
-               "sum_total_term_freq": 166616,
-               "min_value": "0",
-               "max_value": "정혜선",
-               "is_searchable": "true",
-               "is_aggregatable": "false"
+            "message": {
+               "max_doc": 1,
+               "doc_count": 1,
+               "density": 100,
+               "sum_doc_freq": 4,
+               "sum_total_term_freq": 4,
+               "searchable": true,
+               "aggregatable": false,
+               "min_value": "for",
+               "max_value": "you"
             },
-            "answer_count": {
-               "max_doc": 1326564,
-               "doc_count": 139885,
-               "density": 10,
-               "sum_doc_freq": 559540,
-               "sum_total_term_freq": -1,
-               "min_value": 0,
-               "max_value": 160,
-               "is_searchable": "true",
-               "is_aggregatable": "true"
-            },
-            "rating": {
-               "max_doc": 1326564,
-               "doc_count": 437892,
-               "density": 33,
-               "sum_doc_freq": 1751568,
-               "sum_total_term_freq": -1,
-               "min_value": -14,
-               "max_value": 1277,
-               "is_searchable": "true",
-               "is_aggregatable": "true"
-            }
-         }
-      }
-   }
-}
---------------------------------------------------
-
-<1> The `_all` key indicates that it contains the field stats of all indices in the cluster.
-
-NOTE: When using the cluster level field statistics it is possible to have conflicts if the same field is used in
-different indices with incompatible types. For instance a field of type `long` is not compatible with a field of
-type `float` or `string`. A section named `conflicts` is added to the response if one or more conflicts are raised.
-It contains all the fields with conflicts and the reason of the incompatibility.
-
-[source,js]
---------------------------------------------------
-{
-   "_shards": {
-      "total": 1,
-      "successful": 1,
-      "failed": 0
-   },
-   "indices": {
-      "_all": {
-         "fields": {
-            "creation_date": {
-               "max_doc": 1326564,
-               "doc_count": 564633,
-               "density": 42,
-               "sum_doc_freq": 2258532,
-               "sum_total_term_freq": -1,
-               "min_value": "2008-08-01T16:37:51.513Z",
-               "max_value": "2013-06-02T03:23:11.593Z",
-               "is_searchable": "true",
-               "is_aggregatable": "true"
+            "user": {
+               "max_doc": 2,
+               "doc_count": 2,
+               "density": 100,
+               "sum_doc_freq": 2,
+               "sum_total_term_freq": 2,
+               "searchable": true,
+               "aggregatable": false,
+               "min_value": "kimchy",
+               "max_value": "kimchy"
             }
          }
       }
    },
    "conflicts": {
-        "field_name_in_conflict1": "reason1",
-        "field_name_in_conflict2": "reason2"
+      "rating": "Field [rating] of type [whole-number] conflicts with existing field of type [text] in other index." <2>
    }
 }
 --------------------------------------------------
+// TESTRESPONSE
+
+<1> The `_all` key indicates that it contains the field stats of all indices in the cluster.
+
+<2> When using the cluster level field statistics it is possible to have conflicts if the same field is used in
+different indices with incompatible types. For instance a field of type `long` is not compatible with a field of
+type `float` or `string`. A section named `conflicts` is added to the response if one or more conflicts are raised.
+It contains all the fields with conflicts and the reason of the incompatibility.
 
 [float]
 ==== Indices level field statistics example
@@ -226,8 +214,9 @@ Request:
 
 [source,js]
 --------------------------------------------------
-curl -XGET "http://localhost:9200/_field_stats?fields=rating,answer_count,creation_date,display_name&level=indices"
+GET /_field_stats?fields=rating,user,project,message&level=indices
 --------------------------------------------------
+// CONSOLE
 
 Response:
 
@@ -235,63 +224,91 @@ Response:
 --------------------------------------------------
 {
    "_shards": {
-      "total": 1,
-      "successful": 1,
+      "total": 10,
+      "successful": 10,
       "failed": 0
    },
    "indices": {
-      "stack": { <1>
+      "github": {
          "fields": {
-            "creation_date": {
-               "max_doc": 1326564,
-               "doc_count": 564633,
-               "density": 42,
-               "sum_doc_freq": 2258532,
-               "sum_total_term_freq": -1,
-               "min_value": "2008-08-01T16:37:51.513Z",
-               "max_value": "2013-06-02T03:23:11.593Z",
-               "is_searchable": "true",
-               "is_aggregatable": "true"
-            },
-            "display_name": {
-               "max_doc": 1326564,
-               "doc_count": 126741,
-               "density": 9,
-               "sum_doc_freq": 166535,
-               "sum_total_term_freq": 166616,
-               "min_value": "0",
-               "max_value": "정혜선",
-               "is_searchable": "true",
-               "is_aggregatable": "false"
-            },
-            "answer_count": {
-               "max_doc": 1326564,
-               "doc_count": 139885,
-               "density": 10,
-               "sum_doc_freq": 559540,
-               "sum_total_term_freq": -1,
-               "min_value": 0,
-               "max_value": 160,
-               "is_searchable": "true",
-               "is_aggregatable": "true"
-            },
             "rating": {
-               "max_doc": 1326564,
-               "doc_count": 437892,
-               "density": 33,
-               "sum_doc_freq": 1751568,
-               "sum_total_term_freq": -1,
-               "min_value": -14,
-               "max_value": 1277,
-               "is_searchable": "true",
-               "is_aggregatable": "true"
+               "max_doc": 1,
+               "doc_count": 1,
+               "density": 100,
+               "sum_doc_freq": 2,
+               "sum_total_term_freq": 2,
+               "searchable": true,
+               "aggregatable": false,
+               "min_value": "great",
+               "max_value": "project"
+            },
+            "project": {
+               "max_doc": 1,
+               "doc_count": 1,
+               "density": 100,
+               "sum_doc_freq": 1,
+               "sum_total_term_freq": 1,
+               "searchable": true,
+               "aggregatable": false,
+               "min_value": "elasticsearch",
+               "max_value": "elasticsearch"
+            },
+            "user": {
+               "max_doc": 1,
+               "doc_count": 1,
+               "density": 100,
+               "sum_doc_freq": 1,
+               "sum_total_term_freq": 1,
+               "searchable": true,
+               "aggregatable": false,
+               "min_value": "kimchy",
+               "max_value": "kimchy"
+            }
+         }
+      },
+      "twitter": {
+         "fields": {
+            "rating": {
+               "max_doc": 1,
+               "doc_count": 1,
+               "density": 100,
+               "sum_doc_freq": -1,
+               "sum_total_term_freq": 1,
+               "searchable": true,
+               "aggregatable": true,
+               "min_value": 10,
+               "min_value_as_string": "10",
+               "max_value": 10,
+               "max_value_as_string": "10"
+            },
+            "message": {
+               "max_doc": 1,
+               "doc_count": 1,
+               "density": 100,
+               "sum_doc_freq": 4,
+               "sum_total_term_freq": 4,
+               "searchable": true,
+               "aggregatable": false,
+               "min_value": "for",
+               "max_value": "you"
+            },
+            "user": {
+               "max_doc": 1,
+               "doc_count": 1,
+               "density": 100,
+               "sum_doc_freq": 1,
+               "sum_total_term_freq": 1,
+               "searchable": true,
+               "aggregatable": false,
+               "min_value": "kimchy",
+               "max_value": "kimchy"
             }
          }
       }
    }
 }
 --------------------------------------------------
-
+// TESTRESPONSE
 <1> The `stack` key means it contains all field stats for the `stack` index.
 
 [float]
@@ -307,8 +324,9 @@ holding questions created in the year 2014:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
-   "fields" : ["answer_count"] <1>
+POST /_field_stats?level=indices
+{
+   "fields" : ["rating"], <1>
    "index_constraints" : { <2>
       "creation_date" : { <3>
          "min_value" : { <4>
@@ -319,8 +337,9 @@ curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
          }
       }
    }
-}'
+}
 --------------------------------------------------
+// CONSOLE
 
 <1> The fields to compute and return field stats for.
 <2> The set index constraints. Note that index constrains can be defined for fields that aren't defined in the `fields` option.
@@ -341,8 +360,9 @@ If missing, the format configured in the field's mapping is used.
 
 [source,js]
 --------------------------------------------------
-curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
-   "fields" : ["answer_count"]
+POST /_field_stats?level=indices
+{
+   "fields" : ["rating"],
    "index_constraints" : {
       "creation_date" : {
          "min_value" : {
@@ -355,7 +375,7 @@ curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
          }
       }
    }
-}'
+}
 --------------------------------------------------
-
+// CONSOLE
 <1> Custom date format

@@ -11,39 +11,111 @@ type respectively.
 [float]
 === Usage
 
+Imagine having indexed the following document:
+
+[source,js]
+----------------------------------------
+PUT /twitter/tweet/1?refresh
+{
+    "user": "kimchy",
+    "message": "search"
+}
+---------------------------------------
+// CONSOLE
+// TESTSETUP
+
+
 Full query example:
 
 [source,js]
---------------------------------------------------
-curl -XGET 'localhost:9200/twitter/tweet/1/_explain' -d '{
-      "query" : {
+--------------------------------------
+GET /twitter/tweet/1/_explain
+{
+    "query" : {
         "term" : { "message" : "search" }
-      }
-}'
---------------------------------------------------
+    }
+}
+--------------------------------------
+// CONSOLE
 
 This will yield the following result:
 
 [source,js]
 --------------------------------------------------
 {
-  "matches" : true,
-  "explanation" : {
-    "value" : 0.15342641,
-    "description" : "fieldWeight(message:search in 0), product of:",
-    "details" : [ {
-      "value" : 1.0,
-      "description" : "tf(termFreq(message:search)=1)"
-    }, {
-      "value" : 0.30685282,
-      "description" : "idf(docFreq=1, maxDocs=1)"
-    }, {
-      "value" : 0.5,
-      "description" : "fieldNorm(field=message, doc=0)"
-    } ]
-  }
+   "_index": "twitter",
+   "_type": "tweet",
+   "_id": "1",
+   "matched": true,
+   "explanation": {
+      "value": 1.0,
+      "description": "sum of:",
+      "details": [
+         {
+            "value": 1.0,
+            "description": "weight(message:search in 0) [PerFieldSimilarity], result of:",
+            "details": [
+               {
+                  "value": 1.0,
+                  "description": "fieldWeight in 0, product of:",
+                  "details": [
+                     {
+                        "value": 1.0,
+                        "description": "tf(freq=1.0), with freq of:",
+                        "details": [
+                           {
+                              "value": 1.0,
+                              "description": "termFreq=1.0",
+                              "details": []
+                           }
+                        ]
+                     },
+                     {
+                        "value": 1.0,
+                        "description": "idf(docFreq=1, docCount=1)",
+                        "details": []
+                     },
+                     {
+                        "value": 1.0,
+                        "description": "fieldNorm(doc=0)",
+                        "details": []
+                     }
+                  ]
+               }
+            ]
+         },
+         {
+            "value": 0.0,
+            "description": "match on required clause, product of:",
+            "details": [
+               {
+                  "value": 0.0,
+                  "description": "# clause",
+                  "details": []
+               },
+               {
+                  "value": 1.0,
+                  "description": "_type:tweet, product of:",
+                  "details": [
+                     {
+                        "value": 1.0,
+                        "description": "boost",
+                        "details": []
+                     },
+                     {
+                        "value": 1.0,
+                        "description": "queryNorm",
+                        "details": []
+                     }
+                  ]
+               }
+            ]
+         }
+      ]
+   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 There is also a simpler way of specifying the query via the `q`
 parameter. The specified `q` parameter value is then parsed as if the
@@ -52,8 +124,9 @@ explain api:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/twitter/tweet/1/_explain?q=message:search'
+GET /twitter/tweet/1/_explain?q=message:search
 --------------------------------------------------
+// CONSOLE
 
 This will yield the same result as the previous request.
 

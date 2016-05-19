@@ -8,14 +8,18 @@ example:
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/twitter/tweet/_search?q=user:kimchy'
+GET twitter/tweet/_search?q=user:kimchy
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 And here is a sample response:
 
 [source,js]
 --------------------------------------------------
 {
+    "timed_out": false,
+    "took": 62,
     "_shards":{
         "total" : 5,
         "successful" : 5,
@@ -23,21 +27,25 @@ And here is a sample response:
     },
     "hits":{
         "total" : 1,
+        "max_score": 1.0,
         "hits" : [
             {
                 "_index" : "twitter",
                 "_type" : "tweet",
-                "_id" : "1",
+                "_id" : "0",
+                "_score": 1.0,
                 "_source" : {
                     "user" : "kimchy",
-                    "postDate" : "2009-11-15T14:12:12",
-                    "message" : "trying out Elasticsearch"
+                    "date" : "2009-11-15T14:12:12",
+                    "message" : "trying out Elasticsearch",
+                    "likes": 0
                 }
             }
         ]
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 62/"took": "$body.took"/]
 
 [float]
 === Parameters
@@ -75,7 +83,7 @@ hits was computed.
 part of the document by using `_source_include` & `_source_exclude` (see the <<search-request-source-filtering, request body>>
 documentation for more details)
 
-|`fields` |The selective stored fields of the document to return for each hit, 
+|`fields` |The selective stored fields of the document to return for each hit,
 comma delimited. Not specifying any value will cause no fields to return.
 
 |`sort` |Sorting to perform. Can either be in the form of `fieldName`, or
@@ -107,4 +115,3 @@ Defaults to `query_then_fetch`. See
 <<search-request-search-type,_Search Type_>> for
 more details on the different types of search that can be performed.
 |=======================================================================
-

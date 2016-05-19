@@ -503,13 +503,13 @@ public final class EBinary extends AExpression {
             left.write(settings, definition, adapter);
 
             if (!(left instanceof EBinary) || ((EBinary)left).operation != Operation.ADD || left.actual.sort != Sort.STRING) {
-                adapter.writeAppendStrings(left.actual.sort);
+                adapter.writeAppendStrings(left.actual);
             }
 
             right.write(settings, definition, adapter);
 
             if (!(right instanceof EBinary) || ((EBinary)right).operation != Operation.ADD || right.actual.sort != Sort.STRING) {
-                adapter.writeAppendStrings(right.actual.sort);
+                adapter.writeAppendStrings(right.actual);
             }
 
             if (!cat) {

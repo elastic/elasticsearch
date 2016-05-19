@@ -316,7 +316,7 @@ public class RepositoryS3SettingsTests extends ESTestCase {
             "Failed to parse value [4mb] for setting [buffer_size] must be >= 5mb");
         // chunk > 5tb should fail
         internalTestInvalidChunkBufferSizeSettings(new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(6, ByteSizeUnit.TB),
-            "Failed to parse value [6tb] for setting [chunk_size] must be =< 5tb");
+            "Failed to parse value [6tb] for setting [chunk_size] must be <= 5tb");
     }
 
     private Settings buildSettings(Settings... global) {

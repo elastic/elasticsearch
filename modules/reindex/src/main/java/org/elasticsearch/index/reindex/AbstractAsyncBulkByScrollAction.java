@@ -75,7 +75,7 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
  * Abstract base for scrolling across a search and executing bulk actions on all results. All package private methods are package private so
  * their tests can use them. Most methods run in the listener thread pool because the are meant to be fast and don't expect to block.
  */
-public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>, Response> {
+public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>> {
     /**
      * The request for this action. Named mainRequest because we create lots of <code>request</code> variables all representing child
      * requests of this mainRequest.
@@ -92,12 +92,13 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final ParentTaskAssigningClient client;
     private final ThreadPool threadPool;
     private final SearchRequest firstSearchRequest;
-    private final ActionListener<Response> listener;
+    private final ActionListener<BulkIndexByScrollResponse> listener;
     private final BackoffPolicy backoffPolicy;
     private final Retry bulkRetry;
 
     public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, ESLogger logger, ParentTaskAssigningClient client,
-            ThreadPool threadPool, Request mainRequest, SearchRequest firstSearchRequest, ActionListener<Response> listener) {
+                                           ThreadPool threadPool, Request mainRequest, SearchRequest firstSearchRequest,
+                                           ActionListener<BulkIndexByScrollResponse> listener) {
         this.task = task;
         this.logger = logger;
         this.client = client;
@@ -111,8 +112,13 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
     protected abstract BulkRequest buildBulk(Iterable<SearchHit> docs);
 
-    protected abstract Response buildResponse(TimeValue took, List<Failure> indexingFailures, List<ShardSearchFailure> searchFailures,
-            boolean timedOut);
+    /**
+     * Build the response for reindex actions.
+     */
+    protected BulkIndexByScrollResponse buildResponse(TimeValue took, List<BulkItemResponse.Failure> indexingFailures,
+                                                      List<ShardSearchFailure> searchFailures, boolean timedOut) {
+        return new BulkIndexByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
+    }
 
     /**
      * Start the action by firing the initial search request.

@@ -321,7 +321,7 @@ public final class AnalysisRegistry implements Closeable {
                     if (currentSettings.get("tokenizer") != null) {
                         factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings);
                     } else {
-                        throw new IllegalArgumentException(toBuild + " [" + name + "] must have a type associated with it");
+                        throw new IllegalArgumentException(toBuild + " [" + name + "] must specify either an analyzer type, or a tokenizer");
                     }
                 } else if (typeName.equals("custom")) {
                     factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings);
@@ -335,7 +335,7 @@ public final class AnalysisRegistry implements Closeable {
                 factories.put(name, factory);
             }  else {
                 if (typeName == null) {
-                    throw new IllegalArgumentException(toBuild + " [" + name + "] must have a type associated with it");
+                    throw new IllegalArgumentException(toBuild + " [" + name + "] must specify either an analyzer type, or a tokenizer");
                 }
                 AnalysisModule.AnalysisProvider<T> type = providerMap.get(typeName);
                 if (type == null) {

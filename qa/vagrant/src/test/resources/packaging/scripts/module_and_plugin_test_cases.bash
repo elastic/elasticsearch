@@ -103,7 +103,7 @@ fi
         echo "CONF_FILE=$CONF_FILE" >> /etc/sysconfig/elasticsearch;
     fi
 
-    run_elasticsearch_service 1 -Ees.default.config="$CONF_FILE"
+    run_elasticsearch_service 1 -Edefault.config="$CONF_FILE"
 
     # remove settings again otherwise cleaning up before next testrun will fail
     if is_dpkg ; then
@@ -289,6 +289,10 @@ fi
     install_and_check_plugin repository azure azure-storage-*.jar
 }
 
+@test "[$GROUP] install repository-gcs plugin" {
+    install_and_check_plugin repository gcs google-api-services-storage-*.jar
+}
+
 @test "[$GROUP] install repository-s3 plugin" {
     install_and_check_plugin repository s3 aws-java-sdk-core-*.jar
 }
@@ -385,6 +389,10 @@ fi
 
 @test "[$GROUP] remove repository-azure plugin" {
     remove_plugin repository-azure
+}
+
+@test "[$GROUP] remove repository-gcs plugin" {
+    remove_plugin repository-gcs
 }
 
 @test "[$GROUP] remove repository-hdfs plugin" {

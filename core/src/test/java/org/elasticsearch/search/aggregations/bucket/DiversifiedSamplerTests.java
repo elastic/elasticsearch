@@ -21,14 +21,14 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator.ExecutionMode;
 
-public class DiversifiedSamplerTests extends BaseAggregationTestCase<DiversifiedAggregatorBuilder> {
+public class DiversifiedSamplerTests extends BaseAggregationTestCase<DiversifiedAggregationBuilder> {
 
     @Override
-    protected final DiversifiedAggregatorBuilder createTestAggregatorBuilder() {
-        DiversifiedAggregatorBuilder factory = new DiversifiedAggregatorBuilder("foo");
+    protected final DiversifiedAggregationBuilder createTestAggregatorBuilder() {
+        DiversifiedAggregationBuilder factory = new DiversifiedAggregationBuilder("foo");
         String field = randomNumericField();
         int randomFieldBranch = randomInt(3);
         switch (randomFieldBranch) {

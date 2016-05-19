@@ -36,7 +36,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
@@ -122,7 +122,7 @@ public class EquivalenceTests extends ESIntegTestCase {
             }
         }
 
-        RangeAggregatorBuilder query = range("range").field("values");
+        RangeAggregationBuilder query = range("range").field("values");
         for (int i = 0; i < ranges.length; ++i) {
             String key = Integer.toString(i);
             if (ranges[i][0] == Double.NEGATIVE_INFINITY) {

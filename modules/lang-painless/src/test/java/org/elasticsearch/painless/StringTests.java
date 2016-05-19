@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless;
 
+import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
+
 import java.util.Locale;
 
 public class StringTests extends ScriptTestCase {
@@ -66,20 +68,33 @@ public class StringTests extends ScriptTestCase {
     }
 
     public void testAppendMultiple() {
-      assertEquals("cat" + true + "abc" + null, exec("String s = \"cat\"; return s + true + 'abc' + null;"));
+        assertEquals("cat" + true + "abc" + null, exec("String s = \"cat\"; return s + true + 'abc' + null;"));
     }
-
+    
     public void testAppendMany() {
-      StringBuilder script = new StringBuilder("String s = \"cat\"; return s");
-      StringBuilder result = new StringBuilder("cat");
-      for (int i = 0; i < 200 /* indy limit */ + 10; i++) {
-        final String s = String.format(Locale.ROOT,  "%03d", i);
-        script.append(" + '").append(s).append("'.toString()");
-        result.append(s);
-      }
-      assertEquals(result.toString(), exec(script.toString()));
+        for (int i = MAX_INDY_STRING_CONCAT_ARGS - 5; i < MAX_INDY_STRING_CONCAT_ARGS + 5; i++) {
+            doTestAppendMany(i);
+        }
     }
-
+    
+    private void doTestAppendMany(int count) {
+        StringBuilder script = new StringBuilder("String s = \"cat\"; return s");
+        StringBuilder result = new StringBuilder("cat");
+        for (int i = 1; i < count; i++) {
+            final String s = String.format(Locale.ROOT, "%03d", i);
+            script.append(" + '").append(s).append("'.toString()");
+            result.append(s);
+        }
+        final String s = script.toString();
+        assertTrue("every string part should be separatly pushed to stack.",
+                Debugger.toString(s).contains(String.format(Locale.ROOT, "LDC \"%03d\"", count/2)));
+        assertEquals(result.toString(), exec(s));
+    }
+    
+    public void testNestedConcats() {
+        assertEquals("foo1010foo", exec("String s = 'foo'; String x = '10'; return s + Integer.parseInt(x + x) + s;"));
+    }
+    
     public void testStringAPI() {
         assertEquals("", exec("return new String();"));
         assertEquals('x', exec("String s = \"x\"; return s.charAt(0);"));

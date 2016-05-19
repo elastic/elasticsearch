@@ -21,28 +21,25 @@ package org.elasticsearch.bootstrap;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import joptsimple.util.KeyValuePair;
 import org.elasticsearch.Build;
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.SettingCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
  * This class starts elasticsearch.
  */
-class Elasticsearch extends Command {
+class Elasticsearch extends SettingCommand {
 
     private final OptionSpec<Void> versionOption;
     private final OptionSpec<Void> daemonizeOption;
     private final OptionSpec<String> pidfileOption;
-    private final OptionSpec<KeyValuePair> propertyOption;
 
     // visible for testing
     Elasticsearch() {
@@ -56,7 +53,6 @@ class Elasticsearch extends Command {
         pidfileOption = parser.acceptsAll(Arrays.asList("p", "pidfile"),
             "Creates a pid file in the specified path on start")
             .withRequiredArg();
-        propertyOption = parser.accepts("E", "Configure an Elasticsearch setting").withRequiredArg().ofType(KeyValuePair.class);
     }
 
     /**
@@ -75,7 +71,7 @@ class Elasticsearch extends Command {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
         if (options.nonOptionArguments().isEmpty() == false) {
             throw new UserError(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }
@@ -84,26 +80,15 @@ class Elasticsearch extends Command {
                 throw new UserError(ExitCodes.USAGE, "Elasticsearch version option is mutually exclusive with any other option");
             }
             terminal.println("Version: " + org.elasticsearch.Version.CURRENT
-                + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()
-                + ", JVM: " + JvmInfo.jvmInfo().version());
+                    + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()
+                    + ", JVM: " + JvmInfo.jvmInfo().version());
             return;
         }
 
         final boolean daemonize = options.has(daemonizeOption);
         final String pidFile = pidfileOption.value(options);
 
-        final Map<String, String> esSettings = new HashMap<>();
-        for (final KeyValuePair kvp : propertyOption.values(options)) {
-            if (!kvp.key.startsWith("es.")) {
-                throw new UserError(ExitCodes.USAGE, "Elasticsearch settings must be prefixed with [es.] but was [" + kvp.key + "]");
-            }
-            if (kvp.value.isEmpty()) {
-                throw new UserError(ExitCodes.USAGE, "Elasticsearch setting [" + kvp.key + "] must not be empty");
-            }
-            esSettings.put(kvp.key, kvp.value);
-        }
-
-        init(daemonize, pidFile, esSettings);
+        init(daemonize, pidFile, settings);
     }
 
     void init(final boolean daemonize, final String pidFile, final Map<String, String> esSettings) {

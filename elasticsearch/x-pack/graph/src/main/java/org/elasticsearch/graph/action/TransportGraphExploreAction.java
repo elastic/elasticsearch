@@ -29,14 +29,14 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.AggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregatorBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -189,9 +189,9 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             // each had non-overlapping sets of terms that needed frequencies looking up for significant terms.
             // A common sample pool reduces the specialization that can be given to each root term but
             // ultimately is much faster to run because of the shared vocabulary in a single sample set. 
-            AggregatorBuilder sampleAgg = null;
+            AggregationBuilder sampleAgg = null;
             if (request.sampleDiversityField() != null) {
-                DiversifiedAggregatorBuilder diversifiedSampleAgg = AggregationBuilders.diversifiedSampler("sample")
+                DiversifiedAggregationBuilder diversifiedSampleAgg = AggregationBuilders.diversifiedSampler("sample")
                         .shardSize(request.sampleSize());
                 diversifiedSampleAgg.field(request.sampleDiversityField());
                 diversifiedSampleAgg.maxDocsPerValue(request.maxDocsPerDiversityValue());
@@ -227,7 +227,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 for (Vertex v : lastWaveVerticesForField) {
                     terms[i++] = v.term;
                 }
-                TermsAggregatorBuilder lastWaveTermsAgg = AggregationBuilders.terms("field" + fieldNum)
+                TermsAggregationBuilder lastWaveTermsAgg = AggregationBuilders.terms("field" + fieldNum)
                         .includeExclude(new IncludeExclude(terms, null))
                         .shardMinDocCount(1)
                         .field(lastVr.fieldName()).minDocCount(1)
@@ -246,7 +246,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         size++;
                     }
                     if (request.useSignificance()) {
-                        SignificantTermsAggregatorBuilder nextWaveSigTerms = AggregationBuilders.significantTerms("field" + f)
+                        SignificantTermsAggregationBuilder nextWaveSigTerms = AggregationBuilders.significantTerms("field" + f)
                                 .field(vr.fieldName())
                                 .minDocCount(vr.minDocCount()).shardMinDocCount(vr.shardMinDocCount()).executionHint("map").size(size);
 //                        nextWaveSigTerms.significanceHeuristic(new PercentageScore.PercentageScoreBuilder());
@@ -277,7 +277,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         }
                         lastWaveTermsAgg.subAggregation(nextWaveSigTerms);
                     } else {
-                        TermsAggregatorBuilder nextWavePopularTerms = AggregationBuilders.terms("field" + f).field(vr.fieldName())
+                        TermsAggregationBuilder nextWavePopularTerms = AggregationBuilders.terms("field" + f).field(vr.fieldName())
                                 .minDocCount(vr.minDocCount()).shardMinDocCount(vr.shardMinDocCount())
                                 // Map execution mode used because Sampler agg keeps us
                                 // focused on smaller sets of high quality docs and therefore
@@ -567,9 +567,9 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
                 BoolQueryBuilder rootBool = QueryBuilders.boolQuery();
                 
-                AggregatorBuilder rootSampleAgg = null;
+                AggregationBuilder rootSampleAgg = null;
                 if (request.sampleDiversityField() != null) {
-                    DiversifiedAggregatorBuilder diversifiedRootSampleAgg = AggregationBuilders.diversifiedSampler("sample")
+                    DiversifiedAggregationBuilder diversifiedRootSampleAgg = AggregationBuilders.diversifiedSampler("sample")
                             .shardSize(request.sampleSize());
                     diversifiedRootSampleAgg.field(request.sampleDiversityField());
                     diversifiedRootSampleAgg.maxDocsPerValue(request.maxDocsPerDiversityValue());
@@ -600,7 +600,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 for (int i = 0; i < rootHop.getNumberVertexRequests(); i++) {
                     VertexRequest vr = rootHop.getVertexRequest(i);
                     if (request.useSignificance()) {
-                        SignificantTermsAggregatorBuilder sigBuilder = AggregationBuilders.significantTerms("field" + i);
+                        SignificantTermsAggregationBuilder sigBuilder = AggregationBuilders.significantTerms("field" + i);
                         sigBuilder.field(vr.fieldName()).shardMinDocCount(vr.shardMinDocCount()).minDocCount(vr.minDocCount())
                                 // Map execution mode used because Sampler agg
                                 // keeps us focused on smaller sets of high quality 
@@ -621,7 +621,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         }
                         rootSampleAgg.subAggregation(sigBuilder);
                     } else {
-                        TermsAggregatorBuilder termsBuilder = AggregationBuilders.terms("field" + i);
+                        TermsAggregationBuilder termsBuilder = AggregationBuilders.terms("field" + i);
                         // Min doc count etc really only applies when we are
                         // thinking about certainty of significance scores -
                         // perhaps less necessary when considering popularity

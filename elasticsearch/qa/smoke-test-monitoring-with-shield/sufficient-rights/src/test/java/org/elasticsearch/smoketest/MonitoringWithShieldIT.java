@@ -20,9 +20,6 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basic
 
 public class MonitoringWithShieldIT extends ESRestTestCase {
 
-    private final static String TEST_ADMIN_USERNAME = "test_admin";
-    private final static String TEST_ADMIN_PASSWORD = "changeme";
-
     public MonitoringWithShieldIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
     }
@@ -32,14 +29,9 @@ public class MonitoringWithShieldIT extends ESRestTestCase {
         return ESRestTestCase.createParameters(0, 1);
     }
 
-    protected String[] getCredentials() {
-        return new String[]{"monitored_system", "changeme"};
-    }
-
     @Override
     protected Settings restClientSettings() {
-        String[] creds = getCredentials();
-        String token = basicAuthHeaderValue(creds[0], new SecuredString(creds[1].toCharArray()));
+        String token = basicAuthHeaderValue("monitoring_system", new SecuredString("changeme".toCharArray()));
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", token)
                 .build();
@@ -47,7 +39,7 @@ public class MonitoringWithShieldIT extends ESRestTestCase {
 
     @Override
     protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecuredString(TEST_ADMIN_PASSWORD.toCharArray()));
+        String token = basicAuthHeaderValue("test_admin", new SecuredString("changeme".toCharArray()));
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", token)
                 .build();

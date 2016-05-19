@@ -12,34 +12,37 @@ import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.FileVisitResult;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class InstallXPackExtensionCommandTests extends ESTestCase {
-    /**
-     * Creates a test environment with plugins and xpack extensions directories.
-     */
-    static Environment createEnv() throws IOException {
-        Path home = createTempDir();
+
+    Path home;
+    Environment env;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        home = createTempDir();
         Files.createDirectories(home.resolve("org/elasticsearch/xpack/extensions").resolve("xpack").resolve("extensions"));
-        Settings settings = Settings.builder()
-                .put("path.home", home)
-                .build();
-        return new Environment(settings);
+        env = new Environment(Settings.builder().put("path.home", home.toString()).build());
     }
 
     /**
@@ -84,9 +87,11 @@ public class InstallXPackExtensionCommandTests extends ESTestCase {
         return writeZip(structure);
     }
 
-    static MockTerminal installExtension(String extensionUrl, Environment env) throws Exception {
+    static MockTerminal installExtension(String extensionUrl, Path home) throws Exception {
+        Map<String, String> settings = new HashMap<>();
+        settings.put("path.home", home.toString());
         MockTerminal terminal = new MockTerminal();
-        new InstallXPackExtensionCommand(env).execute(terminal, extensionUrl, true);
+        new InstallXPackExtensionCommand().execute(terminal, extensionUrl, true, settings);
         return terminal;
     }
 
@@ -108,77 +113,65 @@ public class InstallXPackExtensionCommandTests extends ESTestCase {
     }
 
     public void testSomethingWorks() throws Exception {
-        Environment env = createEnv();
         Path extDir = createTempDir();
         String extZip = createExtension("fake", extDir);
-        installExtension(extZip, env);
+        installExtension(extZip, home);
         assertExtension("fake", extDir, env);
     }
 
     public void testSpaceInUrl() throws Exception {
-        Environment env = createEnv();
         Path extDir = createTempDir();
         String extZip = createExtension("fake", extDir);
         Path extZipWithSpaces = createTempFile("foo bar", ".zip");
         try (InputStream in = new URL(extZip).openStream()) {
             Files.copy(in, extZipWithSpaces, StandardCopyOption.REPLACE_EXISTING);
         }
-        installExtension(extZipWithSpaces.toUri().toURL().toString(), env);
+        installExtension(extZipWithSpaces.toUri().toURL().toString(), home);
         assertExtension("fake", extDir, env);
     }
 
     public void testMalformedUrlNotMaven() throws Exception {
         // has two colons, so it appears similar to maven coordinates
         MalformedURLException e = expectThrows(MalformedURLException.class, () -> {
-            installExtension("://host:1234", createEnv());
+            installExtension("://host:1234", home);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("no protocol"));
     }
 
     public void testJarHell() throws Exception {
-        Environment env = createEnv();
         Path extDir = createTempDir();
         writeJar(extDir.resolve("other.jar"), "FakeExtension");
         String extZip = createExtension("fake", extDir); // adds extension.jar with FakeExtension
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            installExtension(extZip, env);
-        });
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> installExtension(extZip, home));
         assertTrue(e.getMessage(), e.getMessage().contains("jar hell"));
         assertInstallCleaned(env);
     }
 
     public void testIsolatedExtension() throws Exception {
-        Environment env = createEnv();
         // these both share the same FakeExtension class
         Path extDir1 = createTempDir();
         String extZip1 = createExtension("fake1", extDir1);
-        installExtension(extZip1, env);
+        installExtension(extZip1, home);
         Path extDir2 = createTempDir();
         String extZip2 = createExtension("fake2", extDir2);
-        installExtension(extZip2, env);
+        installExtension(extZip2, home);
         assertExtension("fake1", extDir1, env);
         assertExtension("fake2", extDir2, env);
     }
 
     public void testExistingExtension() throws Exception {
-        Environment env = createEnv();
         String extZip = createExtension("fake", createTempDir());
-        installExtension(extZip, env);
-        UserError e = expectThrows(UserError.class, () -> {
-            installExtension(extZip, env);
-        });
+        installExtension(extZip, home);
+        UserError e = expectThrows(UserError.class, () -> installExtension(extZip, home));
         assertTrue(e.getMessage(), e.getMessage().contains("already exists"));
         assertInstallCleaned(env);
     }
 
     public void testMissingDescriptor() throws Exception {
-        Environment env = createEnv();
         Path extDir = createTempDir();
         Files.createFile(extDir.resolve("fake.yml"));
         String extZip = writeZip(extDir);
-        NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> {
-            installExtension(extZip, env);
-        });
+        NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> installExtension(extZip, home));
         assertTrue(e.getMessage(), e.getMessage().contains("x-pack-extension-descriptor.properties"));
         assertInstallCleaned(env);
     }

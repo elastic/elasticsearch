@@ -70,38 +70,6 @@ elif [ -f "/etc/default/elasticsearch" ]; then
    . "/etc/default/elasticsearch"
 fi
 
-# Parse any long getopt options and put them into properties before calling getopt below
-# Be dash compatible to make sure running under ubuntu works
-ARGCOUNT=$#
-COUNT=0
-while [ $COUNT -lt $ARGCOUNT ]
-do
-    case $1 in
-      --*=*) properties="$properties -Des.${1#--}"
-           shift 1; COUNT=$(($COUNT+1))
-           ;;
-      --*) properties="$properties -Des.${1#--}=$2"
-           shift ; shift; COUNT=$(($COUNT+2))
-           ;;
-      *) set -- "$@" "$1"; shift; COUNT=$(($COUNT+1))
-    esac
-done
-
-# check if properties already has a config file or config dir
-if [ -e "$CONF_DIR" ]; then
-    case "$properties" in
-        *-Des.default.path.conf=*) ;;
-        *)
-            if [ ! -d "$CONF_DIR/x-pack" ]; then
-                echo "ERROR: The configuration directory [$CONF_DIR/x-pack] does not exist. The users tool expects security configuration files in that location."
-                echo "The plugin may not have been installed with the correct configuration path. If [$ES_HOME/config/x-pack] exists, please copy the 'x-pack' directory to [$CONF_DIR]"
-                exit 1
-            fi
-            properties="$properties -Des.default.path.conf=$CONF_DIR"
-            ;;
-        esac
-fi
-
 export HOSTNAME=`hostname -s`
 
 # include shield jars in classpath
@@ -121,8 +89,14 @@ if [ ! -z "$CONF_FILE" ]; then
     exit 1
 fi
 
+declare -a args=("$@")
+
+if [ -e "$CONF_DIR" ]; then
+  args=("${args[@]}" -Edefault.path.conf="$CONF_DIR")
+fi
+
 cd "$ES_HOME" > /dev/null
-"$JAVA" $ES_JAVA_OPTS -cp "$ES_CLASSPATH" -Des.path.home="$ES_HOME" $properties org.elasticsearch.shield.authc.file.tool.UsersTool "$@"
+"$JAVA" $ES_JAVA_OPTS -cp "$ES_CLASSPATH" -Des.path.home="$ES_HOME" org.elasticsearch.shield.authc.file.tool.UsersTool "${args[@]}"
 status=$?
 cd - > /dev/null
 exit $status

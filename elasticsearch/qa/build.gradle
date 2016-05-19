@@ -1,5 +1,5 @@
 subprojects {
-  project.afterEvaluate {
+  plugins.withType(org.elasticsearch.gradle.test.RestTestPlugin) {
     // someone figure out what the x-plugins logic should be
     project.licenseHeaders.enabled = false
   }

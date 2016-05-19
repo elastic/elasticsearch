@@ -142,7 +142,7 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         this.message = message;
         this.failure = failure;
         this.failedAllocations = failedAllocations;
-        assert failedAllocations > 0 && reason == Reason.ALLOCATION_FAILED || failedAllocations == 0 && reason != Reason.ALLOCATION_FAILED:
+        assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED):
             "failedAllocations: " + failedAllocations + " for reason " + reason;
         assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
     }
@@ -183,9 +183,9 @@ public final class UnassignedInfo implements ToXContent, Writeable {
     }
 
     /**
-     * Retruns the number of previously failed allocations of this shard.
+     * Returns the number of previously failed allocations of this shard.
      */
-    public int getNumFailedAllocations() {return failedAllocations;}
+    public int getNumFailedAllocations() { return failedAllocations; }
 
     /**
      * The reason why the shard is unassigned.

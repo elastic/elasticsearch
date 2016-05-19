@@ -72,6 +72,7 @@ import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -557,6 +558,57 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 assertEquals(new FieldSortBuilder("name").order(SortOrder.DESC), searchSourceBuilder.sorts().get(2));
                 assertEquals(new FieldSortBuilder("age").order(SortOrder.DESC), searchSourceBuilder.sorts().get(3));
                 assertEquals(new ScoreSortBuilder(), searchSourceBuilder.sorts().get(4));
+            }
+        }
+    }
+
+    /**
+     * test that we can parse the `rescore` element either as single object or as array
+     */
+    public void testParseRescore() throws IOException {
+        {
+            String restContent = "{\n" +
+                "    \"query\" : {\n" +
+                "        \"match\": { \"content\": { \"query\": \"foo bar\" }}\n" +
+                "     },\n" +
+                "    \"rescore\": {" +
+                "        \"window_size\": 50,\n" +
+                "        \"query\": {\n" +
+                "            \"rescore_query\" : {\n" +
+                "                \"match\": { \"content\": { \"query\": \"baz\" } }\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}\n";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
+                        aggParsers, suggesters);
+                assertEquals(1, searchSourceBuilder.rescores().size());
+                assertEquals(new QueryRescorerBuilder(QueryBuilders.matchQuery("content", "baz")).windowSize(50),
+                        searchSourceBuilder.rescores().get(0));
+            }
+        }
+
+        {
+            String restContent = "{\n" +
+                "    \"query\" : {\n" +
+                "        \"match\": { \"content\": { \"query\": \"foo bar\" }}\n" +
+                "     },\n" +
+                "    \"rescore\": [ {" +
+                "        \"window_size\": 50,\n" +
+                "        \"query\": {\n" +
+                "            \"rescore_query\" : {\n" +
+                "                \"match\": { \"content\": { \"query\": \"baz\" } }\n" +
+                "            }\n" +
+                "        }\n" +
+                "    } ]\n" +
+                "}\n";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
+                        aggParsers, suggesters);
+                assertEquals(1, searchSourceBuilder.rescores().size());
+                assertEquals(new QueryRescorerBuilder(QueryBuilders.matchQuery("content", "baz")).windowSize(50),
+                        searchSourceBuilder.rescores().get(0));
             }
         }
     }

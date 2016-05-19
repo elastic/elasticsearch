@@ -211,7 +211,14 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 }
             }
             assert execution != null;
-            return execution.create(name, factories, valuesSource, config.format(), bucketCountThresholds, includeExclude, context, parent,
+            
+            DocValueFormat format = config.format();
+            if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
+                throw new AggregationExecutionException("Aggregation [" + name + "] cannot support regular expression style include/exclude "
+                        + "settings as they can only be applied to string fields. Use an array of values for include/exclude clauses");
+            }
+            
+            return execution.create(name, factories, valuesSource, format, bucketCountThresholds, includeExclude, context, parent,
                     significanceHeuristic, this, pipelineAggregators, metaData);
         }
 
@@ -227,7 +234,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             }
             IncludeExclude.LongFilter longFilter = null;
             if (includeExclude != null) {
-                longFilter = includeExclude.convertToLongFilter();
+                longFilter = includeExclude.convertToLongFilter(config.format());
             }
             return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(),
                     bucketCountThresholds, context, parent, significanceHeuristic, this, longFilter, pipelineAggregators,
@@ -248,7 +255,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     AggregationContext aggregationContext, Aggregator parent, SignificanceHeuristic significanceHeuristic,
                     SignificantTermsAggregatorFactory termsAggregatorFactory, List<PipelineAggregator> pipelineAggregators,
                     Map<String, Object> metaData) throws IOException {
-                final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter();
+                final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
                 return new SignificantStringTermsAggregator(name, factories, valuesSource, format, bucketCountThresholds, filter,
                         aggregationContext, parent, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
             }
@@ -262,7 +269,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     AggregationContext aggregationContext, Aggregator parent, SignificanceHeuristic significanceHeuristic,
                     SignificantTermsAggregatorFactory termsAggregatorFactory, List<PipelineAggregator> pipelineAggregators,
                     Map<String, Object> metaData) throws IOException {
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter();
+                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
                         (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,
                         aggregationContext, parent, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
@@ -277,7 +284,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     AggregationContext aggregationContext, Aggregator parent, SignificanceHeuristic significanceHeuristic,
                     SignificantTermsAggregatorFactory termsAggregatorFactory, List<PipelineAggregator> pipelineAggregators,
                     Map<String, Object> metaData) throws IOException {
-                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter();
+                final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 return new GlobalOrdinalsSignificantTermsAggregator.WithHash(name, factories,
                         (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,
                         aggregationContext, parent, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);

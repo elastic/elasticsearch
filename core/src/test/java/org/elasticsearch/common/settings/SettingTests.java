@@ -430,7 +430,7 @@ public class SettingTests extends ESTestCase {
             integerSetting.get(Settings.builder().put("foo.bar", 11).build());
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("Failed to parse value [11] for setting [foo.bar] must be =< 10", ex.getMessage());
+            assertEquals("Failed to parse value [11] for setting [foo.bar] must be <= 10", ex.getMessage());
         }
 
         try {

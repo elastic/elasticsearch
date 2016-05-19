@@ -24,6 +24,7 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -1145,5 +1146,28 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertSearchResponse(response);
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), greaterThan(0));
+    }
+
+    /**
+     * When DST ends, local time turns back one hour, so between 2am and 4am wall time we should have four buckets:
+     * "2015-10-25T02:00:00.000+02:00",
+     * "2015-10-25T02:00:00.000+01:00",
+     * "2015-10-25T03:00:00.000+01:00",
+     * "2015-10-25T04:00:00.000+01:00".
+     */
+    public void testDSTEndTransition() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+                .setQuery(new MatchNoneQueryBuilder())
+                .addAggregation(dateHistogram("histo").field("date").timeZone(DateTimeZone.forID("Europe/Oslo"))
+                        .dateHistogramInterval(DateHistogramInterval.HOUR).minDocCount(0).extendedBounds(
+                                new ExtendedBounds("2015-10-25T02:00:00.000+02:00", "2015-10-25T04:00:00.000+01:00")))
+                .execute().actionGet();
+
+        Histogram histo = response.getAggregations().get("histo");
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(4));
+        assertThat(((DateTime) buckets.get(1).getKey()).getMillis() - ((DateTime) buckets.get(0).getKey()).getMillis(), equalTo(3600000L));
+        assertThat(((DateTime) buckets.get(2).getKey()).getMillis() - ((DateTime) buckets.get(1).getKey()).getMillis(), equalTo(3600000L));
+        assertThat(((DateTime) buckets.get(3).getKey()).getMillis() - ((DateTime) buckets.get(2).getKey()).getMillis(), equalTo(3600000L));
     }
 }

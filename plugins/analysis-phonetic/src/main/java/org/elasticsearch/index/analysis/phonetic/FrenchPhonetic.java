@@ -66,7 +66,7 @@ public class FrenchPhonetic implements StringEncoder {
                 } else {
 
                     //1X must be pronounced
-                    if (!Character.valueOf('1').equals(charAt(acc, acc.length() - 1)) && Character.valueOf('U').equals(charAt(acc, acc.length() - 1))) {
+                    if (Character.valueOf('U').equals(charAt(acc, acc.length() - 1))) {
                         return operatePhonetic(
                                 substring(acc, 0, acc.length() - 1),
                                 charAt(acc, acc.length() - 1),

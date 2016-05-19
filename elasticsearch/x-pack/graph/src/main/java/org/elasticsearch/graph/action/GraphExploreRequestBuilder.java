@@ -11,7 +11,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 
@@ -138,7 +138,7 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
     
     /**
      * The number of top-matching documents that are considered during each hop (default is 
-     * {@link SamplerAggregatorBuilder#DEFAULT_SHARD_SAMPLE_SIZE}
+     * {@link SamplerAggregationBuilder#DEFAULT_SHARD_SAMPLE_SIZE}
      * Very small values (less than 50) may not provide sufficient weight-of-evidence to identify
      * significant connections between terms. 
      * <p> Very large values (many thousands) are not recommended with loosely defined queries (fuzzy queries or 

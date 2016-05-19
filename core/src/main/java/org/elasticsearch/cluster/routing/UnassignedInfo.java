@@ -143,7 +143,7 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         this.failure = failure;
         this.failedAllocations = failedAllocations;
         assert failedAllocations > 0 && reason == Reason.ALLOCATION_FAILED || failedAllocations == 0 && reason != Reason.ALLOCATION_FAILED:
-            "failedAllocations: " + 0 + " for reason " + reason;
+            "failedAllocations: " + failedAllocations + " for reason " + reason;
         assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
     }
 
@@ -341,7 +341,7 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         sb.append("[reason=").append(reason).append("]");
         sb.append(", at[").append(DATE_TIME_FORMATTER.printer().print(unassignedTimeMillis)).append("]");
         if (failedAllocations >  0) {
-            sb.append(", failed_attemps[").append(failedAllocations).append("]");
+            sb.append(", failed_attempts[").append(failedAllocations).append("]");
         }
         String details = getDetails();
 
@@ -362,7 +362,7 @@ public final class UnassignedInfo implements ToXContent, Writeable {
         builder.field("reason", reason);
         builder.field("at", DATE_TIME_FORMATTER.printer().print(unassignedTimeMillis));
         if (failedAllocations >  0) {
-            builder.field("failed_attemps", failedAllocations);
+            builder.field("failed_attempts", failedAllocations);
         }
         String details = getDetails();
         if (details != null) {

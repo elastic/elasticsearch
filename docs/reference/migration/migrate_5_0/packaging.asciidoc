@@ -37,4 +37,14 @@ from the tar or zip distributions, and /etc/elasticsearch/jvm.options if install
 from the Debian or RPM packages. You can specify an alternative location by setting
 the environment variable `ES_JVM_OPTIONS` to the path to the file.
 
+==== Environmental Settings
 
+Previously, Elasticsearch could be configured via environment variables
+in two ways: first by using the placeholder syntax
+`${env.ENV_VAR_NAME}` and the second by using the same syntax without
+the `env` prefix: `${ENV_VAR_NAME}`. The first method has been removed
+from Elasticsearch.
+
+Additionally, it was previously possible to set any setting in
+Elasticsearch via JVM system properties. This has been removed from
+Elasticsearch.

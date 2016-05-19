@@ -23,7 +23,6 @@ import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -202,64 +201,46 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testIllegalValues() {
-        try {
-            new MatchQueryBuilder(null, "value");
-            fail("value must not be non-null");
-        } catch (IllegalArgumentException ex) {
-            // expected
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MatchQueryBuilder(null, "value"));
+            assertEquals("[match] requires fieldName", e.getMessage());
         }
 
-        try {
-            new MatchQueryBuilder("fieldName", null);
-            fail("value must not be non-null");
-        } catch (IllegalArgumentException ex) {
-            // expected
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MatchQueryBuilder("fieldName", null));
+            assertEquals("[match] requires query value", e.getMessage());
         }
 
         MatchQueryBuilder matchQuery = new MatchQueryBuilder("fieldName", "text");
-        try {
-            matchQuery.prefixLength(-1);
-            fail("must not be positive");
-        } catch (IllegalArgumentException ex) {
-            // expected
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> matchQuery.prefixLength(-1));
+            assertEquals("[match] requires prefix length to be non-negative.", e.getMessage());
         }
 
-        try {
-            matchQuery.maxExpansions(-1);
-            fail("must not be positive");
-        } catch (IllegalArgumentException ex) {
-            // expected
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> matchQuery.maxExpansions(randomIntBetween(-10, 0)));
+            assertEquals("[match] requires maxExpansions to be positive.", e.getMessage());
         }
 
-        try {
-            matchQuery.operator(null);
-            fail("must not be non-null");
-        } catch (IllegalArgumentException ex) {
-            // expected
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> matchQuery.operator(null));
+            assertEquals("[match] requires operator to be non-null", e.getMessage());
         }
 
-        try {
-            matchQuery.type(null);
-            fail("must not be non-null");
-        } catch (IllegalArgumentException ex) {
-            // expected
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> matchQuery.type(null));
+            assertEquals("[match] requires type to be non-null", e.getMessage());
         }
 
-        try {
-            matchQuery.zeroTermsQuery(null);
-            fail("must not be non-null");
-        } catch (IllegalArgumentException ex) {
-            // expected
+        {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> matchQuery.zeroTermsQuery(null));
+            assertEquals("[match] requires zeroTermsQuery to be non-null", e.getMessage());
         }
-    }
 
-    public void testBadAnalyzer() throws IOException {
-        MatchQueryBuilder matchQuery = new MatchQueryBuilder("fieldName", "text");
         matchQuery.analyzer("bogusAnalyzer");
-        try {
-            matchQuery.toQuery(createShardContext());
-            fail("Expected QueryShardException");
-        } catch (QueryShardException e) {
+        {
+            QueryShardException e = expectThrows(QueryShardException.class, () -> matchQuery.toQuery(createShardContext()));
             assertThat(e.getMessage(), containsString("analyzer [bogusAnalyzer] not found"));
         }
     }

@@ -52,7 +52,7 @@ public final class Def {
     // TODO: Once Java has a factory for those in java.lang.invoke.MethodHandles, use it:
 
     /** Helper class for isolating MethodHandles and methods to get the length of arrays
-     * (to emulate a "arraystore" byteoode using MethodHandles).
+     * (to emulate a "arraystore" bytecode using MethodHandles).
      * This should really be a method in {@link MethodHandles} class!
      */
     private static final class ArrayLengthHelper {

@@ -65,7 +65,7 @@ public final class EUnary extends AExpression {
     }
 
     void analyzeNot(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        child.expected = definition.booleanType;
+        child.expected = definition.getType("boolean");
         child.analyze(settings, definition, variables);
         child = child.cast(settings, definition, variables);
 
@@ -73,7 +73,7 @@ public final class EUnary extends AExpression {
             constant = !(boolean)child.constant;
         }
 
-        actual = definition.booleanType;
+        actual = definition.getType("boolean");
     }
 
     void analyzeBWNot(final CompilerSettings settings, final Definition definition, final Variables variables) {
@@ -195,7 +195,7 @@ public final class EUnary extends AExpression {
 
             if (operation == Operation.BWNOT) {
                 if (sort == Sort.DEF) {
-                    adapter.invokeStatic(definition.defobjType.type, DEF_NOT_CALL);
+                    adapter.invokeStatic(definition.getType("Def").type, DEF_NOT_CALL);
                 } else {
                     if (sort == Sort.INT) {
                         adapter.push(-1);
@@ -209,15 +209,15 @@ public final class EUnary extends AExpression {
                 }
             } else if (operation == Operation.SUB) {
                 if (sort == Sort.DEF) {
-                    adapter.invokeStatic(definition.defobjType.type, DEF_NEG_CALL);
+                    adapter.invokeStatic(definition.getType("Def").type, DEF_NEG_CALL);
                 } else {
                     if (settings.getNumericOverflow()) {
                         adapter.math(MethodWriter.NEG, type);
                     } else {
                         if (sort == Sort.INT) {
-                            adapter.invokeStatic(definition.mathType.type, NEGATEEXACT_INT);
+                            adapter.invokeStatic(definition.getType("Math").type, NEGATEEXACT_INT);
                         } else if (sort == Sort.LONG) {
-                            adapter.invokeStatic(definition.mathType.type, NEGATEEXACT_LONG);
+                            adapter.invokeStatic(definition.getType("Math").type, NEGATEEXACT_LONG);
                         } else {
                             throw new IllegalStateException(error("Illegal tree structure."));
                         }

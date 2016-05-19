@@ -45,7 +45,7 @@ public final class LString extends ALink {
             throw new IllegalArgumentException(error("Must read String constant [" + string + "]."));
         }
 
-        after = definition.stringType;
+        after = definition.getType("String");
 
         return this;
     }

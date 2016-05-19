@@ -101,35 +101,35 @@ public final class Variables {
         // Method variables.
 
         // This reference.  Internal use only.
-        addVariable("[" + Reserved.THIS + "]"  , definition.execType.name, Reserved.THIS  , true, true);
+        addVariable("[" + Reserved.THIS + "]"  , "Executable", Reserved.THIS  , true, true);
 
         // Input map of variables passed to the script.  TODO: Rename to 'params' since that will be its use.
-        addVariable("[" + Reserved.PARAMS + "]", definition.smapType.name, Reserved.PARAMS, true, true);
+        addVariable("[" + Reserved.PARAMS + "]", "Map", Reserved.PARAMS, true, true);
 
         // Scorer parameter passed to the script.  Internal use only.
-        addVariable("[" + Reserved.SCORER + "]", definition.defType.name , Reserved.SCORER, true, true);
+        addVariable("[" + Reserved.SCORER + "]", "def", Reserved.SCORER, true, true);
 
-        // Doc parameter passed to the script. TODO: Currently working as a Map<String,Def>, we can do better?
-        addVariable("[" + Reserved.DOC + "]"   , definition.smapType.name, Reserved.DOC   , true, true);
+        // Doc parameter passed to the script. TODO: Currently working as a Map, we can do better?
+        addVariable("[" + Reserved.DOC + "]"   , "Map", Reserved.DOC   , true, true);
 
         // Aggregation _value parameter passed to the script.
-        addVariable("[" + Reserved.VALUE + "]" , definition.defType.name , Reserved.VALUE , true, true);
+        addVariable("[" + Reserved.VALUE + "]" , "def", Reserved.VALUE , true, true);
 
         // Shortcut variables.
 
         // Document's score as a read-only double.
         if (reserved.score) {
-            addVariable("[" + Reserved.SCORE + "]", definition.doubleType.name, Reserved.SCORE, true, true);
+            addVariable("[" + Reserved.SCORE + "]", "double", Reserved.SCORE, true, true);
         }
 
         // The ctx map set by executable scripts as a read-only map.
         if (reserved.ctx) {
-            addVariable("[" + Reserved.CTX + "]", definition.smapType.name, Reserved.CTX, true, true);
+            addVariable("[" + Reserved.CTX + "]", "Map", Reserved.CTX, true, true);
         }
 
         // Loop counter to catch infinite loops.  Internal use only.
         if (reserved.loop && settings.getMaxLoopCounter() > 0) {
-            addVariable("[" + Reserved.LOOP + "]", definition.intType.name, Reserved.LOOP, true, true);
+            addVariable("[" + Reserved.LOOP + "]", "int", Reserved.LOOP, true, true);
         }
     }
 

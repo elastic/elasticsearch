@@ -53,7 +53,7 @@ public final class SDo extends AStatement {
             throw new IllegalArgumentException(error("Extraneous do while loop."));
         }
 
-        condition.expected = definition.booleanType;
+        condition.expected = definition.getType("boolean");
         condition.analyze(settings, definition, variables);
         condition = condition.cast(settings, definition, variables);
 

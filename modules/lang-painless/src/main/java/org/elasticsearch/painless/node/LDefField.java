@@ -44,7 +44,7 @@ final class LDefField extends ALink implements IDefLink {
 
     @Override
     ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        after = definition.defType;
+        after = definition.getType("def");
 
         return this;
     }
@@ -56,13 +56,13 @@ final class LDefField extends ALink implements IDefLink {
 
     @Override
     void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        final String desc = Type.getMethodDescriptor(after.type, definition.defType.type);
+        final String desc = Type.getMethodDescriptor(after.type, definition.getType("def").type);
         adapter.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.LOAD);
     }
 
     @Override
     void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type, after.type);
+        final String desc = Type.getMethodDescriptor(definition.getType("void").type, definition.getType("def").type, after.type);
         adapter.invokeDynamic(value, desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.STORE);
     }
 }

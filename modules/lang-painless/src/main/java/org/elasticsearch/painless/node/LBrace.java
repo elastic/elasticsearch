@@ -50,7 +50,7 @@ public final class LBrace extends ALink {
         final Sort sort = before.sort;
 
         if (sort == Sort.ARRAY) {
-            index.expected = definition.intType;
+            index.expected = definition.getType("int");
             index.analyze(settings, definition, variables);
             index = index.cast(settings, definition, variables);
 

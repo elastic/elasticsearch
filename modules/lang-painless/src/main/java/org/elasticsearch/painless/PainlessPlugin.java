@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless;
 
+
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptMode;
@@ -28,6 +29,16 @@ import org.elasticsearch.script.ScriptModule;
  * Registers Painless as a plugin.
  */
 public final class PainlessPlugin extends Plugin {
+
+    // parse our definition at startup (not on the user's first script)
+    // compilation process is sandboxed and has no file access.
+    static {
+        try {
+            Class.forName("org.elasticsearch.painless.Definition");
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @Override
     public String name() {

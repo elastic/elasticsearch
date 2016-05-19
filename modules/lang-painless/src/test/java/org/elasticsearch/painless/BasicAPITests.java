@@ -24,10 +24,8 @@ public class BasicAPITests extends ScriptTestCase {
     public void testListIterator() {
         assertEquals(3, exec("List x = new ArrayList(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); " +
             "int total = 0; while (y.hasNext()) total += y.next(); return total;"));
-        assertEquals(3, exec("List<Object> x = new ArrayList(); x.add(2); x.add(3); x.add(-2); Iterator<Object> y = x.iterator(); " +
-            "int total = 0; while (y.hasNext()) total += (int)y.next(); return total;"));
-        assertEquals("abc", exec("List<String> x = new ArrayList(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); " +
-            "Iterator<String> y = x.iterator(); String total = \"\"; while (y.hasNext()) total += y.next(); return total;"));
+        assertEquals("abc", exec("List x = new ArrayList(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); " +
+            "Iterator y = x.iterator(); String total = \"\"; while (y.hasNext()) total += y.next(); return total;"));
         assertEquals(3, exec("def x = new ArrayList(); x.add(2); x.add(3); x.add(-2); def y = x.iterator(); " +
             "def total = 0; while (y.hasNext()) total += y.next(); return total;"));
     }
@@ -35,10 +33,8 @@ public class BasicAPITests extends ScriptTestCase {
     public void testSetIterator() {
         assertEquals(3, exec("Set x = new HashSet(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); " +
             "int total = 0; while (y.hasNext()) total += y.next(); return total;"));
-        assertEquals(3, exec("Set<Object> x = new HashSet(); x.add(2); x.add(3); x.add(-2); Iterator<Object> y = x.iterator(); " +
-            "int total = 0; while (y.hasNext()) total += (int)y.next(); return total;"));
-        assertEquals("abc", exec("Set<String> x = new HashSet(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); " +
-            "Iterator<String> y = x.iterator(); String total = \"\"; while (y.hasNext()) total += y.next(); return total;"));
+        assertEquals("abc", exec("Set x = new HashSet(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); " +
+            "Iterator y = x.iterator(); String total = \"\"; while (y.hasNext()) total += y.next(); return total;"));
         assertEquals(3, exec("def x = new HashSet(); x.add(2); x.add(3); x.add(-2); def y = x.iterator(); " +
             "def total = 0; while (y.hasNext()) total += (int)y.next(); return total;"));
     }
@@ -78,8 +74,6 @@ public class BasicAPITests extends ScriptTestCase {
         assertEquals(1, exec("def x = new ArrayList(); x.add(5); return x.length"));
         assertEquals(5, exec("def x = new ArrayList(); x.add(5); return x[0]"));
         assertEquals(1, exec("List x = new ArrayList(); x.add('Hallo'); return x.length"));
-        assertEquals(1, exec("List<String> x = new ArrayList<String>(); x.add('Hallo'); return x.length"));
-        assertEquals(1, exec("List<Object> x = new ArrayList<Object>(); x.add('Hallo'); return x.length"));
     }
     
     public void testDefAssignments() {

@@ -47,7 +47,7 @@ final class LDefArray extends ALink implements IDefLink {
         index.expected = index.actual;
         index = index.cast(settings, definition, variables);
 
-        after = definition.defType;
+        after = definition.getType("def");
 
         return this;
     }
@@ -59,13 +59,13 @@ final class LDefArray extends ALink implements IDefLink {
 
     @Override
     void load(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        final String desc = Type.getMethodDescriptor(after.type, definition.defType.type, index.actual.type);
+        final String desc = Type.getMethodDescriptor(after.type, definition.getType("def").type, index.actual.type);
         adapter.invokeDynamic("arrayLoad", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_LOAD);
     }
 
     @Override
     void store(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
-        final String desc = Type.getMethodDescriptor(definition.voidType.type, definition.defType.type,
+        final String desc = Type.getMethodDescriptor(definition.getType("void").type, definition.getType("def").type,
             index.actual.type, after.type);
         adapter.invokeDynamic("arrayStore", desc, DEF_BOOTSTRAP_HANDLE, DefBootstrap.ARRAY_STORE);
     }

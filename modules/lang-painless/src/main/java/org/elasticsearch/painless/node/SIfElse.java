@@ -45,7 +45,7 @@ public final class SIfElse extends AStatement {
 
     @Override
     void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        condition.expected = definition.booleanType;
+        condition.expected = definition.getType("boolean");
         condition.analyze(settings, definition, variables);
         condition = condition.cast(settings, definition, variables);
 

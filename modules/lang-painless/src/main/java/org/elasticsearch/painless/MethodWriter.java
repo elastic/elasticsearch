@@ -252,29 +252,29 @@ public final class MethodWriter extends GeneratorAdapter {
             switch (sort) {
                 case INT:
                     switch (operation) {
-                        case MUL: invokeStatic(definition.mathType.type,    MULEXACT_INT);     break;
-                        case DIV: invokeStatic(definition.utilityType.type, DIVWOOVERLOW_INT); break;
-                        case ADD: invokeStatic(definition.mathType.type,    ADDEXACT_INT);     break;
-                        case SUB: invokeStatic(definition.mathType.type,    SUBEXACT_INT);     break;
+                        case MUL: invokeStatic(definition.getType("Math").type,    MULEXACT_INT);     break;
+                        case DIV: invokeStatic(definition.getType("Utility").type, DIVWOOVERLOW_INT); break;
+                        case ADD: invokeStatic(definition.getType("Math").type,    ADDEXACT_INT);     break;
+                        case SUB: invokeStatic(definition.getType("Math").type,    SUBEXACT_INT);     break;
                     }
 
                     break;
                 case LONG:
                     switch (operation) {
-                        case MUL: invokeStatic(definition.mathType.type,    MULEXACT_LONG);     break;
-                        case DIV: invokeStatic(definition.utilityType.type, DIVWOOVERLOW_LONG); break;
-                        case ADD: invokeStatic(definition.mathType.type,    ADDEXACT_LONG);     break;
-                        case SUB: invokeStatic(definition.mathType.type,    SUBEXACT_LONG);     break;
+                        case MUL: invokeStatic(definition.getType("Math").type,    MULEXACT_LONG);     break;
+                        case DIV: invokeStatic(definition.getType("Utility").type, DIVWOOVERLOW_LONG); break;
+                        case ADD: invokeStatic(definition.getType("Math").type,    ADDEXACT_LONG);     break;
+                        case SUB: invokeStatic(definition.getType("Math").type,    SUBEXACT_LONG);     break;
                     }
 
                     break;
                 case FLOAT:
                     switch (operation) {
-                        case MUL: invokeStatic(definition.utilityType.type, MULWOOVERLOW_FLOAT); break;
-                        case DIV: invokeStatic(definition.utilityType.type, DIVWOOVERLOW_FLOAT); break;
-                        case REM: invokeStatic(definition.utilityType.type, REMWOOVERLOW_FLOAT); break;
-                        case ADD: invokeStatic(definition.utilityType.type, ADDWOOVERLOW_FLOAT); break;
-                        case SUB: invokeStatic(definition.utilityType.type, SUBWOOVERLOW_FLOAT); break;
+                        case MUL: invokeStatic(definition.getType("Utility").type, MULWOOVERLOW_FLOAT); break;
+                        case DIV: invokeStatic(definition.getType("Utility").type, DIVWOOVERLOW_FLOAT); break;
+                        case REM: invokeStatic(definition.getType("Utility").type, REMWOOVERLOW_FLOAT); break;
+                        case ADD: invokeStatic(definition.getType("Utility").type, ADDWOOVERLOW_FLOAT); break;
+                        case SUB: invokeStatic(definition.getType("Utility").type, SUBWOOVERLOW_FLOAT); break;
                         default:
                             throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
                     }
@@ -282,11 +282,11 @@ public final class MethodWriter extends GeneratorAdapter {
                     break;
                 case DOUBLE:
                     switch (operation) {
-                        case MUL: invokeStatic(definition.utilityType.type, MULWOOVERLOW_DOUBLE); break;
-                        case DIV: invokeStatic(definition.utilityType.type, DIVWOOVERLOW_DOUBLE); break;
-                        case REM: invokeStatic(definition.utilityType.type, REMWOOVERLOW_DOUBLE); break;
-                        case ADD: invokeStatic(definition.utilityType.type, ADDWOOVERLOW_DOUBLE); break;
-                        case SUB: invokeStatic(definition.utilityType.type, SUBWOOVERLOW_DOUBLE); break;
+                        case MUL: invokeStatic(definition.getType("Utility").type, MULWOOVERLOW_DOUBLE); break;
+                        case DIV: invokeStatic(definition.getType("Utility").type, DIVWOOVERLOW_DOUBLE); break;
+                        case REM: invokeStatic(definition.getType("Utility").type, REMWOOVERLOW_DOUBLE); break;
+                        case ADD: invokeStatic(definition.getType("Utility").type, ADDWOOVERLOW_DOUBLE); break;
+                        case SUB: invokeStatic(definition.getType("Utility").type, SUBWOOVERLOW_DOUBLE); break;
                         default:
                             throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
                     }
@@ -305,17 +305,17 @@ public final class MethodWriter extends GeneratorAdapter {
 
             if (sort == Sort.DEF) {
                 switch (operation) {
-                    case MUL:   invokeStatic(definition.defobjType.type, DEF_MUL_CALL); break;
-                    case DIV:   invokeStatic(definition.defobjType.type, DEF_DIV_CALL); break;
-                    case REM:   invokeStatic(definition.defobjType.type, DEF_REM_CALL); break;
-                    case ADD:   invokeStatic(definition.defobjType.type, DEF_ADD_CALL); break;
-                    case SUB:   invokeStatic(definition.defobjType.type, DEF_SUB_CALL); break;
-                    case LSH:   invokeStatic(definition.defobjType.type, DEF_LSH_CALL); break;
-                    case USH:   invokeStatic(definition.defobjType.type, DEF_RSH_CALL); break;
-                    case RSH:   invokeStatic(definition.defobjType.type, DEF_USH_CALL); break;
-                    case BWAND: invokeStatic(definition.defobjType.type, DEF_AND_CALL); break;
-                    case XOR:   invokeStatic(definition.defobjType.type, DEF_XOR_CALL); break;
-                    case BWOR:  invokeStatic(definition.defobjType.type, DEF_OR_CALL);  break;
+                    case MUL:   invokeStatic(definition.getType("Def").type, DEF_MUL_CALL); break;
+                    case DIV:   invokeStatic(definition.getType("Def").type, DEF_DIV_CALL); break;
+                    case REM:   invokeStatic(definition.getType("Def").type, DEF_REM_CALL); break;
+                    case ADD:   invokeStatic(definition.getType("Def").type, DEF_ADD_CALL); break;
+                    case SUB:   invokeStatic(definition.getType("Def").type, DEF_SUB_CALL); break;
+                    case LSH:   invokeStatic(definition.getType("Def").type, DEF_LSH_CALL); break;
+                    case USH:   invokeStatic(definition.getType("Def").type, DEF_RSH_CALL); break;
+                    case RSH:   invokeStatic(definition.getType("Def").type, DEF_USH_CALL); break;
+                    case BWAND: invokeStatic(definition.getType("Def").type, DEF_AND_CALL); break;
+                    case XOR:   invokeStatic(definition.getType("Def").type, DEF_XOR_CALL); break;
+                    case BWOR:  invokeStatic(definition.getType("Def").type, DEF_OR_CALL);  break;
                     default:
                         throw new IllegalStateException("Error " + location + ": Illegal tree structure.");
                 }
@@ -350,107 +350,107 @@ public final class MethodWriter extends GeneratorAdapter {
         final Definition definition, final Sort fsort, final Sort tsort) {
         if (fsort == Sort.DOUBLE) {
             if (tsort == Sort.FLOAT) {
-                invokeStatic(definition.utilityType.type, TOFLOATWOOVERFLOW_DOUBLE);
+                invokeStatic(definition.getType("Utility").type, TOFLOATWOOVERFLOW_DOUBLE);
             } else if (tsort == Sort.FLOAT_OBJ) {
-                invokeStatic(definition.utilityType.type, TOFLOATWOOVERFLOW_DOUBLE);
-                checkCast(definition.floatobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOFLOATWOOVERFLOW_DOUBLE);
+                checkCast(definition.getType("Float").type);
             } else if (tsort == Sort.LONG) {
-                invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_DOUBLE);
+                invokeStatic(definition.getType("Utility").type, TOLONGWOOVERFLOW_DOUBLE);
             } else if (tsort == Sort.LONG_OBJ) {
-                invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_DOUBLE);
-                checkCast(definition.longobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOLONGWOOVERFLOW_DOUBLE);
+                checkCast(definition.getType("Long").type);
             } else if (tsort == Sort.INT) {
-                invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_DOUBLE);
+                invokeStatic(definition.getType("Utility").type, TOINTWOOVERFLOW_DOUBLE);
             } else if (tsort == Sort.INT_OBJ) {
-                invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_DOUBLE);
-                checkCast(definition.intobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOINTWOOVERFLOW_DOUBLE);
+                checkCast(definition.getType("Integer").type);
             } else if (tsort == Sort.CHAR) {
-                invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_DOUBLE);
+                invokeStatic(definition.getType("Utility").type, TOCHARWOOVERFLOW_DOUBLE);
             } else if (tsort == Sort.CHAR_OBJ) {
-                invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_DOUBLE);
-                checkCast(definition.charobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOCHARWOOVERFLOW_DOUBLE);
+                checkCast(definition.getType("Character").type);
             } else if (tsort == Sort.SHORT) {
-                invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_DOUBLE);
+                invokeStatic(definition.getType("Utility").type, TOSHORTWOOVERFLOW_DOUBLE);
             } else if (tsort == Sort.SHORT_OBJ) {
-                invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_DOUBLE);
-                checkCast(definition.shortobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOSHORTWOOVERFLOW_DOUBLE);
+                checkCast(definition.getType("Short").type);
             } else if (tsort == Sort.BYTE) {
-                invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_DOUBLE);
+                invokeStatic(definition.getType("Utility").type, TOBYTEWOOVERFLOW_DOUBLE);
             } else if (tsort == Sort.BYTE_OBJ) {
-                invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_DOUBLE);
-                checkCast(definition.byteobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOBYTEWOOVERFLOW_DOUBLE);
+                checkCast(definition.getType("Byte").type);
             } else {
                 return false;
             }
         } else if (fsort == Sort.FLOAT) {
             if (tsort == Sort.LONG) {
-                invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_FLOAT);
+                invokeStatic(definition.getType("Utility").type, TOLONGWOOVERFLOW_FLOAT);
             } else if (tsort == Sort.LONG_OBJ) {
-                invokeStatic(definition.utilityType.type, TOLONGWOOVERFLOW_FLOAT);
-                checkCast(definition.longobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOLONGWOOVERFLOW_FLOAT);
+                checkCast(definition.getType("Long").type);
             } else if (tsort == Sort.INT) {
-                invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_FLOAT);
+                invokeStatic(definition.getType("Utility").type, TOINTWOOVERFLOW_FLOAT);
             } else if (tsort == Sort.INT_OBJ) {
-                invokeStatic(definition.utilityType.type, TOINTWOOVERFLOW_FLOAT);
-                checkCast(definition.intobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOINTWOOVERFLOW_FLOAT);
+                checkCast(definition.getType("Integer").type);
             } else if (tsort == Sort.CHAR) {
-                invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_FLOAT);
+                invokeStatic(definition.getType("Utility").type, TOCHARWOOVERFLOW_FLOAT);
             } else if (tsort == Sort.CHAR_OBJ) {
-                invokeStatic(definition.utilityType.type, TOCHARWOOVERFLOW_FLOAT);
-                checkCast(definition.charobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOCHARWOOVERFLOW_FLOAT);
+                checkCast(definition.getType("Character").type);
             } else if (tsort == Sort.SHORT) {
-                invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_FLOAT);
+                invokeStatic(definition.getType("Utility").type, TOSHORTWOOVERFLOW_FLOAT);
             } else if (tsort == Sort.SHORT_OBJ) {
-                invokeStatic(definition.utilityType.type, TOSHORTWOOVERFLOW_FLOAT);
-                checkCast(definition.shortobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOSHORTWOOVERFLOW_FLOAT);
+                checkCast(definition.getType("Short").type);
             } else if (tsort == Sort.BYTE) {
-                invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_FLOAT);
+                invokeStatic(definition.getType("Utility").type, TOBYTEWOOVERFLOW_FLOAT);
             } else if (tsort == Sort.BYTE_OBJ) {
-                invokeStatic(definition.utilityType.type, TOBYTEWOOVERFLOW_FLOAT);
-                checkCast(definition.byteobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOBYTEWOOVERFLOW_FLOAT);
+                checkCast(definition.getType("Byte").type);
             } else {
                 return false;
             }
         } else if (fsort == Sort.LONG) {
             if (tsort == Sort.INT) {
-                invokeStatic(definition.mathType.type, TOINTEXACT_LONG);
+                invokeStatic(definition.getType("Math").type, TOINTEXACT_LONG);
             } else if (tsort == Sort.INT_OBJ) {
-                invokeStatic(definition.mathType.type, TOINTEXACT_LONG);
-                checkCast(definition.intobjType.type);
+                invokeStatic(definition.getType("Math").type, TOINTEXACT_LONG);
+                checkCast(definition.getType("Integer").type);
             } else if (tsort == Sort.CHAR) {
-                invokeStatic(definition.utilityType.type, TOCHAREXACT_LONG);
+                invokeStatic(definition.getType("Utility").type, TOCHAREXACT_LONG);
             } else if (tsort == Sort.CHAR_OBJ) {
-                invokeStatic(definition.utilityType.type, TOCHAREXACT_LONG);
-                checkCast(definition.charobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOCHAREXACT_LONG);
+                checkCast(definition.getType("Character").type);
             } else if (tsort == Sort.SHORT) {
-                invokeStatic(definition.utilityType.type, TOSHORTEXACT_LONG);
+                invokeStatic(definition.getType("Utility").type, TOSHORTEXACT_LONG);
             } else if (tsort == Sort.SHORT_OBJ) {
-                invokeStatic(definition.utilityType.type, TOSHORTEXACT_LONG);
-                checkCast(definition.shortobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOSHORTEXACT_LONG);
+                checkCast(definition.getType("Short").type);
             } else if (tsort == Sort.BYTE) {
-                invokeStatic(definition.utilityType.type, TOBYTEEXACT_LONG);
+                invokeStatic(definition.getType("Utility").type, TOBYTEEXACT_LONG);
             } else if (tsort == Sort.BYTE_OBJ) {
-                invokeStatic(definition.utilityType.type, TOBYTEEXACT_LONG);
-                checkCast(definition.byteobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOBYTEEXACT_LONG);
+                checkCast(definition.getType("Byte").type);
             } else {
                 return false;
             }
         } else if (fsort == Sort.INT) {
             if (tsort == Sort.CHAR) {
-                invokeStatic(definition.utilityType.type, TOCHAREXACT_INT);
+                invokeStatic(definition.getType("Utility").type, TOCHAREXACT_INT);
             } else if (tsort == Sort.CHAR_OBJ) {
-                invokeStatic(definition.utilityType.type, TOCHAREXACT_INT);
-                checkCast(definition.charobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOCHAREXACT_INT);
+                checkCast(definition.getType("Character").type);
             } else if (tsort == Sort.SHORT) {
-                invokeStatic(definition.utilityType.type, TOSHORTEXACT_INT);
+                invokeStatic(definition.getType("Utility").type, TOSHORTEXACT_INT);
             } else if (tsort == Sort.SHORT_OBJ) {
-                invokeStatic(definition.utilityType.type, TOSHORTEXACT_INT);
-                checkCast(definition.shortobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOSHORTEXACT_INT);
+                checkCast(definition.getType("Short").type);
             } else if (tsort == Sort.BYTE) {
-                invokeStatic(definition.utilityType.type, TOBYTEEXACT_INT);
+                invokeStatic(definition.getType("Utility").type, TOBYTEEXACT_INT);
             } else if (tsort == Sort.BYTE_OBJ) {
-                invokeStatic(definition.utilityType.type, TOBYTEEXACT_INT);
-                checkCast(definition.byteobjType.type);
+                invokeStatic(definition.getType("Utility").type, TOBYTEEXACT_INT);
+                checkCast(definition.getType("Byte").type);
             } else {
                 return false;
             }

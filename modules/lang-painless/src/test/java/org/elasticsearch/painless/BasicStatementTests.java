@@ -146,7 +146,7 @@ public class BasicStatementTests extends ScriptTestCase {
         assertEquals(double[].class, exec("double[] a = new double[1]; return a;").getClass());
         assertEquals(boolean[].class, exec("boolean[] a = new boolean[1]; return a;").getClass());
         assertEquals(String[].class, exec("String[] a = new String[1]; return a;").getClass());
-        assertEquals(Map[].class, exec("Map<String,Object>[] a = new Map<String,Object>[1]; return a;").getClass());
+        assertEquals(Map[].class, exec("Map[] a = new Map[1]; return a;").getClass());
 
         assertEquals(byte[][].class, exec("byte[][] a = new byte[1][2]; return a;").getClass());
         assertEquals(short[][][].class, exec("short[][][] a = new short[1][2][3]; return a;").getClass());

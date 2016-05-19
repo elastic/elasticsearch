@@ -152,7 +152,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         lexer.removeErrorListeners();
         parser.removeErrorListeners();
 
-        /*if (picky) {
+        if (picky) {
             // Diagnostic listener invokes syntaxError on other listeners for ambiguity issues,
             parser.addErrorListener(new DiagnosticErrorListener(true));
             // a second listener to fail the test when the above happens.
@@ -168,7 +168,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             // Enable exact ambiguity detection (costly). we enable exact since its the default for
             // DiagnosticErrorListener, life is too short to think about what 'inexact ambiguity' might mean.
             parser.getInterpreter().setPredictionMode(PredictionMode.LL_EXACT_AMBIG_DETECTION);
-        }*/
+        }
 
         parser.setErrorHandler(strategy);
 

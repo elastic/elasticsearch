@@ -1,1 +1,0 @@
-apply plugin: 'elasticsearch.rest-test'

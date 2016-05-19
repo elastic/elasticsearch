@@ -7,51 +7,53 @@ package org.elasticsearch.xpack.extensions;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.SettingCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.xpack.XPackPlugin.resolveXPackExtensionsFile;
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
+import static org.elasticsearch.xpack.XPackPlugin.resolveXPackExtensionsFile;
 
 /**
  * A command for the extension cli to remove an extension from x-pack.
  */
-class RemoveXPackExtensionCommand  extends Command {
-    private final Environment env;
+class RemoveXPackExtensionCommand  extends SettingCommand {
     private final OptionSpec<String> arguments;
 
-    RemoveXPackExtensionCommand(Environment env) {
+    RemoveXPackExtensionCommand() {
         super("Removes an extension from x-pack");
-        this.env = env;
         this.arguments = parser.nonOptions("extension name");
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
+
         // TODO: in jopt-simple 5.0 we can enforce a min/max number of positional args
         List<String> args = arguments.values(options);
         if (args.size() != 1) {
             throw new UserError(ExitCodes.USAGE, "Must supply a single extension id argument");
         }
-        execute(terminal, args.get(0));
+        execute(terminal, args.get(0), settings);
     }
 
     // pkg private for testing
-    void execute(Terminal terminal, String extensionName) throws Exception {
+    void execute(Terminal terminal, String extensionName, Map<String, String> settings) throws Exception {
         terminal.println("-> Removing " + Strings.coalesceToEmpty(extensionName) + "...");
 
+        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
         Path extensionDir = resolveXPackExtensionsFile(env).resolve(extensionName);
         if (Files.exists(extensionDir) == false) {
             throw new UserError(ExitCodes.USAGE,

@@ -8,17 +8,18 @@ package org.elasticsearch.xpack.extensions;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.lucene.util.IOUtils;
-
 import org.elasticsearch.bootstrap.JarHell;
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.SettingCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
-import java.io.InputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 import java.net.URLDecoder;
@@ -26,13 +27,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import static org.elasticsearch.xpack.XPackPlugin.resolveXPackExtensionsFile;
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
+import static org.elasticsearch.xpack.XPackPlugin.resolveXPackExtensionsFile;
 
 /**
  * A command for the extension cli to install an extension into x-pack.
@@ -49,22 +51,20 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
  *     <li>Jar hell does not exist, either between the extension's own jars or with the parent classloader (elasticsearch + x-pack)</li>
  * </ul>
  */
-class InstallXPackExtensionCommand extends Command {
+class InstallXPackExtensionCommand extends SettingCommand {
 
-    private final Environment env;
     private final OptionSpec<Void> batchOption;
     private final OptionSpec<String> arguments;
 
-    InstallXPackExtensionCommand(Environment env) {
+    InstallXPackExtensionCommand() {
         super("Install a plugin");
-        this.env = env;
         this.batchOption = parser.acceptsAll(Arrays.asList("b", "batch"),
                 "Enable batch mode explicitly, automatic confirmation of security permission");
         this.arguments = parser.nonOptions("plugin id");
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
         // TODO: in jopt-simple 5.0 we can enforce a min/max number of positional args
         List<String> args = arguments.values(options);
         if (args.size() != 1) {
@@ -72,12 +72,13 @@ class InstallXPackExtensionCommand extends Command {
         }
         String extensionURL = args.get(0);
         boolean isBatch = options.has(batchOption) || System.console() == null;
-        execute(terminal, extensionURL, isBatch);
+        execute(terminal, extensionURL, isBatch, settings);
     }
 
 
     // pkg private for testing
-    void execute(Terminal terminal, String extensionId, boolean isBatch) throws Exception {
+    void execute(Terminal terminal, String extensionId, boolean isBatch, Map<String, String> properties) throws Exception {
+        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, properties);
         if (Files.exists(resolveXPackExtensionsFile(env)) == false) {
             terminal.println("xpack extensions directory [" + resolveXPackExtensionsFile(env) + "] does not exist. Creating...");
             Files.createDirectories(resolveXPackExtensionsFile(env));

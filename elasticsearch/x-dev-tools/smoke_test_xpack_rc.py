@@ -112,7 +112,7 @@ def smoke_test_release(release, files, expected_hash):
     
     print('  Starting elasticsearch daemon from [%s]' % es_dir)
     try:
-      run('%s; %s -Ees.node.name=smoke_tester -Ees.cluster.name=prepare_release -Ees.script.inline=true -Ees.script.stored=true -Ees.repositories.url.allowed_urls=http://snapshot.test* %s -Ees.pidfile=%s -Ees.node.portsfile=true'
+      run('%s; %s -Enode.name=smoke_tester -Ecluster.name=prepare_release -Escript.inline=true -Escript.stored=true -Erepositories.url.allowed_urls=http://snapshot.test* %s -Epidfile=%s -Enode.portsfile=true'
           % (java_exe(), es_run_path, '-d', os.path.join(es_dir, 'es-smoke.pid')))
       if not wait_for_node_startup(es_dir, headers=headers):
         print("elasticsearch logs:")

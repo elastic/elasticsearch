@@ -11,22 +11,26 @@ import org.elasticsearch.cli.UserError;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class RemoveXPackExtensionCommandTests extends ESTestCase {
 
-    /** Creates a test environment with bin, config and plugins directories. */
-    static Environment createEnv() throws IOException {
-        Path home = createTempDir();
-        Settings settings = Settings.builder()
-            .put("path.home", home)
-            .build();
-        return new Environment(settings);
+    private Path home;
+    private Environment env;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        home = createTempDir();
+        env = new Environment(Settings.builder().put("path.home", home.toString()).build());
     }
 
     Path createExtensionDir(Environment env) throws IOException {
@@ -34,9 +38,11 @@ public class RemoveXPackExtensionCommandTests extends ESTestCase {
         return Files.createDirectories(path);
     }
 
-    static MockTerminal removeExtension(String name, Environment env) throws Exception {
+    static MockTerminal removeExtension(String name, Path home) throws Exception {
+        Map<String, String> settings = new HashMap<>();
+        settings.put("path.home", home.toString());
         MockTerminal terminal = new MockTerminal();
-        new RemoveXPackExtensionCommand(env).execute(terminal, name);
+        new RemoveXPackExtensionCommand().execute(terminal, name, settings);
         return terminal;
     }
 
@@ -51,25 +57,22 @@ public class RemoveXPackExtensionCommandTests extends ESTestCase {
     }
 
     public void testMissing() throws Exception {
-        Environment env = createEnv();
         Path extDir = createExtensionDir(env);
-        UserError e = expectThrows(UserError.class, () -> {
-           removeExtension("dne", env);
-        });
+        UserError e = expectThrows(UserError.class, () -> removeExtension("dne", home));
         assertTrue(e.getMessage(), e.getMessage().contains("Extension dne not found"));
         assertRemoveCleaned(extDir);
     }
 
     public void testBasic() throws Exception {
-        Environment env = createEnv();
         Path extDir = createExtensionDir(env);
         Files.createDirectory(extDir.resolve("fake"));
         Files.createFile(extDir.resolve("fake").resolve("extension.jar"));
         Files.createDirectory(extDir.resolve("fake").resolve("subdir"));
         Files.createDirectory(extDir.resolve("other"));
-        removeExtension("fake", env);
+        removeExtension("fake", home);
         assertFalse(Files.exists(extDir.resolve("fake")));
         assertTrue(Files.exists(extDir.resolve("other")));
         assertRemoveCleaned(extDir);
     }
+
 }

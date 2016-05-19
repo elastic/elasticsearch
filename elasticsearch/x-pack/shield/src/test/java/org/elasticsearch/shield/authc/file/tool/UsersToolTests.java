@@ -5,16 +5,6 @@
  */
 package org.elasticsearch.shield.authc.file.tool;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystem;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import org.apache.lucene.util.IOUtils;
@@ -35,17 +25,28 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+
 public class UsersToolTests extends CommandTestCase {
 
     // the mock filesystem we use so permissions/users/groups can be modified
     static FileSystem jimfs;
+    String pathHomeParameter;
+    String fileTypeParameter;
 
     // the config dir for each test to use
     Path confDir;
 
     // settings used to create an Environment for tools
-    Settings.Builder settingsBuilder;
-
+    Settings settings;
 
     @BeforeClass
     public static void setupJimfs() throws IOException {
@@ -78,9 +79,13 @@ public class UsersToolTests extends CommandTestCase {
             "test_r2:",
             "  cluster: all"
         ), StandardCharsets.UTF_8);
-        settingsBuilder = Settings.builder()
-            .put("path.home", homeDir)
-            .put("xpack.security.authc.realms.file.type", "file");
+        settings =
+                Settings.builder()
+                        .put("path.home", homeDir)
+                        .put("xpack.security.authc.realms.file.type", "file")
+                        .build();
+        pathHomeParameter = "-Epath.home=" + homeDir;
+        fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
     }
 
     @AfterClass
@@ -92,7 +97,7 @@ public class UsersToolTests extends CommandTestCase {
 
     @Override
     protected Command newCommand() {
-        return new UsersTool(new Environment(settingsBuilder.build()));
+        return new UsersTool();
     }
 
     /** checks the user exists with the given password */
@@ -219,7 +224,7 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testParseUnknownRole() throws Exception {
-        UsersTool.parseRoles(terminal, new Environment(settingsBuilder.build()), "test_r1,r2,r3");
+        UsersTool.parseRoles(terminal, new Environment(settings), "test_r1,r2,r3");
         String output = terminal.getOutput();
         assertTrue(output, output.contains("The following roles [r2,r3] are not in the ["));
     }
@@ -227,21 +232,21 @@ public class UsersToolTests extends CommandTestCase {
     public void testParseReservedRole() throws Exception {
         final String reservedRoleName = randomFrom(ReservedRolesStore.names().toArray(Strings.EMPTY_ARRAY));
         String rolesArg = randomBoolean() ? "test_r1," + reservedRoleName : reservedRoleName;
-        UsersTool.parseRoles(terminal, new Environment(settingsBuilder.build()), rolesArg);
+        UsersTool.parseRoles(terminal, new Environment(settings), rolesArg);
         String output = terminal.getOutput();
         assertTrue(output, output.isEmpty());
     }
 
     public void testParseInvalidRole() throws Exception {
         UserError e = expectThrows(UserError.class, () -> {
-            UsersTool.parseRoles(terminal, new Environment(settingsBuilder.build()), "$345");
+            UsersTool.parseRoles(terminal, new Environment(settings), "$345");
         });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Invalid role [$345]"));
     }
 
     public void testParseMultipleRoles() throws Exception {
-        String[] roles = UsersTool.parseRoles(terminal, new Environment(settingsBuilder.build()), "test_r1,test_r2");
+        String[] roles = UsersTool.parseRoles(terminal, new Environment(settings), "test_r1,test_r2");
         assertEquals(Objects.toString(roles), 2, roles.length);
         assertEquals("test_r1", roles[0]);
         assertEquals("test_r2", roles[1]);
@@ -250,18 +255,18 @@ public class UsersToolTests extends CommandTestCase {
     public void testUseraddNoPassword() throws Exception {
         terminal.addSecretInput("changeme");
         terminal.addSecretInput("changeme");
-        execute("useradd", "username");
+        execute("useradd", pathHomeParameter, fileTypeParameter, "username");
         assertUser("username", "changeme");
     }
 
     public void testUseraddPasswordOption() throws Exception {
-        execute("useradd", "username", "-p", "changeme");
+        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", "changeme");
         assertUser("username", "changeme");
     }
 
     public void testUseraddUserExists() throws Exception {
         UserError e = expectThrows(UserError.class, () -> {
-            execute("useradd", "existing_user", "-p", "changeme");
+            execute("useradd", pathHomeParameter, fileTypeParameter, "existing_user", "-p", "changeme");
         });
         assertEquals(ExitCodes.CODE_ERROR, e.exitCode);
         assertEquals("User [existing_user] already exists", e.getMessage());
@@ -270,27 +275,27 @@ public class UsersToolTests extends CommandTestCase {
     public void testUseraddNoRoles() throws Exception {
         Files.delete(confDir.resolve("users_roles"));
         Files.createFile(confDir.resolve("users_roles"));
-        execute("useradd", "username", "-p", "changeme");
+        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", "changeme");
         List<String> lines = Files.readAllLines(confDir.resolve("users_roles"), StandardCharsets.UTF_8);
         assertTrue(lines.toString(), lines.isEmpty());
     }
 
     public void testUserdelUnknownUser() throws Exception {
         UserError e = expectThrows(UserError.class, () -> {
-            execute("userdel", "unknown");
+            execute("userdel", pathHomeParameter, fileTypeParameter, "unknown");
         });
         assertEquals(ExitCodes.NO_USER, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("User [unknown] doesn't exist"));
     }
 
     public void testUserdel() throws Exception {
-        execute("userdel", "existing_user");
+        execute("userdel", pathHomeParameter, fileTypeParameter, "existing_user");
         assertNoUser("existing_user");
     }
 
     public void testPasswdUnknownUser() throws Exception {
         UserError e = expectThrows(UserError.class, () -> {
-            execute("passwd", "unknown", "-p", "changeme");
+            execute("passwd", pathHomeParameter, fileTypeParameter, "unknown", "-p", "changeme");
         });
         assertEquals(ExitCodes.NO_USER, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("User [unknown] doesn't exist"));
@@ -299,64 +304,64 @@ public class UsersToolTests extends CommandTestCase {
     public void testPasswdNoPasswordOption() throws Exception {
         terminal.addSecretInput("newpassword");
         terminal.addSecretInput("newpassword");
-        execute("passwd", "existing_user");
+        execute("passwd", pathHomeParameter, fileTypeParameter, "existing_user");
         assertUser("existing_user", "newpassword");
         assertRole("test_admin", "existing_user", "existing_user2"); // roles unchanged
     }
 
     public void testPasswd() throws Exception {
-        execute("passwd", "existing_user", "-p", "newpassword");
+        execute("passwd", pathHomeParameter, fileTypeParameter, "existing_user", "-p", "newpassword");
         assertUser("existing_user", "newpassword");
         assertRole("test_admin", "existing_user"); // roles unchanged
     }
 
     public void testRolesUnknownUser() throws Exception {
         UserError e = expectThrows(UserError.class, () -> {
-            execute("roles", "unknown");
+            execute("roles", pathHomeParameter, fileTypeParameter, "unknown");
         });
         assertEquals(ExitCodes.NO_USER, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("User [unknown] doesn't exist"));
     }
 
     public void testRolesAdd() throws Exception {
-        execute("roles", "existing_user", "-a", "test_r1");
+        execute("roles", pathHomeParameter, fileTypeParameter, "existing_user", "-a", "test_r1");
         assertRole("test_admin", "existing_user");
         assertRole("test_r1", "existing_user");
     }
 
     public void testRolesRemove() throws Exception {
-        execute("roles", "existing_user", "-r", "test_admin");
+        execute("roles", pathHomeParameter, fileTypeParameter, "existing_user", "-r", "test_admin");
         assertRole("test_admin", "existing_user2");
     }
 
     public void testRolesAddAndRemove() throws Exception {
-        execute("roles", "existing_user", "-a", "test_r1", "-r", "test_admin");
+        execute("roles", pathHomeParameter, fileTypeParameter, "existing_user", "-a", "test_r1", "-r", "test_admin");
         assertRole("test_admin", "existing_user2");
         assertRole("test_r1", "existing_user");
     }
 
     public void testRolesRemoveLeavesExisting() throws Exception {
-        execute("useradd", "username", "-p", "changeme", "-r", "test_admin");
-        execute("roles", "existing_user", "-r", "test_admin");
+        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", "changeme", "-r", "test_admin");
+        execute("roles", pathHomeParameter, fileTypeParameter, "existing_user", "-r", "test_admin");
         assertRole("test_admin", "username");
     }
 
     public void testRolesNoAddOrRemove() throws Exception {
-        String output = execute("roles", "existing_user");
+        String output = execute("roles", pathHomeParameter, fileTypeParameter, "existing_user");
         assertTrue(output, output.contains("existing_user"));
         assertTrue(output, output.contains("test_admin"));
     }
 
     public void testListUnknownUser() throws Exception {
         UserError e = expectThrows(UserError.class, () -> {
-            execute("list", "unknown");
+            execute("list", pathHomeParameter, fileTypeParameter, "unknown");
         });
         assertEquals(ExitCodes.NO_USER, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("User [unknown] doesn't exist"));
     }
 
     public void testListAllUsers() throws Exception {
-        String output = execute("list");
+        String output = execute("list", pathHomeParameter, fileTypeParameter);
         assertTrue(output, output.contains("existing_user"));
         assertTrue(output, output.contains("test_admin"));
         assertTrue(output, output.contains("existing_user2"));
@@ -367,7 +372,7 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testListSingleUser() throws Exception {
-        String output = execute("list", "existing_user");
+        String output = execute("list", pathHomeParameter, fileTypeParameter, "existing_user");
         assertTrue(output, output.contains("existing_user"));
         assertTrue(output, output.contains("test_admin"));
         assertFalse(output, output.contains("existing_user2"));
@@ -378,8 +383,8 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testListUnknownRoles() throws Exception {
-        execute("useradd", "username", "-p", "changeme", "-r", "test_r1,r2,r3");
-        String output = execute("list", "username");
+        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", "changeme", "-r", "test_r1,r2,r3");
+        String output = execute("list", pathHomeParameter, fileTypeParameter, "username");
         assertTrue(output, output.contains("username"));
         assertTrue(output, output.contains("r2*,r3*,test_r1"));
     }
@@ -389,14 +394,14 @@ public class UsersToolTests extends CommandTestCase {
         Files.createFile(confDir.resolve("users"));
         Files.delete(confDir.resolve("users_roles"));
         Files.createFile(confDir.resolve("users_roles"));
-        String output = execute("list");
+        String output = execute("list", pathHomeParameter, fileTypeParameter);
         assertTrue(output, output.contains("No users found"));
     }
 
     public void testListUserWithoutRoles() throws Exception {
-        String output = execute("list", "existing_user3");
+        String output = execute("list", pathHomeParameter, fileTypeParameter, "existing_user3");
         assertTrue(output, output.contains("existing_user3"));
-        output = execute("list");
+        output = execute("list", pathHomeParameter, fileTypeParameter);
         assertTrue(output, output.contains("existing_user3"));
 
         // output should not contain '*' which indicates unknown role

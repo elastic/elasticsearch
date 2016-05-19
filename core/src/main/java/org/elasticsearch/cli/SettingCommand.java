@@ -46,7 +46,10 @@ public abstract class SettingCommand extends Command {
             settings.put(kvp.key, kvp.value);
         }
 
+        putSystemPropertyIfSettingIsMissing(settings, "path.conf", "es.path.conf");
+        putSystemPropertyIfSettingIsMissing(settings, "path.data", "es.path.data");
         putSystemPropertyIfSettingIsMissing(settings, "path.home", "es.path.home");
+        putSystemPropertyIfSettingIsMissing(settings, "path.logs", "es.path.logs");
 
         execute(terminal, options, settings);
     }

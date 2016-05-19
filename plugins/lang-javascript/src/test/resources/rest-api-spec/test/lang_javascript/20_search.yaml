@@ -30,12 +30,12 @@
                     script:
                         script:
                             inline: "doc['num1'].value > 1"
-                            lang: js
+                            lang: javascript
                 script_fields:
                     sNum1:
                         script: 
                             inline: "doc['num1'].value"
-                            lang: js
+                            lang: javascript
                 sort:
                     num1:
                         order: asc
@@ -52,7 +52,7 @@
                     script:
                         script:
                             inline: "doc['num1'].value > param1"
-                            lang: js
+                            lang: javascript
                             params:
                                 param1: 1
 
@@ -60,7 +60,7 @@
                     sNum1:
                         script:
                             inline: "doc['num1'].value"
-                            lang: js
+                            lang: javascript
                 sort:
                     num1:
                         order: asc
@@ -77,7 +77,7 @@
                     script:
                         script:
                             inline: "doc['num1'].value > param1"
-                            lang: js
+                            lang: javascript
                             params:
                                 param1: -1
 
@@ -85,7 +85,7 @@
                     sNum1:
                         script: 
                             inline: "doc['num1'].value"
-                            lang: js
+                            lang: javascript
                 sort:
                     num1:
                         order: asc
@@ -123,19 +123,19 @@
                     s_obj1:
                         script: 
                             inline: "_source.obj1"
-                            lang: js
+                            lang: javascript
                     s_obj1_test:
                         script: 
                             inline: "_source.obj1.test"
-                            lang: js
+                            lang: javascript
                     s_obj2:
                         script: 
                             inline: "_source.obj2"
-                            lang: js
+                            lang: javascript
                     s_obj2_arr2:
                         script: 
                             inline: "_source.obj2.arr2"
-                            lang: js
+                            lang: javascript
 
     - match: { hits.total: 1 }
     - match: { hits.hits.0.fields.s_obj1.0.test: something }
@@ -175,7 +175,7 @@
                         "functions": [{
                             "script_score": {
                                 "script": {
-                                    "lang": "js",
+                                    "lang": "javascript",
                                     "inline": "doc['num1'].value"
                                 }
                             }
@@ -197,7 +197,7 @@
                         "functions": [{
                             "script_score": {
                                 "script": {
-                                    "lang": "js",
+                                    "lang": "javascript",
                                     "inline": "-doc['num1'].value"
                                 }
                             }
@@ -219,7 +219,7 @@
                         "functions": [{
                             "script_score": {
                                 "script": {
-                                    "lang": "js",
+                                    "lang": "javascript",
                                     "inline": "Math.pow(doc['num1'].value, 2)"
                                 }
                             }
@@ -241,7 +241,7 @@
                         "functions": [{
                             "script_score": {
                                 "script": {
-                                    "lang": "js",
+                                    "lang": "javascript",
                                     "inline": "Math.max(doc['num1'].value, 1)"
                                 }
                             }
@@ -263,7 +263,7 @@
                         "functions": [{
                             "script_score": {
                                 "script": {
-                                    "lang": "js",
+                                    "lang": "javascript",
                                     "inline": "doc['num1'].value * _score"
                                 }
                             }
@@ -285,7 +285,7 @@
                         "functions": [{
                             "script_score": {
                                 "script": {
-                                    "lang": "js",
+                                    "lang": "javascript",
                                     "inline": "param1 * param2 * _score",
                                     "params": {
                                         "param1": 2,
@@ -322,14 +322,14 @@
                                     {
                                         "script_score": {
                                             "script": {
-                                                "lang": "js",
+                                                "lang": "javascript",
                                                 "inline": "1"
                                             }
                                         }
                                     }, {
                                         "script_score": {
                                             "script": {
-                                                "lang": "js",
+                                                "lang": "javascript",
                                                 "inline": "_score.doubleValue()"
                                             }
                                         }
@@ -338,7 +338,7 @@
                         "functions": [{
                             "script_score": {
                                 "script": {
-                                    "lang": "js",
+                                    "lang": "javascript",
                                     "inline": "_score.doubleValue()"
                                 }
                             }
@@ -370,7 +370,7 @@
                         "functions": [{
                             "script_score": {
                                 "script": {
-                                    "lang": "js",
+                                    "lang": "javascript",
                                     "inline": "_score.doubleValue()"
                                 }
                             }
@@ -379,7 +379,7 @@
                     score_agg:
                         terms:
                             script:
-                                lang: js
+                                lang: javascript
                                 inline: "_score.doubleValue()"
 
     - match: { hits.total: 1 }
@@ -408,7 +408,7 @@
                     foobar:
                         script: 
                             inline: "doc['f'].values.length"
-                            lang: js
+                            lang: javascript
 
 
     - match: { hits.total: 1 }

@@ -123,6 +123,18 @@ final public class IndexGraveyard implements MetaData.Custom {
         return tombstones;
     }
 
+    /**
+     * Returns true if the graveyard contains a tombstone for the given index.
+     */
+    public boolean containsIndex(final Index index) {
+        for (Tombstone tombstone : tombstones) {
+            if (tombstone.getIndex().equals(index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startArray(TOMBSTONES_FIELD.getPreferredName());

@@ -58,7 +58,8 @@ public class BulkByScrollTask extends CancellableTask {
     private final AtomicLong noops = new AtomicLong(0);
     private final AtomicInteger batch = new AtomicInteger(0);
     private final AtomicLong versionConflicts = new AtomicLong(0);
-    private final AtomicLong retries = new AtomicLong(0);
+    private final AtomicLong bulkRetries = new AtomicLong(0);
+    private final AtomicLong searchRetries = new AtomicLong(0);
     private final AtomicLong throttledNanos = new AtomicLong();
     /**
      * The number of requests per second to which to throttle the request that this task represents. The other variables are all AtomicXXX
@@ -84,7 +85,8 @@ public class BulkByScrollTask extends CancellableTask {
     @Override
     public Status getStatus() {
         return new Status(total.get(), updated.get(), created.get(), deleted.get(), batch.get(), versionConflicts.get(), noops.get(),
-                retries.get(), timeValueNanos(throttledNanos.get()), getRequestsPerSecond(), getReasonCancelled(), throttledUntil());
+                bulkRetries.get(), searchRetries.get(), timeValueNanos(throttledNanos.get()), getRequestsPerSecond(), getReasonCancelled(),
+                throttledUntil());
     }
 
     private TimeValue throttledUntil() {
@@ -133,14 +135,16 @@ public class BulkByScrollTask extends CancellableTask {
         private final int batches;
         private final long versionConflicts;
         private final long noops;
-        private final long retries;
+        private final long bulkRetries;
+        private final long searchRetries;
         private final TimeValue throttled;
         private final float requestsPerSecond;
         private final String reasonCancelled;
         private final TimeValue throttledUntil;
 
-        public Status(long total, long updated, long created, long deleted, int batches, long versionConflicts, long noops, long retries,
-                TimeValue throttled, float requestsPerSecond, @Nullable String reasonCancelled, TimeValue throttledUntil) {
+        public Status(long total, long updated, long created, long deleted, int batches, long versionConflicts, long noops,
+                long bulkRetries, long searchRetries, TimeValue throttled, float requestsPerSecond, @Nullable String reasonCancelled,
+                TimeValue throttledUntil) {
             this.total = checkPositive(total, "total");
             this.updated = checkPositive(updated, "updated");
             this.created = checkPositive(created, "created");
@@ -148,7 +152,8 @@ public class BulkByScrollTask extends CancellableTask {
             this.batches = checkPositive(batches, "batches");
             this.versionConflicts = checkPositive(versionConflicts, "versionConflicts");
             this.noops = checkPositive(noops, "noops");
-            this.retries = checkPositive(retries, "retries");
+            this.bulkRetries = checkPositive(bulkRetries, "bulkRetries");
+            this.searchRetries = checkPositive(searchRetries, "searchRetries");
             this.throttled = throttled;
             this.requestsPerSecond = requestsPerSecond;
             this.reasonCancelled = reasonCancelled;
@@ -163,7 +168,8 @@ public class BulkByScrollTask extends CancellableTask {
             batches = in.readVInt();
             versionConflicts = in.readVLong();
             noops = in.readVLong();
-            retries = in.readVLong();
+            bulkRetries = in.readVLong();
+            searchRetries = in.readVLong();
             throttled = TimeValue.readTimeValue(in);
             requestsPerSecond = in.readFloat();
             reasonCancelled = in.readOptionalString();
@@ -179,7 +185,8 @@ public class BulkByScrollTask extends CancellableTask {
             out.writeVInt(batches);
             out.writeVLong(versionConflicts);
             out.writeVLong(noops);
-            out.writeVLong(retries);
+            out.writeVLong(bulkRetries);
+            out.writeVLong(searchRetries);
             throttled.writeTo(out);
             out.writeFloat(requestsPerSecond);
             out.writeOptionalString(reasonCancelled);
@@ -208,7 +215,11 @@ public class BulkByScrollTask extends CancellableTask {
             builder.field("batches", batches);
             builder.field("version_conflicts", versionConflicts);
             builder.field("noops", noops);
-            builder.field("retries", retries);
+            builder.startObject("retries"); {
+                builder.field("bulk", bulkRetries);
+                builder.field("search", searchRetries);
+            }
+            builder.endObject();
             builder.timeValueField("throttled_millis", "throttled", throttled);
             builder.field("requests_per_second", requestsPerSecond == Float.POSITIVE_INFINITY ? "unlimited" : requestsPerSecond);
             if (reasonCancelled != null) {
@@ -233,7 +244,7 @@ public class BulkByScrollTask extends CancellableTask {
             builder.append(",batches=").append(batches);
             builder.append(",versionConflicts=").append(versionConflicts);
             builder.append(",noops=").append(noops);
-            builder.append(",retries=").append(retries);
+            builder.append(",retries=").append(bulkRetries);
             if (reasonCancelled != null) {
                 builder.append(",canceled=").append(reasonCancelled);
             }
@@ -296,10 +307,17 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         /**
-         * Number of retries that had to be attempted due to rejected executions.
+         * Number of retries that had to be attempted due to bulk actions being rejected.
          */
-        public long getRetries() {
-            return retries;
+        public long getBulkRetries() {
+            return bulkRetries;
+        }
+
+        /**
+         * Number of retries that had to be attempted due to search actions being rejected.
+         */
+        public long getSearchRetries() {
+            return searchRetries;
         }
 
         /**
@@ -373,8 +391,12 @@ public class BulkByScrollTask extends CancellableTask {
         versionConflicts.incrementAndGet();
     }
 
-    void countRetry() {
-        retries.incrementAndGet();
+    void countBulkRetry() {
+        bulkRetries.incrementAndGet();
+    }
+
+    void countSearchRetry() {
+        searchRetries.incrementAndGet();
     }
 
     float getRequestsPerSecond() {

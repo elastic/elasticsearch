@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
@@ -71,19 +72,6 @@ public class UidFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, UidFieldMapper> {
-
-        public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
-        }
-
-        @Override
-        public UidFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new UidFieldMapper(fieldType, defaultFieldType, context.indexSettings());
-        }
-    }
-
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
@@ -96,7 +84,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class UidFieldType extends MappedFieldType {
+    static final class UidFieldType extends TermBasedFieldType {
 
         public UidFieldType() {
         }

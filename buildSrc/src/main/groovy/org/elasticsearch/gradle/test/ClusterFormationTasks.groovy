@@ -418,8 +418,7 @@ class ClusterFormationTasks {
                 // argument are wrapped in an ExecArgWrapper that escapes commas
                 args execArgs.collect { a -> new EscapeCommaWrapper(arg: a) }
             } else {
-                executable 'sh'
-                args execArgs
+                commandLine execArgs
             }
         }
     }

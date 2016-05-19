@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -77,19 +78,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder, IdFieldMapper> {
-
-        public Builder(MappedFieldType existing) {
-            super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
-        }
-
-        @Override
-        public IdFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new IdFieldMapper(fieldType, context.indexSettings());
-        }
-    }
-
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
         public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
@@ -102,7 +90,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static final class IdFieldType extends MappedFieldType {
+    static final class IdFieldType extends TermBasedFieldType {
 
         public IdFieldType() {
         }
@@ -129,61 +117,13 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            if (indexOptions() != IndexOptions.NONE || context == null) {
-                return super.termQuery(value, context);
-            }
             final BytesRef[] uids = Uid.createUidsForTypesAndId(context.queryTypes(), value);
             return new TermsQuery(UidFieldMapper.NAME, uids);
         }
 
         @Override
         public Query termsQuery(List values, @Nullable QueryShardContext context) {
-            if (indexOptions() != IndexOptions.NONE || context == null) {
-                return super.termsQuery(values, context);
-            }
             return new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(context.queryTypes(), values));
-        }
-
-        @Override
-        public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
-            if (indexOptions() != IndexOptions.NONE || context == null) {
-                return super.prefixQuery(value, method, context);
-            }
-            Collection<String> queryTypes = context.queryTypes();
-            BooleanQuery.Builder query = new BooleanQuery.Builder();
-            for (String queryType : queryTypes) {
-                PrefixQuery prefixQuery = new PrefixQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))));
-                if (method != null) {
-                    prefixQuery.setRewriteMethod(method);
-                }
-                query.add(prefixQuery, BooleanClause.Occur.SHOULD);
-            }
-            return query.build();
-        }
-
-        @Override
-        public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
-            if (indexOptions() != IndexOptions.NONE || context == null) {
-                return super.regexpQuery(value, flags, maxDeterminizedStates, method, context);
-            }
-            Collection<String> queryTypes = context.queryTypes();
-            if (queryTypes.size() == 1) {
-                RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))),
-                    flags, maxDeterminizedStates);
-                if (method != null) {
-                    regexpQuery.setRewriteMethod(method);
-                }
-                return regexpQuery;
-            }
-            BooleanQuery.Builder query = new BooleanQuery.Builder();
-            for (String queryType : queryTypes) {
-                RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags, maxDeterminizedStates);
-                if (method != null) {
-                    regexpQuery.setRewriteMethod(method);
-                }
-                query.add(regexpQuery, BooleanClause.Occur.SHOULD);
-            }
-            return query.build();
         }
     }
 

@@ -91,6 +91,16 @@ The following deprecated queries have been removed:
 
 ==== Changes to queries
 
+* Unsupported queries such as term queries on `geo_point` fields will now fail
+  rather than returning no hits.
+
+* Removed support for fuzzy queries on numeric, date and ip fields, use range
+  queries instead.
+
+* Removed support for range and prefix queries on `_uid` and `_id` fields.
+
+* Querying an unindexed field will now fail rather than returning no hits.
+
 * Removed support for the deprecated `min_similarity` parameter in `fuzzy
   query`, in favour of `fuzziness`.
 
@@ -126,6 +136,9 @@ in favour of `query` and `no_match_query`.
 
 * The `exists` query will now fail if the `_field_names` field is disabled.
 
+* The `multi_match` query will fail if `fuzziness` is used for `cross_fields`, `phrase` or `phrase_prefix` type.
+This parameter was undocumented and silently ignored before for these types of `multi_match`.
+
 * Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoPolygonQuery. Use parameter validation_method instead.
 
 * Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoDistanceRangeQuery. Use parameter validation_method instead.
@@ -133,6 +146,7 @@ in favour of `query` and `no_match_query`.
 * Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoDistanceQuery. Use parameter validation_method instead.
 
 * Deprecated support for the coerce, normalize, ignore_malformed parameters in GeoBoundingBoxQuery. Use parameter validation_method instead.
+
 ==== Top level `filter` parameter
 
 Removed support for the deprecated top level `filter` in the search api,
@@ -162,3 +176,9 @@ The `coerce` and `ignore_malformed` parameters were deprecated in favour of `val
 * Top level inner hits syntax has been removed. Inner hits can now only be specified as part of the `nested`,
 `has_child` and `has_parent` queries. Use cases previously only possible with top level inner hits can now be done
 with inner hits defined inside the query dsl.
+
+==== Query Profiler
+
+In the response for profiling queries, the `query_type` has been renamed to `type` and `lucene` has been renamed to
+`description`. These changes have been made so the response format is more friendly to supporting other types of profiling
+in the future.

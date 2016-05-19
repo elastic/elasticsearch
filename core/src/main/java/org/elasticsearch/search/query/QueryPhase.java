@@ -52,10 +52,10 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.CollectorResult;
-import org.elasticsearch.search.profile.InternalProfileCollector;
 import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.Profiler;
+import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.query.CollectorResult;
+import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -112,7 +112,8 @@ public class QueryPhase implements SearchPhase {
         aggregationPhase.execute(searchContext);
 
         if (searchContext.getProfilers() != null) {
-            List<ProfileShardResult> shardResults = Profiler.buildShardResults(searchContext.getProfilers().getProfilers());
+            List<ProfileShardResult> shardResults = SearchProfileShardResults
+                    .buildShardResults(searchContext.getProfilers().getQueryProfilers());
             searchContext.queryResult().profileResults(shardResults);
         }
     }
@@ -364,7 +365,7 @@ public class QueryPhase implements SearchPhase {
             try {
                 if (collector != null) {
                     if (doProfile) {
-                        searchContext.getProfilers().getCurrent().setCollector((InternalProfileCollector) collector);
+                        searchContext.getProfilers().getCurrentQueryProfiler().setCollector((InternalProfileCollector) collector);
                     }
                     searcher.search(query, collector);
                 }
@@ -384,7 +385,8 @@ public class QueryPhase implements SearchPhase {
             queryResult.topDocs(topDocsCallable.call(), sortValueFormats);
 
             if (searchContext.getProfilers() != null) {
-                List<ProfileShardResult> shardResults = Profiler.buildShardResults(searchContext.getProfilers().getProfilers());
+                List<ProfileShardResult> shardResults = SearchProfileShardResults
+                        .buildShardResults(searchContext.getProfilers().getQueryProfilers());
                 searchContext.queryResult().profileResults(shardResults);
             }
 

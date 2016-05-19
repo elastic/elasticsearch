@@ -448,15 +448,14 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         shardRef.set(newShard);
         try {
             assertEquals(0, imc.availableShards().size());
-            ShardRouting routing = ShardRoutingHelper.reinit(shard.routingEntry());
-            newShard.updateRoutingEntry(routing, false);
+            ShardRouting routing = newShard.routingEntry();
             DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
             newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
 
             assertEquals(1, imc.availableShards().size());
             assertTrue(newShard.recoverFromStore(localNode));
             assertTrue("we should have flushed in IMC at least once but did: " + flushes.get(), flushes.get() >= 1);
-            newShard.updateRoutingEntry(ShardRoutingHelper.moveToStarted(routing), true);
+            newShard.updateRoutingEntry(routing.moveToStarted(), true);
         } finally {
             newShard.close("simon says", false);
         }

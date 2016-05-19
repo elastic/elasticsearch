@@ -30,10 +30,13 @@ That will return something like this:
   "timed_out": false,
   "created": 120,
   "updated": 0,
-  "batches": 2,
+  "batches": 1,
   "version_conflicts": 0,
   "noops": 0,
-  "retries": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  },
   "throttled_millis": 0,
   "requests_per_second": "unlimited",
   "throttled_until_millis": 0,
@@ -174,7 +177,7 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\nPUT blog\n/]
+// TEST[s/^/PUT twitter\nPUT blog\nGET _cluster\/health?wait_for_status=yellow\n/]
 
 It's also possible to limit the number of processed documents by setting
 `size`. This will only copy a single document from `twitter` to
@@ -299,9 +302,9 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT source\n/]
+// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
 
-By default `_reindex` uses scroll batches of 100. You can change the
+By default `_reindex` uses scroll batches of 1000. You can change the
 batch size with the `size` field in the `source` element:
 
 [source,js]
@@ -310,7 +313,7 @@ POST _reindex
 {
   "source": {
     "index": "source",
-    "size": 1000
+    "size": 100
   },
   "dest": {
     "index": "dest",
@@ -319,7 +322,7 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT source\n/]
+// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
 
 Reindex can also use the <<ingest>> feature by specifying a
 `pipeline` like this:
@@ -338,7 +341,7 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT source\n/]
+// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
 
 [float]
 === URL Parameters
@@ -386,7 +389,10 @@ The JSON response looks like this:
   "created": 123,
   "batches": 1,
   "version_conflicts": 2,
-  "retries": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  }
   "throttled_millis": 0,
   "failures" : [ ]
 }
@@ -414,7 +420,8 @@ The number of version conflicts that reindex hit.
 
 `retries`::
 
-The number of retries that the reindex did in response to a full queue.
+The number of retries attempted by reindex. `bulk` is the number of bulk
+actions retried and `search` is the number of search actions retried.
 
 `throttled_millis`::
 
@@ -435,7 +442,7 @@ While Reindex is running you can fetch their status using the
 
 [source,js]
 --------------------------------------------------
-GET _tasks/?pretty&detailed=true&actions=*reindex
+GET _tasks?detailed=true&actions=*reindex
 --------------------------------------------------
 // CONSOLE
 
@@ -465,10 +472,13 @@ The responses looks like:
             "updated" : 3500,
             "created" : 0,
             "deleted" : 0,
-            "batches" : 36,
+            "batches" : 4,
             "version_conflicts" : 0,
             "noops" : 0,
-            "retries": 0,
+            "retries": {
+              "bulk": 0,
+              "search": 0
+            },
             "throttled_millis": 0
           },
           "description" : ""
@@ -534,7 +544,7 @@ create an index containing documents that look like this:
 
 [source,js]
 --------------------------------------------------
-POST test/test/1?refresh&pretty
+POST test/test/1?refresh
 {
   "text": "words words",
   "flag": "foo"
@@ -547,7 +557,7 @@ But you don't like the name `flag` and want to replace it with `tag`.
 
 [source,js]
 --------------------------------------------------
-POST _reindex?pretty
+POST _reindex
 {
   "source": {
     "index": "test"
@@ -567,7 +577,7 @@ Now you can get the new document:
 
 [source,js]
 --------------------------------------------------
-GET test2/test/1?pretty
+GET test2/test/1
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

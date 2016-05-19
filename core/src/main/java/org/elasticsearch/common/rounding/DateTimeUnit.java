@@ -53,6 +53,15 @@ public enum DateTimeUnit {
         return field;
     }
 
+    /**
+     * @param unit the {@link DateTimeUnit} to check
+     * @return true if the unit is a day or longer
+     */
+    public static boolean isDayOrLonger(DateTimeUnit unit) {
+        return (unit == DateTimeUnit.HOUR_OF_DAY || unit == DateTimeUnit.MINUTES_OF_HOUR
+                || unit == DateTimeUnit.SECOND_OF_MINUTE) == false;
+    }
+
     public static DateTimeUnit resolve(byte id) {
         switch (id) {
             case 1: return WEEK_OF_WEEKYEAR;

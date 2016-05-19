@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -177,7 +178,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
 
         }
 
-        private static class DummyFieldType extends MappedFieldType {
+        private static class DummyFieldType extends TermBasedFieldType {
 
             public DummyFieldType() {
                 super();

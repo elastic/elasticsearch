@@ -62,30 +62,23 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
 
     public static final String NAME = "expression";
 
-    public static final List<String> TYPES = Collections.singletonList(NAME);
-
     @Inject
     public ExpressionScriptEngineService(Settings settings) {
         super(settings);
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    public List<String> getExtensions() {
-        return TYPES;
+    public String getExtension() {
+        return NAME;
     }
 
     @Override
-    public boolean isSandboxed() {
-        return true;
-    }
-
-    @Override
-    public Object compile(String script, Map<String, String> params) {
+    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
         // classloader created here
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -112,9 +105,9 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
                         };
                     }
                     // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
-                    return JavascriptCompiler.compile(script, JavascriptCompiler.DEFAULT_FUNCTIONS, loader);
+                    return JavascriptCompiler.compile(scriptSource, JavascriptCompiler.DEFAULT_FUNCTIONS, loader);
                 } catch (ParseException e) {
-                    throw new ScriptException("Failed to parse expression: " + script, e);
+                    throw new ScriptException("Failed to parse expression: " + scriptSource, e);
                 }
             }
         });

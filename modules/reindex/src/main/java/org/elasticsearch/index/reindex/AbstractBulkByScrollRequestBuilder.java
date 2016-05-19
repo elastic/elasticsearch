@@ -108,6 +108,23 @@ public abstract class AbstractBulkByScrollRequestBuilder<
     }
 
     /**
+     * Initial delay after a rejection before retrying a bulk request. With the default maxRetries the total backoff for retrying rejections
+     * is about one minute per bulk request. Once the entire bulk request is successful the retry counter resets.
+     */
+    public Self setRetryBackoffInitialTime(TimeValue retryBackoffInitialTime) {
+        request.setRetryBackoffInitialTime(retryBackoffInitialTime);
+        return self();
+    }
+
+    /**
+     * Total number of retries attempted for rejections. There is no way to ask for unlimited retries.
+     */
+    public Self setMaxRetries(int maxRetries) {
+        request.setMaxRetries(maxRetries);
+        return self();
+    }
+
+    /**
      * Set the throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
      * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
      * make sure that it contains any time that we might wait.

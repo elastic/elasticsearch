@@ -29,12 +29,12 @@
                 query:
                     script:
                         script:
-                            inline: "input.doc['num1'].value > 1;"
+                            inline: "doc['num1'].value > 1;"
                             lang: painless
                 script_fields:
                     sNum1:
                         script: 
-                            inline: "input.doc['num1'].value;"
+                            inline: "doc['num1'].value;"
                             lang: painless
                 sort:
                     num1:
@@ -51,7 +51,7 @@
                 query:
                     script:
                         script:
-                            inline: "input.doc['num1'].value > input.param1;"
+                            inline: "doc['num1'].value > params.param1;"
                             lang: painless
                             params:
                                 param1: 1
@@ -59,7 +59,7 @@
                 script_fields:
                     sNum1:
                         script:
-                            inline: "return input.doc['num1'].value;"
+                            inline: "return doc['num1'].value;"
                             lang: painless
                 sort:
                     num1:
@@ -76,7 +76,7 @@
                 query:
                     script:
                         script:
-                            inline: "input.doc['num1'].value > input.param1;"
+                            inline: "doc['num1'].value > params.param1;"
                             lang: painless
                             params:
                                 param1: -1
@@ -84,7 +84,7 @@
                 script_fields:
                     sNum1:
                         script: 
-                            inline: "input.doc['num1'].value;"
+                            inline: "doc['num1'].value;"
                             lang: painless
                 sort:
                     num1:
@@ -126,7 +126,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "inline": "input.doc['num1'].value"
+                                    "inline": "doc['num1'].value"
                                 }
                             }
                         }]
@@ -148,7 +148,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "inline": "-input.doc['num1'].value"
+                                    "inline": "-doc['num1'].value"
                                 }
                             }
                         }]
@@ -170,7 +170,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "inline": "Math.pow(input.doc['num1'].value, 2)"
+                                    "inline": "Math.pow(doc['num1'].value, 2)"
                                 }
                             }
                         }]
@@ -192,7 +192,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "inline": "Math.max(input.doc['num1'].value, 1)"
+                                    "inline": "Math.max(doc['num1'].value, 1)"
                                 }
                             }
                         }]
@@ -214,7 +214,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "inline": "input.doc['num1'].value * _score"
+                                    "inline": "doc['num1'].value * _score"
                                 }
                             }
                         }]
@@ -236,7 +236,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "inline": "input.param1 * input.param2 * _score",
+                                    "inline": "params.param1 * params.param2 * _score",
                                     "params": {
                                         "param1": 2,
                                         "param2": 2
@@ -357,9 +357,39 @@
                 script_fields:
                     foobar:
                         script: 
-                            inline: "input.doc['f'].values.size()"
+                            inline: "doc['f'].values.size()"
                             lang: painless
 
 
     - match: { hits.total: 1 }
     - match: { hits.hits.0.fields.foobar.0: 1 }
+
+---
+
+"Agg _value":
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "dummy_field": 1 }
+    - do:
+        indices.refresh: {}
+
+
+    - do:
+        index: test
+        search:
+            body:
+                aggs:
+                    value_agg:
+                        terms:
+                            field: dummy_field
+                            script:
+                                lang: painless
+                                inline: "_value + 1"
+
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._score: 1.0 }
+    - match: { aggregations.value_agg.buckets.0.key: 2 }
+    - match: { aggregations.value_agg.buckets.0.doc_count: 1 }

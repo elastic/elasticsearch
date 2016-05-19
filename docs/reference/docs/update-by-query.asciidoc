@@ -23,10 +23,13 @@ That will return something like this:
   "took" : 147,
   "timed_out": false,
   "updated": 120,
-  "batches": 2,
+  "batches": 1,
   "version_conflicts": 0,
   "noops": 0,
-  "retries": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  },
   "throttled_millis": 0,
   "requests_per_second": "unlimited",
   "throttled_until_millis": 0,
@@ -134,7 +137,7 @@ types at once, just like the search API:
 POST twitter,blog/tweet,post/_update_by_query
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\nPUT blog\n/]
+// TEST[s/^/PUT twitter\nPUT blog\nGET _cluster\/health?wait_for_status=yellow\n/]
 
 If you provide `routing` then the routing is copied to the scroll query,
 limiting the process to the shards that match that routing value:
@@ -146,12 +149,12 @@ POST twitter/_update_by_query?routing=1
 // CONSOLE
 // TEST[setup:twitter]
 
-By default `_update_by_query` uses scroll batches of 100. You can change the
+By default `_update_by_query` uses scroll batches of 1000. You can change the
 batch size with the `scroll_size` URL parameter:
 
 [source,js]
 --------------------------------------------------
-POST twitter/_update_by_query?scroll_size=1000
+POST twitter/_update_by_query?scroll_size=100
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -220,7 +223,10 @@ The JSON response looks like this:
   "updated": 0,
   "batches": 1,
   "version_conflicts": 2,
-  "retries": 0,
+  "retries": {
+    "bulk": 0,
+    "search": 0
+  }
   "throttled_millis": 0,
   "failures" : [ ]
 }
@@ -244,7 +250,8 @@ The number of version conflicts that the update by query hit.
 
 `retries`::
 
-The number of retries that the update by query did in response to a full queue.
+The number of retries attempted by update-by-query. `bulk` is the number of bulk
+actions retried and `search` is the number of search actions retried.
 
 `throttled_millis`::
 
@@ -266,7 +273,7 @@ While Update By Query is running you can fetch their status using the
 
 [source,js]
 --------------------------------------------------
-GET _tasks/?pretty&detailed=true&action=*byquery
+GET _tasks?detailed=true&action=*byquery
 --------------------------------------------------
 // CONSOLE
 
@@ -296,10 +303,13 @@ The responses looks like:
             "updated" : 3500,
             "created" : 0,
             "deleted" : 0,
-            "batches" : 36,
+            "batches" : 4,
             "version_conflicts" : 0,
             "noops" : 0,
-            "retries": 0,
+            "retries": {
+              "bulk": 0,
+              "search": 0
+            }
             "throttled_millis": 0
           },
           "description" : ""

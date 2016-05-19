@@ -24,6 +24,7 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
@@ -45,27 +46,12 @@ import java.util.Map;
 /**
  * Implementation of a ScriptEngine for the Painless language.
  */
-public class PainlessScriptEngineService extends AbstractComponent implements ScriptEngineService {
+public final class PainlessScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     /**
      * Standard name of the Painless language.
      */
     public static final String NAME = "painless";
-
-    /**
-     * Standard list of names for the Painless language.  (There is only one.)
-     */
-    public static final List<String> TYPES = Collections.singletonList(NAME);
-
-    /**
-     * Standard extension of the Painless language.
-     */
-    public static final String EXTENSION = "pain";
-
-    /**
-     * Standard list of extensions for the Painless language.  (There is only one.)
-     */
-    public static final List<String> EXTENSIONS = Collections.singletonList(EXTENSION);
 
     /**
      * Default compiler settings to be used.
@@ -102,8 +88,8 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
      * @return Always contains only the single name of the language.
      */
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     /**
@@ -111,27 +97,17 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
      * @return Always contains only the single extension of the language.
      */
     @Override
-    public List<String> getExtensions() {
-        return EXTENSIONS;
+    public String getExtension() {
+        return NAME;
     }
-
+    
     /**
-     * Whether or not the engine is secure.
-     * @return Always true as the engine should be secure at runtime.
+     * When a script is anonymous (inline), we give it this name.
      */
-    @Override
-    public boolean isSandboxed() {
-        return true;
-    }
+    static final String INLINE_NAME = "<inline>";
 
-    /**
-     * Compiles a Painless script with the specified parameters.
-     * @param script The code to be compiled.
-     * @param params The params used to modify the compiler settings on a per script basis.
-     * @return Compiled script object represented by an {@link Executable}.
-     */
     @Override
-    public Object compile(final String script, final Map<String, String> params) {
+    public Object compile(String scriptName, final String scriptSource, final Map<String, String> params) {
         final CompilerSettings compilerSettings;
 
         if (params.isEmpty()) {
@@ -166,10 +142,10 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
         }
 
         // Create our loader (which loads compiled code with no permissions).
-        final Compiler.Loader loader = AccessController.doPrivileged(new PrivilegedAction<Compiler.Loader>() {
+        final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
             @Override
-            public Compiler.Loader run() {
-                return new Compiler.Loader(getClass().getClassLoader());
+            public Loader run() {
+                return new Loader(getClass().getClassLoader());
             }
         });
 
@@ -177,7 +153,7 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
         return AccessController.doPrivileged(new PrivilegedAction<Executable>() {
             @Override
             public Executable run() {
-                return Compiler.compile(loader, "unknown", script, compilerSettings);
+                return Compiler.compile(loader, scriptName == null ? INLINE_NAME : scriptName, scriptSource, compilerSettings);
             }
         }, COMPILATION_CONTEXT);
     }
@@ -215,11 +191,10 @@ public class PainlessScriptEngineService extends AbstractComponent implements Sc
 
             /**
              * Whether or not the score is needed.
-             * @return Always true as it's assumed score is needed.
              */
             @Override
             public boolean needsScores() {
-                return true;
+                return compiledScript.compiled() instanceof NeedsScore;
             }
         };
     }

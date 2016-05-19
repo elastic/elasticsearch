@@ -92,8 +92,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     final private WriteConsistencyLevel defaultWriteConsistencyLevel;
     final private TransportRequestOptions transportOptions;
 
-    final private String transportReplicaAction;
-    final private String transportPrimaryAction;
+    // package private for testing
+    final String transportReplicaAction;
+    final String transportPrimaryAction;
     final private ReplicasProxy replicasProxy;
 
     protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
@@ -113,7 +114,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new OperationTransportHandler());
         transportService.registerRequestHandler(transportPrimaryAction, request, executor, new PrimaryOperationTransportHandler());
         // we must never reject on because of thread pool capacity on replicas
-        transportService.registerRequestHandler(transportReplicaAction, replicaRequest, executor, true,
+        transportService.registerRequestHandler(transportReplicaAction, replicaRequest, executor, true, true,
             new ReplicaOperationTransportHandler());
 
         this.transportOptions = transportOptions();

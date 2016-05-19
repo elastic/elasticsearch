@@ -130,6 +130,23 @@ public class IndexGraveyardTests extends ESTestCase {
         assertThat(diff.getRemovedCount(), equalTo(removals.size()));
     }
 
+    public void testContains() {
+        List<Index> indices = new ArrayList<>();
+        final int numIndices = randomIntBetween(1, 5);
+        for (int i = 0; i < numIndices; i++) {
+            indices.add(new Index("idx-" + i, UUIDs.randomBase64UUID()));
+        }
+        final IndexGraveyard.Builder graveyard = IndexGraveyard.builder();
+        for (final Index index : indices) {
+            graveyard.addTombstone(index);
+        }
+        final IndexGraveyard indexGraveyard = graveyard.build();
+        for (final Index index : indices) {
+            assertTrue(indexGraveyard.containsIndex(index));
+        }
+        assertFalse(indexGraveyard.containsIndex(new Index(randomAsciiOfLength(6), UUIDs.randomBase64UUID())));
+    }
+
     public static IndexGraveyard createRandom() {
         final IndexGraveyard.Builder graveyard = IndexGraveyard.builder();
         final int numTombstones = randomIntBetween(0, 4);

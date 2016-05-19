@@ -273,7 +273,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         fieldType.checkCompatibility(fieldType, conflicts, random().nextBoolean()); // no exception
         assertTrue(conflicts.toString(), conflicts.isEmpty());
 
-        MappedFieldType bogus = new MappedFieldType() {
+        MappedFieldType bogus = new TermBasedFieldType() {
             @Override
             public MappedFieldType clone() {return null;}
             @Override
@@ -287,7 +287,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         }
         assertTrue(conflicts.toString(), conflicts.isEmpty());
 
-        MappedFieldType other = new MappedFieldType() {
+        MappedFieldType other = new TermBasedFieldType() {
             @Override
             public MappedFieldType clone() {return null;}
             @Override

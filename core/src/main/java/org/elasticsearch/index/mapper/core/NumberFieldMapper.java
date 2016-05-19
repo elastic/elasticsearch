@@ -40,7 +40,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -234,13 +233,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                float base = parse(value);
-                float delta = fuzziness.asFloat();
-                return rangeQuery(field, base - delta, base + delta, true, true);
-            }
-
-            @Override
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
@@ -325,13 +317,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                double base = parse(value);
-                double delta = fuzziness.asFloat();
-                return rangeQuery(field, base - delta, base + delta, true, true);
-            }
-
-            @Override
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
@@ -408,11 +393,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                return INTEGER.fuzzyQuery(field, value, fuzziness);
-            }
-
-            @Override
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 return INTEGER.createFields(name, value, indexed, docValued, stored);
@@ -471,11 +451,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                              boolean includeLower, boolean includeUpper) {
                 return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper);
-            }
-
-            @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                return INTEGER.fuzzyQuery(field, value, fuzziness);
             }
 
             @Override
@@ -558,13 +533,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                     }
                 }
                 return IntPoint.newRangeQuery(field, l, u);
-            }
-
-            @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                int base = parse(value);
-                int delta = fuzziness.asInt();
-                return rangeQuery(field, base - delta, base + delta, true, true);
             }
 
             @Override
@@ -664,13 +632,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
 
             @Override
-            Query fuzzyQuery(String field, Object value, Fuzziness fuzziness) {
-                long base = parse(value);
-                long delta = fuzziness.asLong();
-                return rangeQuery(field, base - delta, base + delta, true, true);
-            }
-
-            @Override
             public List<Field> createFields(String name, Number value,
                                             boolean indexed, boolean docValued, boolean stored) {
                 List<Field> fields = new ArrayList<>();
@@ -722,7 +683,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         abstract Query termsQuery(String field, List<Object> values);
         abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                   boolean includeLower, boolean includeUpper);
-        abstract Query fuzzyQuery(String field, Object value, Fuzziness fuzziness);
         abstract Number parse(XContentParser parser, boolean coerce) throws IOException;
         abstract Number parse(Object value);
         public abstract List<Field> createFields(String name, Number value, boolean indexed,
@@ -789,13 +749,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                 query = new BoostQuery(query, boost());
             }
             return query;
-        }
-
-        @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength,
-                                int maxExpansions, boolean transpositions) {
-            failIfNotIndexed();
-            return type.fuzzyQuery(name(), value, fuzziness);
         }
 
         @Override

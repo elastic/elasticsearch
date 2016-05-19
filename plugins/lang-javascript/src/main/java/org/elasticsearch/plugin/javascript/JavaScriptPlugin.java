@@ -45,6 +45,6 @@ public class JavaScriptPlugin extends Plugin {
     }
 
     public void onModule(ScriptModule module) {
-        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(JavaScriptScriptEngineService.class, JavaScriptScriptEngineService.TYPES));
+        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(JavaScriptScriptEngineService.class, JavaScriptScriptEngineService.NAME));
     }
 }

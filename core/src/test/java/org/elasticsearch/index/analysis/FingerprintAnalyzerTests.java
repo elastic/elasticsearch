@@ -43,12 +43,15 @@ public class FingerprintAnalyzerTests extends ESTokenStreamTestCase {
         Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 255, false);
         assertAnalyzesTo(a, "gödel escher bach",
             new String[]{"bach escher godel"});
+
+        assertAnalyzesTo(a, "gödel godel escher bach",
+            new String[]{"bach escher godel"});
     }
 
     public void testPreserveOriginal() throws Exception {
         Analyzer a = new FingerprintAnalyzer(CharArraySet.EMPTY_SET, ' ', 255, true);
         assertAnalyzesTo(a, "gödel escher bach",
-            new String[]{"bach escher godel", "bach escher gödel"});
+            new String[]{"bach escher godel gödel"});
     }
 
     public void testLimit() throws Exception {
@@ -65,4 +68,5 @@ public class FingerprintAnalyzerTests extends ESTokenStreamTestCase {
         assertAnalyzesTo(a, "b c a",
             new String[]{"a_b_c"});
     }
+
 }

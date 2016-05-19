@@ -34,7 +34,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -156,16 +155,6 @@ public class LegacyLongFieldMapper extends LegacyNumberFieldMapper {
                 lowerTerm == null ? null : parseLongValue(lowerTerm),
                 upperTerm == null ? null : parseLongValue(upperTerm),
                 includeLower, includeUpper);
-        }
-
-        @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-            long iValue = parseLongValue(value);
-            final long iSim = fuzziness.asLong();
-            return LegacyNumericRangeQuery.newLongRange(name(), numericPrecisionStep(),
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
         }
 
         @Override

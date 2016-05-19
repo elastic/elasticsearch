@@ -335,7 +335,7 @@ final class BootstrapCheck {
         @Override
         public String errorMessage() {
             return "please set [" + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() +
-                "] to a majority of the number of master eligible nodes in your cluster.";
+                "] to a majority of the number of master eligible nodes in your cluster";
         }
 
         @Override

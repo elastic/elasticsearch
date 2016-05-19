@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.plugin
 
+import nebula.plugin.publishing.maven.MavenBasePublishPlugin
 import nebula.plugin.publishing.maven.MavenManifestPlugin
 import nebula.plugin.publishing.maven.MavenScmPlugin
 import org.elasticsearch.gradle.BuildPlugin
@@ -51,7 +52,7 @@ public class PluginBuildPlugin extends BuildPlugin {
             } else {
                 project.integTest.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
                 project.tasks.run.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
-                configurePomGeneration(project)
+                addPomGeneration(project)
             }
 
             project.namingConventions {
@@ -131,9 +132,9 @@ public class PluginBuildPlugin extends BuildPlugin {
     /**
      * Adds the plugin jar and zip as publications.
      */
-    private static void configurePomGeneration(Project project) {
+    protected static void addPomGeneration(Project project) {
+        project.plugins.apply(MavenBasePublishPlugin.class)
         project.plugins.apply(MavenScmPlugin.class)
-        project.plugins.apply(MavenManifestPlugin.class)
 
         project.publishing {
             publications {

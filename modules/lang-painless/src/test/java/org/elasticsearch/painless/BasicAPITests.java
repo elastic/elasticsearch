@@ -81,4 +81,9 @@ public class BasicAPITests extends ScriptTestCase {
         assertEquals(1, exec("List<String> x = new ArrayList<String>(); x.add('Hallo'); return x.length"));
         assertEquals(1, exec("List<Object> x = new ArrayList<Object>(); x.add('Hallo'); return x.length"));
     }
+    
+    public void testDefAssignments() {
+        assertEquals(2, exec("int x; def y = 2.0; x = (int)y;"));
+    }
+    
 }

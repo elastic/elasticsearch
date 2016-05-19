@@ -137,7 +137,7 @@ public class EnableAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "allocation is explicitly ignoring any disabling of relocation");
         }
 
-        Settings indexSettings = allocation.routingNodes().metaData().getIndexSafe(shardRouting.index()).getSettings();
+        Settings indexSettings = allocation.metaData().getIndexSafe(shardRouting.index()).getSettings();
         final Rebalance enable;
         if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexSettings)) {
             enable = INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexSettings);

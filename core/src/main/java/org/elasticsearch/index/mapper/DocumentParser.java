@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -454,19 +455,23 @@ final class DocumentParser {
 
     private static ObjectMapper parseObject(final ParseContext context, ObjectMapper mapper, String currentFieldName) throws IOException {
         assert currentFieldName != null;
-        context.path().add(currentFieldName);
 
         ObjectMapper update = null;
         Mapper objectMapper = getMapper(mapper, currentFieldName);
         if (objectMapper != null) {
+            context.path().add(currentFieldName);
             parseObjectOrField(context, objectMapper);
+            context.path().remove();
         } else {
-            ObjectMapper.Dynamic dynamic = dynamicOrDefault(mapper, context);
+
+            final String[] paths = currentFieldName.split("\\.");
+            currentFieldName = paths[paths.length - 1];
+            Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, mapper);
+            ObjectMapper parentMapper = parentMapperTuple.v2();
+            ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(mapper.fullPath(), currentFieldName);
             } else if (dynamic == ObjectMapper.Dynamic.TRUE) {
-                // remove the current field name from path, since template search and the object builder add it as well...
-                context.path().remove();
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "object");
                 if (builder == null) {
                     builder = new ObjectMapper.Builder(currentFieldName).enabled(true);
@@ -476,13 +481,16 @@ final class DocumentParser {
                 context.addDynamicMapper(objectMapper);
                 context.path().add(currentFieldName);
                 parseObjectOrField(context, objectMapper);
+                context.path().remove();
             } else {
                 // not dynamic, read everything up to end object
                 context.parser().skipChildren();
             }
+            for (int i = 0; i < parentMapperTuple.v1(); i++) {
+                context.path().remove();
+            }
         }
 
-        context.path().remove();
         return update;
     }
 
@@ -500,6 +508,11 @@ final class DocumentParser {
             }
         } else {
 
+            final String[] paths = arrayFieldName.split("\\.");
+            arrayFieldName = paths[paths.length - 1];
+            lastFieldName = arrayFieldName;
+            Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
+            parentMapper = parentMapperTuple.v2();
             ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
             if (dynamic == ObjectMapper.Dynamic.STRICT) {
                 throw new StrictDynamicMappingException(parentMapper.fullPath(), arrayFieldName);
@@ -507,22 +520,25 @@ final class DocumentParser {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, arrayFieldName, "object");
                 if (builder == null) {
                     parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
-                    return;
-                }
-                Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
-                mapper = builder.build(builderContext);
-                assert mapper != null;
-                if (mapper instanceof ArrayValueMapperParser) {
-                    context.addDynamicMapper(mapper);
-                    context.path().add(arrayFieldName);
-                    parseObjectOrField(context, mapper);
-                    context.path().remove();
                 } else {
-                    parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
+                    Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
+                    mapper = builder.build(builderContext);
+                    assert mapper != null;
+                    if (mapper instanceof ArrayValueMapperParser) {
+                        context.addDynamicMapper(mapper);
+                        context.path().add(arrayFieldName);
+                        parseObjectOrField(context, mapper);
+                        context.path().remove();
+                    } else {
+                        parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
+                    }
                 }
             } else {
                 // TODO: shouldn't this skip, not parse?
                 parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
+            }
+            for (int i = 0; i < parentMapperTuple.v1(); i++) {
+                context.path().remove();
             }
         }
     }
@@ -555,7 +571,15 @@ final class DocumentParser {
         if (mapper != null) {
             parseObjectOrField(context, mapper);
         } else {
+
+            final String[] paths = currentFieldName.split("\\.");
+            currentFieldName = paths[paths.length - 1];
+            Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, parentMapper);
+            parentMapper = parentMapperTuple.v2();
             parseDynamicValue(context, parentMapper, currentFieldName, token);
+            for (int i = 0; i < parentMapperTuple.v1(); i++) {
+                context.path().remove();
+            }
         }
     }
 
@@ -814,44 +838,59 @@ final class DocumentParser {
 
             final String[] paths = field.split("\\.");
             final String fieldName = paths[paths.length-1];
-            ObjectMapper mapper = context.root();
-            ObjectMapper[] mappers = new ObjectMapper[paths.length-1];
-            if (paths.length > 1) {
-                ObjectMapper parent = context.root();
-                for (int i = 0; i < paths.length-1; i++) {
-                    mapper = context.docMapper().objectMappers().get(context.path().pathAsText(paths[i]));
-                    if (mapper == null) {
-                        // One mapping is missing, check if we are allowed to create a dynamic one.
-                        ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context);
-
-                        switch (dynamic) {
-                            case STRICT:
-                                throw new StrictDynamicMappingException(parent.fullPath(), paths[i]);
-                            case TRUE:
-                                Mapper.Builder builder = context.root().findTemplateBuilder(context, paths[i], "object");
-                                if (builder == null) {
-                                    builder = new ObjectMapper.Builder(paths[i]).enabled(true);
-                                }
-                                Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
-                                mapper = (ObjectMapper) builder.build(builderContext);
-                                if (mapper.nested() != ObjectMapper.Nested.NO) {
-                                    throw new MapperParsingException("It is forbidden to create dynamic nested objects ([" + context.path().pathAsText(paths[i]) + "]) through `copy_to`");
-                                }
-                                context.addDynamicMapper(mapper);
-                                break;
-                            case FALSE:
-                              // Maybe we should log something to tell the user that the copy_to is ignored in this case.
-                              break;
-
-                        }
-                    }
-                    context.path().add(paths[i]);
-                    mappers[i] = mapper;
-                    parent = mapper;
-                }
-            }
+            Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, null);
+            ObjectMapper mapper = parentMapperTuple.v2();
             parseDynamicValue(context, mapper, fieldName, context.parser().currentToken());
+            for (int i = 0; i < parentMapperTuple.v1(); i++) {
+                context.path().remove();
+            }
         }
+    }
+
+    private static Tuple<Integer, ObjectMapper> getDynamicParentMapper(ParseContext context, final String[] paths,
+            ObjectMapper currentParent) {
+        ObjectMapper mapper = currentParent == null ? context.root() : currentParent;
+        int pathsAdded = 0;
+            ObjectMapper parent = mapper;
+            for (int i = 0; i < paths.length-1; i++) {
+            String currentPath = context.path().pathAsText(paths[i]);
+            FieldMapper existingFieldMapper = context.docMapper().mappers().getMapper(currentPath);
+            if (existingFieldMapper != null) {
+                throw new MapperParsingException(
+                        "Could not dynamically add mapping for field [{}]. Existing mapping for [{}] must be of type object but found [{}].",
+                        null, String.join(".", paths), currentPath, existingFieldMapper.fieldType.typeName());
+            }
+            mapper = context.docMapper().objectMappers().get(currentPath);
+                if (mapper == null) {
+                    // One mapping is missing, check if we are allowed to create a dynamic one.
+                    ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context);
+
+                    switch (dynamic) {
+                        case STRICT:
+                            throw new StrictDynamicMappingException(parent.fullPath(), paths[i]);
+                        case TRUE:
+                            Mapper.Builder builder = context.root().findTemplateBuilder(context, paths[i], "object");
+                            if (builder == null) {
+                                builder = new ObjectMapper.Builder(paths[i]).enabled(true);
+                            }
+                            Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
+                            mapper = (ObjectMapper) builder.build(builderContext);
+                            if (mapper.nested() != ObjectMapper.Nested.NO) {
+                                throw new MapperParsingException("It is forbidden to create dynamic nested objects ([" + context.path().pathAsText(paths[i]) + "]) through `copy_to`");
+                            }
+                            context.addDynamicMapper(mapper);
+                            break;
+                        case FALSE:
+                           // Should not dynamically create any more mappers so return the last mapper
+                        return new Tuple<Integer, ObjectMapper>(pathsAdded, parent);
+
+                    }
+                }
+                context.path().add(paths[i]);
+                pathsAdded++;
+                parent = mapper;
+            }
+        return new Tuple<Integer, ObjectMapper>(pathsAdded, mapper);
     }
 
     // find what the dynamic setting is given the current parse context and parent

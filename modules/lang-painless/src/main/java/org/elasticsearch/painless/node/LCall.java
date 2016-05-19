@@ -22,6 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Definition.Sort;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Variables;
 import org.elasticsearch.painless.MethodWriter;
@@ -49,7 +50,7 @@ public final class LCall extends ALink {
     ALink analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         if (before == null) {
             throw new IllegalStateException(error("Illegal tree structure."));
-        } else if (before.sort == Definition.Sort.ARRAY) {
+        } else if (before.sort == Sort.ARRAY) {
             throw new IllegalArgumentException(error("Illegal call [" + name + "] on array type."));
         } else if (store) {
             throw new IllegalArgumentException(error("Cannot assign a value to a call [" + name + "]."));
@@ -72,14 +73,14 @@ public final class LCall extends ALink {
             after = method.rtn;
 
             return this;
-        } else if (before.sort == Definition.Sort.DEF) {
+        } else if (before.sort == Sort.DEF) {
             final ALink link = new LDefCall(line, location, name, arguments);
             link.copy(this);
 
             return link.analyze(settings, definition, variables);
         }
 
-        throw new IllegalArgumentException(error("Unknown call [" + name + "] with [" + arguments.size() + 
+        throw new IllegalArgumentException(error("Unknown call [" + name + "] with [" + arguments.size() +
                                                  "] arguments on type [" + struct.name + "]."));
     }
 

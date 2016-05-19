@@ -5,15 +5,6 @@
  */
 package org.elasticsearch.xpack.test.rest;
 
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.URI;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -40,8 +31,18 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
+
 
 public abstract class XPackRestTestCase extends ESRestTestCase {
 
@@ -101,6 +102,7 @@ public abstract class XPackRestTestCase extends ESRestTestCase {
 
     @After
     public void clearShieldUsersAndRoles() throws Exception {
+        //TODO change this to use RestClient, also look for usages of HttpClient directly
         // we cannot delete the .security index from a rest test since we aren't the internal user, lets wipe the data
         // TODO remove this once the built-in SUPERUSER role is added that can delete the index and we use the built in admin user here
         try (CloseableHttpClient client = HttpClients.createMinimal(new BasicHttpClientConnectionManager())) {

@@ -61,14 +61,15 @@ public class SettingsTests extends ESTestCase {
         assertThat(e, hasToString(containsString("Could not resolve placeholder 'java.home'")));
     }
 
-    public void testReplacePropertiesPlaceholderSystemEnvironmentVariablesHaveNoEffect() {
+    public void testReplacePropertiesPlaceholderByEnvironmentVariables() {
         final Map.Entry<String, String> entry = randomSubsetOf(1, System.getenv().entrySet()).get(0);
         assertNotNull(entry.getValue());
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Settings.builder()
-                .put("setting1", "${env." + entry.getKey() + "}")
-                .replacePropertyPlaceholders()
-                .build());
-        assertThat(e, hasToString(containsString("Could not resolve placeholder 'env." + entry.getKey() + "'")));
+
+        final Settings implicitEnvSettings = Settings.builder()
+            .put("setting1", "${" + entry.getKey() + "}")
+            .replacePropertyPlaceholders()
+            .build();
+        assertThat(implicitEnvSettings.get("setting1"), equalTo(entry.getValue()));
     }
 
     public void testReplacePropertiesPlaceholderIgnoresPrompt() {

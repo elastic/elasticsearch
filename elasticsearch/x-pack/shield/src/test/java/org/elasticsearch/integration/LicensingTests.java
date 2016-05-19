@@ -14,6 +14,9 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -194,13 +197,21 @@ public class LicensingTests extends ShieldIntegTestCase {
     }
 
     public void testRestAuthenticationByLicenseType() throws Exception {
-        // the default of the licensing tests is basic
-        assertThat(httpClient().path("/").execute().getStatusCode(), is(200));
+        try (RestClient restClient = restClient()) {
+            ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null);
+            // the default of the licensing tests is basic
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
 
-        // generate a new license with a mode that enables auth
-        OperationMode mode = randomFrom(OperationMode.GOLD, OperationMode.TRIAL, OperationMode.PLATINUM, OperationMode.STANDARD);
-        enableLicensing(mode);
-        assertThat(httpClient().path("/").execute().getStatusCode(), is(401));
+            // generate a new license with a mode that enables auth
+            OperationMode mode = randomFrom(OperationMode.GOLD, OperationMode.TRIAL, OperationMode.PLATINUM, OperationMode.STANDARD);
+            enableLicensing(mode);
+            try {
+                restClient.performRequest("GET", "/", Collections.emptyMap(), null);
+                fail("request should have failed");
+            } catch(ElasticsearchResponseException e) {
+                assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(401));
+            }
+        }
     }
 
     public void testTransportClientAuthenticationByLicenseType() throws Exception {

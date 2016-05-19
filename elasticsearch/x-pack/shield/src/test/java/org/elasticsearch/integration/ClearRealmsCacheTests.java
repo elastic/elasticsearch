@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.integration;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.shield.user.User;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.shield.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.shield.authc.Realm;
@@ -22,10 +22,9 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.client.SecurityClient;
+import org.elasticsearch.shield.user.User;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
@@ -39,7 +38,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -168,21 +166,13 @@ public class ClearRealmsCacheTests extends ShieldIntegTestCase {
         }
 
         static void executeHttpRequest(String path, Map<String, String> params) throws Exception {
-            try (CloseableHttpClient client = HttpClients.createDefault()) {
-                HttpRequestBuilder requestBuilder = new HttpRequestBuilder(client)
-                        .httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class))
-                        .method("POST")
-                        .path(path);
-                for (Map.Entry<String, String> entry : params.entrySet()) {
-                    requestBuilder.addParam(entry.getKey(), entry.getValue());
-                }
-                requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                        UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
-                                new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())));
-                HttpResponse response = requestBuilder.execute();
-                assertThat(response.hasBody(), is(true));
-                String body = response.getBody();
-                assertThat(body.contains("cluster_name"), is(true));
+            try (RestClient restClient = restClient()) {
+                ElasticsearchResponse response = restClient.performRequest("POST", path, params, null,
+                        new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                                UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                                        new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+                assertNotNull(response.getEntity());
+                assertTrue(EntityUtils.toString(response.getEntity()).contains("cluster_name"));
             }
         }
     }

@@ -5,18 +5,20 @@
  */
 package org.elasticsearch.integration;
 
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.shield.action.role.PutRoleResponse;
-import org.elasticsearch.shield.action.role.GetRolesResponse;
 import org.elasticsearch.shield.ShieldTemplateService;
-import org.elasticsearch.shield.authc.esnative.NativeRealm;
+import org.elasticsearch.shield.action.role.GetRolesResponse;
+import org.elasticsearch.shield.action.role.PutRoleResponse;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.RoleDescriptor;
@@ -24,11 +26,11 @@ import org.elasticsearch.shield.authz.store.NativeRolesStore;
 import org.elasticsearch.shield.client.SecurityClient;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -127,7 +129,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         final boolean useHttp = randomBoolean();
         final boolean clearAll = randomBoolean();
         logger.debug("--> starting to clear roles. using http [{}] clearing all [{}]", useHttp, clearAll);
-        String[] rolesToClear = clearAll ? (randomBoolean() ? roles : null) : toModify.toArray(Strings.EMPTY_ARRAY);
+        String[] rolesToClear = clearAll ? (randomBoolean() ? roles : null) : toModify.toArray(new String[toModify.size()]);
         if (useHttp) {
             String path;
             if (rolesToClear == null) {
@@ -135,12 +137,13 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
             } else {
                 path = "/_xpack/security/role/" + Strings.arrayToCommaDelimitedString(rolesToClear) + "/_clear_cache";
             }
-            HttpResponse response = httpClient().path(path).method("POST")
-                    .addHeader("Authorization",
-                            UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
-                                    new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())))
-                    .execute();
-            assertThat(response.getStatusCode(), is(RestStatus.OK.getStatus()));
+            try (RestClient restClient = restClient()) {
+                ElasticsearchResponse response = restClient.performRequest("POST", path, Collections.emptyMap(), null,
+                        new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                                UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                                        new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+                assertThat(response.getStatusLine().getStatusCode(), is(RestStatus.OK.getStatus()));
+            }
         } else {
             securityClient.prepareClearRolesCache().names(rolesToClear).get();
         }

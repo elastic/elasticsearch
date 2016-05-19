@@ -5,22 +5,12 @@
  */
 package org.elasticsearch.shield;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.integration.LicensingTests;
-import org.elasticsearch.license.core.License.OperationMode;
-import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.transport.ShieldServerTransportService;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.test.ShieldIntegTestCase;
-import org.elasticsearch.test.ShieldSettingsSource;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.elasticsearch.test.rest.json.JsonPath;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -28,13 +18,7 @@ import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
-
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**

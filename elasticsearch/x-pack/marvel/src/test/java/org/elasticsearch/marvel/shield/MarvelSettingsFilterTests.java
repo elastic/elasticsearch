@@ -5,21 +5,19 @@
  */
 package org.elasticsearch.marvel.shield;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.http.Header;
+import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.marvel.MonitoringSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.shield.authc.support.SecuredString;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.hamcrest.Matchers;
-import org.junit.After;
 
-import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
@@ -28,13 +26,6 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basic
 import static org.hamcrest.CoreMatchers.nullValue;
 
 public class MarvelSettingsFilterTests extends MarvelIntegTestCase {
-
-    private CloseableHttpClient httpClient = HttpClients.createDefault();
-
-    @After
-    public void cleanup() throws IOException {
-        httpClient.close();
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -53,46 +44,35 @@ public class MarvelSettingsFilterTests extends MarvelIntegTestCase {
     }
 
     public void testGetSettingsFiltered() throws Exception {
-        String body = executeRequest("GET", "/_nodes/settings", null, null).getBody();
-        Map<String, Object> response = JsonXContent.jsonXContent.createParser(body).map();
-        Map<String, Object> nodes = (Map<String, Object>) response.get("nodes");
-        for (Object node : nodes.values()) {
-            Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
-
-            assertThat(extractValue("xpack.monitoring.agent.exporters._http.type", settings), Matchers.<Object>equalTo("http"));
-            assertThat(extractValue("xpack.monitoring.agent.exporters._http.enabled", settings), Matchers.<Object>equalTo("false"));
-            assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.auth.username");
-            assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.auth.password");
-            assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.ssl.truststore.path");
-            assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.ssl.truststore.password");
-            assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.ssl.hostname_verification");
+        try (RestClient restClient = restClient()) {
+            Header[] headers;
+            if (shieldEnabled) {
+                headers = new Header[] {
+                        new BasicHeader(BASIC_AUTH_HEADER,
+                                basicAuthHeaderValue(ShieldSettings.TEST_USERNAME,
+                                        new SecuredString(ShieldSettings.TEST_PASSWORD.toCharArray())))};
+            } else {
+                headers = new Header[0];
+            }
+            ElasticsearchResponse response = restClient.performRequest("GET", "/_nodes/settings", Collections.emptyMap(), null, headers);
+            Map<String, Object> responseMap = JsonXContent.jsonXContent.createParser(response.getEntity().getContent()).map();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");
+            for (Object node : nodes.values()) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
+                assertThat(extractValue("xpack.monitoring.agent.exporters._http.type", settings), Matchers.<Object>equalTo("http"));
+                assertThat(extractValue("xpack.monitoring.agent.exporters._http.enabled", settings), Matchers.<Object>equalTo("false"));
+                assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.auth.username");
+                assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.auth.password");
+                assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.ssl.truststore.path");
+                assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.ssl.truststore.password");
+                assertNullSetting(settings, "xpack.monitoring.agent.exporters._http.ssl.hostname_verification");
+            }
         }
     }
 
     private void assertNullSetting(Map<String, Object> settings, String setting) {
         assertThat(extractValue(setting, settings), nullValue());
-    }
-
-    protected HttpResponse executeRequest(String method, String path, String body, Map<String, String> params) throws IOException {
-        HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class,
-                internalCluster().getMasterName());
-        HttpRequestBuilder requestBuilder = new HttpRequestBuilder(httpClient)
-                .httpTransport(httpServerTransport)
-                .method(method)
-                .path(path);
-
-        if (params != null) {
-            for (Map.Entry<String, String> entry : params.entrySet()) {
-                requestBuilder.addParam(entry.getKey(), entry.getValue());
-            }
-        }
-        if (body != null) {
-            requestBuilder.body(body);
-        }
-        if (shieldEnabled) {
-            requestBuilder.addHeader(BASIC_AUTH_HEADER,
-                    basicAuthHeaderValue(ShieldSettings.TEST_USERNAME, new SecuredString(ShieldSettings.TEST_PASSWORD.toCharArray())));
-        }
-        return requestBuilder.execute();
     }
 }

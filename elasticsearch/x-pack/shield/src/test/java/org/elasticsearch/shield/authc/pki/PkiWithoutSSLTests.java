@@ -5,19 +5,19 @@
  */
 package org.elasticsearch.shield.authc.pki;
 
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.is;
 
@@ -44,17 +44,12 @@ public class PkiWithoutSSLTests extends ShieldIntegTestCase {
     }
 
     public void testThatHttpWorks() throws Exception {
-        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpRequestBuilder requestBuilder = new HttpRequestBuilder(httpClient)
-                    .httpTransport(httpServerTransport)
-                    .method("GET")
-                    .path("/_nodes");
-            requestBuilder.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                    UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
-                            new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray())));
-            HttpResponse response = requestBuilder.execute();
-            assertThat(response.getStatusCode(), is(200));
+        try (RestClient restClient = restClient()) {
+            ElasticsearchResponse response = restClient.performRequest("GET", "/_nodes", Collections.emptyMap(), null,
+                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                            UsernamePasswordToken.basicAuthHeaderValue(ShieldSettingsSource.DEFAULT_USER_NAME,
+                                    new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
     }
 }

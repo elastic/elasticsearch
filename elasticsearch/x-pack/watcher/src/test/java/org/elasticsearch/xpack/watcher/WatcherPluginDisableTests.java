@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.apache.http.HttpStatus;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
@@ -18,12 +18,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.Security;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
-import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -70,12 +68,11 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
 
     public void testRestEndpoints() throws Exception {
         HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpRequestBuilder request = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport)
-                    .method("GET")
-                    .path("/_xpack/watcher");
-            HttpResponse response = request.execute();
-            assertThat(response.getStatusCode(), is(HttpStatus.SC_BAD_REQUEST));
+        try (RestClient restClient = restClient()) {
+            restClient.performRequest("GET", "/_xpack/watcher", Collections.emptyMap(), null);
+            fail("request should have failed");
+        } catch(ElasticsearchResponseException e) {
+            assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(HttpStatus.SC_BAD_REQUEST));
         }
     }
 

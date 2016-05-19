@@ -9,20 +9,21 @@ import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.conn.ssl.SSLContexts;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.shield.Security;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.ssl.SSLConfiguration.Global;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.test.ShieldIntegTestCase;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
 
@@ -30,10 +31,12 @@ import javax.net.ssl.SSLHandshakeException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.test.ShieldSettingsSource.getSSLSettingsForStore;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SslClientAuthTests extends ShieldIntegTestCase {
     @Override
@@ -59,14 +62,8 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
                 SSLContexts.createDefault(),
                 SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
 
-        CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(socketFactory).build();
-
-        try {
-            new HttpRequestBuilder(client)
-                    .httpTransport(internalCluster().getInstance(HttpServerTransport.class))
-                    .method("GET").path("/")
-                    .protocol("https")
-                    .execute();
+        try (RestClient restClient = restClient(HttpClients.custom().setSSLSocketFactory(socketFactory).build(), "https")) {
+            restClient.performRequest("GET", "/", Collections.emptyMap(), null);
             fail("Expected SSLHandshakeException");
         } catch (SSLHandshakeException e) {
             assertThat(e.getMessage(), containsString("unable to find valid certification path to requested target"));
@@ -85,13 +82,12 @@ public class SslClientAuthTests extends ShieldIntegTestCase {
 
         CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(socketFactory).build();
 
-        HttpResponse response = new HttpRequestBuilder(client)
-                .httpTransport(internalCluster().getInstance(HttpServerTransport.class))
-                .method("GET").path("/")
-                .protocol("https")
-                .addHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword()))
-                .execute();
-        assertThat(response.getBody(), containsString("You Know, for Search"));
+        try (RestClient restClient = restClient(client, "https")) {
+            ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null,
+                    new BasicHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword())));
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+            assertThat(EntityUtils.toString(response.getEntity()), containsString("You Know, for Search"));
+        }
     }
 
     public void testThatTransportWorksWithoutSslClientAuth() throws Exception {

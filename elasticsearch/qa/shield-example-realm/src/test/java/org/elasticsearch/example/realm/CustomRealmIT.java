@@ -5,9 +5,13 @@
  */
 package org.elasticsearch.example.realm;
 
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
@@ -16,7 +20,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Collection;
@@ -43,18 +46,24 @@ public class CustomRealmIT extends ESIntegTestCase {
     }
 
     public void testHttpConnectionWithNoAuthentication() throws Exception {
-        HttpResponse response = httpClient().path("/").execute();
-        assertThat(response.getStatusCode(), is(401));
-        String value = response.getHeaders().get("WWW-Authenticate");
-        assertThat(value, is("custom-challenge"));
+        try (RestClient restClient = restClient()) {
+            restClient.performRequest("GET", "/", Collections.emptyMap(), null);
+            fail("request should have failed");
+        } catch(ElasticsearchResponseException e) {
+            ElasticsearchResponse response = e.getElasticsearchResponse();
+            assertThat(response.getStatusLine().getStatusCode(), is(401));
+            String value = response.getFirstHeader("WWW-Authenticate");
+            assertThat(value, is("custom-challenge"));
+        }
     }
 
     public void testHttpAuthentication() throws Exception {
-        HttpResponse response = httpClient().path("/")
-                .addHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
-                .addHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
-                .execute();
-        assertThat(response.getStatusCode(), is(200));
+        try (RestClient restClient = restClient()) {
+            ElasticsearchResponse response = restClient.performRequest("GET", "/", Collections.emptyMap(), null,
+                    new BasicHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER),
+                    new BasicHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW));
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
+        }
     }
 
     public void testTransportClient() throws Exception {

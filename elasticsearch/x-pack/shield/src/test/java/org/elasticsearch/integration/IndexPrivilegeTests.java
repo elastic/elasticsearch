@@ -5,19 +5,22 @@
  */
 package org.elasticsearch.integration;
 
-import org.apache.lucene.util.LuceneTestCase.BadApple;
+import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.ElasticsearchResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Before;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
+import static org.apache.lucene.util.LuceneTestCase.BadApple;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -303,8 +306,14 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     }
 
     public void testThatUnknownUserIsRejectedProperly() throws Exception {
-        HttpResponse response = executeRequest("idonotexist", "GET", "/", null, new HashMap<>());
-        assertThat(response.getStatusCode(), is(401));
+        try (RestClient restClient = restClient()){
+            restClient.performRequest("GET", "/", Collections.emptyMap(), null,
+                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                            UsernamePasswordToken.basicAuthHeaderValue("idonotexist", new SecuredString("passwd".toCharArray()))));
+            fail("request should have failed");
+        } catch(ElasticsearchResponseException e) {
+            assertThat(e.getElasticsearchResponse().getStatusLine().getStatusCode(), is(401));
+        }
     }
 
     private void assertUserExecutes(String user, String action, String index, boolean userIsAllowed) throws Exception {

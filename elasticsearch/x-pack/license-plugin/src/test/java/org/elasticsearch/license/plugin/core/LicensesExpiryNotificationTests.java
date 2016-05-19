@@ -11,9 +11,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.plugin.TestUtils.AssertingLicensee;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.license.plugin.TestUtils.awaitNoBlock;
 import static org.elasticsearch.license.plugin.TestUtils.awaitNoPendingTasks;
@@ -194,7 +192,7 @@ public class LicensesExpiryNotificationTests extends ESSingleNodeTestCase {
         msg.append(dumpLicensingStates(states));
         assertThat(msg.toString(), licensee.statuses.size(), equalTo(states.length));
         for (int i = 0; i < states.length; i++) {
-            assertThat(msg.toString(), licensee.statuses.get(i), equalTo(states[i]));
+            assertThat(msg.toString(), licensee.statuses.get(i).getLicenseState(), equalTo(states[i]));
         }
     }
 
@@ -202,10 +200,12 @@ public class LicensesExpiryNotificationTests extends ESSingleNodeTestCase {
         return dumpLicensingStates(statuses.toArray(new Licensee.Status[statuses.size()]));
     }
 
-
     private String dumpLicensingStates(Licensee.Status... statuses) {
-        return dumpLicensingStates((LicenseState[]) Arrays.asList(statuses).stream()
-                .map(Licensee.Status::getLicenseState).collect(Collectors.toList()).toArray());
+        LicenseState[] states = new LicenseState[statuses.length];
+        for (int i = 0; i < statuses.length; i++) {
+            states[i] = statuses[i].getLicenseState();
+        }
+        return dumpLicensingStates(states);
     }
 
     private String dumpLicensingStates(LicenseState... states) {

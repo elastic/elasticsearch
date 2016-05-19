@@ -222,8 +222,10 @@ public class AllocationService extends AbstractComponent {
         List<FailedRerouteAllocation.FailedShard> orderedFailedShards = new ArrayList<>(failedShards);
         orderedFailedShards.sort(Comparator.comparing(failedShard -> failedShard.shard.primary()));
         for (FailedRerouteAllocation.FailedShard failedShard : orderedFailedShards) {
+            UnassignedInfo unassignedInfo = failedShard.shard.unassignedInfo();
+            final int failedAllocations = unassignedInfo != null ? unassignedInfo.getNumFailedAllocations() : 0;
             changed |= applyFailedShard(allocation, failedShard.shard, true, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShard.message, failedShard.failure,
-                    System.nanoTime(), System.currentTimeMillis()));
+                    failedAllocations + 1, System.nanoTime(), System.currentTimeMillis()));
         }
         if (!changed) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
@@ -437,7 +439,7 @@ public class AllocationService extends AbstractComponent {
             // now, go over all the shards routing on the node, and fail them
             for (ShardRouting shardRouting : node.copyShards()) {
                 UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "node_left[" + node.nodeId() + "]", null,
-                        allocation.getCurrentNanoTime(), System.currentTimeMillis());
+                        0, allocation.getCurrentNanoTime(), System.currentTimeMillis());
                 applyFailedShard(allocation, shardRouting, false, unassignedInfo);
             }
             // its a dead node, remove it, note, its important to remove it *after* we apply failed shard
@@ -457,8 +459,8 @@ public class AllocationService extends AbstractComponent {
         boolean changed = false;
         for (ShardRouting routing : replicas) {
             changed |= applyFailedShard(allocation, routing, false,
-                    new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "primary failed while replica initializing",
-                            null, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
+                    new UnassignedInfo(UnassignedInfo.Reason.PRIMARY_FAILED, "primary failed while replica initializing",
+                            null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
         }
         return changed;
     }

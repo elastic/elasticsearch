@@ -64,55 +64,6 @@ POST my_index/_analyze
 // CONSOLE
 // TEST[skip:Test interprets $1 as a stashed variable]
 
-/////////////////////
-
-[source,js]
-----------------------------
-{
-  "tokens": [
-    {
-      "token": "My",
-      "start_offset": 0,
-      "end_offset": 2,
-      "type": "<ALPHANUM>",
-      "position": 0
-    },
-    {
-      "token": "credit",
-      "start_offset": 3,
-      "end_offset": 9,
-      "type": "<ALPHANUM>",
-      "position": 1
-    },
-    {
-      "token": "card",
-      "start_offset": 10,
-      "end_offset": 14,
-      "type": "<ALPHANUM>",
-      "position": 2
-    },
-    {
-      "token": "is",
-      "start_offset": 15,
-      "end_offset": 17,
-      "type": "<ALPHANUM>",
-      "position": 3
-    },
-    {
-      "token": "123_456_789",
-      "start_offset": 18,
-      "end_offset": 29,
-      "type": "<NUM>",
-      "position": 4
-    }
-  ]
-}
-----------------------------
-// TESTRESPONSE
-
-/////////////////////
-
-
 The above example produces the following term:
 
 [source,text]
@@ -221,6 +172,7 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
+// TESTRESPONSE
 
 /////////////////////
 
@@ -257,6 +209,7 @@ GET my_index/_search
 }
 ----------------------------
 // CONSOLE
+// TEST[continued]
 
 The output from the above is:
 

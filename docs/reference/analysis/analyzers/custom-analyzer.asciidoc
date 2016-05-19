@@ -161,13 +161,10 @@ PUT my_index
       "analyzer": {
         "my_custom_analyzer": {
           "type": "custom",
-
           "char_filter": [
             "emoticons" <1>
           ],
-
           "tokenizer": "punctuation", <1>
-
           "filter": [
             "lowercase",
             "english_stop" <1>
@@ -207,6 +204,7 @@ POST my_index/_analyze
   "text":     "I'm a :) person, and you?"
 }
 --------------------------------------------------
+// CONSOLE
 
 <1> The `emoticon` character filter, `punctuation` tokenizer and
     `english_stop` token filter are custom implementations which are defined

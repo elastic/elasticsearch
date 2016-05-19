@@ -112,7 +112,6 @@ public class S3RepositoryPlugin extends Plugin {
         settingsModule.registerSetting(AwsS3Service.CLOUD_S3.SIGNER_SETTING);
         settingsModule.registerSetting(AwsS3Service.CLOUD_S3.REGION_SETTING);
         settingsModule.registerSetting(AwsS3Service.CLOUD_S3.ENDPOINT_SETTING);
-        settingsModule.registerSetting(AwsS3Service.CLOUD_S3.THROTTLE_RETRIES_SETTING);
 
         // Register S3 repositories settings: repositories.s3
         settingsModule.registerSetting(S3Repository.Repositories.KEY_SETTING);
@@ -129,6 +128,7 @@ public class S3RepositoryPlugin extends Plugin {
         settingsModule.registerSetting(S3Repository.Repositories.STORAGE_CLASS_SETTING);
         settingsModule.registerSetting(S3Repository.Repositories.CANNED_ACL_SETTING);
         settingsModule.registerSetting(S3Repository.Repositories.BASE_PATH_SETTING);
+        settingsModule.registerSetting(S3Repository.Repositories.THROTTLE_RETRIES_SETTING);
 
         // Register S3 single repository settings
         settingsModule.registerSetting(S3Repository.Repository.KEY_SETTING);
@@ -145,6 +145,7 @@ public class S3RepositoryPlugin extends Plugin {
         settingsModule.registerSetting(S3Repository.Repository.STORAGE_CLASS_SETTING);
         settingsModule.registerSetting(S3Repository.Repository.CANNED_ACL_SETTING);
         settingsModule.registerSetting(S3Repository.Repository.BASE_PATH_SETTING);
+        settingsModule.registerSetting(S3Repository.Repository.THROTTLE_RETRIES_SETTING);
     }
 
     /**

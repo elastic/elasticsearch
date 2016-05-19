@@ -57,7 +57,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
     }
 
     @Override
-    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries) {
+    public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries,
+                                        boolean throttleRetries) {
         if (Strings.isNullOrEmpty(endpoint)) {
             // We need to set the endpoint based on the region
             if (region != null) {
@@ -69,10 +70,11 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             }
         }
 
-        return getClient(endpoint, protocol, account, key, maxRetries);
+        return getClient(endpoint, protocol, account, key, maxRetries, throttleRetries);
     }
 
-    private synchronized AmazonS3 getClient(String endpoint, Protocol protocol, String account, String key, Integer maxRetries) {
+    private synchronized AmazonS3 getClient(String endpoint, Protocol protocol, String account, String key, Integer maxRetries,
+                                            boolean throttleRetries) {
         Tuple<String, String> clientDescriptor = new Tuple<>(endpoint, account);
         AmazonS3Client client = clients.get(clientDescriptor);
         if (client != null) {
@@ -101,8 +103,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         if (maxRetries != null) {
             // If not explicitly set, default to 3 with exponential backoff policy
             clientConfiguration.setMaxErrorRetry(maxRetries);
-            clientConfiguration.setUseThrottleRetries(AwsS3Service.CLOUD_S3.THROTTLE_RETRIES_SETTING.get(settings));
         }
+        clientConfiguration.setUseThrottleRetries(throttleRetries);
 
         // #155: we might have 3rd party users using older S3 API version
         String awsSigner = CLOUD_S3.SIGNER_SETTING.get(settings);

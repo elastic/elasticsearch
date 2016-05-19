@@ -640,7 +640,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder().put("location", repositoryLocation)));
 
-        prepareCreate("test-idx").setSettings(Settings.builder().put("index.allocation.max_retry", Integer.MAX_VALUE)).get();
+        prepareCreate("test-idx").setSettings(Settings.builder().put("index.allocation.max_retries", Integer.MAX_VALUE)).get();
         ensureGreen();
 
         logger.info("--> indexing some data");

@@ -35,7 +35,7 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class MaxRetryAllocationDecider extends AllocationDecider {
 
-    public static final Setting<Integer> SETTING_ALLOCATION_MAX_RETRY = Setting.intSetting("index.allocation.max_retry", 5, 0,
+    public static final Setting<Integer> SETTING_ALLOCATION_MAX_RETRY = Setting.intSetting("index.allocation.max_retries", 5, 0,
         Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     public static final String NAME = "max_retry";
@@ -58,7 +58,7 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
             int maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(indexSafe.getSettings());
             if (unassignedInfo.getNumFailedAllocations() >= maxRetry) {
                 return allocation.decision(Decision.NO, NAME, "shard has already failed allocating ["
-                    + unassignedInfo.getNumFailedAllocations() + "] times");
+                    + unassignedInfo.getNumFailedAllocations() + "] times " + unassignedInfo.toString());
             }
         }
         return allocation.decision(Decision.YES, NAME, "shard has no previous failures");

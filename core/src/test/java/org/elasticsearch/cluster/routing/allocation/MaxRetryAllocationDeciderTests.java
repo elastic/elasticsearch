@@ -99,7 +99,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable)
             .metaData(MetaData.builder(clusterState.metaData())
                 .put(IndexMetaData.builder(clusterState.metaData().index("idx")).settings(
-                    Settings.builder().put(clusterState.metaData().index("idx").getSettings()).put("index.allocation.max_retry", 6).build()
+                    Settings.builder().put(clusterState.metaData().index("idx").getSettings()).put("index.allocation.max_retries", 6).build()
                 ).build(), true).build()).build();
         RoutingAllocation.Result result = strategy.reroute(clusterState, "settings changed");
         assertTrue(result.changed());

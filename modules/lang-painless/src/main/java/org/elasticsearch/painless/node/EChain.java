@@ -44,7 +44,6 @@ public final class EChain extends AExpression {
 
     boolean cat = false;
     Type promote = null;
-    boolean exact = false;
     Cast there = null;
     Cast back = null;
 
@@ -208,9 +207,6 @@ public final class EChain extends AExpression {
 
         expression = expression.cast(settings, definition, variables);
 
-        exact = !settings.getNumericOverflow() &&
-            (operation == Operation.MUL || operation == Operation.DIV || operation == Operation.REM ||
-                operation == Operation.ADD || operation == Operation.SUB);
         there = AnalyzerCaster.getLegalCast(definition, location, last.after, promote, false);
         back = AnalyzerCaster.getLegalCast(definition, location, promote, last.after, true);
 
@@ -293,11 +289,9 @@ public final class EChain extends AExpression {
 
                     adapter.writeCast(there);
                     expression.write(settings, definition, adapter);
-                    adapter.writeBinaryInstruction(settings, definition, location, promote, operation);
+                    adapter.writeBinaryInstruction(definition, location, promote, operation);
 
-                    if (!exact || !adapter.writeExactInstruction(definition, promote.sort, link.after.sort)) {
-                        adapter.writeCast(back);
-                    }
+                    adapter.writeCast(back);
 
                     if (link.load && !post) {
                         adapter.writeDup(link.after.sort.size, link.size);

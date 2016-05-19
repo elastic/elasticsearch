@@ -31,8 +31,6 @@ import org.elasticsearch.painless.MethodWriter;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_NEG_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_NOT_CALL;
-import static org.elasticsearch.painless.WriterConstants.NEGATEEXACT_INT;
-import static org.elasticsearch.painless.WriterConstants.NEGATEEXACT_LONG;
 
 /**
  * Represents a unary math expression.
@@ -147,14 +145,13 @@ public final class EUnary extends AExpression {
         child = child.cast(settings, definition, variables);
 
         if (child.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
             final Sort sort = promote.sort;
 
 
             if (sort == Sort.INT) {
-                constant = overflow ? -(int)child.constant : Math.negateExact((int)child.constant);
+                constant = -(int)child.constant;
             } else if (sort == Sort.LONG) {
-                constant = overflow ? -(long)child.constant : Math.negateExact((long)child.constant);
+                constant = -(long)child.constant;
             } else if (sort == Sort.FLOAT) {
                 constant = -(float)child.constant;
             } else if (sort == Sort.DOUBLE) {
@@ -211,17 +208,7 @@ public final class EUnary extends AExpression {
                 if (sort == Sort.DEF) {
                     adapter.invokeStatic(definition.getType("Def").type, DEF_NEG_CALL);
                 } else {
-                    if (settings.getNumericOverflow()) {
-                        adapter.math(MethodWriter.NEG, type);
-                    } else {
-                        if (sort == Sort.INT) {
-                            adapter.invokeStatic(definition.getType("Math").type, NEGATEEXACT_INT);
-                        } else if (sort == Sort.LONG) {
-                            adapter.invokeStatic(definition.getType("Math").type, NEGATEEXACT_LONG);
-                        } else {
-                            throw new IllegalStateException(error("Illegal tree structure."));
-                        }
-                    }
+                    adapter.math(MethodWriter.NEG, type);
                 }
             } else if (operation != Operation.ADD) {
                 throw new IllegalStateException(error("Illegal tree structure."));

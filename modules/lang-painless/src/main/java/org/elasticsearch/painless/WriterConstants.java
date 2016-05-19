@@ -27,7 +27,6 @@ import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
 import java.lang.invoke.CallSite;
-import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.util.Map;
@@ -116,59 +115,8 @@ public final class WriterConstants {
     public final static Method STRINGBUILDER_APPEND_OBJECT  = getAsmMethod(StringBuilder.class, "append", Object.class);
     public final static Method STRINGBUILDER_TOSTRING       = getAsmMethod(String.class, "toString");
 
-    public final static Method TOINTEXACT_LONG  = getAsmMethod(int.class,  "toIntExact",    long.class);
-    public final static Method NEGATEEXACT_INT  = getAsmMethod(int.class,  "negateExact",   int.class);
-    public final static Method NEGATEEXACT_LONG = getAsmMethod(long.class, "negateExact",   long.class);
-    public final static Method MULEXACT_INT     = getAsmMethod(int.class,  "multiplyExact", int.class,  int.class);
-    public final static Method MULEXACT_LONG    = getAsmMethod(long.class, "multiplyExact", long.class, long.class);
-    public final static Method ADDEXACT_INT     = getAsmMethod(int.class,  "addExact",      int.class,  int.class);
-    public final static Method ADDEXACT_LONG    = getAsmMethod(long.class, "addExact",      long.class, long.class);
-    public final static Method SUBEXACT_INT     = getAsmMethod(int.class,  "subtractExact", int.class,  int.class);
-    public final static Method SUBEXACT_LONG    = getAsmMethod(long.class, "subtractExact", long.class, long.class);
-
     public final static Method CHECKEQUALS              =
         getAsmMethod(boolean.class, "checkEquals",              Object.class, Object.class);
-    public final static Method TOBYTEEXACT_INT          = getAsmMethod(byte.class,    "toByteExact",              int.class);
-    public final static Method TOBYTEEXACT_LONG         = getAsmMethod(byte.class,    "toByteExact",              long.class);
-    public final static Method TOBYTEWOOVERFLOW_FLOAT   = getAsmMethod(byte.class,    "toByteWithoutOverflow",    float.class);
-    public final static Method TOBYTEWOOVERFLOW_DOUBLE  = getAsmMethod(byte.class,    "toByteWithoutOverflow",    double.class);
-    public final static Method TOSHORTEXACT_INT         = getAsmMethod(short.class,   "toShortExact",             int.class);
-    public final static Method TOSHORTEXACT_LONG        = getAsmMethod(short.class,   "toShortExact",             long.class);
-    public final static Method TOSHORTWOOVERFLOW_FLOAT  = getAsmMethod(short.class,   "toShortWithoutOverflow",   float.class);
-    public final static Method TOSHORTWOOVERFLOW_DOUBLE = getAsmMethod(short.class,   "toShortWihtoutOverflow",   double.class);
-    public final static Method TOCHAREXACT_INT          = getAsmMethod(char.class,    "toCharExact",              int.class);
-    public final static Method TOCHAREXACT_LONG         = getAsmMethod(char.class,    "toCharExact",              long.class);
-    public final static Method TOCHARWOOVERFLOW_FLOAT   = getAsmMethod(char.class,    "toCharWithoutOverflow",    float.class);
-    public final static Method TOCHARWOOVERFLOW_DOUBLE  = getAsmMethod(char.class,    "toCharWithoutOverflow",    double.class);
-    public final static Method TOINTWOOVERFLOW_FLOAT    = getAsmMethod(int.class,     "toIntWithoutOverflow",     float.class);
-    public final static Method TOINTWOOVERFLOW_DOUBLE   = getAsmMethod(int.class,     "toIntWithoutOverflow",     double.class);
-    public final static Method TOLONGWOOVERFLOW_FLOAT   = getAsmMethod(long.class,    "toLongWithoutOverflow",    float.class);
-    public final static Method TOLONGWOOVERFLOW_DOUBLE  = getAsmMethod(long.class,    "toLongWithoutOverflow",    double.class);
-    public final static Method TOFLOATWOOVERFLOW_DOUBLE = getAsmMethod(float.class ,  "toFloatWihtoutOverflow",   double.class);
-    public final static Method MULWOOVERLOW_FLOAT       =
-        getAsmMethod(float.class,   "multiplyWithoutOverflow",  float.class,  float.class);
-    public final static Method MULWOOVERLOW_DOUBLE      =
-        getAsmMethod(double.class,  "multiplyWithoutOverflow",  double.class, double.class);
-    public final static Method DIVWOOVERLOW_INT         =
-        getAsmMethod(int.class,     "divideWithoutOverflow",    int.class,    int.class);
-    public final static Method DIVWOOVERLOW_LONG        =
-        getAsmMethod(long.class,    "divideWithoutOverflow",    long.class,   long.class);
-    public final static Method DIVWOOVERLOW_FLOAT       =
-        getAsmMethod(float.class,   "divideWithoutOverflow",    float.class,  float.class);
-    public final static Method DIVWOOVERLOW_DOUBLE      =
-        getAsmMethod(double.class,  "divideWithoutOverflow",    double.class, double.class);
-    public final static Method REMWOOVERLOW_FLOAT       =
-        getAsmMethod(float.class,   "remainderWithoutOverflow", float.class,  float.class);
-    public final static Method REMWOOVERLOW_DOUBLE      =
-        getAsmMethod(double.class,  "remainderWithoutOverflow", double.class, double.class);
-    public final static Method ADDWOOVERLOW_FLOAT       =
-        getAsmMethod(float.class,   "addWithoutOverflow",       float.class,  float.class);
-    public final static Method ADDWOOVERLOW_DOUBLE      =
-        getAsmMethod(double.class,  "addWithoutOverflow",       double.class, double.class);
-    public final static Method SUBWOOVERLOW_FLOAT       =
-        getAsmMethod(float.class,   "subtractWithoutOverflow",  float.class,  float.class);
-    public final static Method SUBWOOVERLOW_DOUBLE      =
-        getAsmMethod(double.class,  "subtractWithoutOverflow",  double.class, double.class);
 
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());

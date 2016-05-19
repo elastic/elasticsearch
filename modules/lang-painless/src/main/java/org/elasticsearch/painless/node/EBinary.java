@@ -94,21 +94,16 @@ public final class EBinary extends AExpression {
         right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
             final Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
-                constant = overflow ? (int)left.constant * (int)right.constant :
-                    Math.multiplyExact((int)left.constant, (int)right.constant);
+                constant = (int)left.constant * (int)right.constant;
             } else if (sort == Sort.LONG) {
-                constant = overflow ? (long)left.constant * (long)right.constant :
-                    Math.multiplyExact((long)left.constant, (long)right.constant);
+                constant = (long)left.constant * (long)right.constant;
             } else if (sort == Sort.FLOAT) {
-                constant = overflow ? (float)left.constant * (float)right.constant :
-                    org.elasticsearch.painless.Utility.multiplyWithoutOverflow((float)left.constant, (float)right.constant);
+                constant = (float)left.constant * (float)right.constant;
             } else if (sort == Sort.DOUBLE) {
-                constant = overflow ? (double)left.constant * (double)right.constant :
-                    org.elasticsearch.painless.Utility.multiplyWithoutOverflow((double)left.constant, (double)right.constant);
+                constant = (double)left.constant * (double)right.constant;
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -135,21 +130,16 @@ public final class EBinary extends AExpression {
         right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
             final Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
-                constant = overflow ? (int)left.constant / (int)right.constant :
-                    org.elasticsearch.painless.Utility.divideWithoutOverflow((int)left.constant, (int)right.constant);
+                constant = (int)left.constant / (int)right.constant;
             } else if (sort == Sort.LONG) {
-                constant = overflow ? (long)left.constant / (long)right.constant :
-                    org.elasticsearch.painless.Utility.divideWithoutOverflow((long)left.constant, (long)right.constant);
+                constant = (long)left.constant / (long)right.constant;
             } else if (sort == Sort.FLOAT) {
-                constant = overflow ? (float)left.constant / (float)right.constant :
-                    org.elasticsearch.painless.Utility.divideWithoutOverflow((float)left.constant, (float)right.constant);
+                constant = (float)left.constant / (float)right.constant;
             } else if (sort == Sort.DOUBLE) {
-                constant = overflow ? (double)left.constant / (double)right.constant :
-                    org.elasticsearch.painless.Utility.divideWithoutOverflow((double)left.constant, (double)right.constant);
+                constant = (double)left.constant / (double)right.constant;
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -176,7 +166,6 @@ public final class EBinary extends AExpression {
         right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
             final Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
@@ -184,11 +173,9 @@ public final class EBinary extends AExpression {
             } else if (sort == Sort.LONG) {
                 constant = (long)left.constant % (long)right.constant;
             } else if (sort == Sort.FLOAT) {
-                constant = overflow ? (float)left.constant % (float)right.constant :
-                    org.elasticsearch.painless.Utility.remainderWithoutOverflow((float)left.constant, (float)right.constant);
+                constant = (float)left.constant % (float)right.constant;
             } else if (sort == Sort.DOUBLE) {
-                constant = overflow ? (double)left.constant % (double)right.constant :
-                    org.elasticsearch.painless.Utility.remainderWithoutOverflow((double)left.constant, (double)right.constant);
+                constant = (double)left.constant % (double)right.constant;
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -231,20 +218,14 @@ public final class EBinary extends AExpression {
         right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
-
             if (sort == Sort.INT) {
-                constant = overflow ? (int)left.constant + (int)right.constant :
-                    Math.addExact((int)left.constant, (int)right.constant);
+                constant = (int)left.constant + (int)right.constant;
             } else if (sort == Sort.LONG) {
-                constant = overflow ? (long)left.constant + (long)right.constant :
-                    Math.addExact((long)left.constant, (long)right.constant);
+                constant = (long)left.constant + (long)right.constant;
             } else if (sort == Sort.FLOAT) {
-                constant = overflow ? (float)left.constant + (float)right.constant :
-                    org.elasticsearch.painless.Utility.addWithoutOverflow((float)left.constant, (float)right.constant);
+                constant = (float)left.constant + (float)right.constant;
             } else if (sort == Sort.DOUBLE) {
-                constant = overflow ? (double)left.constant + (double)right.constant :
-                    org.elasticsearch.painless.Utility.addWithoutOverflow((double)left.constant, (double)right.constant);
+                constant = (double)left.constant + (double)right.constant;
             } else if (sort == Sort.STRING) {
                 constant = "" + left.constant + right.constant;
             } else {
@@ -273,21 +254,16 @@ public final class EBinary extends AExpression {
         right = right.cast(settings, definition, variables);
 
         if (left.constant != null && right.constant != null) {
-            final boolean overflow = settings.getNumericOverflow();
             final Sort sort = promote.sort;
 
             if (sort == Sort.INT) {
-                constant = overflow ? (int)left.constant - (int)right.constant :
-                    Math.subtractExact((int)left.constant, (int)right.constant);
+                constant = (int)left.constant - (int)right.constant;
             } else if (sort == Sort.LONG) {
-                constant = overflow ? (long)left.constant - (long)right.constant :
-                    Math.subtractExact((long)left.constant, (long)right.constant);
+                constant = (long)left.constant - (long)right.constant;
             } else if (sort == Sort.FLOAT) {
-                constant = overflow ? (float)left.constant - (float)right.constant :
-                    org.elasticsearch.painless.Utility.subtractWithoutOverflow((float)left.constant, (float)right.constant);
+                constant = (float)left.constant - (float)right.constant;
             } else if (sort == Sort.DOUBLE) {
-                constant = overflow ? (double)left.constant - (double)right.constant :
-                    org.elasticsearch.painless.Utility.subtractWithoutOverflow((double)left.constant, (double)right.constant);
+                constant = (double)left.constant - (double)right.constant;
             } else {
                 throw new IllegalStateException(error("Illegal tree structure."));
             }
@@ -519,7 +495,7 @@ public final class EBinary extends AExpression {
             left.write(settings, definition, adapter);
             right.write(settings, definition, adapter);
 
-            adapter.writeBinaryInstruction(settings, definition, location, actual, operation);
+            adapter.writeBinaryInstruction(definition, location, actual, operation);
         }
 
         adapter.writeBranch(tru, fals);

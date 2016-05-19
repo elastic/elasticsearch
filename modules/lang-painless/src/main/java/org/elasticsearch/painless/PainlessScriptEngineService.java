@@ -115,13 +115,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
             // Use custom settings specified by params.
             compilerSettings = new CompilerSettings();
             Map<String, String> copy = new HashMap<>(params);
-            String value = copy.remove(CompilerSettings.NUMERIC_OVERFLOW);
-
-            if (value != null) {
-                compilerSettings.setNumericOverflow(Boolean.parseBoolean(value));
-            }
-
-            value = copy.remove(CompilerSettings.MAX_LOOP_COUNTER);
+            String value = copy.remove(CompilerSettings.MAX_LOOP_COUNTER);
 
             if (value != null) {
                 compilerSettings.setMaxLoopCounter(Integer.parseInt(value));

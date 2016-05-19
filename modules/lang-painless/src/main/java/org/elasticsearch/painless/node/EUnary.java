@@ -147,7 +147,6 @@ public final class EUnary extends AExpression {
         if (child.constant != null) {
             final Sort sort = promote.sort;
 
-
             if (sort == Sort.INT) {
                 constant = -(int)child.constant;
             } else if (sort == Sort.LONG) {

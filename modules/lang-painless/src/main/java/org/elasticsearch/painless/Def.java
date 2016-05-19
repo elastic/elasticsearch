@@ -72,14 +72,24 @@ public final class Def {
 
         private static final MethodHandle OBJECT_ARRAY_MH = ARRAY_TYPE_MH_MAPPING.get(Object[].class);
 
+        // NOTE: the following are actually used, javac just does not know :)
+        @SuppressWarnings("unused")
         static int getArrayLength(final boolean[] array) { return array.length; }
+        @SuppressWarnings("unused")
         static int getArrayLength(final byte[] array)    { return array.length; }
+        @SuppressWarnings("unused")
         static int getArrayLength(final short[] array)   { return array.length; }
+        @SuppressWarnings("unused")
         static int getArrayLength(final int[] array)     { return array.length; }
+        @SuppressWarnings("unused")
         static int getArrayLength(final long[] array)    { return array.length; }
+        @SuppressWarnings("unused")
         static int getArrayLength(final char[] array)    { return array.length; }
+        @SuppressWarnings("unused")
         static int getArrayLength(final float[] array)   { return array.length; }
+        @SuppressWarnings("unused")
         static int getArrayLength(final double[] array)  { return array.length; }
+        @SuppressWarnings("unused")
         static int getArrayLength(final Object[] array)  { return array.length; }
 
         static MethodHandle arrayLengthGetter(Class<?> arrayType) {

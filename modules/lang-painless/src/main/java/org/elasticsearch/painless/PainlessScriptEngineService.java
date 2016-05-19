@@ -204,7 +204,7 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
      * Action taken when the engine is closed.
      */
     @Override
-    public void close() throws IOException {
+    public void close() {
         // Nothing to do.
     }
 }

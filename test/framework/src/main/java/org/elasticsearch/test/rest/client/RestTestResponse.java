@@ -18,31 +18,54 @@
  */
 package org.elasticsearch.test.rest.client;
 
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.client.ElasticsearchResponse;
+import org.elasticsearch.client.ElasticsearchResponseException;
 import org.elasticsearch.test.rest.Stash;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.rest.json.JsonPath;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 /**
- * Response obtained from a REST call
- * Supports parsing the response body as json when needed and returning specific values extracted from it
+ * Response obtained from a REST call, eagerly reads the response body into a string for later optional parsing.
+ * Supports parsing the response body as json when needed and returning specific values extracted from it.
  */
-public class RestResponse {
+public class RestTestResponse {
 
-    private final HttpResponse response;
+    private final ElasticsearchResponse response;
+    private final String body;
     private JsonPath parsedResponse;
 
-    public RestResponse(HttpResponse response) {
+    public RestTestResponse(ElasticsearchResponse response) {
         this.response = response;
+        if (response.getEntity() != null) {
+            try {
+                this.body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                EntityUtils.consumeQuietly(response.getEntity());
+                throw new RuntimeException(e);
+            } finally {
+                IOUtils.closeWhileHandlingException(response);
+            }
+        } else {
+            this.body = null;
+        }
+    }
+
+    public RestTestResponse(ElasticsearchResponseException responseException) {
+        this.response = responseException.getElasticsearchResponse();
+        this.body = responseException.getResponseBody();
     }
 
     public int getStatusCode() {
-        return response.getStatusCode();
+        return response.getStatusLine().getStatusCode();
     }
 
     public String getReasonPhrase() {
-        return response.getReasonPhrase();
+        return response.getStatusLine().getReasonPhrase();
     }
 
     /**
@@ -57,18 +80,18 @@ public class RestResponse {
             }
             return parsedResponse.evaluate("");
         }
-        return response.getBody();
+        return body;
     }
 
     /**
      * Returns the body as a string
      */
     public String getBodyAsString() {
-        return response.getBody();
+        return body;
     }
 
     public boolean isError() {
-        return response.isError();
+        return response.getStatusLine().getStatusCode() >= 400;
     }
 
     /**
@@ -82,7 +105,6 @@ public class RestResponse {
      * Parses the response body as json and extracts a specific value from it (identified by the provided path)
      */
     public Object evaluate(String path, Stash stash) throws IOException {
-
         if (response == null) {
             return null;
         }
@@ -93,8 +115,8 @@ public class RestResponse {
             //special case: api that don't support body (e.g. exists) return true if 200, false if 404, even if no body
             //is_true: '' means the response had no body but the client returned true (caused by 200)
             //is_false: '' means the response had no body but the client returned false (caused by 404)
-            if ("".equals(path) && !response.supportsBody()) {
-                return !response.isError();
+            if ("".equals(path) && HttpHead.METHOD_NAME.equals(response.getRequestLine().getMethod())) {
+                return isError() == false;
             }
             return null;
         }
@@ -103,7 +125,7 @@ public class RestResponse {
     }
 
     private boolean isJson() {
-        String contentType = response.getHeaders().get("Content-Type");
+        String contentType = response.getFirstHeader("Content-Type");
         return contentType != null && contentType.contains("application/json");
     }
 
@@ -111,9 +133,9 @@ public class RestResponse {
         if (parsedResponse != null) {
             return parsedResponse;
         }
-        if (response == null || !response.hasBody()) {
+        if (response == null || body == null) {
             return null;
         }
-        return parsedResponse = new JsonPath(response.getBody());
+        return parsedResponse = new JsonPath(body);
     }
 }

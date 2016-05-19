@@ -19,17 +19,17 @@
 
 package org.elasticsearch.test.rest;
 
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.rest.client.RestResponse;
+import org.elasticsearch.test.rest.client.RestTestResponse;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Allows to cache the last obtained test response and or part of it within variables
@@ -42,7 +42,7 @@ public class Stash implements ToXContent {
     public static final Stash EMPTY = new Stash();
 
     private final Map<String, Object> stash = new HashMap<>();
-    private RestResponse response;
+    private RestTestResponse response;
 
     /**
      * Allows to saved a specific field in the stash as key-value pair
@@ -55,7 +55,7 @@ public class Stash implements ToXContent {
         }
     }
 
-    public void stashResponse(RestResponse response) throws IOException {
+    public void stashResponse(RestTestResponse response) throws IOException {
         // TODO we can almost certainly save time by lazily evaluating the body
         stashValue("body", response.getBody());
         this.response = response;

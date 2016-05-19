@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.test.rest.section;
 
+import org.elasticsearch.client.ElasticsearchResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.rest.RestTestExecutionContext;
-import org.elasticsearch.test.rest.client.RestException;
-import org.elasticsearch.test.rest.client.RestResponse;
+import org.elasticsearch.test.rest.client.RestTestResponse;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -89,7 +89,7 @@ public class DoSection implements ExecutableSection {
         }
 
         try {
-            RestResponse restResponse = executionContext.callApi(apiCallSection.getApi(), apiCallSection.getParams(),
+            RestTestResponse restTestResponse = executionContext.callApi(apiCallSection.getApi(), apiCallSection.getParams(),
                     apiCallSection.getBodies(), apiCallSection.getHeaders());
             if (Strings.hasLength(catchParam)) {
                 String catchStatusCode;
@@ -100,16 +100,18 @@ public class DoSection implements ExecutableSection {
                 } else {
                     throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
                 }
-                fail(formatStatusCodeMessage(restResponse, catchStatusCode));
+                fail(formatStatusCodeMessage(restTestResponse, catchStatusCode));
             }
-        } catch(RestException e) {
+        } catch(ElasticsearchResponseException e) {
+            RestTestResponse restTestResponse = new RestTestResponse(e);
             if (!Strings.hasLength(catchParam)) {
-                fail(formatStatusCodeMessage(e.restResponse(), "2xx"));
+                fail(formatStatusCodeMessage(restTestResponse, "2xx"));
             } else if (catches.containsKey(catchParam)) {
-                assertStatusCode(e.restResponse());
+                assertStatusCode(restTestResponse);
             } else if (catchParam.length() > 2 && catchParam.startsWith("/") && catchParam.endsWith("/")) {
                 //the text of the error message matches regular expression
-                assertThat(formatStatusCodeMessage(e.restResponse(), "4xx|5xx"), e.statusCode(), greaterThanOrEqualTo(400));
+                assertThat(formatStatusCodeMessage(restTestResponse, "4xx|5xx"),
+                        e.getElasticsearchResponse().getStatusLine().getStatusCode(), greaterThanOrEqualTo(400));
                 Object error = executionContext.response("error");
                 assertThat("error was expected in the response", error, notNullValue());
                 //remove delimiters from regex
@@ -122,19 +124,19 @@ public class DoSection implements ExecutableSection {
         }
     }
 
-    private void assertStatusCode(RestResponse restResponse) {
+    private void assertStatusCode(RestTestResponse restTestResponse) {
         Tuple<String, org.hamcrest.Matcher<Integer>> stringMatcherTuple = catches.get(catchParam);
-        assertThat(formatStatusCodeMessage(restResponse, stringMatcherTuple.v1()),
-                restResponse.getStatusCode(), stringMatcherTuple.v2());
+        assertThat(formatStatusCodeMessage(restTestResponse, stringMatcherTuple.v1()),
+                restTestResponse.getStatusCode(), stringMatcherTuple.v2());
     }
 
-    private String formatStatusCodeMessage(RestResponse restResponse, String expected) {
+    private String formatStatusCodeMessage(RestTestResponse restTestResponse, String expected) {
         String api = apiCallSection.getApi();
         if ("raw".equals(api)) {
             api += "[method=" + apiCallSection.getParams().get("method") + " path=" + apiCallSection.getParams().get("path") + "]";
         }
-        return "expected [" + expected + "] status code but api [" + api + "] returned ["
-                + restResponse.getStatusCode() + " " + restResponse.getReasonPhrase() + "] [" + restResponse.getBodyAsString() + "]";
+        return "expected [" + expected + "] status code but api [" + api + "] returned [" + restTestResponse.getStatusCode() +
+                " " + restTestResponse.getReasonPhrase() + "] [" + restTestResponse.getBodyAsString() + "]";
     }
 
     private static Map<String, Tuple<String, org.hamcrest.Matcher<Integer>>> catches = new HashMap<>();
@@ -145,6 +147,7 @@ public class DoSection implements ExecutableSection {
         catches.put("forbidden", tuple("403", equalTo(403)));
         catches.put("request_timeout", tuple("408", equalTo(408)));
         catches.put("unavailable", tuple("503", equalTo(503)));
-        catches.put("request", tuple("4xx|5xx", allOf(greaterThanOrEqualTo(400), not(equalTo(404)), not(equalTo(408)), not(equalTo(409)), not(equalTo(403)))));
+        catches.put("request", tuple("4xx|5xx",
+                allOf(greaterThanOrEqualTo(400), not(equalTo(404)), not(equalTo(408)), not(equalTo(409)), not(equalTo(403)))));
     }
 }

@@ -88,7 +88,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -390,7 +389,6 @@ public class IndicesRequestTests extends ESIntegTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18453")
     public void testForceMerge() {
         String mergeShardAction = ForceMergeAction.NAME + "[n]";
         interceptTransportActions(mergeShardAction);
@@ -416,7 +414,6 @@ public class IndicesRequestTests extends ESIntegTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18453")
     public void testClearCache() {
         String clearCacheAction = ClearIndicesCacheAction.NAME + "[n]";
         interceptTransportActions(clearCacheAction);
@@ -429,7 +426,6 @@ public class IndicesRequestTests extends ESIntegTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18453")
     public void testRecovery() {
         String recoveryAction = RecoveryAction.NAME + "[n]";
         interceptTransportActions(recoveryAction);
@@ -442,7 +438,6 @@ public class IndicesRequestTests extends ESIntegTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18453")
     public void testSegments() {
         String segmentsAction = IndicesSegmentsAction.NAME + "[n]";
         interceptTransportActions(segmentsAction);
@@ -455,7 +450,6 @@ public class IndicesRequestTests extends ESIntegTestCase {
     }
 
     @Test
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/18453")
     public void testIndicesStats() {
         String indicesStats = IndicesStatsAction.NAME + "[n]";
         interceptTransportActions(indicesStats);
@@ -889,6 +883,12 @@ public class IndicesRequestTests extends ESIntegTestCase {
         @Override
         public <Request extends TransportRequest> void registerRequestHandler(String action, Callable<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
             super.registerRequestHandler(action, requestFactory, executor, new InterceptingRequestHandler(action, handler));
+        }
+
+        @Override
+        public <Request extends TransportRequest> void registerRequestHandler(String action, Callable<Request> requestFactory, String
+            executor, boolean forceExecution, boolean canTripCircuitBreaker, TransportRequestHandler<Request> handler) {
+            super.registerRequestHandler(action, requestFactory, executor, forceExecution, canTripCircuitBreaker, new InterceptingRequestHandler(action, handler));
         }
 
         private class InterceptingRequestHandler extends TransportRequestHandler {

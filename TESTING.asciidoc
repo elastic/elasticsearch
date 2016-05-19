@@ -406,14 +406,8 @@ installed it'll spin up centos-7 and verify the tar and rpm packages. We
 chose those two distributions as the default because they cover deb and rpm
 packaging and SyvVinit and systemd.
 
-If you need to disable RPM signing (e.g. because the platform does not support it),
-use either `-DskipSign` It is also possible to set the environment variable `OSDISTRO`
-to indicate the operating system is not supported. Currently, the only value recognized
-value is `Fedora release 23 (Twenty Three)`. The value is based on the output of
-the command `facter os.distro.description`. It is recommended to set the environment
-variable in a CI environment as follows:
-
-`export OSDISTRO=$(facter os.distro.description)`
+If you need to disable RPM signing because the platform does not support it,
+use `-DskipSign`.
 
 You can control the boxes that are used for testing like so. Run just
 fedora-22 with:

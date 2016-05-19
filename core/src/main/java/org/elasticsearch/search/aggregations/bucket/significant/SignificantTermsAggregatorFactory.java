@@ -178,7 +178,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
         numberOfAggregatorsCreated++;
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
-        if (bucketCountThresholds.getShardSize() == SignificantTermsAggregatorBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
+        if (bucketCountThresholds.getShardSize() == SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection .
             // Use default heuristic to avoid any wrong-ranking caused by
             // distributed counting

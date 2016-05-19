@@ -44,8 +44,8 @@ public class MaxParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected MaxAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new MaxAggregatorBuilder(aggregationName);
+    protected MaxAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                  ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        return new MaxAggregationBuilder(aggregationName);
     }
 }

@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.DateScriptMocks.DateScriptsM
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
-import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
@@ -117,7 +117,7 @@ public class DateRangeIT extends ESIntegTestCase {
     public void testDateMath() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "date");
-        DateRangeAggregatorBuilder rangeBuilder = dateRange("range");
+        DateRangeAggregationBuilder rangeBuilder = dateRange("range");
         if (randomBoolean()) {
             rangeBuilder.field("date");
         } else {

@@ -42,6 +42,10 @@ public final class SBlock extends AStatement {
 
     @Override
     void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        if (statements.isEmpty()) {
+            throw new IllegalStateException(error("Illegal tree structure."));
+        }
+
         final AStatement last = statements.get(statements.size() - 1);
 
         for (final AStatement statement : statements) {

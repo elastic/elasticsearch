@@ -30,11 +30,11 @@ import org.elasticsearch.painless.MethodWriter;
 /**
  * Represents a catch block as part of a try-catch block.
  */
-public final class STrap extends AStatement {
+public final class SCatch extends AStatement {
 
     final String type;
     final String name;
-    final AStatement block;
+    final SBlock block;
 
     Variable variable;
 
@@ -42,7 +42,7 @@ public final class STrap extends AStatement {
     Label end;
     Label exception;
 
-    public STrap(final int line, final String location, final String type, final String name, final AStatement block) {
+    public SCatch(final int line, final String location, final String type, final String name, final SBlock block) {
         super(line, location);
 
         this.type = type;

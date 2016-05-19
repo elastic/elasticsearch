@@ -33,18 +33,22 @@ import java.util.List;
  */
 public final class STry extends AStatement {
 
-    final AStatement block;
-    final List<STrap> traps;
+    final SBlock block;
+    final List<SCatch> catches;
 
-    public STry(final int line, final String location, final AStatement block, final List<STrap> traps) {
+    public STry(final int line, final String location, final SBlock block, final List<SCatch> traps) {
         super(line, location);
 
         this.block = block;
-        this.traps = Collections.unmodifiableList(traps);
+        this.catches = Collections.unmodifiableList(traps);
     }
 
     @Override
     void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+        if (block == null) {
+            throw new IllegalArgumentException(error("Extraneous try statement."));
+        }
+
         block.lastSource = lastSource;
         block.inLoop = inLoop;
         block.lastLoop = lastLoop;
@@ -61,22 +65,22 @@ public final class STry extends AStatement {
 
         int statementCount = 0;
 
-        for (final STrap trap : traps) {
-            trap.lastSource = lastSource;
-            trap.inLoop = inLoop;
-            trap.lastLoop = lastLoop;
+        for (final SCatch catc : catches) {
+            catc.lastSource = lastSource;
+            catc.inLoop = inLoop;
+            catc.lastLoop = lastLoop;
 
             variables.incrementScope();
-            trap.analyze(settings, definition, variables);
+            catc.analyze(settings, definition, variables);
             variables.decrementScope();
 
-            methodEscape &= trap.methodEscape;
-            loopEscape &= trap.loopEscape;
-            allEscape &= trap.allEscape;
-            anyContinue |= trap.anyContinue;
-            anyBreak |= trap.anyBreak;
+            methodEscape &= catc.methodEscape;
+            loopEscape &= catc.loopEscape;
+            allEscape &= catc.allEscape;
+            anyContinue |= catc.anyContinue;
+            anyBreak |= catc.anyBreak;
 
-            statementCount = Math.max(statementCount, trap.statementCount);
+            statementCount = Math.max(statementCount, catc.statementCount);
         }
 
         this.statementCount = block.statementCount + statementCount;
@@ -101,14 +105,14 @@ public final class STry extends AStatement {
 
         adapter.mark(end);
 
-        for (final STrap trap : traps) {
-            trap.begin = begin;
-            trap.end = end;
-            trap.exception = traps.size() > 1 ? exception : null;
-            trap.write(settings, definition, adapter);
+        for (final SCatch catc : catches) {
+            catc.begin = begin;
+            catc.end = end;
+            catc.exception = catches.size() > 1 ? exception : null;
+            catc.write(settings, definition, adapter);
         }
 
-        if (!block.allEscape || traps.size() > 1) {
+        if (!block.allEscape || catches.size() > 1) {
             adapter.mark(exception);
         }
     }

@@ -33,10 +33,10 @@ public final class SFor extends AStatement {
     ANode initializer;
     AExpression condition;
     AExpression afterthought;
-    final AStatement block;
+    final SBlock block;
 
     public SFor(final int line, final String location,
-                final ANode initializer, final AExpression condition, final AExpression afterthought, final AStatement block) {
+                final ANode initializer, final AExpression condition, final AExpression afterthought, final SBlock block) {
         super(line, location);
 
         this.initializer = initializer;
@@ -69,7 +69,6 @@ public final class SFor extends AStatement {
         }
 
         if (condition != null) {
-
             condition.expected = definition.booleanType;
             condition.analyze(settings, definition, variables);
             condition = condition.cast(settings, definition, variables);
@@ -98,8 +97,6 @@ public final class SFor extends AStatement {
             }
         }
 
-        int count = 1;
-
         if (block != null) {
             block.beginLoop = true;
             block.inLoop = true;
@@ -115,7 +112,7 @@ public final class SFor extends AStatement {
                 allEscape = true;
             }
 
-            block.statementCount = Math.max(count, block.statementCount);
+            block.statementCount = Math.max(1, block.statementCount);
         }
 
         statementCount = 1;

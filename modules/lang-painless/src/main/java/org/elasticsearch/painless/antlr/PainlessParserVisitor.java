@@ -11,162 +11,179 @@ import org.antlr.v4.runtime.tree.ParseTreeVisitor;
  */
 interface PainlessParserVisitor<T> extends ParseTreeVisitor<T> {
   /**
-   * Visit a parse tree produced by {@link PainlessParser#source}.
+   * Visit a parse tree produced by {@link PainlessParser#sourceBlock}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitSource(PainlessParser.SourceContext ctx);
+  T visitSourceBlock(PainlessParser.SourceBlockContext ctx);
   /**
-   * Visit a parse tree produced by the {@code if}
-   * labeled alternative in {@link PainlessParser#statement}.
+   * Visit a parse tree produced by {@link PainlessParser#shortStatementBlock}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitIf(PainlessParser.IfContext ctx);
+  T visitShortStatementBlock(PainlessParser.ShortStatementBlockContext ctx);
   /**
-   * Visit a parse tree produced by the {@code while}
-   * labeled alternative in {@link PainlessParser#statement}.
+   * Visit a parse tree produced by {@link PainlessParser#longStatementBlock}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitWhile(PainlessParser.WhileContext ctx);
+  T visitLongStatementBlock(PainlessParser.LongStatementBlockContext ctx);
   /**
-   * Visit a parse tree produced by the {@code do}
-   * labeled alternative in {@link PainlessParser#statement}.
+   * Visit a parse tree produced by {@link PainlessParser#statementBlock}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitDo(PainlessParser.DoContext ctx);
+  T visitStatementBlock(PainlessParser.StatementBlockContext ctx);
   /**
-   * Visit a parse tree produced by the {@code for}
-   * labeled alternative in {@link PainlessParser#statement}.
+   * Visit a parse tree produced by {@link PainlessParser#emptyStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitFor(PainlessParser.ForContext ctx);
+  T visitEmptyStatement(PainlessParser.EmptyStatementContext ctx);
   /**
-   * Visit a parse tree produced by the {@code decl}
-   * labeled alternative in {@link PainlessParser#statement}.
+   * Visit a parse tree produced by {@link PainlessParser#shortStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitDecl(PainlessParser.DeclContext ctx);
+  T visitShortStatement(PainlessParser.ShortStatementContext ctx);
   /**
-   * Visit a parse tree produced by the {@code continue}
-   * labeled alternative in {@link PainlessParser#statement}.
+   * Visit a parse tree produced by {@link PainlessParser#longStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitContinue(PainlessParser.ContinueContext ctx);
+  T visitLongStatement(PainlessParser.LongStatementContext ctx);
   /**
-   * Visit a parse tree produced by the {@code break}
-   * labeled alternative in {@link PainlessParser#statement}.
+   * Visit a parse tree produced by {@link PainlessParser#noTrailingStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitBreak(PainlessParser.BreakContext ctx);
+  T visitNoTrailingStatement(PainlessParser.NoTrailingStatementContext ctx);
   /**
-   * Visit a parse tree produced by the {@code return}
-   * labeled alternative in {@link PainlessParser#statement}.
+   * Visit a parse tree produced by {@link PainlessParser#shortIfStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitReturn(PainlessParser.ReturnContext ctx);
+  T visitShortIfStatement(PainlessParser.ShortIfStatementContext ctx);
   /**
-   * Visit a parse tree produced by the {@code try}
-   * labeled alternative in {@link PainlessParser#statement}.
+   * Visit a parse tree produced by {@link PainlessParser#longIfShortElseStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitTry(PainlessParser.TryContext ctx);
+  T visitLongIfShortElseStatement(PainlessParser.LongIfShortElseStatementContext ctx);
   /**
-   * Visit a parse tree produced by the {@code throw}
-   * labeled alternative in {@link PainlessParser#statement}.
+   * Visit a parse tree produced by {@link PainlessParser#longIfStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitThrow(PainlessParser.ThrowContext ctx);
+  T visitLongIfStatement(PainlessParser.LongIfStatementContext ctx);
   /**
-   * Visit a parse tree produced by the {@code expr}
-   * labeled alternative in {@link PainlessParser#statement}.
+   * Visit a parse tree produced by {@link PainlessParser#shortWhileStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitExpr(PainlessParser.ExprContext ctx);
+  T visitShortWhileStatement(PainlessParser.ShortWhileStatementContext ctx);
   /**
-   * Visit a parse tree produced by the {@code multiple}
-   * labeled alternative in {@link PainlessParser#block}.
+   * Visit a parse tree produced by {@link PainlessParser#longWhileStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitMultiple(PainlessParser.MultipleContext ctx);
+  T visitLongWhileStatement(PainlessParser.LongWhileStatementContext ctx);
   /**
-   * Visit a parse tree produced by the {@code single}
-   * labeled alternative in {@link PainlessParser#block}.
+   * Visit a parse tree produced by {@link PainlessParser#shortForStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitSingle(PainlessParser.SingleContext ctx);
+  T visitShortForStatement(PainlessParser.ShortForStatementContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#empty}.
+   * Visit a parse tree produced by {@link PainlessParser#longForStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitEmpty(PainlessParser.EmptyContext ctx);
+  T visitLongForStatement(PainlessParser.LongForStatementContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#emptyscope}.
+   * Visit a parse tree produced by {@link PainlessParser#doStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitEmptyscope(PainlessParser.EmptyscopeContext ctx);
+  T visitDoStatement(PainlessParser.DoStatementContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#initializer}.
+   * Visit a parse tree produced by {@link PainlessParser#declarationStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitInitializer(PainlessParser.InitializerContext ctx);
+  T visitDeclarationStatement(PainlessParser.DeclarationStatementContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#afterthought}.
+   * Visit a parse tree produced by {@link PainlessParser#continueStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitAfterthought(PainlessParser.AfterthoughtContext ctx);
+  T visitContinueStatement(PainlessParser.ContinueStatementContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#declaration}.
+   * Visit a parse tree produced by {@link PainlessParser#breakStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitDeclaration(PainlessParser.DeclarationContext ctx);
+  T visitBreakStatement(PainlessParser.BreakStatementContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#decltype}.
+   * Visit a parse tree produced by {@link PainlessParser#returnStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitDecltype(PainlessParser.DecltypeContext ctx);
+  T visitReturnStatement(PainlessParser.ReturnStatementContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#declvar}.
+   * Visit a parse tree produced by {@link PainlessParser#tryStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitDeclvar(PainlessParser.DeclvarContext ctx);
+  T visitTryStatement(PainlessParser.TryStatementContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#trap}.
+   * Visit a parse tree produced by {@link PainlessParser#throwStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitTrap(PainlessParser.TrapContext ctx);
+  T visitThrowStatement(PainlessParser.ThrowStatementContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#identifier}.
+   * Visit a parse tree produced by {@link PainlessParser#expressionStatement}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitIdentifier(PainlessParser.IdentifierContext ctx);
+  T visitExpressionStatement(PainlessParser.ExpressionStatementContext ctx);
   /**
-   * Visit a parse tree produced by {@link PainlessParser#generic}.
+   * Visit a parse tree produced by {@link PainlessParser#forInitializer}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitGeneric(PainlessParser.GenericContext ctx);
+  T visitForInitializer(PainlessParser.ForInitializerContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#forAfterthought}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitForAfterthought(PainlessParser.ForAfterthoughtContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#declarationType}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDeclarationType(PainlessParser.DeclarationTypeContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#declarationVariable}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDeclarationVariable(PainlessParser.DeclarationVariableContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#catchBlock}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCatchBlock(PainlessParser.CatchBlockContext ctx);
+  /**
+   * Visit a parse tree produced by {@link PainlessParser#delimiter}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDelimiter(PainlessParser.DelimiterContext ctx);
   /**
    * Visit a parse tree produced by the {@code comp}
    * labeled alternative in {@link PainlessParser#expression}.

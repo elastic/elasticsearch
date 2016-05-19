@@ -30,10 +30,10 @@ import org.elasticsearch.painless.MethodWriter;
  */
 public final class SDo extends AStatement {
 
-    final AStatement block;
+    final SBlock block;
     AExpression condition;
 
-    public SDo(final int line, final String location, final AStatement block, final AExpression condition) {
+    public SDo(final int line, final String location, final SBlock block, final AExpression condition) {
         super(line, location);
 
         this.condition = condition;
@@ -43,6 +43,10 @@ public final class SDo extends AStatement {
     @Override
     void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
         variables.incrementScope();
+
+        if (block == null) {
+            throw new IllegalArgumentException(error("Extraneous do while loop."));
+        }
 
         block.beginLoop = true;
         block.inLoop = true;

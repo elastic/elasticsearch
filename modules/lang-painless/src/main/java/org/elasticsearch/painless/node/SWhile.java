@@ -31,9 +31,9 @@ import org.elasticsearch.painless.MethodWriter;
 public final class SWhile extends AStatement {
 
     AExpression condition;
-    final AStatement block;
+    final SBlock block;
 
-    public SWhile(final int line, final String location, final AExpression condition, final AStatement block) {
+    public SWhile(final int line, final String location, final AExpression condition, final SBlock block) {
         super(line, location);
 
         this.condition = condition;
@@ -62,8 +62,6 @@ public final class SWhile extends AStatement {
             }
         }
 
-        int count = 1;
-
         if (block != null) {
             block.beginLoop = true;
             block.inLoop = true;
@@ -71,7 +69,7 @@ public final class SWhile extends AStatement {
             block.analyze(settings, definition, variables);
 
             if (block.loopEscape && !block.anyContinue) {
-                throw new IllegalArgumentException(error("Extranous while loop."));
+                throw new IllegalArgumentException(error("Extraneous while loop."));
             }
 
             if (continuous && !block.anyBreak) {
@@ -79,7 +77,7 @@ public final class SWhile extends AStatement {
                 allEscape = true;
             }
 
-            block.statementCount = Math.max(count, block.statementCount);
+            block.statementCount = Math.max(1, block.statementCount);
         }
 
         statementCount = 1;

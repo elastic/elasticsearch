@@ -21,69 +21,138 @@ parser grammar PainlessParser;
 
 options { tokenVocab=PainlessLexer; }
 
-source
-    : statement+ EOF
+sourceBlock
+    : shortStatement+ EOF
     ;
 
-statement
-    : IF LP expression RP block ( ELSE block )?                                              # if
-    | WHILE LP expression RP ( block | empty )                                               # while
-    | DO block WHILE LP expression RP ( SEMICOLON | EOF )                                    # do
-    | FOR LP initializer? SEMICOLON expression? SEMICOLON afterthought? RP ( block | empty ) # for
-    | declaration ( SEMICOLON | EOF )                                                        # decl
-    | CONTINUE ( SEMICOLON | EOF )                                                           # continue
-    | BREAK ( SEMICOLON | EOF )                                                              # break
-    | RETURN expression ( SEMICOLON | EOF )                                                  # return
-    | TRY block trap+                                                                        # try
-    | THROW expression ( SEMICOLON | EOF )                                                   # throw
-    | expression ( SEMICOLON | EOF )                                                         # expr
+shortStatementBlock
+    : statementBlock
+    | shortStatement
     ;
 
-block
-    : LBRACK statement+ RBRACK # multiple
-    | statement                # single
+longStatementBlock
+    : statementBlock
+    | longStatement
     ;
 
-empty
-    : emptyscope
-    | SEMICOLON
+statementBlock
+    : LBRACK shortStatement* RBRACK
     ;
 
-emptyscope
-    : LBRACK RBRACK
+emptyStatement
+    : SEMICOLON
     ;
 
-initializer
-    : declaration
-    | expression
+shortStatement
+    : noTrailingStatement
+    | shortIfStatement
+    | longIfShortElseStatement
+    | shortWhileStatement
+    | shortForStatement
     ;
 
-afterthought
+longStatement
+    : noTrailingStatement
+    | longIfStatement
+    | longWhileStatement
+    | longForStatement
+    ;
+
+noTrailingStatement
+    : declarationStatement delimiter
+    | doStatement delimiter
+    | continueStatement delimiter
+    | breakStatement delimiter
+    | returnStatement delimiter
+    | tryStatement
+    | throwStatement
+    | expressionStatement delimiter
+    ;
+
+shortIfStatement
+    : IF LP expression RP shortStatementBlock
+    ;
+
+longIfShortElseStatement
+    : IF LP expression RP longStatementBlock ELSE shortStatementBlock
+    ;
+
+longIfStatement
+    : IF LP expression RP longStatementBlock ELSE longStatementBlock
+    ;
+
+shortWhileStatement
+    : WHILE LP expression RP ( shortStatementBlock | emptyStatement )
+    ;
+
+longWhileStatement
+    : WHILE LP expression RP ( longStatementBlock | emptyStatement )
+    ;
+
+shortForStatement
+    : FOR LP forInitializer? SEMICOLON expression? SEMICOLON forAfterthought? RP ( shortStatementBlock | emptyStatement )
+    ;
+
+longForStatement
+    : FOR LP forInitializer? SEMICOLON expression? SEMICOLON forAfterthought? RP ( longStatementBlock | emptyStatement )
+    ;
+
+doStatement
+    : DO statementBlock WHILE LP expression RP
+    ;
+
+declarationStatement
+    : declarationType declarationVariable ( COMMA declarationVariable )*
+    ;
+
+continueStatement
+    : CONTINUE
+    ;
+
+breakStatement
+    : BREAK
+    ;
+
+returnStatement
+    : RETURN expression
+    ;
+
+tryStatement
+    : TRY statementBlock catchBlock+
+    ;
+
+throwStatement
+    : THROW expression
+    ;
+
+expressionStatement
     : expression
     ;
 
-declaration
-    : decltype declvar ( COMMA declvar )*
+forInitializer
+    : declarationStatement
+    | expression
     ;
 
-decltype
-    : identifier (LBRACE RBRACE)*
+forAfterthought
+    : expression
     ;
 
-declvar
-    : identifier ( ASSIGN expression )?
+declarationType
+    : ID (LBRACE RBRACE)*
     ;
 
-trap
-    : CATCH LP ( identifier identifier ) RP ( block | emptyscope )
+declarationVariable
+    : ID ( ASSIGN expression )?
     ;
 
-identifier
-    : ID generic?
+catchBlock
+    : CATCH LP ( ID ID ) RP ( statementBlock )
     ;
 
-generic
-    : LT identifier ( COMMA identifier )* GT
+delimiter
+    : SEMICOLON
+    | EOF
     ;
 
 expression
@@ -96,7 +165,7 @@ expression
     | <assoc=right> ( INCR | DECR ) chain                               # preinc
     |               chain                                               # read
     | <assoc=right> ( BOOLNOT | BWNOT | ADD | SUB ) expression          # unary
-    | <assoc=right> LP decltype RP expression                           # cast
+    | <assoc=right> LP declarationType RP expression                    # cast
     |               expression ( MUL | DIV | REM ) expression           # binary
     |               expression ( ADD | SUB ) expression                 # binary
     |               expression ( LSH | RSH | USH ) expression           # binary
@@ -122,13 +191,13 @@ chain
     ;
 
 linkprec:   LP ( linkprec | linkcast | linkvar | linknew | linkstring ) RP ( linkdot | linkbrace )?;
-linkcast:   LP decltype RP ( linkprec | linkcast | linkvar | linknew | linkstring );
+linkcast:   LP declarationType RP ( linkprec | linkcast | linkvar | linknew | linkstring );
 linkbrace:  LBRACE expression RBRACE ( linkdot | linkbrace )?;
 linkdot:    DOT ( linkcall | linkfield );
 linkcall:   EXTID arguments ( linkdot | linkbrace )?;
-linkvar:    identifier ( linkdot | linkbrace )?;
+linkvar:    ID ( linkdot | linkbrace )?;
 linkfield:  ( EXTID | EXTINTEGER ) ( linkdot | linkbrace )?;
-linknew:    NEW identifier ( ( arguments linkdot? ) | ( ( LBRACE expression RBRACE )+ linkdot? ) );
+linknew:    NEW ID ( ( arguments linkdot? ) | ( ( LBRACE expression RBRACE )+ linkdot? ) );
 linkstring: STRING (linkdot | linkbrace )?;
 
 arguments

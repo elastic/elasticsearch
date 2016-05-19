@@ -26,21 +26,19 @@ import org.objectweb.asm.Label;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
- * Represents an if/else block.
+ * Represents an if block.
  */
-public final class SIfElse extends AStatement {
+public final class SIf extends AStatement {
 
     AExpression condition;
     final SBlock ifblock;
-    final SBlock elseblock;
 
-    public SIfElse(final int line, final String location,
-                   final AExpression condition, final SBlock ifblock, final SBlock elseblock) {
+    public SIf(final int line, final String location,
+               final AExpression condition, final SBlock ifblock) {
         super(line, location);
 
         this.condition = condition;
         this.ifblock = ifblock;
-        this.elseblock = elseblock;
     }
 
     @Override
@@ -68,32 +66,12 @@ public final class SIfElse extends AStatement {
         anyContinue = ifblock.anyContinue;
         anyBreak = ifblock.anyBreak;
         statementCount = ifblock.statementCount;
-
-        if (elseblock == null) {
-            throw new IllegalArgumentException(error("Extraneous else statement."));
-        }
-
-        elseblock.lastSource = lastSource;
-        elseblock.inLoop = inLoop;
-        elseblock.lastLoop = lastLoop;
-
-        variables.incrementScope();
-        elseblock.analyze(settings, definition, variables);
-        variables.decrementScope();
-
-        methodEscape = ifblock.methodEscape && elseblock.methodEscape;
-        loopEscape = ifblock.loopEscape && elseblock.loopEscape;
-        allEscape = ifblock.allEscape && elseblock.allEscape;
-        anyContinue |= elseblock.anyContinue;
-        anyBreak |= elseblock.anyBreak;
-        statementCount = Math.max(ifblock.statementCount, elseblock.statementCount);
     }
 
     @Override
     void write(final CompilerSettings settings, final Definition definition, final MethodWriter adapter) {
         writeDebugInfo(adapter);
-        final Label end = new Label();
-        final Label fals = elseblock != null ? new Label() : end;
+        final Label fals = new Label();
 
         condition.fals = fals;
         condition.write(settings, definition, adapter);
@@ -102,16 +80,6 @@ public final class SIfElse extends AStatement {
         ifblock.brake = brake;
         ifblock.write(settings, definition, adapter);
 
-        if (!ifblock.allEscape) {
-            adapter.goTo(end);
-        }
-
         adapter.mark(fals);
-
-        elseblock.continu = continu;
-        elseblock.brake = brake;
-        elseblock.write(settings, definition, adapter);
-
-        adapter.mark(end);
     }
 }

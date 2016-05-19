@@ -25,7 +25,6 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
-import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -234,19 +233,18 @@ public class TimeZoneRoundingTests extends ESTestCase {
      * amount of milliseconds.
      */
     public void testSubHourNextRoundingEquallySpaced() {
-        String timeZone = randomFrom(new ArrayList<>(DateTimeZone.getAvailableIDs()));
         DateTimeUnit unit = randomFrom(new DateTimeUnit[] { DateTimeUnit.HOUR_OF_DAY, DateTimeUnit.MINUTES_OF_HOUR,
                 DateTimeUnit.SECOND_OF_MINUTE });
-        DateTimeZone tz = DateTimeZone.forID(timeZone);
-        TimeZoneRounding rounding = new TimeZoneRounding.TimeUnitRounding(unit, tz);
+        DateTimeZone timezone = randomDateTimeZone();
+        TimeZoneRounding rounding = new TimeZoneRounding.TimeUnitRounding(unit, timezone);
         // move the random date to transition for timezones that have offset change due to dst transition
-        long nextTransition = tz.nextTransition(Math.abs(randomLong() % ((long) 10e11)));
+        long nextTransition = timezone.nextTransition(Math.abs(randomLong() % ((long) 10e11)));
         final long millisPerUnit = unit.field().getDurationField().getUnitMillis();
         // start ten units before transition
         long roundedDate = rounding.round(nextTransition - (10 * millisPerUnit));
         while (roundedDate < nextTransition + 10 * millisPerUnit) {
             long delta = rounding.nextRoundingValue(roundedDate) - roundedDate;
-            assertEquals("Difference between rounded values not equally spaced for [" + unit.name() + "], [" + timeZone + "] at "
+            assertEquals("Difference between rounded values not equally spaced for [" + unit.name() + "], [" + timezone + "] at "
                     + new DateTime(roundedDate), millisPerUnit, delta);
             roundedDate = rounding.nextRoundingValue(roundedDate);
         }

@@ -69,7 +69,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 // otherwise we could trigger exception.
                 if (createShardContext().getMapperService().fullName(DATE_FIELD_NAME) != null) {
                     if (randomBoolean()) {
-                        query.timeZone(randomTimeZone());
+                        query.timeZone(randomDateTimeZone().getID());
                     }
                     if (randomBoolean()) {
                         query.format("yyyy-MM-dd'T'HH:mm:ss.SSSZZ");

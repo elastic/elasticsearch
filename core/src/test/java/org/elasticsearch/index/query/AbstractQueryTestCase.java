@@ -903,12 +903,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return randomFrom("1", "-1", "75%", "-25%", "2<75%", "2<-25%");
     }
 
-    protected static String randomTimeZone() {
-        return randomFrom(TIMEZONE_IDS);
-    }
-
-    private static final List<String> TIMEZONE_IDS = new ArrayList<>(DateTimeZone.getAvailableIDs());
-
     private static class ClientInvocationHandler implements InvocationHandler {
         AbstractQueryTestCase<?> delegate;
 

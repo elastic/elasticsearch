@@ -214,6 +214,7 @@ public class SettingsModuleTests extends ModuleTestCase {
             SettingsModule module = new SettingsModule(settings);
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> assertInstanceBinding(module, Settings.class, (s) -> s == settings));
-            assertEquals("unknown setting [index.query.bool.max_clause_count] did you mean [indices.query.bool.max_clause_count]?", ex.getMessage());
+            assertEquals("unknown setting [index.query.bool.max_clause_count] did you mean [indices.query.bool.max_clause_count]?",
+                ex.getMessage());
     }
 }

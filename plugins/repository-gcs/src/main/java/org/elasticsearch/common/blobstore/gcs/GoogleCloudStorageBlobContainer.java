@@ -42,13 +42,7 @@ public class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     GoogleCloudStorageBlobContainer(BlobPath path, GoogleCloudStorageBlobStore blobStore) {
         super(path);
         this.blobStore = blobStore;
-
-        String keyPath = path.buildAsString("/");
-        // TODO Move this keyPath logic to the buildAsString() method
-        if (!keyPath.isEmpty()) {
-            keyPath = keyPath + "/";
-        }
-        this.path = keyPath;
+        this.path = path.buildAsString();
     }
 
     @Override

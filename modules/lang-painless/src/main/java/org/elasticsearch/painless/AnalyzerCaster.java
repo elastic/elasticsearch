@@ -633,7 +633,7 @@ public final class AnalyzerCaster {
                     case LONG:
                     case FLOAT:
                     case DOUBLE:
-                            return new Cast(actual, expected, true, true, false, false, false);
+                            return new Cast(actual, expected, explicit, true, false, false, false);
                 }
 
                 break;
@@ -649,8 +649,9 @@ public final class AnalyzerCaster {
                 break;
         }
 
-        if (expected.clazz.isAssignableFrom(actual.clazz) ||
-            ((explicit || expected.sort == Sort.DEF) && actual.clazz.isAssignableFrom(expected.clazz))) {
+        if (actual.sort == Sort.DEF || expected.sort == Sort.DEF ||
+            expected.clazz.isAssignableFrom(actual.clazz) ||
+            explicit && actual.clazz.isAssignableFrom(expected.clazz)) {
             return new Cast(actual, expected, explicit);
         } else {
             throw new ClassCastException("Error" + location + ": Cannot cast from [" + actual.name + "] to [" + expected.name + "].");

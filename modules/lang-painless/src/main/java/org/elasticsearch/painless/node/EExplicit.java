@@ -61,6 +61,7 @@ public final class EExplicit extends AExpression {
     AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
         child.expected = expected;
         child.explicit = explicit;
+        child.internal = internal;
 
         return child.cast(settings, definition, variables);
     }

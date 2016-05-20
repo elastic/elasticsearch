@@ -166,14 +166,14 @@ public class StringTests extends ScriptTestCase {
             assertEquals("cc", exec("return (String)(char)\"cc\""));
             fail();
         } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast from [String] to [char]."));
+            assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
         }
 
         try {
             assertEquals("cc", exec("return (String)(char)'cc'"));
             fail();
         } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast from [String] to [char]."));
+            assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
         }
 
         try {

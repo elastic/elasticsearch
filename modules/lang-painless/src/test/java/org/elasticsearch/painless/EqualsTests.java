@@ -94,17 +94,8 @@ public class EqualsTests extends ScriptTestCase {
     }
 
     public void testEquals() {
-        assertEquals(true, exec("return Long.valueOf(3) == 3L;"));
-        assertEquals(false, exec("return new Long(3) === new Long(3);"));
-        assertEquals(true, exec("Integer x = new Integer(3); Object y = x; return x == y;"));
-        assertEquals(true, exec("Integer x = new Integer(3); Object y = x; return x === y;"));
-        assertEquals(true, exec("Integer x = new Integer(3); Object y = new Integer(3); return x == y;"));
-        assertEquals(false, exec("Integer x = new Integer(3); Object y = new Integer(3); return x === y;"));
-        assertEquals(true, exec("Integer x = new Integer(3); int y = 3; return x == y;"));
-        assertEquals(true, exec("Integer x = new Integer(3); short y = 3; return x == y;"));
-        assertEquals(true, exec("Integer x = new Integer(3); Short y = (short)3; return x == y;"));
-        assertEquals(false, exec("Integer x = new Integer(3); int y = 3; return x === y;"));
-        assertEquals(false, exec("Integer x = new Integer(3); double y = 3; return x === y;"));
+        assertEquals(true, exec("return 3 == 3;"));
+        assertEquals(false, exec("int x = 4; int y = 5; x == y"));
         assertEquals(true, exec("int[] x = new int[1]; Object y = x; return x == y;"));
         assertEquals(true, exec("int[] x = new int[1]; Object y = x; return x === y;"));
         assertEquals(false, exec("int[] x = new int[1]; Object y = new int[1]; return x == y;"));
@@ -114,14 +105,8 @@ public class EqualsTests extends ScriptTestCase {
     }
 
     public void testNotEquals() {
-        assertEquals(false, exec("return new Long(3) != new Long(3);"));
-        assertEquals(true, exec("return new Long(3) !== new Long(3);"));
-        assertEquals(false, exec("Integer x = new Integer(3); Object y = x; return x != y;"));
-        assertEquals(false, exec("Integer x = new Integer(3); Object y = x; return x !== y;"));
-        assertEquals(false, exec("Integer x = new Integer(3); Object y = new Integer(3); return x != y;"));
-        assertEquals(true, exec("Integer x = new Integer(3); Object y = new Integer(3); return x !== y;"));
-        assertEquals(true, exec("Integer x = new Integer(3); int y = 3; return x !== y;"));
-        assertEquals(true, exec("Integer x = new Integer(3); double y = 3; return x !== y;"));
+        assertEquals(false, exec("return 3 != 3;"));
+        assertEquals(true, exec("int x = 4; int y = 5; x != y"));
         assertEquals(false, exec("int[] x = new int[1]; Object y = x; return x != y;"));
         assertEquals(false, exec("int[] x = new int[1]; Object y = x; return x !== y;"));
         assertEquals(true, exec("int[] x = new int[1]; Object y = new int[1]; return x != y;"));
@@ -131,54 +116,36 @@ public class EqualsTests extends ScriptTestCase {
     }
 
     public void testBranchEquals() {
-        assertEquals(0, exec("Character a = (char)'a'; Character b = (char)'b'; if (a == b) return 1; else return 0;"));
-        assertEquals(1, exec("Character a = (char)'a'; Character b = (char)'a'; if (a == b) return 1; else return 0;"));
-        assertEquals(0, exec("Integer a = new Integer(1); Integer b = 1; if (a === b) return 1; else return 0;"));
-        assertEquals(0, exec("Character a = (char)'a'; Character b = new Character((char)'a'); if (a === b) return 1; else return 0;"));
-        assertEquals(1, exec("Character a = (char)'a'; Object b = a; if (a === b) return 1; else return 0;"));
-        assertEquals(1, exec("Integer a = 1; Number b = a; Number c = a; if (c === b) return 1; else return 0;"));
-        assertEquals(0, exec("Integer a = 1; Character b = (char)'a'; if (a === (Object)b) return 1; else return 0;"));
+        assertEquals(0, exec("def a = (char)'a'; def b = (char)'b'; if (a == b) return 1; else return 0;"));
+        assertEquals(1, exec("def a = (char)'a'; def b = (char)'a'; if (a == b) return 1; else return 0;"));
+        assertEquals(0, exec("def a = 1; def b = 1; if (a === b) return 1; else return 0;"));
+        assertEquals(0, exec("def a = (char)'a'; def b = (char)'a'; if (a === b) return 1; else return 0;"));
+        assertEquals(1, exec("def a = (char)'a'; Object b = a; if (a === b) return 1; else return 0;"));
+        assertEquals(1, exec("def a = 1; Number b = a; Number c = a; if (c === b) return 1; else return 0;"));
+        assertEquals(0, exec("def a = 1; Object b = new HashMap(); if (a === (Object)b) return 1; else return 0;"));
     }
 
     public void testBranchNotEquals() {
-        assertEquals(1, exec("Character a = (char)'a'; Character b = (char)'b'; if (a != b) return 1; else return 0;"));
-        assertEquals(0, exec("Character a = (char)'a'; Character b = (char)'a'; if (a != b) return 1; else return 0;"));
+        assertEquals(1, exec("def a = (char)'a'; def b = (char)'b'; if (a != b) return 1; else return 0;"));
+        assertEquals(0, exec("def a = (char)'a'; def b = (char)'a'; if (a != b) return 1; else return 0;"));
         assertEquals(1, exec("def a = 1; def b = 1; if (a !== b) return 1; else return 0;"));
-        assertEquals(1, exec("def a = (char)'a'; Character b = new Character((char)'a'); if (a !== b) return 1; else return 0;"));
+        assertEquals(1, exec("def a = (char)'a'; def b = (char)'a'; if (a !== b) return 1; else return 0;"));
         assertEquals(0, exec("def a = (char)'a'; Object b = a; if (a !== b) return 1; else return 0;"));
         assertEquals(0, exec("def a = 1; Number b = a; Number c = a; if (c !== b) return 1; else return 0;"));
-        assertEquals(1, exec("def a = 1; Character b = (char)'a'; if (a !== (Object)b) return 1; else return 0;"));
+        assertEquals(1, exec("def a = 1; Object b = new HashMap(); if (a !== (Object)b) return 1; else return 0;"));
     }
 
     public void testRightHandNull() {
-        assertEquals(false, exec("Character a = (char)'a'; return a == null;"));
-        assertEquals(false, exec("Character a = (char)'a'; return a === null;"));
-        assertEquals(true, exec("Character a = (char)'a'; return a != null;"));
-        assertEquals(true, exec("Character a = (char)'a'; return a !== null;"));
-        assertEquals(true, exec("Character a = null; return a == null;"));
-        assertEquals(false, exec("Character a = null; return a != null;"));
-        assertEquals(false, exec("Character a = (char)'a'; Character b = null; return a == b;"));
-        assertEquals(true, exec("Character a = null; Character b = null; return a === b;"));
-        assertEquals(true, exec("Character a = (char)'a'; Character b = null; return a != b;"));
-        assertEquals(false, exec("Character a = null; Character b = null; return a !== b;"));
-        assertEquals(false, exec("Integer x = null; double y = 2.0; return x == y;"));
-        assertEquals(true, exec("Integer x = null; Short y = null; return x == y;"));
+        assertEquals(false, exec("HashMap a = new HashMap(); return a == null;"));
+        assertEquals(false, exec("HashMap a = new HashMap(); return a === null;"));
+        assertEquals(true, exec("HashMap a = new HashMap(); return a != null;"));
+        assertEquals(true, exec("HashMap a = new HashMap(); return a !== null;"));
     }
 
     public void testLeftHandNull() {
-        assertEquals(false, exec("Character a = (char)'a'; return null == a;"));
-        assertEquals(false, exec("Character a = (char)'a'; return null === a;"));
-        assertEquals(true, exec("Character a = (char)'a'; return null != a;"));
-        assertEquals(true, exec("Character a = (char)'a'; return null !== a;"));
-        assertEquals(true, exec("Character a = null; return null == a;"));
-        assertEquals(false, exec("Character a = null; return null != a;"));
-        assertEquals(false, exec("Character a = null; Character b = (char)'a'; return a == b;"));
-        assertEquals(true, exec("Character a = null; Character b = null; return a == b;"));
-        assertEquals(true, exec("Character a = null; Character b = null; return b === a;"));
-        assertEquals(true, exec("Character a = null; Character b = (char)'a'; return a != b;"));
-        assertEquals(false, exec("Character a = null; Character b = null; return b != a;"));
-        assertEquals(false, exec("Character a = null; Character b = null; return b !== a;"));
-        assertEquals(false, exec("Integer x = null; double y = 2.0; return y == x;"));
-        assertEquals(true, exec("Integer x = null; Short y = null; return y == x;"));
+        assertEquals(false, exec("HashMap a = new HashMap(); return null == a;"));
+        assertEquals(false, exec("HashMap a = new HashMap(); return null === a;"));
+        assertEquals(true, exec("HashMap a = new HashMap(); return null != a;"));
+        assertEquals(true, exec("HashMap a = new HashMap(); return null !== a;"));
     }
 }

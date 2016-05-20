@@ -31,6 +31,7 @@ import org.elasticsearch.painless.MethodWriter;
 
 import static org.elasticsearch.painless.WriterConstants.DEF_NEG_CALL;
 import static org.elasticsearch.painless.WriterConstants.DEF_NOT_CALL;
+import static org.elasticsearch.painless.WriterConstants.DEF_TYPE;
 
 /**
  * Represents a unary math expression.
@@ -191,7 +192,7 @@ public final class EUnary extends AExpression {
 
             if (operation == Operation.BWNOT) {
                 if (sort == Sort.DEF) {
-                    adapter.invokeStatic(definition.getType("Def").type, DEF_NOT_CALL);
+                    adapter.invokeStatic(DEF_TYPE, DEF_NOT_CALL);
                 } else {
                     if (sort == Sort.INT) {
                         adapter.push(-1);
@@ -205,7 +206,7 @@ public final class EUnary extends AExpression {
                 }
             } else if (operation == Operation.SUB) {
                 if (sort == Sort.DEF) {
-                    adapter.invokeStatic(definition.getType("Def").type, DEF_NEG_CALL);
+                    adapter.invokeStatic(DEF_TYPE, DEF_NEG_CALL);
                 } else {
                     adapter.math(MethodWriter.NEG, type);
                 }

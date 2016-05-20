@@ -22,10 +22,10 @@ package org.elasticsearch.painless;
 public class DefOperationTests extends ScriptTestCase {
     public void testIllegalCast() {
         Exception exception = expectThrows(ClassCastException.class, () -> exec("def x = 1.0; int y = x; return y;"));
-        assertTrue(exception.getMessage().contains("java.lang.double cannot be cast to java.lang.int"));
+        assertTrue(exception.getMessage().contains("cannot be cast"));
 
         exception = expectThrows(ClassCastException.class, () -> exec("def x = (short)1; byte y = x; return y;"));
-        assertTrue(exception.getMessage().contains("java.lang.short cannot be cast to java.lang.byte"));
+        assertTrue(exception.getMessage().contains("cannot be cast"));
     }
 
     public void testNot() {
@@ -799,7 +799,7 @@ public class DefOperationTests extends ScriptTestCase {
         assertEquals(false, exec("def x = (byte)7; def y = (int)7; return x === y"));
         assertEquals(false, exec("def x = (short)6; def y = (int)6; return x === y"));
         assertEquals(false, exec("def x = (char)5; def y = (int)5; return x === y"));
-        assertEquals(true, exec("def x = (int)4; def y = (int)4; return x === y"));
+        assertEquals(false, exec("def x = (int)4; def y = (int)4; return x === y"));
         assertEquals(false, exec("def x = (long)5; def y = (int)3; return x === y"));
         assertEquals(false, exec("def x = (float)6; def y = (int)2; return x === y"));
         assertEquals(false, exec("def x = (double)7; def y = (int)1; return x === y"));
@@ -837,7 +837,7 @@ public class DefOperationTests extends ScriptTestCase {
         assertEquals(true, exec("def x = (byte)7; def y = (int)7; return x !== y"));
         assertEquals(true, exec("def x = (short)6; def y = (int)6; return x !== y"));
         assertEquals(true, exec("def x = (char)5; def y = (int)5; return x !== y"));
-        assertEquals(false, exec("def x = (int)4; def y = (int)4; return x !== y"));
+        assertEquals(true, exec("def x = (int)4; def y = (int)4; return x !== y"));
         assertEquals(true, exec("def x = (long)5; def y = (int)3; return x !== y"));
         assertEquals(true, exec("def x = (float)6; def y = (int)2; return x !== y"));
         assertEquals(true, exec("def x = (double)7; def y = (int)1; return x !== y"));

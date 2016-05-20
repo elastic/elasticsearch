@@ -334,3 +334,26 @@ At search time, the document specified in the request gets parsed into a Lucene 
 temporary Lucene index. This in-memory index can just hold this one document and it is optimized for that. After this
 a special query is build based on the terms in the in-memory index that select candidate percolator queries based on
 their indexed query terms. These queries are then evaluated by the in-memory index if they actually match.
+
+The selecting of candidate percolator queries matches is an important performance optimization during the execution
+of the `percolate` query as it can significantly reduce the number of candidate matches the in-memory index need to
+evaluate. The reason the `percolate` query can do this is because during indexing of the percolator queries the query
+terms are being extracted and indexed with the percolator query. Unfortunately the percolator cannot extract terms from
+all queries (for example the `wildcard` or `geo_shape` query) and as a result of that in certain cases the percolator
+can't do the selecting optimization (for example if an unsupported query is defined in a required clause of a boolean query
+or the unsupported query is the only query in the percolator document).  These queries are marked by the percolator and
+can be found by running the following search:
+
+[source,js]
+--------------------------------------------------
+curl -XGET "http://localhost:9200/_search" -d'
+{
+  "query": {
+    "term" : {
+      "query.unknown_query" : ""
+    }
+  }
+}'
+--------------------------------------------------
+
+NOTE: The above example assumes that there is a `query` field of type `percolator` in the mappings.
